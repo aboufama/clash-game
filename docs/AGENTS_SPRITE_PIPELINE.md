@@ -255,19 +255,51 @@ renderers (villages + wilderness, at `1.35 × SNAP` cells). World-anchored
 grids are CORRECT here — these layers never move relative to the world, so
 they pan rigidly.
 
-**Per-frame dynamic layers** — the third tier (`src/game/render/PixelSnap.ts`)
-— get the old shader's exact math as a PER-LAYER post pass: rain + splashes,
-fireflies/night glow, the living cloud edge + deep bank, the between-plot
-road/wilderness layer, stone lanes, village-life figures (villagers, dogs,
-chickens, merchant + stall), road travellers, the war caravan, postcard life,
-all five particle emitters, and the in-world overlays (selection ring, ghost,
-deploy zones). These redraw every frame, so they cannot pre-bake — one
-full-frame pass per LAYER (bounded: layers, not objects) keeps literally every
-non-UI pixel in the same 1.35-cell world. Kill switch:
-`localStorage['clash.pixelsnap.off'] = '1'`. Camp figures and troop spawn
-frames instead reuse the baked TROOP sprites via `SpriteBank.syncLooseTroop`
-(same frames as battle); walls carry their baked ground decal as a second
-shadow (they never enter the ground bake).
+**Per-frame dynamic layers** have NO snapping pass. The per-layer `PixelSnap`
+PostFX pass is removed for good — never recreate it, and never add another
+snapping post pass. Two tiers remain: **baked sprites** (object-anchored
+texels) and the **one-time RT quantize** for world-glued layers. Layers that
+still redraw as live vectors every frame — rain + splashes, fireflies/night
+glow, the living cloud edge + deep bank, the between-plot road/wilderness
+layer, stone lanes, village-life figures (villagers, dogs, chickens,
+merchant + stall), road travellers, the war caravan, and postcard life —
+render SMOOTH until their bake lands; migration step 5 below is that path
+(weather and additive night glows may stay smooth by design). The in-world
+overlays (selection ring, ghost, deploy zones) are intentionally smooth UI
+feedback and never get a bake. The five particle
+emitters already crossed over: they emit chunky NEAREST textures. Camp
+figures and troop spawn frames reuse the baked TROOP sprites via
+`SpriteBank.syncLooseTroop` (same frames as battle); walls carry their baked
+ground decal as a second shadow (they never enter the ground bake).
+
+Kill switches: `localStorage['clash.sprites.off'] = '1'` (vectors wholesale)
+stays; `clash.pixelsnap.off` is gone with the pass; sampling is now chosen by
+`clash.pixelmode` (below).
+
+### The PixelMode sampling contract (`src/game/renderers/TextureRenderPolicy.ts`)
+
+How baked pixel surfaces are sampled is a per-texture, runtime-switchable
+contract — never a global renderer setting:
+
+- **Modes** — `'legacy'` (LINEAR everywhere, the pre-fix baseline),
+  `'nearest'` (default: every registered surface samples NEAREST), `'snap'`
+  (`nearest` plus post-gesture zoom settling).
+- **Selection** — `?pixelMode=` query param (persisted) >
+  `localStorage['clash.pixelmode']` > default `'nearest'`.
+  `window.__pixelMode('legacy'|'nearest'|'snap')` switches live, re-filtering
+  registered textures without a reload.
+- **`registerPixelSurface(texture)`** is the single opt-in boundary: bank
+  atlases, the ground RT, postcard RTs, and chunky particle textures register
+  there; the active mode's filter is applied immediately and re-applied on
+  every mode switch. (`applyPixelArtManifestFrame` handles the per-frame
+  anchor/scale side and routes through the same boundary.)
+- **`settleLogicalZoom(logicalZoom, renderScale)`** — in `'snap'` mode the
+  camera eases after each wheel/pinch gesture to the nearest zoom where one
+  baked texel (`BAKE_CELL_WORLD_PX = 1.35` world px) covers a whole number of
+  backing pixels, keeping texel columns even.
+- **The rule:** never restore global pixel-art mode (`pixelArt` /
+  `roundPixels`), and never add a snapping post pass — crispness comes from
+  per-texture sampling of baked assets only.
 
 ## Migration order (each step shippable)
 
@@ -278,7 +310,9 @@ shadow (they never enter the ground bake).
    reload, fill stages, doors, gates, jukebox, ambient-loop discovery,
    state-read audit, vapor off, troop breath loops, golem/phalanx driver
    attacks, tank deactivated pose, wrecks, obstacles (16 hash-bucket
-   variants + sway loops), alpha snap. ~8,200 frames / ~49 MB with atlases.
+   variants + sway loops), alpha snap. 9,684 frames across 57 manifests
+   (19 buildings, 14 troops, 19 wrecks, 5 obstacles) — enforced by
+   `scripts/render-quality-regression.mjs`.
 4. ✅ **Runtime conversion live**: SpriteBank + shadow-sprite integration for
    buildings (incl. walls/gates via topology tags), troops, wrecks,
    obstacles; ground-RT + postcard-RT quantize passes. Verified headful in
@@ -287,7 +321,10 @@ shadow (they never enter the ground bake).
    travellers (VillageLifeSystem — same bake pattern as troops), the
    between-plot road/wilderness gap layer (chunked RT quantize), cloud puffs
    as sprites, projectiles/impacts/patina/burning-wreck FX as the runtime
-   effects layer (the "smoke bucket"), battle-preview figures.
+   effects layer (the "smoke bucket"), battle-preview figures. This step
+   covers most — not all — of the layers that render smooth since the snap
+   pass was removed: rain/splashes stay runtime FX per the coverage matrix,
+   night glows and the interaction overlays stay smooth by design.
 6. Delete migrated vector bodies from the client bundle; keep them as
    bake-only authoring modules. Bump `RENDER_VERSION`s +
    `BOT_WORLD_GENERATION_VERSION` when postcard content changes.

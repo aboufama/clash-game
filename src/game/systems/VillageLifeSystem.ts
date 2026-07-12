@@ -20,7 +20,6 @@ import { gameManager } from '../GameManager';
 import { soundSystem } from './SoundSystem';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { SpriteBank } from '../render/SpriteBank';
-import { applyPixelSnap } from '../render/PixelSnap';
 
 /**
  * Ambient village life: villagers, dogs and chickens that wander the base
@@ -1230,8 +1229,6 @@ export class VillageLifeSystem {
     private drawMerchant(time: number, moving: boolean, building = false) {
         const m = this.merchant;
         if (!m) return;
-        applyPixelSnap(this.scene, m.gfx);
-        applyPixelSnap(this.scene, m.stallGfx);
         const g = m.gfx;
         g.clear();
         g.setScale(m.facing === -1 ? -0.85 : 0.85, 0.85);
@@ -3232,9 +3229,8 @@ export class VillageLifeSystem {
 
     private drawEntity(e: LifeEntity, time: number, moving: boolean) {
         const g = e.gfx;
-        // Villagers, dogs, chickens, children — per-frame vector figures get
-        // the pixel-snap layer pass until their own sprite bake lands.
-        applyPixelSnap(this.scene, g);
+        // Villagers, dogs, chickens, children stay per-frame vector figures
+        // until their own sprite bake lands.
         g.clear();
         const scale =
             e.kind === 'villager' ? (e.child ? 0.55 : 0.8) :
@@ -4706,8 +4702,8 @@ export class VillageLifeSystem {
             this.stoneGfx = this.scene.add.graphics();
             this.stoneGfx.setDepth(2.5); // above the baked ground, under everything alive
             // Cobbled lanes live outside the ground RT (they mature live) —
-            // the pixel-snap layer pass keeps the stones in the pixel world.
-            applyPixelSnap(this.scene, this.stoneGfx);
+            // a candidate for a one-time RT quantize follow-up, matching the
+            // ground bake model.
         }
         const g = this.stoneGfx;
         g.clear();

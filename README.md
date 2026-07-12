@@ -2,8 +2,9 @@
 
 An isometric shared-world base builder: React owns the UI, Phaser renders the
 world, and a Node server owns accounts, villages, the economy, world plots,
-attacks, and replays. Building and troop art is hand-drawn vector code—there
-are no sprite sheets.
+attacks, and replays. Building and troop art is authored as hand-drawn vector
+code and baked into committed pixel-art sprite sheets that the game renders
+from (see [`docs/AGENTS_SPRITE_PIPELINE.md`](docs/AGENTS_SPRITE_PIPELINE.md)).
 
 ## Local development
 
@@ -62,9 +63,10 @@ For an existing JSON world, follow the sealed materialize → validate → impor
   boundaries. Offline players consume no background tick. Public snapshots
   carry exact buildings and resident manifests; clients derive identical
   motion from stable identity and server-corrected wall time.
-- **World rendering** — nearby player villages use full-resolution vector
-  postcards, including grass, stone paths, and full villager art. Only GPU
-  residency is reduced offscreen; player art is never downsampled.
+- **World rendering** — nearby player villages use full-resolution postcards
+  (vector-drawn, quantized once to the 1.35-px bake texel grid), including
+  grass, stone paths, and full villager art. Only GPU residency is reduced
+  offscreen; player art is never further downsampled.
 - **Attacks** — neighbor, direct, matchmade, revenge, and bot targets all enter
   one `AttackAggregate`. The first deploy revalidates the exact map plot and
   obtains the defender lease. Sequenced commands drive deterministic server

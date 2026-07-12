@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { MobileUtils } from '../utils/MobileUtils';
-import { applyPixelSnap } from '../render/PixelSnap';
+import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
 
 const TRACKER_DEPTH_BAND = 64;
 const MIN_TRACKER_DEPTH = 0;
@@ -47,31 +47,67 @@ export class ParticleManager {
     }
 
     private generateTextures() {
+        // Canvas textures with integer 2px-block fills — Graphics.fillCircle
+        // would re-introduce AA, which NEAREST sampling (registerPixelSurface)
+        // turns into fringing. Same 16x16 logical size so emitter scale
+        // ranges keep their world size.
+        const SIZE = 16;
+        const BLOCK = 2;
+
         if (!this.scene.textures.exists('particle_circle')) {
-            const g = this.scene.add.graphics();
-            g.fillStyle(0xffffff, 1);
-            g.fillCircle(8, 8, 8);
-            g.generateTexture('particle_circle', 16, 16);
-            g.destroy();
+            const canvas = this.scene.textures.createCanvas('particle_circle', SIZE, SIZE);
+            if (canvas) {
+                const ctx = canvas.getContext();
+                ctx.fillStyle = '#ffffff';
+                // Classic 8-block pixel circle: per-row [startBlock, blockWidth].
+                const rows: [number, number][] = [
+                    [2, 4], [1, 6], [0, 8], [0, 8], [0, 8], [0, 8], [1, 6], [2, 4]
+                ];
+                rows.forEach(([start, width], by) => {
+                    ctx.fillRect(start * BLOCK, by * BLOCK, width * BLOCK, BLOCK);
+                });
+                canvas.refresh();
+                registerPixelSurface(canvas);
+            }
         }
 
         if (!this.scene.textures.exists('particle_square')) {
-            const g = this.scene.add.graphics();
-            g.fillStyle(0xffffff, 1);
-            g.fillRect(0, 0, 16, 16);
-            g.generateTexture('particle_square', 16, 16);
-            g.destroy();
+            const canvas = this.scene.textures.createCanvas('particle_square', SIZE, SIZE);
+            if (canvas) {
+                const ctx = canvas.getContext();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, SIZE, SIZE);
+                canvas.refresh();
+                registerPixelSurface(canvas);
+            }
         }
-        
+
         if (!this.scene.textures.exists('particle_glow')) {
-             const g = this.scene.add.graphics();
-             // Simple radial gradient for glow
-             for(let r=8; r>0; r--) {
-                 g.fillStyle(0xffffff, r/8);
-                 g.fillCircle(8, 8, r);
-             }
-             g.generateTexture('particle_glow', 16, 16);
-             g.destroy();
+            const canvas = this.scene.textures.createCanvas('particle_glow', SIZE, SIZE);
+            if (canvas) {
+                const ctx = canvas.getContext();
+                // Stepped rings, checkerboard-dithered between discrete alpha
+                // levels (1 / 0.5 / 0) — a smooth gradient would read as mush
+                // under NEAREST. Still glows under ADD blend.
+                const blocks = SIZE / BLOCK;
+                const center = (blocks - 1) / 2;
+                for (let by = 0; by < blocks; by++) {
+                    for (let bx = 0; bx < blocks; bx++) {
+                        const d = Math.hypot(bx - center, by - center);
+                        const checker = (bx + by) % 2 === 0;
+                        let alpha = 0;
+                        if (d <= 1.75) alpha = 1;                       // solid core
+                        else if (d <= 2.75) alpha = checker ? 1 : 0.5;  // full/half dither
+                        else if (d <= 3.75) alpha = checker ? 0.5 : 0;  // half/off dither
+                        if (alpha > 0) {
+                            ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+                            ctx.fillRect(bx * BLOCK, by * BLOCK, BLOCK, BLOCK);
+                        }
+                    }
+                }
+                canvas.refresh();
+                registerPixelSurface(canvas);
+            }
         }
     }
 
@@ -142,13 +178,6 @@ export class ParticleManager {
             blendMode: 'NORMAL'
         });
         this.debrisEmitter.setDepth(20000);
-
-        // Every particle system is per-frame dynamic FX — the pixel-snap
-        // layer pass keeps smoke, fire, sparks, dust and debris in the
-        // baked pixel world (one pass per emitter, five total).
-        for (const emitter of [this.smokeEmitter, this.fireEmitter, this.sparkEmitter, this.dustEmitter, this.debrisEmitter]) {
-            if (emitter) applyPixelSnap(this.scene, emitter);
-        }
     }
 
     // =========================================================================
@@ -190,7 +219,6 @@ export class ParticleManager {
             blendMode: 'NORMAL'
         });
         emitter.setDepth(band);
-        applyPixelSnap(this.scene, emitter);
         this.trackerSmokeEmitters.set(band, emitter);
         return emitter;
     }

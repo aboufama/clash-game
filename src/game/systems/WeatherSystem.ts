@@ -5,7 +5,6 @@ import { DayNightSystem } from './DayNightSystem';
 import { WIND_DIR, setWindBoost, windAtScreen } from './Wind';
 import { soundSystem } from './SoundSystem';
 import { toLogicalZoom } from '../utils/DisplayResolution';
-import { applyPixelSnap } from '../render/PixelSnap';
 import { IsoUtils } from '../utils/IsoUtils';
 
 /**
@@ -89,11 +88,8 @@ export class WeatherSystem {
         this.rainGfx = scene.add.graphics().setDepth(30006);
         this.groundGfx = scene.add.graphics().setDepth(6);
         this.farGroundGfx = scene.add.graphics().setDepth(27_600);
-        // Rain streaks and splashes are per-frame vector FX — the pixel-snap
-        // layer pass keeps them in the baked pixel world.
-        applyPixelSnap(scene, this.rainGfx);
-        applyPixelSnap(scene, this.groundGfx);
-        applyPixelSnap(scene, this.farGroundGfx);
+        // Rain streaks and splashes stay code-drawn smooth FX — the sprite
+        // pipeline keeps weather as runtime effects (optional spritify later).
     }
 
     /** Pin the weather for screenshots/tests; null resumes the world clock. */

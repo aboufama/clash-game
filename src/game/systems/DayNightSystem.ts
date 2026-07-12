@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitions';
 import type { PlacedBuilding } from '../types/GameTypes';
 import { IsoUtils } from '../utils/IsoUtils';
-import { applyPixelSnap } from '../render/PixelSnap';
 
 /**
  * Day/night cycle — the village's mood lighting.
@@ -212,8 +211,7 @@ export class DayNightSystem {
         // Fireflies, moths and festival glow — redrawn each frame, zero churn.
         this.nightLifeGfx = scene.add.graphics().setDepth(30004);
         this.nightLifeGfx.setBlendMode(Phaser.BlendModes.ADD);
-        // Night life is per-frame vector FX → pixel-snap layer pass.
-        applyPixelSnap(scene, this.nightLifeGfx);
+        // Additive night glows render smooth by design.
     }
 
     /** Pin the day clock to a phase (0..1) for tests/screenshots; null resumes real time. */

@@ -32,7 +32,7 @@ import {
     wildernessPlotPresentationSeed
 } from '../renderers/WorldNatureSeed';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
-import { applyTextureSampling, TextureSampling } from '../renderers/TextureRenderPolicy';
+import { applyTextureSampling, registerPixelSurface, TextureSampling } from '../renderers/TextureRenderPolicy';
 import { windSway } from './Wind';
 import { hashString, isWildernessPreserveAt, watchtowerSightOf } from '../config/Economy';
 import {
@@ -43,7 +43,6 @@ import {
 } from '../config/WorldHydrology';
 import { depthForBuilding, depthForObstacle } from './DepthSystem';
 import { SpriteBank } from '../render/SpriteBank';
-import { applyPixelSnap } from '../render/PixelSnap';
 import {
     buildWildernessTopology,
     classifyJoinedWildernessGapTap,
@@ -875,7 +874,8 @@ export class WorldMapSystem {
     private updateCaravan(time: number) {
         const c = this.caravan;
         if (!c) return;
-        applyPixelSnap(this.scene, c.gfx); // marching column + camp are vector figures
+        // Marching column + camp are per-frame vector figures: smooth until
+        // their sprite bake lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
         // Any other transition (cloud raid, replay) cancels the march — but a
         // caravan that has ARRIVED is mid-handover to the battle: leave it be.
         if (this.scene.mode !== 'HOME' && !c.arriving) {
@@ -1241,7 +1241,8 @@ export class WorldMapSystem {
     }
 
     private drawTraveller(trav: { kind: string; x: number; y: number; tx: number; ty: number; gfx: Phaser.GameObjects.Graphics; seed: number; state: string }, time: number) {
-        applyPixelSnap(this.scene, trav.gfx); // road walkers are per-frame vector figures
+        // Road walkers are per-frame vector figures: smooth until their
+        // sprite bake lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
         const pos = IsoUtils.cartToIso(trav.x, trav.y);
         const wv = this.scene.cameras.main.worldView;
         const g = trav.gfx;
@@ -1951,10 +1952,10 @@ export class WorldMapSystem {
 
         view.rt?.destroy();
         const rt = this.scene.add.renderTexture(bx, by, Math.ceil(bw * SNAP), Math.ceil(bh * SNAP));
-        // Village postcards cache authored vector art at full resolution. Keep
-        // them smooth through fractional camera zoom; wilderness deliberately
-        // opts into NEAREST above for seam-safe rasterized shorelines.
-        applyTextureSampling(rt.texture, TextureSampling.SMOOTH);
+        // The postcard quantizes into 1.35-px cells below, so it joins the
+        // shared PixelMode contract: NEAREST outside legacy mode, re-applied
+        // live on mode switch.
+        registerPixelSurface(rt.texture);
         rt.setOrigin(0, 0);
         rt.setScale(1 / SNAP);
         g.setScale(SNAP);
@@ -2623,9 +2624,8 @@ export class WorldMapSystem {
                 if (rand() < 0.55) post(a - 0.4, c0 - 0.4, true);
             }
         }
-        // Roads, gap grass and every roadside prop are vector — the
-        // pixel-snap layer pass keeps the whole between-plot world pixelated.
-        applyPixelSnap(this.scene, g);
+        // Roads, gap grass and every roadside prop are vector. Built once,
+        // so a one-time RT quantize (as the postcards do) is the follow-up.
         this.wilderness = g;
     }
 
@@ -3051,8 +3051,9 @@ export class WorldMapSystem {
                     continue;
                 }
                 if (!view.life) {
+                    // Per-frame vector life: smooth until its sprite bake
+                    // lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
                     view.life = this.scene.add.graphics();
-                    applyPixelSnap(this.scene, view.life);
                 }
                 const hydrologyLife = String(view.renderedRevision).includes('_hydroart_');
                 view.life.setDepth(hydrologyLife ? 27_501 : view.rt.depth + 1);
@@ -3295,7 +3296,8 @@ export class WorldMapSystem {
                 }
             }
         }
-        applyPixelSnap(this.scene, g); // the deep cloud bank pixelates too
+        // Deep cloud bank is built once — candidate for a one-time RT
+        // quantize as follow-up.
         this.fogStatic = g;
     }
 
@@ -3311,9 +3313,10 @@ export class WorldMapSystem {
         if (time < this.nextFogEdgeAt) return;
         this.nextFogEdgeAt = time + 66;
         if (!this.fogEdge) {
+            // Living rampart is per-frame vector: smooth until its sprite
+            // bake lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
             this.fogEdge = this.scene.add.graphics();
             this.fogEdge.setDepth(28_502);
-            applyPixelSnap(this.scene, this.fogEdge); // living cloud rampart
         }
         const g = this.fogEdge;
         g.clear();

@@ -128,7 +128,11 @@ export class SceneInputController {
         const touchDuration = Date.now() - this.touchStartTime;
 
         if (e.touches.length < 2) {
-            this.isPinching = false;
+            if (this.isPinching) {
+                this.isPinching = false;
+                // Once per pinch, when the second touch lifts (no-op outside 'snap' mode)
+                this.scene.settleZoomAfterGesture();
+            }
             this.lastPinchCenter = null;
         }
 
@@ -144,6 +148,7 @@ export class SceneInputController {
                 } else {
                     camera.setZoom(toBackingZoom(Math.min(MobileUtils.getMaxZoom(), defaultZoom + 0.6)));
                 }
+                this.scene.settleZoomAfterGesture();
                 this.lastTapTime = 0; // Reset to prevent triple tap
             } else {
                 this.lastTapTime = now;

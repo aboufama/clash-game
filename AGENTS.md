@@ -2,7 +2,8 @@
 
 Isometric base-builder (Clash of Clans-like). React + Phaser 3 client, Node
 game server in `server/` (device-token auth, atomic JSON saves, instant
-replays). All building art is hand-drawn vector graphics — no sprite sheets.
+replays). Building/troop art is authored as hand-drawn vector code and baked
+into committed pixel-art sprite sheets (see the rework below).
 
 ## Read before working
 
@@ -36,18 +37,21 @@ replaced by **baked pixel-art assets** — buildings become static sprites,
 defenses and troops become sprite sheets (one frame per angle + animation).
 
 - **DONE — the runtime `Pixelate` post-FX filter is removed** (it lived on the
-  MainScene camera). `GameConfig` still sets `pixelArt:true` / `antialias:false`
-  / `roundPixels:true`, so every texture still samples NEAREST; art now renders
-  at native vector fidelity with no runtime snap-to-cell. The tuning slider
-  (AccountModal) and debug toggle went with it.
-- **DONE — the bake pipeline exists and the FULL ROSTER is baked** (4,608
-  frames, ~21 MB): every non-generic building × every level (turrets at
-  **16 aim angles**, CoC-style; walls × 16 neighbor topologies) and every
-  troop × 3 levels × both owner palettes × 8/1 directions ×
-  idle/walk/attack frames. Vector code stays the authoring source;
-  `tools/art-preview/bake-sprites.mjs` (via `src/game/dev/BakeBridge.ts`)
-  quantizes it into committed frames under `public/assets/sprites/`
-  (`buildings/<type>/`, `troops/<type>/`, each with a `manifest.json`).
+  MainScene camera). `GameConfig` renders smooth: `antialias:true` /
+  `antialiasGL:true` / `pixelArt:false` / `roundPixels:false`; baked pixel
+  textures opt into NEAREST per-texture via `TextureRenderPolicy`
+  (`registerPixelSurface`). The tuning slider (AccountModal) and debug toggle
+  went with it.
+- **DONE — the bake pipeline exists and the FULL ROSTER is baked** (9,684
+  frames across 57 manifests, enforced by
+  `scripts/render-quality-regression.mjs`): every non-generic building ×
+  every level (turrets at **16 aim angles**, CoC-style; walls × 16 neighbor
+  topologies), every troop × 3 levels × both owner palettes × 8/1
+  directions × idle/walk/attack frames, plus wrecks and obstacles. Vector
+  code stays the authoring source; `tools/art-preview/bake-sprites.mjs`
+  (via `src/game/dev/BakeBridge.ts`) quantizes it into committed frames
+  under `public/assets/sprites/` (`buildings/<type>/`, `troops/<type>/`,
+  `wrecks/<type>/`, `obstacles/<type>/`, each with a `manifest.json`).
 - **DONE — the runtime conversion is LIVE** (`src/game/render/SpriteBank.ts`):
   buildings (walls/gates included), troops, wrecks and obstacles render from
   baked atlases via shadow sprites; the ground bake and neighbour postcards
@@ -58,15 +62,18 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   Proxy state-read audit self-heals coverage (caught mortar/spike aiming +
   lab/barracks doors), ambient motion is discovered by autocorrelation, and
   alpha-snapping keeps silhouettes hard.
-- **DONE — the third tier covers every per-frame layer**
-  (`src/game/render/PixelSnap.ts`): rain/splashes, fireflies, clouds (bank +
-  living edge), the between-plot road layer, stone lanes, village-life
-  figures, travellers, the war caravan, postcard life, particles, and the
-  in-world overlays all run the old shader's math as a per-LAYER post pass
-  (kill switch `clash.pixelsnap.off`). Camp figures + troop spawns reuse the
-  baked troop sprites; walls carry their baked ground decal as a second
-  shadow. Three tiers total: baked sprites (units) · one-time RT quantize
-  (ground, postcards) · per-layer snap (dynamic FX/life).
+- **REMOVED — the per-layer `PixelSnap` post pass** (never recreate it, or
+  any other snapping pass). Crispness is the **PixelMode sampling contract**
+  (`src/game/renderers/TextureRenderPolicy.ts`): modes `legacy`/`nearest`/
+  `snap` selected by `?pixelMode=` > `localStorage['clash.pixelmode']` >
+  default `nearest` (live handle `window.__pixelMode`);
+  `registerPixelSurface` is the single NEAREST opt-in boundary;
+  `settleLogicalZoom` gives pixel-perfect zoom in `snap` mode. Particle
+  emitters now emit chunky NEAREST textures. Layers rendering SMOOTH until
+  their bake lands: villagers/animals, travellers, the war caravan, the
+  merchant, rain/splashes, fireflies, cloud bank + fog edge, postcard life,
+  stone lanes. Two tiers total: baked sprites (units) · one-time RT quantize
+  (ground, postcards).
 - The vector draw functions remain in the bundle as the AUTHORING source and
   per-unit fallback. Iron rules still govern them — they are what gets baked.
   See `docs/AGENTS_SPRITE_PIPELINE.md` for the full architecture and the

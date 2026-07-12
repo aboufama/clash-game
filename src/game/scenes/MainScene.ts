@@ -14,7 +14,7 @@ import { DefenseSystem } from '../systems/DefenseSystem';
 import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
 import { depthForBuilding, depthForGroundPlane, depthForObstacle, depthForRubble, depthForTroop } from '../systems/DepthSystem';
 import { IsoUtils, TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
-import { cameraCssHeight, cameraCssWidth, toBackingZoom, toLogicalZoom } from '../utils/DisplayResolution';
+import { cameraCssHeight, cameraCssWidth, getRenderScale, toBackingZoom, toLogicalZoom } from '../utils/DisplayResolution';
 import { MobileUtils } from '../utils/MobileUtils';
 import { Auth } from '../backend/Auth';
 import { gameManager } from '../GameManager';
@@ -35,7 +35,7 @@ import type { GameMode } from '../types/GameMode';
 import { SceneInputController } from './controllers/SceneInputController';
 import { installBakeBridge } from '../dev/BakeBridge';
 import { SpriteBank } from '../render/SpriteBank';
-import { applyPixelSnap } from '../render/PixelSnap';
+import { installPixelModeHandle, registerPixelSurface, settleLogicalZoom, zoomSettleEnabled } from '../renderers/TextureRenderPolicy';
 
 const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
@@ -127,6 +127,9 @@ export class MainScene extends Phaser.Scene {
     public dragStartScreen: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
     public hoverGrid: Phaser.Math.Vector2 = new Phaser.Math.Vector2(-100, -100);
     public preferredWallLevel = 1;
+    // 'snap' mode post-gesture zoom settle: debounce timer + the easing tween.
+    private zoomSettleTimer: Phaser.Time.TimerEvent | null = null;
+    private zoomSettleTween: Phaser.Tweens.Tween | null = null;
 
     public mode: GameMode = 'HOME';
     public isScouting = false;
@@ -397,8 +400,11 @@ export class MainScene extends Phaser.Scene {
     create() {
         this.cameras.main.setBackgroundColor('#141824'); // Deep midnight navy background
 
-        // Set default zoom based on device
-        const defaultZoom = MobileUtils.getDefaultZoom();
+        // Set default zoom based on device. In 'snap' mode the boot zoom must
+        // already put one baked texel on a whole number of backing pixels.
+        const defaultZoom = zoomSettleEnabled()
+            ? settleLogicalZoom(MobileUtils.getDefaultZoom(), getRenderScale())
+            : MobileUtils.getDefaultZoom();
         this.cameras.main.setZoom(toBackingZoom(defaultZoom));
 
         this.scale.on('resize', () => {
@@ -448,16 +454,23 @@ export class MainScene extends Phaser.Scene {
         });
 
         installBakeBridge(this);
+        installPixelModeHandle();
         // Baked sprite atlases (buildings/troops/wrecks/obstacles) — loads in
         // the background; until ready every draw falls back to vector.
         SpriteBank.init(this);
 
         this.inputController = new SceneInputController(this);
-        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.inputController.onPointerDown(pointer));
+        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            // A new gesture owns the camera; a pending settle re-arms and
+            // waits the gesture out instead of being dropped.
+            if (this.zoomSettleTimer || this.zoomSettleTween) this.settleZoomAfterGesture();
+            this.inputController.onPointerDown(pointer);
+        });
         this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.inputController.onPointerMove(pointer));
         this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.inputController.onPointerUp(pointer));
 
         this.input.on('wheel', (pointer: Phaser.Input.Pointer, _gameObjects: any, _deltaX: number, deltaY: number, _deltaZ: number) => {
+            this.cancelPendingZoomSettle();
             const camera = this.cameras.main;
             const maxZoom = MobileUtils.getMaxZoom();
 
@@ -493,6 +506,8 @@ export class MainScene extends Phaser.Scene {
             // newScrollX = worldX - (screenX - viewportCenterX) / newZoom
             camera.scrollX = worldX - (screenX - viewportCenterX) / newBackingZoom;
             camera.scrollY = worldY - (screenY - viewportCenterY) / newBackingZoom;
+
+            this.settleZoomAfterGesture();
         });
 
         const onAttackInvalidated = (event: Event) => {
@@ -580,12 +595,8 @@ export class MainScene extends Phaser.Scene {
         this.forbiddenGraphics.setDepth(5);
         this.forbiddenGraphics.setVisible(false);
 
-        // In-world overlays (selection ring, placement ghost, deploy zones)
-        // ride the same pixel-snap pass as the rest of the non-UI world.
-        applyPixelSnap(this, this.selectionGraphics);
-        applyPixelSnap(this, this.ghostBuilding);
-        applyPixelSnap(this, this.deploymentGraphics);
-        applyPixelSnap(this, this.forbiddenGraphics);
+        // Interaction overlays (selection ring, placement ghost, deploy zones)
+        // are intentionally smooth UI feedback — never pixel-snapped.
 
         if (this.input.keyboard) {
             this.cursorKeys = this.input.keyboard.createCursorKeys();
@@ -648,6 +659,51 @@ export class MainScene extends Phaser.Scene {
             cameraCssHeight(camera) / (span * TILE_HEIGHT + CLOUD_HEADROOM)
         );
         return Phaser.Math.Clamp(fit, MobileUtils.getMinZoom(), MobileUtils.getDefaultZoom() * 0.92);
+    }
+
+    private cancelPendingZoomSettle() {
+        this.zoomSettleTimer?.remove(false);
+        this.zoomSettleTimer = null;
+        this.zoomSettleTween?.stop();
+        this.zoomSettleTween = null;
+    }
+
+    /**
+     * 'snap' mode only: after a wheel/pinch gesture, ease the camera to the
+     * nearest zoom where one baked texel spans a whole number of backing
+     * pixels (settleLogicalZoom), so texel columns stay even. Debounced —
+     * a gesture burst settles once. Called from the wheel handler here and
+     * by SceneInputController when a pinch ends.
+     */
+    public settleZoomAfterGesture() {
+        if (!zoomSettleEnabled()) return;
+        this.cancelPendingZoomSettle();
+        this.zoomSettleTimer = this.time.delayedCall(180, () => {
+            this.zoomSettleTimer = null;
+            // A live gesture still owns the camera — wait it out.
+            if (this.inputController?.isPinchGesture() || this.input.activePointer.isDown) {
+                this.settleZoomAfterGesture();
+                return;
+            }
+            const camera = this.cameras.main;
+            const currentZoom = toLogicalZoom(camera.zoom);
+            // Mirror the gesture handlers: a camera legitimately parked below
+            // the gesture floor (watchtower world view) is never yanked up.
+            if (currentZoom < this.minGestureZoom()) return;
+            const target = Phaser.Math.Clamp(
+                settleLogicalZoom(currentZoom, getRenderScale()),
+                this.minGestureZoom(),
+                MobileUtils.getMaxZoom()
+            );
+            if (Math.abs(target - currentZoom) <= 0.0005) return;
+            this.zoomSettleTween = this.tweens.add({
+                targets: camera,
+                zoom: toBackingZoom(target),
+                duration: 120,
+                ease: 'Sine.easeOut',
+                onComplete: () => { this.zoomSettleTween = null; }
+            });
+        });
     }
 
     /**
@@ -1381,6 +1437,8 @@ export class MainScene extends Phaser.Scene {
         // Initialize Ground Render Texture
         // 2000x1200 covers the map range (-800 to 800 X, 0 to 800 Y) with padding
         this.groundRenderTexture = this.add.renderTexture(-this.RT_OFFSET_X, -this.RT_OFFSET_Y, 2000, 1500);
+        // Baked surface: sampling (NEAREST vs legacy LINEAR) follows the pixel mode.
+        registerPixelSurface(this.groundRenderTexture.texture);
         this.groundRenderTexture.setDepth(depthForGroundPlane());
         this.groundRenderTexture.setOrigin(0, 0);
 
@@ -1927,6 +1985,7 @@ export class MainScene extends Phaser.Scene {
     public prepareGroundBake(paletteKey: string) {
         this.pendingGroundRT?.destroy();
         this.pendingGroundRT = this.add.renderTexture(-this.RT_OFFSET_X, -this.RT_OFFSET_Y, 2000, 1500);
+        registerPixelSurface(this.pendingGroundRT.texture); // same pixel-mode contract as the live ground RT
         this.pendingGroundRT.setDepth(depthForGroundPlane());
         this.pendingGroundRT.setOrigin(0, 0);
         this.pendingGroundRT.setVisible(false);

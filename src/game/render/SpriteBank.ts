@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
 import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitions';
+import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
 
 /**
  * SpriteBank — the runtime half of the bake pipeline
@@ -21,6 +22,9 @@ import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitio
  *    facingAngle; walk phase from the troop's real stride
  *  - ambient idle loops replay at the measured period (global time-synced,
  *    exactly like the old per-frame vector animation)
+ *
+ * Atlas sampling is governed by TextureRenderPolicy's PixelMode: every
+ * 'bank:*' texture is registered as a pixel surface (NEAREST outside legacy).
  *
  * Kill switch: localStorage 'clash.sprites.off' = '1' falls back to vectors.
  */
@@ -117,6 +121,8 @@ class SpriteBankImpl {
                         const atlasKey = `bank:${u.kind}:${u.unit}`;
                         const manifest = scene.cache.json.get(`${atlasKey}:man`);
                         if (!manifest || !scene.textures.exists(atlasKey)) continue;
+                        // Baked atlases must follow the active PixelMode (NEAREST outside legacy).
+                        registerPixelSurface(scene.textures.get(atlasKey));
                         this.units.set(`${u.kind}:${u.unit}`, { kind: u.kind, unit: u.unit, atlasKey, manifest });
                     }
                     this.ready = this.units.size > 0;
