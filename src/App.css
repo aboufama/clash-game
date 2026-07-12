@@ -3,8 +3,9 @@
    Medieval/Fantasy RPG Style Interface
    ============================================ */
 
-/* Import pixelated retro font */
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+/* Import the pixel font: Pixelify Sans — pixel-styled but round and readable,
+   with real weights, unlike the old Press Start 2P brick. */
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap');
 
 /* Import game icon registry */
 @import url('./icons/index.css');
@@ -13,6 +14,9 @@
 @import url('./InfoPanel.css');
 
 :root {
+    /* One font for all game text: slightly pixelated, still readable. */
+    --ui-font: 'Pixelify Sans', 'Trebuchet MS', system-ui, sans-serif;
+
     /* Fantasy Color Palette */
     --ui-gold: #FFD700;
     /* Classic Gold for UI */
@@ -43,18 +47,12 @@
     --text-shadow: 2px 2px 0 #000;
 }
 
-* {
-    image-rendering: pixelated;
-    image-rendering: -moz-crisp-edges;
-    image-rendering: crisp-edges;
-}
-
 .app-container {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
     background: #0a0a0a;
-    font-family: 'Press Start+2P', monospace;
+    font-family: var(--ui-font);
 }
 
 #game-container {
@@ -64,6 +62,13 @@
     width: 100%;
     height: 100%;
     z-index: 0;
+}
+
+/* The Phaser world is vector-first while baked pixel assets opt into nearest
+   filtering individually. Never force nearest-neighbour scaling on the whole
+   game canvas. */
+#game-container>canvas {
+    image-rendering: auto;
 }
 
 /* ============================================
@@ -82,7 +87,7 @@
     justify-content: space-between;
     padding: 16px;
     box-sizing: border-box;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     color: var(--text-primary);
     z-index: 10;
 }
@@ -146,14 +151,29 @@
     align-items: center;
     gap: 10px;
     font-size: 14px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     color: var(--text-primary);
     text-shadow: 1px 1px 0 #000;
     min-width: 140px;
 }
 
-.res-item.sol {
-    color: var(--solana-green);
+.res-item.gold {
+    color: #ffd700;
+    border-color: var(--panel-border);
+}
+
+.res-item.ore {
+    color: #8fe3d4;
+    border-color: var(--panel-border);
+}
+
+.res-item.food {
+    color: #f2d268;
+    border-color: var(--panel-border);
+}
+
+.res-item.pop {
+    color: #e8c9a0;
     border-color: var(--panel-border);
 }
 
@@ -426,7 +446,7 @@ button {
     color: white;
     padding: 8px 12px;
     cursor: pointer;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     font-size: 8px;
     box-shadow:
         3px 3px 0 #2A2A2A,
@@ -550,19 +570,13 @@ button:disabled {
     background: #FFED4E;
 }
 
-.action-btn.test {
+.action-btn.map {
     background: #5a4a3a;
     border-color: #7a6a5a;
 }
 
-.action-btn.test:hover {
+.action-btn.map:hover {
     background: #6a5a4a;
-}
-
-.action-btn.test.active {
-    background: #8B4513;
-    border-color: #D2B48C;
-    box-shadow: 0 0 8px rgba(210, 180, 140, 0.6);
 }
 
 .action-btn.next-map {
@@ -641,7 +655,7 @@ button:disabled {
 .training-modal {
     background: var(--panel-bg);
     border: 6px solid var(--panel-border);
-    border-radius: 6px;
+    border-radius: 0;
     width: 800px;
     max-width: 90vw;
     max-height: 75vh;
@@ -653,6 +667,14 @@ button:disabled {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+/* Slightly-pixelated menu chrome: every corner in the menu family is a hard
+   edge — rounding is the one thing pixel art never does. */
+.training-modal *,
+.pixel-cut,
+.pixel-cut * {
+    border-radius: 0 !important;
 }
 
 .modal-header {
@@ -854,28 +876,15 @@ button:disabled {
     margin-top: auto;
 }
 
-.building-grid-item .cost-badge {
-    background: rgba(0, 0, 0, 0.7);
-    border: 2px solid var(--panel-border-dark);
-    padding: 6px 9px;
-    font-size: 11px;
-    color: var(--fantasy-gold);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: auto;
-}
 
-.troop-grid-item .cost-badge .icon,
-.building-grid-item .cost-badge .icon {
+.troop-grid-item .cost-badge .icon {
     width: 18px !important;
     height: 18px !important;
     flex-shrink: 0;
     position: relative !important;
 }
 
-.troop-grid-item .cost-badge .icon::before,
-.building-grid-item .cost-badge .icon::before {
+.troop-grid-item .cost-badge .icon::before {
     position: relative !important;
     top: 0 !important;
     left: 0 !important;
@@ -885,28 +894,6 @@ button:disabled {
     height: 18px;
 }
 
-/* Tiny SOL icon for cost badges - 18px version */
-.troop-grid-item .cost-badge .sol-icon::before,
-.building-grid-item .cost-badge .sol-icon::before {
-    content: '';
-    position: relative !important;
-    display: block;
-    width: 2px;
-    height: 2px;
-    background: #33cc66;
-    top: 7px;
-    left: 7px;
-    box-shadow:
-        /* cap */
-        -1px -3px #d8b07a, 0 -3px #c69352, 1px -3px #a9793d,
-        /* glass neck */
-        -1px -2px #97f2a6, 0 -2px #7be28d, 1px -2px #66c97a,
-        /* bottle body */
-        -2px -1px #1f7a3a, -1px -1px #33cc66, 0 -1px #7ff0a2, 1px -1px #33cc66, 2px -1px #1f7a3a,
-        -2px 0 #1f7a3a, -1px 0 #2fb85f, 0 0 #a8ffd0, 1px 0 #2fb85f, 2px 0 #1f7a3a,
-        -2px 1px #1f7a3a, -1px 1px #29a856, 0 1px #7be28d, 1px 1px #29a856, 2px 1px #1f7a3a,
-        -1px 2px #1f7a3a, 0 2px #2b9a4f, 1px 2px #1f7a3a;
-}
 
 
 .army-queue {
@@ -1136,70 +1123,19 @@ button:disabled {
     text-align: center;
 }
 
-/* ============================================
-   BUILDING GRID
-   ============================================ */
 
-.building-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 16px;
-    padding: 16px;
-    max-height: 60vh;
-    overflow-y: auto;
-}
-
-.building-item,
-.building-grid-item {
-    background: var(--panel-accent);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
-    padding: 16px 12px 12px 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    position: relative;
-    min-height: 140px;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
-}
 
 .troop-grid-item .icon.large {
     margin-top: -20px;
 }
 
-.troop-grid-item .icon.large::before,
-.building-grid-item .icon.large::before {
+.troop-grid-item .icon.large::before {
     top: 35% !important;
 }
 
 
-.building-item:hover:not(.disabled),
-.building-grid-item:hover:not(.disabled) {
-    border-color: var(--fantasy-gold);
-    box-shadow:
-        2px 2px 0 var(--panel-border-dark),
-        inset 1px 1px 0 var(--fantasy-gold);
-    transform: translate(1px, 1px);
-}
 
-.building-item.disabled,
-.building-grid-item.disabled {
-    filter: grayscale(1) opacity(0.6);
-    cursor: not-allowed;
-}
 
-.building-item .name,
-.building-grid-item .name {
-    font-size: 8px;
-    color: var(--text-primary);
-    text-align: center;
-    line-height: 1.3;
-    text-shadow: 1px 1px 0 #000;
-}
 
 .troop-grid-item .name {
     font-size: 8px;
@@ -1211,36 +1147,9 @@ button:disabled {
     display: block;
 }
 
-.building-grid-item .desc-text {
-    display: none !important;
-}
 
 
-.building-grid-item .count-badge {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background: var(--fantasy-green);
-    color: white;
-    font-size: 9px;
-    padding: 5px 8px;
-    border: 2px solid #000;
-    border-radius: 4px;
-    box-shadow: 2px 2px 0 #000;
-    z-index: 2;
-}
 
-.building-grid-item .cost-badge {
-    background: rgba(0, 0, 0, 0.7);
-    border: 2px solid var(--panel-border-dark);
-    border-radius: 4px;
-    padding: 6px 8px;
-    font-size: 8px;
-    color: var(--fantasy-gold);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
 
 /* ============================================
    ICONS - Pixel Art Style
@@ -1262,10 +1171,6 @@ button:disabled {
     height: 72px;
 }
 
-.icon.sol-icon {
-    width: 48px;
-    height: 48px;
-}
 
 /* ==============================================
    ICONS - See src/icons/ for all icon definitions
@@ -1308,7 +1213,7 @@ button:disabled {
 
 .destruction-text {
     font-size: 14px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     color: var(--fantasy-gold);
     text-shadow: 2px 2px 0 #000;
     min-width: 50px;
@@ -1334,7 +1239,7 @@ button:disabled {
     border: 3px solid var(--panel-border);
     border-radius: 6px;
     font-size: 12px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     color: white;
     box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
 }
@@ -1362,7 +1267,17 @@ button:disabled {
 }
 
 .cloud-overlay.loading {
-    background: #ffffff;
+    background: #b4c1d2;
+}
+
+/* The procedural cloud banks render at 1/3 resolution; pixelated upscale
+   gives them the same chunky pixels as the world. */
+.cloud-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
 }
 
 .cloud-loading-panel {
@@ -1371,13 +1286,12 @@ button:disabled {
     top: 50%;
     transform: translate(-50%, -50%);
     width: min(460px, 82vw);
-    padding: 16px 20px;
-    background: rgba(0, 0, 0, 0.75);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
+    padding: 14px 18px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    image-rendering: pixelated;
     z-index: 3;
     text-align: center;
     pointer-events: none;
@@ -1404,7 +1318,7 @@ button:disabled {
 .cloud-loading-percent {
     margin-top: 10px;
     font-size: 10px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     color: var(--text-primary);
     text-shadow: 1px 1px 0 #000;
     letter-spacing: 0.8px;
@@ -1417,7 +1331,7 @@ button:disabled {
 
 /* Loot badge next to resource display */
 .loot-badge {
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     font-size: 14px;
     color: #14F195;
     text-shadow:
@@ -1436,7 +1350,7 @@ button:disabled {
 }
 
 /* Bounce pulse on resource item during count-up */
-.res-item.sol.bounce {
+.res-item.gold.bounce {
     animation: resourceBounce 300ms ease-out;
 }
 
@@ -1446,87 +1360,9 @@ button:disabled {
     100% { transform: scale(1); }
 }
 
-/* Left cloud panel */
-.cloud-overlay::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 52%;
-    height: 100%;
-    background: #fff;
-    box-shadow: 10px 0 30px rgba(150, 180, 200, 0.5);
-    animation: cloudCloseLeft 0.6s ease-out forwards;
-}
-
-/* Right cloud panel */
-.cloud-overlay::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 52%;
-    height: 100%;
-    background: #fff;
-    box-shadow: -10px 0 30px rgba(150, 180, 200, 0.5);
-    animation: cloudCloseRight 0.6s ease-out forwards;
-}
-
-.cloud-overlay.loading::before,
-.cloud-overlay.loading::after {
-    animation: none;
-    transform: translateX(0);
-}
-
-/* Opening state - clouds slide apart */
-.cloud-overlay.opening::before {
-    animation: cloudOpenLeft 0.6s ease-in forwards;
-}
-
-.cloud-overlay.opening::after {
-    animation: cloudOpenRight 0.6s ease-in forwards;
-}
-
-@keyframes cloudCloseLeft {
-    0% {
-        transform: translateX(-100%);
-    }
-
-    100% {
-        transform: translateX(0);
-    }
-}
-
-@keyframes cloudCloseRight {
-    0% {
-        transform: translateX(100%);
-    }
-
-    100% {
-        transform: translateX(0);
-    }
-}
-
-@keyframes cloudOpenLeft {
-    0% {
-        transform: translateX(0);
-    }
-
-    100% {
-        transform: translateX(-100%);
-    }
-}
-
-
-@keyframes cloudOpenRight {
-    0% {
-        transform: translateX(0);
-    }
-
-    100% {
-        transform: translateX(100%);
-    }
-}
+/* The cloud banks themselves are drawn procedurally on .cloud-canvas — see
+   CloudOverlay.tsx. No CSS panels: the close/open motion, the breathing
+   cumulus edge and the vapour sea all live in the canvas loop. */
 
 
 
@@ -1563,7 +1399,7 @@ button:disabled {
     border-radius: 6px;
     color: white;
     cursor: pointer;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     box-shadow:
         3px 3px 0 #2A2A2A,
         inset 2px 2px 0 #7A7A7A;
@@ -1612,7 +1448,7 @@ button:disabled {
     padding: 0 12px;
     height: 36px;
     font-size: 8px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     color: white;
     border: 3px solid #6A6A6A;
     border-radius: 6px;
@@ -1908,7 +1744,7 @@ body.is-touch {
     padding: 1px 4px;
     border: 1px solid #000;
     box-shadow: 1px 1px 0 #000;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
 }
 
 .hud.mobile .troop-count-badge {
@@ -1926,7 +1762,7 @@ body.is-touch {
     color: var(--fantasy-gold);
     font-size: 6px;
     padding: 0 2px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     line-height: 1.4;
     border-radius: 2px;
     pointer-events: none;
@@ -2132,30 +1968,10 @@ body.is-touch {
         font-size: 9px;
     }
 
-    .building-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-        gap: 10px;
-        padding: 10px;
-    }
 
-    .building-grid-item {
-        padding: 10px 8px 8px 8px;
-        min-height: 100px;
-    }
 
-    .building-grid-item .icon.large {
-        width: 48px;
-        height: 48px;
-    }
 
-    .building-grid-item .name {
-        font-size: 7px;
-    }
 
-    .building-grid-item .cost-badge {
-        padding: 4px 6px;
-        font-size: 9px;
-    }
 
     .army-queue {
         min-height: 60px;
@@ -2267,9 +2083,6 @@ body.is-touch {
         grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
     }
 
-    .building-grid {
-        grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
-    }
 }
 
 /* Landscape mobile */
@@ -2360,7 +2173,7 @@ body.is-touch {
     background: #ff4444;
     color: #fff;
     font-size: 8px;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     min-width: 16px;
     height: 16px;
     border-radius: 50%;
@@ -2405,7 +2218,7 @@ body.is-touch {
     color: var(--text-secondary);
     font-size: 8px;
     cursor: pointer;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
 }
 
 .mark-read-btn:hover {
@@ -2476,7 +2289,7 @@ body.is-touch {
     background: linear-gradient(180deg, #ff7c4e 0%, #cc4a1d 100%);
     border: 2px solid #ff9a6f;
     color: #fff;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     font-size: 7px;
     padding: 7px 8px;
     border-radius: 4px;
@@ -2544,7 +2357,7 @@ body.is-touch {
     background: linear-gradient(180deg, #ff7c4e 0%, #cc4a1d 100%);
     border: 2px solid #ff9a6f;
     color: #fff;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     font-size: 8px;
     padding: 9px;
     border-radius: 4px;
@@ -2555,7 +2368,7 @@ body.is-touch {
     background: rgba(255, 255, 255, 0.08);
     border: 2px solid rgba(255, 255, 255, 0.25);
     color: var(--text-secondary);
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     font-size: 8px;
     padding: 9px 10px;
     border-radius: 4px;
@@ -2587,7 +2400,7 @@ body.is-touch {
     box-shadow:
         3px 3px 0 var(--panel-border-dark),
         inset 1px 1px 0 var(--panel-border-light);
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     animation: incoming-attack-pop 250ms ease-out;
 }
 
@@ -2636,7 +2449,7 @@ body.is-touch {
     border: 2px solid #aa3333;
     border-radius: 4px;
     color: var(--text-primary);
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     font-size: 7px;
     padding: 6px 10px;
     cursor: pointer;
@@ -2673,7 +2486,7 @@ body.is-touch {
     border: 3px solid #ff5555;
     border-radius: 6px;
     color: #fff;
-    font-family: 'Press Start 2P', monospace;
+    font-family: var(--ui-font);
     font-size: 10px;
     padding: 12px 16px;
     cursor: pointer;
@@ -2908,6 +2721,9 @@ body.is-touch {
 
 .account-modal {
     width: min(420px, 92vw);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    box-sizing: border-box;
     background: var(--panel-bg);
     border: 3px solid var(--panel-border);
     border-radius: 6px;
@@ -3089,4 +2905,1415 @@ body.is-touch {
     font-size: 8px;
     color: var(--text-secondary);
     margin-bottom: 12px;
+}
+
+/* ============================================
+   BUILDING SHOP — refreshed card layout
+   ============================================ */
+.bshop-body {
+    max-height: 62vh;
+    overflow-y: auto;
+    padding: 8px 14px 16px 14px;
+}
+
+.bshop-section {
+    margin-bottom: 6px;
+}
+
+.bshop-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--fantasy-gold);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin: 12px 2px 10px 2px;
+    text-shadow: 1px 1px 0 #000;
+}
+
+.bshop-section-rule {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--panel-border), transparent);
+}
+
+.bshop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.bshop-card {
+    background: var(--panel-accent);
+    border: 3px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    cursor: pointer;
+    position: relative;
+    box-shadow:
+        3px 3px 0 var(--panel-border-dark),
+        inset 2px 2px 0 var(--panel-border-light);
+    transition: transform 80ms ease-out;
+}
+
+.bshop-card:hover:not(.disabled) {
+    border-color: var(--fantasy-gold);
+    transform: translateY(-2px);
+}
+
+.bshop-card.disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    filter: saturate(0.4);
+}
+
+.bshop-thumb {
+    position: relative;
+    background: #17110c;
+    border: 2px solid var(--panel-border-dark);
+    border-radius: 6px;
+    height: 84px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.bshop-thumb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 30%, rgba(255, 214, 130, 0.10), transparent 65%);
+    pointer-events: none;
+}
+
+.bshop-thumb .icon.large {
+    width: 64px;
+    height: 64px;
+}
+
+.bshop-count {
+    position: absolute;
+    top: 4px;
+    right: 5px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    color: #ddd;
+    font-size: 8px;
+    padding: 2px 5px;
+}
+
+.bshop-count.full {
+    color: var(--fantasy-gold);
+    border-color: var(--fantasy-gold-dark);
+}
+
+.bshop-maxed-ribbon {
+    position: absolute;
+    left: -26px;
+    top: 10px;
+    transform: rotate(-38deg);
+    background: var(--fantasy-red);
+    color: #fff;
+    font-size: 8px;
+    letter-spacing: 2px;
+    padding: 2px 28px;
+    box-shadow: 0 1px 0 #000;
+}
+
+.bshop-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 44px;
+}
+
+.bshop-name {
+    font-size: 10px;
+    color: var(--text-primary);
+    text-shadow: 1px 1px 0 #000;
+}
+
+.bshop-desc {
+    font-size: 8px;
+    line-height: 1.45;
+    color: #b9ac97;
+}
+
+.bshop-cost {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid var(--panel-border-dark);
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: #ffd700;
+    font-size: 10px;
+}
+
+.bshop-cost .icon {
+    width: 20px;
+    height: 20px;
+}
+
+.bshop-cost.short {
+    color: var(--fantasy-red);
+}
+
+.res-item.pop.understaffed {
+    color: #e8a54a;
+    border-color: #8a5a2a;
+}
+
+.res-item.pop .pop-warn {
+    color: var(--fantasy-red);
+    font-weight: bold;
+    margin-left: 2px;
+    animation: popWarnPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes popWarnPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+.top-btn-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+}
+
+.mute-btn {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.mute-btn.muted {
+    opacity: 0.55;
+    filter: saturate(0.3);
+}
+
+.bshop-cost-row {
+    display: flex;
+    gap: 6px;
+}
+
+.bshop-cost-row .bshop-cost {
+    flex: 1;
+}
+
+.bshop-cost.ore {
+    color: #8fe3d4;
+}
+
+/* Jukebox songbook */
+.jukebox-modal {
+    max-width: 460px;
+}
+
+.jukebox-count {
+    color: var(--fantasy-gold);
+    font-size: 9px;
+    margin-left: auto;
+    margin-right: 10px;
+}
+
+.jukebox-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px 16px 14px;
+    max-height: 56vh;
+    overflow-y: auto;
+}
+
+.jukebox-track {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel-accent);
+    border: 2px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.jukebox-track:hover:not(.locked) {
+    border-color: var(--fantasy-gold);
+}
+
+.jukebox-track.playing {
+    border-color: #c98aff;
+    box-shadow: inset 0 0 12px rgba(201, 138, 255, 0.25);
+}
+
+.jukebox-track.locked {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.jukebox-track.rare:not(.locked) .jukebox-name {
+    color: #ffd84a;
+}
+
+.jukebox-note {
+    font-size: 16px;
+    color: #d8a8ff;
+    width: 20px;
+    text-align: center;
+}
+
+.jukebox-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.jukebox-name {
+    font-size: 10px;
+    color: var(--text-primary);
+}
+
+.jukebox-rare-tag {
+    color: #ffd84a;
+    font-size: 7px;
+    letter-spacing: 1px;
+    margin-left: 8px;
+    border: 1px solid #8a6a1e;
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+.jukebox-hint {
+    font-size: 8px;
+    color: #a89a86;
+}
+
+.jukebox-playing {
+    color: #c98aff;
+    font-size: 8px;
+    letter-spacing: 2px;
+    animation: popWarnPulse 1.8s ease-in-out infinite;
+}
+
+.jukebox-locked {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+/* Toast banner (track unlocks, merchant arrivals) — framed by the generated
+   pixel panel, not a smooth CSS box, so alerts match the game's aesthetic. */
+.toast-banner {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    image-rendering: pixelated;
+    color: var(--fantasy-gold);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 16px;
+    z-index: 300;
+    animation: toastIn 220ms steps(3, end);
+    pointer-events: none;
+}
+
+@keyframes toastIn {
+    from { transform: translate(-50%, -12px); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* Traveling merchant trade sheet */
+.merchant-modal {
+    max-width: 440px;
+}
+
+.merchant-sub {
+    color: #a89a86;
+    font-size: 8px;
+    margin-left: auto;
+    margin-right: 10px;
+    letter-spacing: 1px;
+}
+
+.merchant-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px 14px 14px;
+}
+
+.merchant-offer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel-accent);
+    border: 2px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.merchant-offer.bargain {
+    border-color: var(--fantasy-gold);
+    box-shadow: inset 0 0 14px rgba(255, 216, 74, 0.12);
+}
+
+.merchant-offer.done {
+    opacity: 0.55;
+    filter: saturate(0.4);
+}
+
+.merchant-bargain-tag {
+    position: absolute;
+    top: -8px;
+    left: 10px;
+    background: var(--fantasy-gold);
+    color: #2a1c08;
+    font-size: 7px;
+    letter-spacing: 1px;
+    border-radius: 3px;
+    padding: 2px 5px;
+}
+
+.merchant-sides {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.merchant-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.merchant-side .icon {
+    width: 16px;
+    height: 16px;
+}
+
+.merchant-side.get {
+    color: #9fe8a8;
+}
+
+.merchant-arrow {
+    color: var(--fantasy-gold);
+    font-size: 11px;
+}
+
+.merchant-trade-btn {
+    background: var(--fantasy-gold);
+    color: #2a1c08;
+    border: 2px solid var(--fantasy-gold-dark);
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 8px;
+    letter-spacing: 1px;
+    padding: 7px 10px;
+    cursor: pointer;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+    white-space: nowrap;
+}
+
+.merchant-trade-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.merchant-trade-btn:disabled {
+    cursor: not-allowed;
+    background: #4a4036;
+    color: #8a7a66;
+    border-color: #2e2820;
+    box-shadow: none;
+}
+
+.merchant-footnote {
+    text-align: center;
+    color: #a89a86;
+    font-size: 8px;
+    padding-top: 2px;
+}
+
+/* World-map neighbour sheet (DOM twin of the old canvas panel) */
+.plot-overlay {
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.plot-panel {
+    background: #1c2418;
+    border: 4px solid #daa520;
+    box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.5);
+    min-width: 260px;
+    max-width: 86vw;
+    padding: 12px 14px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plot-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    color: #ffe9a0;
+    font-size: 11px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #3a4630;
+}
+
+.plot-action {
+    background: #2e3c26;
+    border: 2px solid #8a9a6a;
+    color: #f0e8d0;
+    font-family: inherit;
+    font-size: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+    text-align: center;
+}
+
+.plot-action:hover {
+    background: #3a4c30;
+    border-color: #daa520;
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
+    transform: none;
+}
+
+.plot-action:active {
+    background: #26301f;
+    transform: translate(0, 2px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.plot-action.attack {
+    border-color: #b86a4a;
+}
+
+/* World-map nameplates are gone: a neighbour's name shows in the tap
+   bubble (.plot-bubble) instead of hovering over every base. */
+
+/* Plot panel: pixel icons in the title + action rows */
+.plot-title-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.plot-trophies {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #ffd76a;
+}
+
+.plot-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.plot-action .sym.small,
+.plot-title .sym.small,
+.jukebox-locked.sym,
+.account-meta .sym.small,
+.buildings .sym.small,
+.revenge-btn .sym.small,
+.tooltip-stats .sym.small,
+.merchant-arrow .sym.small {
+    width: 14px;
+    height: 14px;
+    transform: scale(0.7);
+}
+
+/* HUD mute button hosts a 20px pixel speaker */
+.mute-btn .sym {
+    width: 20px;
+    height: 20px;
+}
+
+.battle-home-btn .btn-icon.sym {
+    width: 20px;
+    height: 20px;
+}
+
+.tooltip-stats span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ===================== PIXEL UI KIT =====================
+   Frames generated by src/ui/pixelKit.ts (border-image data URIs).
+   One geometry, palette variants — the DOM answer to the pixelate
+   shader the world enjoys. --px is the virtual pixel. */
+:root {
+    --px: 2px;
+}
+
+.pxf {
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image-slice: 5 fill;
+    border-image-width: calc(var(--px) * 5);
+    border-image-repeat: stretch;
+    border-radius: 0;
+    image-rendering: pixelated;
+    background: none;
+    box-shadow: none;
+}
+
+.pxf-panel {
+    border-image-source: var(--pxf-panel);
+}
+
+.pxf-btn {
+    border-image-source: var(--pxf-btn);
+    cursor: pointer;
+}
+
+.pxf-btn:hover {
+    filter: brightness(1.12);
+}
+
+.pxf-btn:active,
+.pxf-btn.pxf-pressed {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+.pxf-gold {
+    border-image-source: var(--pxf-gold);
+}
+
+.pxf-bubble {
+    border-image-source: var(--pxf-bubble);
+    color: #241a11;
+    text-shadow: none;
+}
+
+.pxf-danger {
+    border-image-source: var(--pxf-danger);
+}
+
+/* The health-bar look, rebuilt in DOM: outline, grey rim, maroon track,
+   hard-stop glossy fill rows — same palette as the world-space bars. */
+.px-bar {
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 fill / calc(var(--px) * 3) stretch;
+    image-rendering: pixelated;
+    position: relative;
+    height: calc(var(--px) * 9);
+    overflow: hidden;
+}
+
+.px-bar>i {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    display: block;
+    --bar-hi: #58d68d;
+    --bar-fill: #2ecc71;
+    --bar-lo: #1e8e4e;
+    background: linear-gradient(to bottom,
+            var(--bar-hi) 0 30%,
+            var(--bar-fill) 30% 76%,
+            var(--bar-lo) 76% 100%);
+}
+
+.px-bar.amber>i {
+    --bar-hi: #f7dc6f;
+    --bar-fill: #f39c12;
+    --bar-lo: #a86a0c;
+}
+
+.px-bar.red>i {
+    --bar-hi: #f1948a;
+    --bar-fill: #e74c3c;
+    --bar-lo: #922b21;
+}
+
+/* Speech-bubble tail: the face channel punches through the bottom border and
+   tapers to a point below the card (art in pixelKit tailSvg). Its top four
+   rows must OVERLAP the card's 5-cell border so the outline flows around the
+   bump. `top: 100%` resolves against the PADDING box (inside the border), so
+   the border-box bottom edge is at 100% + 5*--px; starting the tail at
+   100% + 1*--px crosses the last 4 border rows and protrudes 5 below. */
+.px-tail {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + var(--px));
+    width: calc(var(--px) * 12);
+    height: calc(var(--px) * 9);
+    transform: translateX(-50%);
+    background: var(--pxf-tail) center / 100% 100% no-repeat;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+.px-tail.danger {
+    background-image: var(--pxf-tail-danger);
+}
+
+/* Flipped bubble (useWorldAnchor sets .below when there's no sky above the
+   subject): the tail exits the TOP edge instead, mirrored to point up. */
+.building-bubble.below .px-tail,
+.plot-bubble.below .px-tail {
+    top: auto;
+    bottom: calc(100% + var(--px));
+    transform: translateX(-50%) scaleY(-1);
+}
+
+/* ===================== PIXEL RESKIN =====================
+   Overrides the faux-bevel chrome with the generated pixel frames.
+   Markup untouched: same class names, real pixel art. */
+
+/* --- resource chips --- */
+.res-item {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    padding: calc(var(--px) * 2) calc(var(--px) * 5);
+}
+
+.res-item.gold,
+.res-item.ore,
+.res-item.food,
+.res-item.pop {
+    border-color: transparent;
+}
+
+.hud.mobile .res-item {
+    border-width: calc(var(--px) * 5);
+    box-shadow: none;
+    padding: 2px 6px;
+}
+
+/* --- the four top-right buttons: ONE size, ONE stride, ONE frame --- */
+.settings-btn,
+.leaderboard-btn,
+.notifications-btn {
+    width: 44px;
+    height: 44px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    transition: filter 0.08s ease;
+}
+
+.settings-btn:hover,
+.leaderboard-btn:hover,
+.notifications-btn:hover {
+    filter: brightness(1.15);
+    transform: none;
+    box-shadow: none;
+}
+
+.settings-btn:active,
+.leaderboard-btn:active,
+.notifications-btn:active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+    box-shadow: none;
+}
+
+/* Stride 52px (44 button + 8 gap), innermost gear at 16. The mute button
+   previously sat FIXED on top of the gear — now it gets its own slot. */
+.settings-btn {
+    top: 16px;
+    right: 16px;
+}
+
+.settings-btn.mute-btn {
+    right: 68px;
+}
+
+.top-right-btns {
+    top: 16px;
+    right: 120px;
+    gap: 8px;
+}
+
+.hud.mobile .settings-btn {
+    top: 8px;
+    right: 8px;
+}
+
+.hud.mobile .settings-btn.mute-btn {
+    right: 60px;
+}
+
+/* --- bottom action bar --- */
+.menu-inner {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.action-btn {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    color: var(--text-primary);
+}
+
+.action-btn:hover {
+    filter: brightness(1.15);
+    transform: none;
+    box-shadow: none;
+}
+
+.action-btn:active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+.action-btn.build {
+    border-image-source: var(--pxf-gold);
+    background: none;
+    color: var(--ui-gold);
+}
+
+.action-btn.active {
+    border-image-source: var(--pxf-gold);
+    background: none;
+    color: var(--ui-gold);
+}
+
+/* --- battle HUD --- */
+.destruction-meter {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.destruction-bar {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 fill / calc(var(--px) * 3) stretch;
+    border-radius: 0;
+    height: calc(var(--px) * 9);
+    overflow: hidden;
+}
+
+.destruction-fill {
+    border-radius: 0;
+    background: linear-gradient(to bottom,
+            #f7dc6f 0 30%,
+            #f39c12 30% 76%,
+            #a86a0c 76% 100%);
+}
+
+.loot-item {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* --- battle troop selector --- */
+.troop-sel-btn {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.troop-sel-btn.active {
+    border-image-source: var(--pxf-gold);
+    background: none;
+}
+
+.troop-sel-btn.disabled {
+    filter: grayscale(1) brightness(0.6);
+}
+
+/* --- dropdowns & modal shells --- */
+.notifications-dropdown,
+.leaderboard-dropdown,
+.training-modal,
+.battle-results,
+.settings-modal {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.bshop-card {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.bshop-card:hover {
+    filter: brightness(1.12);
+    transform: none;
+}
+
+/* --- incoming-attack banner: danger frame --- */
+.incoming-attack-popup {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-danger) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+/* --- the plot speech bubble (replaces the centered plot modal) --- */
+.plot-overlay-clear {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: none;
+    pointer-events: auto;
+}
+
+.plot-bubble {
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 240px;
+    max-width: 320px;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-bubble) 5 fill / calc(var(--px) * 5) stretch;
+    image-rendering: pixelated;
+    color: #241a11;
+    font-family: var(--ui-font);
+    padding: calc(var(--px) * 2) calc(var(--px) * 3) calc(var(--px) * 3);
+    pointer-events: auto;
+}
+
+.plot-bubble.centered {
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.plot-bubble .plot-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: var(--px) solid #b9a271;
+    padding-bottom: calc(var(--px) * 2);
+    margin-bottom: calc(var(--px) * 2);
+}
+
+.plot-bubble .plot-title-name {
+    font-size: 11px;
+    color: #241a11;
+    text-shadow: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.plot-bubble .plot-trophies {
+    font-size: 9px;
+    color: #6b5327;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.plot-bubble .plot-actions {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * 2);
+}
+
+.plot-bubble .plot-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--ui-font);
+    font-size: 9px;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: pointer;
+    padding: calc(var(--px) * 1) calc(var(--px) * 3);
+    text-align: left;
+}
+
+.plot-bubble .plot-action:hover {
+    filter: brightness(1.15);
+}
+
+.plot-bubble .plot-action:active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+.plot-bubble .plot-action.attack {
+    border-image-source: var(--pxf-danger);
+    color: #ffb3a7;
+}
+
+/* --- village speech bubbles (diegetic building reports) --- */
+.village-bubble-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 60;
+}
+
+.village-bubble {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: 280px;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-bubble) 5 fill / calc(var(--px) * 5) stretch;
+    image-rendering: pixelated;
+    color: #241a11;
+    font-family: var(--ui-font);
+    font-size: 12px;
+    line-height: 1.45;
+    padding: calc(var(--px) * 2) calc(var(--px) * 3);
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * 2);
+    animation: bb-pop 0.07s steps(2, end);
+}
+
+.village-bubble.danger {
+    border-image-source: var(--pxf-danger);
+    color: #ffd9d2;
+}
+
+.village-bubble .vb-text {
+    white-space: nowrap;
+    padding-right: 14px;
+}
+
+.village-bubble .vb-action {
+    font-family: var(--ui-font);
+    font-size: 8px;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    cursor: pointer;
+    padding: calc(var(--px) * 1) calc(var(--px) * 2);
+}
+
+.village-bubble.danger .vb-action {
+    border-image-source: var(--pxf-gold);
+    color: var(--ui-gold);
+}
+
+.village-bubble .vb-action:hover {
+    filter: brightness(1.15);
+}
+
+.village-bubble .vb-close {
+    position: absolute;
+    top: calc(var(--px) * 1);
+    right: calc(var(--px) * 2);
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.7;
+    font-size: 12px;
+    font-family: var(--ui-font);
+    cursor: pointer;
+    padding: 2px;
+    line-height: 1;
+}
+
+.village-bubble .vb-close:hover {
+    opacity: 1;
+}
+
+/* Bubble innards: icon+text row, working animation, progress bar. */
+.village-bubble .vb-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.village-bubble .vb-icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+.village-bubble .vb-icon.working {
+    animation: vb-hammer 0.6s steps(2, end) infinite;
+}
+
+@keyframes vb-hammer {
+    0% {
+        transform: translateY(0) rotate(0deg);
+    }
+
+    50% {
+        transform: translateY(calc(var(--px) * -1)) rotate(-14deg);
+    }
+
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+}
+
+.village-bubble .vb-bar {
+    display: block;
+    /* Stretched by the bubble's flex column — NOT width:100%, whose 12px of
+       border-image would overflow the bubble to the right (no global
+       border-box reset in this app). */
+    min-width: 110px;
+}
+
+.village-bubble .vb-bar>i {
+    transition: width 0.3s steps(4, end);
+}
+
+/* --- the world atlas --- */
+.atlas-btn {
+    width: 44px;
+    height: 44px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.atlas-btn:hover {
+    filter: brightness(1.15);
+}
+
+.atlas-btn:active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+.atlas-btn .icon {
+    width: 24px;
+    height: 24px;
+}
+
+.atlas-modal {
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    image-rendering: pixelated;
+    font-family: var(--ui-font);
+    color: var(--text-primary);
+    padding: calc(var(--px) * 3);
+    max-width: min(86vw, 900px);
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * 3);
+}
+
+.atlas-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+}
+
+.atlas-title .atlas-count {
+    margin-left: auto;
+    font-size: 8px;
+    color: var(--text-secondary);
+}
+
+.atlas-title .plot-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+.atlas-title .plot-close:hover {
+    filter: brightness(1.2);
+}
+
+.atlas-chart-wrap {
+    overflow: auto;
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 fill / calc(var(--px) * 3) stretch;
+    background: #efe3bb;
+    display: grid;
+    place-items: center;
+    min-width: 320px;
+    min-height: 220px;
+}
+
+.atlas-chart {
+    image-rendering: pixelated;
+    display: block;
+}
+
+.atlas-footer {
+    font-size: 8px;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+}
+
+.atlas-hover {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-primary);
+}
+
+.atlas-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+}
+
+.atlas-legend .lg {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-left: 10px;
+    image-rendering: pixelated;
+}
+
+.atlas-legend .lg.me {
+    background: #d9b348;
+}
+
+.atlas-legend .lg.online {
+    background: #8b6f47;
+}
+
+.atlas-legend .lg.away {
+    background: #a4906a;
+}
+
+.atlas-legend .lg.shield {
+    background: #4a7ab5;
+}
+
+.atlas-legend .lg.battle {
+    background: #c22f1f;
+}
+
+/* Live atlas layering: the animated raid layer floats over the chart. */
+.atlas-stack {
+    position: relative;
+}
+
+.atlas-stack .atlas-chart {
+    position: absolute;
+    inset: 0;
+}
+
+.atlas-stack .atlas-live {
+    pointer-events: none;
+}
+
+/* --- replay theatre --- */
+.theatre-modal {
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    image-rendering: pixelated;
+    font-family: var(--ui-font);
+    color: var(--text-primary);
+    padding: calc(var(--px) * 3);
+    width: min(86vw, 560px);
+    max-height: 74vh;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * 3);
+}
+
+.theatre-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--px) * 2);
+}
+
+.theatre-empty {
+    font-size: 9px;
+    color: var(--text-secondary);
+    padding: 16px 4px;
+    text-align: center;
+}
+
+.theatre-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 9px;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    padding: calc(var(--px) * 2) calc(var(--px) * 3);
+}
+
+.theatre-who {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.theatre-outcome.lost {
+    color: #ff8a7a;
+}
+
+.theatre-outcome.held {
+    color: #9fe3b0;
+}
+
+.theatre-when {
+    color: var(--text-secondary);
+    font-size: 8px;
+}
+
+.theatre-watch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--ui-font);
+    font-size: 8px;
+    color: var(--ui-gold);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    cursor: pointer;
+    padding: calc(var(--px) * 1) calc(var(--px) * 2);
+}
+
+.theatre-watch:hover {
+    filter: brightness(1.15);
+}
+
+.dev-world-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+    border-top: var(--px) solid rgba(0, 0, 0, 0.3);
+    padding-top: 10px;
+}
+
+.dev-world-tools-title {
+    color: #ff9b84;
+    font-size: 8px;
+    letter-spacing: 1px;
+}
+
+.dev-reseed-world-btn,
+.dev-reseed-confirm-btn,
+.dev-reseed-cancel {
+    padding: 7px 10px;
+    font-size: 8px;
+}
+
+.dev-reseed-world-btn,
+.dev-reseed-confirm-btn {
+    background: #8a2f29;
+    border-color: #c45245;
+}
+
+.dev-reseed-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    border: 2px solid #a6443a;
+    background: rgba(96, 24, 18, 0.35);
+}
+
+.dev-reseed-confirm p {
+    margin: 0;
+    color: #ffc0b4;
+    font-size: 8px;
+    line-height: 1.5;
+}
+
+.dev-reseed-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 6px;
 }

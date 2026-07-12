@@ -1,0 +1,199 @@
+{
+  "cellWorldPx": 1.35,
+  "buckets": 16,
+  "loopMs": null,
+  "variants": [
+    {
+      "frames": [
+        {
+          "file": "rock_small_b00_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b01_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b02_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b03_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b04_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b05_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b06_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b07_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b08_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b09_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b10_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b11_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b12_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b13_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b14_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_small_b15_0.png",
+          "texelW": 14,
+          "texelH": 8,
+          "cellWorldPx": 1.35,
+          "originX": 0.5052910052910043,
+          "originY": 0.4953703703703698
+        }
+      ]
+    }
+  ]
+}

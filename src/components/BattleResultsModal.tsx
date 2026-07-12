@@ -1,8 +1,10 @@
-import { formatSol } from '../game/solana/Currency';
+import { formatGold } from '../game/economy/Currency';
 
 interface BattleStats {
   destruction: number;
-  solLooted: number;
+  goldLooted: number;
+  oreLooted?: number;
+  foodLooted?: number;
 }
 
 interface BattleResultsModalProps {
@@ -26,13 +28,22 @@ export function BattleResultsModal({ isOpen, stats, onGoHome }: BattleResultsMod
           <div className="battle-stat">
             <span className="battle-stat-label">LOOT GAINED:</span>
             <span className="battle-stat-value battle-resource-value">
-              <span className="icon sol-icon"></span>
-              {formatSol(stats.solLooted, false, false)}
+              <span className="icon gold-icon"></span>
+              {formatGold(stats.goldLooted, false, false)}
             </span>
           </div>
+          {((stats.oreLooted ?? 0) > 0 || (stats.foodLooted ?? 0) > 0) && (
+            <div className="battle-stat">
+              <span className="battle-stat-label">STOCKS CARRIED:</span>
+              <span className="battle-stat-value battle-resource-value">
+                {(stats.oreLooted ?? 0) > 0 && <><span className="icon ore-icon"></span>{stats.oreLooted} </>}
+                {(stats.foodLooted ?? 0) > 0 && <><span className="icon food-icon"></span>{stats.foodLooted}</>}
+              </span>
+            </div>
+          )}
         </div>
         <button className="battle-home-btn" onClick={onGoHome}>
-          <span className="btn-icon">🏡</span>
+          <span className="btn-icon sym sym-home" />
           <span className="btn-label">GO HOME</span>
         </button>
       </div>

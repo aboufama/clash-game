@@ -2,24 +2,29 @@ import { useEffect, useRef, useState } from 'react';
 import type { BuildingType, TroopType } from '../game/config/GameDefinitions';
 import { TROOP_DEFINITIONS } from '../game/config/GameDefinitions';
 import type { GameMode } from '../game/types/GameMode';
-import { formatSol } from '../game/solana/Currency';
+import { formatGold } from '../game/economy/Currency';
+import { soundSystem } from '../game/systems/SoundSystem';
 import { InfoPanel } from './InfoPanel';
 
 interface BattleStats {
   destruction: number;
-  solLooted: number;
+  goldLooted: number;
+  oreLooted?: number;
+  foodLooted?: number;
 }
 
 interface HudProps {
   view: GameMode;
-  resources: { sol: number };
+  resources: { gold: number; ore: number; food: number };
+  storageCaps: { ore: number; food: number } | null;
+  population: { count: number; capacity: number; workersNeeded: number; staffing: number };
   battleStats: BattleStats;
   battleStarted: boolean;
-  capacity: { current: number; max: number };  // Used for future capacity display
   visibleTroops: string[];
   selectedTroopType: string;
   army: Record<string, number>;
-  selectedBuildingInfo: { id: string; type: BuildingType; level: number } | null;
+  armyCapacity: number;
+  selectedBuildingInfo: { id: string; type: BuildingType; level: number; gridX?: number; gridY?: number; upgradeEndsAt?: number } | null;
   isExiting: boolean;
   wallUpgradeCostOverride?: number;
   isMobile: boolean;
@@ -30,27 +35,29 @@ interface HudProps {
   onOpenSettings: () => void;
   onOpenBuild: () => void;
   onOpenTrain: () => void;
-  onStartAttack: () => void;  // Used for quick attack shortcut
   onSelectTroop: (type: string) => void;
   onNextMap: () => void;
   onGoHome: () => void;
   onDeleteBuilding: () => void;
+  deleteBuildingDisabled?: boolean;
+  deleteBuildingDisabledReason?: string;
   onUpgradeBuilding: () => void;
   onMoveBuilding: () => void;
-  isDummyActive: boolean;
-  onToggleDummy: () => void;
+  onOpenMap: () => void;
   troopLevel: number;
 }
 
 export function Hud({
   view,
   resources,
+  storageCaps,
+  population,
   battleStats,
   battleStarted,
-  capacity: _capacity,  // Reserved for future capacity display
   visibleTroops,
   selectedTroopType,
   army,
+  armyCapacity,
   selectedBuildingInfo,
   isExiting,
   wallUpgradeCostOverride,
@@ -62,20 +69,17 @@ export function Hud({
   onOpenSettings,
   onOpenBuild,
   onOpenTrain,
-  onStartAttack: _onStartAttack,  // Reserved for quick attack shortcut
   onSelectTroop,
   onNextMap,
   onGoHome,
   onDeleteBuilding,
+  deleteBuildingDisabled,
+  deleteBuildingDisabledReason,
   onUpgradeBuilding,
   onMoveBuilding,
-  isDummyActive,
-  onToggleDummy,
+  onOpenMap,
   troopLevel
 }: HudProps) {
-  // Unused props (kept for interface compatibility):
-  void _capacity;
-  void _onStartAttack;
   // Get troop name for mobile display
   const getTroopName = (type: string): string => {
     const def = TROOP_DEFINITIONS[type as TroopType];
@@ -83,6 +87,8 @@ export function Hud({
   };
   const isAttackView = view === 'ATTACK';
   const showAttackTroopBar = isAttackView && !(isScouting && visibleTroops.length === 0);
+
+  const [isMuted, setIsMuted] = useState(soundSystem.muted);
 
   // Auto-dismiss hotkey hint
   const [showHotkeyHint, setShowHotkeyHint] = useState(true);
@@ -120,17 +126,18 @@ export function Hud({
   const lootAmount = lootAnimating?.amount ?? pendingLoot ?? 0;
 
   // Count-up animation for resource display
-  const [displaySol, setDisplaySol] = useState(resources.sol);
+  const [displaySol, setDisplaySol] = useState(resources.gold);
   const [isBouncing, setIsBouncing] = useState(false);
   const [isFadingLoot, setIsFadingLoot] = useState(false);
   const animFrameRef = useRef<number>(0);
+  const lootDoneTimerRef = useRef<number | undefined>(undefined);
 
   // Keep displaySol in sync when not animating
   useEffect(() => {
     if (!lootAnimating) {
-      setDisplaySol(resources.sol);
+      setDisplaySol(resources.gold);
     }
-  }, [resources.sol, lootAnimating]);
+  }, [resources.gold, lootAnimating]);
 
   // Count-up effect when loot animation triggers (clouds finished opening)
   useEffect(() => {
@@ -139,8 +146,8 @@ export function Hud({
       return;
     }
 
-    const startSol = resources.sol - lootAnimating.amount;
-    const endSol = resources.sol;
+    const startSol = resources.gold - lootAnimating.amount;
+    const endSol = resources.gold;
     const duration = 800;
     let startTime: number | null = null;
 
@@ -161,7 +168,7 @@ export function Hud({
       } else {
         setIsBouncing(false);
         setIsFadingLoot(true);
-        setTimeout(() => onLootAnimationDone(), 600);
+        lootDoneTimerRef.current = window.setTimeout(() => onLootAnimationDone(), 600);
       }
     };
 
@@ -169,9 +176,10 @@ export function Hud({
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
+      if (lootDoneTimerRef.current) window.clearTimeout(lootDoneTimerRef.current);
       setIsBouncing(false);
     };
-  }, [lootAnimating, resources.sol]);
+  }, [lootAnimating, resources.gold]);
 
   return (
     <div className={`hud ${isMobile ? 'mobile' : ''}`}>
@@ -180,20 +188,57 @@ export function Hud({
           <>
             <div className={`resources ${showingLoot ? 'over-clouds' : ''}`}>
               <div className="res-row">
-                <div className={`res-item sol ${isBouncing ? 'bounce' : ''}`}>
-                  <span className="icon sol-icon" />
-                  <span>{formatSol(displaySol, isMobile, false)}</span>
+                <div className={`res-item gold ${isBouncing ? 'bounce' : ''}`}>
+                  <span className="icon gold-icon" />
+                  <span>{formatGold(displaySol, isMobile, false)}</span>
                 </div>
                 {showingLoot && lootAmount > 0 && (
                   <span className={`loot-badge ${isFadingLoot ? 'fading' : ''}`}>
-                    +{formatSol(lootAmount, false, false)}
+                    +{formatGold(lootAmount, false, false)}
                   </span>
                 )}
               </div>
+              <div className="res-row">
+                <div className="res-item ore">
+                  <span className="icon ore-icon" />
+                  <span>{formatGold(resources.ore, isMobile, false)}</span>
+                </div>
+              </div>
+              <div className="res-row">
+                <div className="res-item food">
+                  <span className="icon food-icon" />
+                  <span>{formatGold(resources.food, isMobile, false)}</span>
+                </div>
+              </div>
+              <div className="res-row">
+                <div
+                  className={`res-item pop ${population.staffing < 1 ? 'understaffed' : ''}`}
+                  title={population.staffing < 1
+                    ? `Understaffed: ${population.count}/${population.workersNeeded} workers — mines and farms run at ${Math.round(population.staffing * 100)}%`
+                    : 'Population'}
+                >
+                  <span className="icon pop-icon" />
+                  <span>{population.count}/{population.capacity}</span>
+                  {population.staffing < 1 && <span className="pop-warn">!</span>}
+                </div>
+              </div>
             </div>
-            <button className="settings-btn" onClick={onOpenSettings}>
-              <div className="btn-icon icon settings-icon"></div>
-            </button>
+            <div className="top-btn-stack">
+              <button className="settings-btn" onClick={() => { soundSystem.play('click'); onOpenSettings(); }}>
+                <div className="btn-icon icon settings-icon"></div>
+              </button>
+              <button
+                className={`settings-btn mute-btn ${isMuted ? 'muted' : ''}`}
+                title={isMuted ? 'Unmute' : 'Mute'}
+                onClick={() => {
+                  const next = !isMuted;
+                  soundSystem.setMuted(next);
+                  setIsMuted(next);
+                }}
+              >
+                <span className={`sym ${isMuted ? 'sym-speaker-off' : 'sym-speaker'}`} />
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -208,10 +253,22 @@ export function Hud({
                   </div>
                 </div>
                 <div className="loot-display">
-                  <div className="loot-item sol">
-                    <span className="icon sol-icon" />
-                    <span>+{formatSol(battleStats.solLooted, isMobile, false)}</span>
+                  <div className="loot-item gold">
+                    <span className="icon gold-icon" />
+                    <span>+{formatGold(battleStats.goldLooted, isMobile, false)}</span>
                   </div>
+                  {(battleStats.oreLooted ?? 0) > 0 && (
+                    <div className="loot-item ore">
+                      <span className="icon ore-icon" />
+                      <span>+{battleStats.oreLooted}</span>
+                    </div>
+                  )}
+                  {(battleStats.foodLooted ?? 0) > 0 && (
+                    <div className="loot-item food">
+                      <span className="icon food-icon" />
+                      <span>+{battleStats.foodLooted}</span>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -223,9 +280,16 @@ export function Hud({
         <InfoPanel
           type={selectedBuildingInfo.type}
           level={selectedBuildingInfo.level}
+          gridX={selectedBuildingInfo.gridX}
+          gridY={selectedBuildingInfo.gridY}
+          upgradeEndsAt={selectedBuildingInfo.upgradeEndsAt}
           resources={resources}
+          storageCaps={storageCaps}
+          armyCapacity={armyCapacity}
           isExiting={isExiting}
           onDelete={onDeleteBuilding}
+          deleteDisabled={deleteBuildingDisabled}
+          deleteDisabledReason={deleteBuildingDisabledReason}
           onUpgrade={onUpgradeBuilding}
           onMove={onMoveBuilding}
           upgradeCost={wallUpgradeCostOverride}
@@ -239,17 +303,17 @@ export function Hud({
           {view === 'HOME' ? (
           <div className="menu-inner">
             <div className="btn-group main-actions">
-              <button className="action-btn build" onClick={onOpenBuild}>
+              <button className="action-btn build" onClick={() => { soundSystem.play('click'); onOpenBuild(); }}>
                 <div className="btn-icon icon build-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'BUILD'}</span>
               </button>
-              <button className="action-btn raid" onClick={onOpenTrain}>
+              <button className="action-btn raid" onClick={() => { soundSystem.play('click'); onOpenTrain(); }}>
                 <div className="btn-icon icon raid-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'RAID'}</span>
               </button>
-              <button className={`action-btn test ${isDummyActive ? 'active' : ''}`} onClick={onToggleDummy}>
-                <div className="btn-icon icon test-icon"></div>
-                <span className="btn-label">{isMobile ? '' : 'TEST'}</span>
+              <button className="action-btn map" onClick={() => { soundSystem.play('click'); onOpenMap(); }}>
+                <div className="btn-icon icon map-icon"></div>
+                <span className="btn-label">{isMobile ? '' : 'MAP'}</span>
               </button>
             </div>
           </div>
@@ -322,4 +386,4 @@ export function Hud({
   );
 }
 
-// formatSol handles compact formatting for mobile.
+// formatGold handles compact formatting for mobile.

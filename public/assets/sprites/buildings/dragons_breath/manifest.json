@@ -1,0 +1,212 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "dragons_breath_L1_idle0.png",
+                "texelW": 154,
+                "texelH": 98,
+                "cellWorldPx": 1.35,
+                "originX": 0.5007215007215007,
+                "originY": 0.5804988662131515,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "dragons_breath_L1_fire0.png",
+                "texelW": 154,
+                "texelH": 103,
+                "cellWorldPx": 1.35,
+                "originX": 0.5007215007215007,
+                "originY": 0.600862998921251,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "dragons_breath_L1_fire1.png",
+                "texelW": 154,
+                "texelH": 91,
+                "cellWorldPx": 1.35,
+                "originX": 0.5007215007215007,
+                "originY": 0.548229548229548,
+                "ov": {
+                  "fireAge": 150
+                }
+              },
+              {
+                "file": "dragons_breath_L1_fire2.png",
+                "texelW": 154,
+                "texelH": 80,
+                "cellWorldPx": 1.35,
+                "originX": 0.5007215007215007,
+                "originY": 0.4861111111111111,
+                "ov": {
+                  "fireAge": 350
+                }
+              },
+              {
+                "file": "dragons_breath_L1_fire3.png",
+                "texelW": 154,
+                "texelH": 79,
+                "cellWorldPx": 1.35,
+                "originX": 0.5007215007215007,
+                "originY": 0.47960618846694775,
+                "ov": {
+                  "fireAge": 700
+                }
+              },
+              {
+                "file": "dragons_breath_L1_fire4.png",
+                "texelW": 154,
+                "texelH": 82,
+                "cellWorldPx": 1.35,
+                "originX": 0.5007215007215007,
+                "originY": 0.4986449864498644,
+                "ov": {
+                  "fireAge": 1100
+                }
+              },
+              {
+                "file": "dragons_breath_L1_fire5.png",
+                "texelW": 154,
+                "texelH": 89,
+                "cellWorldPx": 1.35,
+                "originX": 0.5007215007215007,
+                "originY": 0.5380774032459423,
+                "ov": {
+                  "fireAge": 1600
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "dragons_breath_L1_ground.png",
+        "texelW": 138,
+        "texelH": 71,
+        "cellWorldPx": 1.35,
+        "originX": 0.5008051529790659,
+        "originY": 0.5054773082942096
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "dragons_breath_L2_idle0.png",
+                "texelW": 157,
+                "texelH": 98,
+                "cellWorldPx": 1.35,
+                "originX": 0.49115357395612164,
+                "originY": 0.5804988662131515,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "dragons_breath_L2_fire0.png",
+                "texelW": 157,
+                "texelH": 103,
+                "cellWorldPx": 1.35,
+                "originX": 0.49115357395612164,
+                "originY": 0.600862998921251,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "dragons_breath_L2_fire1.png",
+                "texelW": 157,
+                "texelH": 91,
+                "cellWorldPx": 1.35,
+                "originX": 0.49115357395612164,
+                "originY": 0.548229548229548,
+                "ov": {
+                  "fireAge": 150
+                }
+              },
+              {
+                "file": "dragons_breath_L2_fire2.png",
+                "texelW": 157,
+                "texelH": 88,
+                "cellWorldPx": 1.35,
+                "originX": 0.49115357395612164,
+                "originY": 0.5328282828282824,
+                "ov": {
+                  "fireAge": 350
+                }
+              },
+              {
+                "file": "dragons_breath_L2_fire3.png",
+                "texelW": 157,
+                "texelH": 88,
+                "cellWorldPx": 1.35,
+                "originX": 0.49115357395612164,
+                "originY": 0.5328282828282824,
+                "ov": {
+                  "fireAge": 700
+                }
+              },
+              {
+                "file": "dragons_breath_L2_fire4.png",
+                "texelW": 157,
+                "texelH": 88,
+                "cellWorldPx": 1.35,
+                "originX": 0.49115357395612164,
+                "originY": 0.5328282828282824,
+                "ov": {
+                  "fireAge": 1100
+                }
+              },
+              {
+                "file": "dragons_breath_L2_fire5.png",
+                "texelW": 157,
+                "texelH": 89,
+                "cellWorldPx": 1.35,
+                "originX": 0.49115357395612164,
+                "originY": 0.5380774032459423,
+                "ov": {
+                  "fireAge": 1600
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "dragons_breath_L2_ground.png",
+        "texelW": 140,
+        "texelH": 72,
+        "cellWorldPx": 1.35,
+        "originX": 0.5007936507936507,
+        "originY": 0.4984567901234567
+      }
+    }
+  }
+}

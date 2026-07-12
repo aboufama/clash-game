@@ -1,12 +1,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
-import { GameConfig } from './game/GameConfig';
+import { createGameConfig } from './game/GameConfig';
+import { installDisplayResolution } from './game/utils/DisplayResolution';
 import type { GameMode } from './game/types/GameMode';
-import { BUILDING_DEFINITIONS, TROOP_DEFINITIONS, type BuildingType, getBuildingStats } from './game/config/GameDefinitions';
+import { BUILDING_DEFINITIONS, PLAYER_TROOP_TYPES, TROOP_DEFINITIONS, type BuildingType, type PlayerTroopType, type TroopType, getBuildingStats, upgradeOreCostOf, troopFoodCostOf } from './game/config/GameDefinitions';
+import { armySpaceUsed, campCapacityOf, campHousingAtLevel, placementCharge, productionRatesPerSecond, resourceCapacity } from './game/config/Economy';
 import { Backend, type IncomingAttackSession } from './game/backend/GameBackend';
+import type { SerializedWorld } from './game/data/Models';
 import { Auth } from './game/backend/Auth';
-import { gameManager } from './game/GameManager';
+import { gameManager, type PlotPanelInfo, type PlotPanelAction } from './game/GameManager';
+import { PlotPanel } from './components/PlotPanel';
+import { MapAtlasModal } from './components/MapAtlasModal';
+import { ReplayTheatreModal } from './components/ReplayTheatreModal';
 import { MobileUtils } from './game/utils/MobileUtils';
 import { CloudOverlay } from './components/CloudOverlay';
 import { TrainingModal } from './components/TrainingModal';
@@ -17,6 +23,10 @@ import { DebugMenu } from './components/DebugMenu';
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { LeaderboardPanel } from './components/LeaderboardPanel';
 import { AccountModal } from './components/AccountModal';
+import { JukeboxModal } from './components/JukeboxModal';
+import { MerchantModal } from './components/MerchantModal';
+import { soundSystem } from './game/systems/SoundSystem';
+import type { MerchantOffer } from './game/systems/VillageLifeSystem';
 import './App.css';
 
 // Initialize mobile support
@@ -29,17 +39,69 @@ function hasRenderableWorldPayload(world: unknown): world is { buildings: unknow
   return Array.isArray(maybe.buildings) && maybe.buildings.length > 0;
 }
 
+// Static shop/troop catalogs — derived once from the definitions instead of being
+// rebuilt (and re-sorted) on every App render.
+const DEFENSE_SHOP_ORDER: BuildingType[] = ['wall', 'cannon', 'ballista', 'mortar', 'tesla', 'xbow', 'prism', 'frostfall', 'spike_launcher', 'dragons_breath'];
+const DEFENSE_ORDER_INDEX = new Map(DEFENSE_SHOP_ORDER.map((type, index) => [type, index]));
+const CATEGORY_ORDER: Record<string, number> = {
+  defense: 0,
+  military: 1,
+  resource: 2,
+  other: 3,
+  army: 1
+};
+
+const buildingList = Object.values(BUILDING_DEFINITIONS).sort((a, b) => {
+  const categoryRankA = CATEGORY_ORDER[a.category || 'other'] ?? 99;
+  const categoryRankB = CATEGORY_ORDER[b.category || 'other'] ?? 99;
+  if (categoryRankA !== categoryRankB) return categoryRankA - categoryRankB;
+
+  if (a.category === 'defense' && b.category === 'defense') {
+    const orderA = DEFENSE_ORDER_INDEX.get(a.id as BuildingType) ?? 999;
+    const orderB = DEFENSE_ORDER_INDEX.get(b.id as BuildingType) ?? 999;
+    if (orderA !== orderB) return orderA - orderB;
+  }
+
+  if (a.cost !== b.cost) return a.cost - b.cost;
+  return a.name.localeCompare(b.name);
+});
+const troopList = Object.values(TROOP_DEFINITIONS).filter(t => t.id !== 'romanwarrior');
+
 
 function App() {
   const gameRef = useRef<Phaser.Game | null>(null);
+  const displayResolutionCleanupRef = useRef<(() => void) | null>(null);
 
-  type UserProfile = { id: string; email: string; username: string; lastLogin: number };
+  type UserProfile = { id: string; username: string; trophies: number; registered: boolean; lastLogin: number };
   const [user, setUser] = useState<UserProfile | null>(null);
+  // Primitive identity for effect deps: profile-only changes (rename, register)
+  // must NOT tear down and recreate the Phaser game or reload the world.
+  const userId = user?.id ?? null;
+  const userRef = useRef<UserProfile | null>(null);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
   const [authReady, setAuthReady] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [worldReady, setWorldReady] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const isLockedOut = !user || !isOnline;
+  const [isJukeboxOpen, setIsJukeboxOpen] = useState(false);
+  const [merchantOffers, setMerchantOffers] = useState<MerchantOffer[] | null>(null);
+  const [plotPanel, setPlotPanel] = useState<PlotPanelInfo | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const merchantTradesInFlightRef = useRef(new Set<number>());
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 4200);
+  }, []);
+  // The game only boots when a live session exists (the Phaser-creation effect
+  // requires user && isOnline), so the lockout screen must cover the offline
+  // case too — otherwise a returning player with a cached identity but an
+  // unreachable server would see an empty page with no overlay and no retry.
+  const isLockedOut = sessionExpired || !user || !isOnline;
 
   const [loading, setLoading] = useState(true);
   const [showCloudOverlay, setShowCloudOverlay] = useState(true);
@@ -50,8 +112,12 @@ function App() {
   const [lootAnimating, setLootAnimating] = useState<{ amount: number } | null>(null);
   const cloudOpenTimerRef = useRef<number | null>(null);
   const cloudHideTimerRef = useRef<number | null>(null);
-  const [resources, setResources] = useState({ sol: 0 });
+  const [resources, setResources] = useState({ gold: 0, ore: 0, food: 0 });
+  // Server-authoritative village population — a core mechanic later; display-only today.
+  const [population, setPopulation] = useState({ count: 0, capacity: 0, workersNeeded: 0, staffing: 1 });
   const resourcesRef = useRef(resources);
+  // Ticking HUD values: base balances + predicted accrual (see the predictive block below).
+  const [displayResources, setDisplayResources] = useState(resources);
   const [army, setArmy] = useState({ warrior: 0, archer: 0, giant: 0, wallbreaker: 0, ward: 0, recursion: 0, ram: 0, stormmage: 0, golem: 0, sharpshooter: 0, mobilemortar: 0, davincitank: 0, phalanx: 0 });
   const [isMobile] = useState(() => MobileUtils.isMobile());
 
@@ -64,7 +130,21 @@ function App() {
           if (hasRenderableWorldPayload(world)) {
             Backend.primeWorldCache(authUser.id, world);
           }
-          setUser({ id: authUser.id, email: authUser.email, username: authUser.username, lastLogin: Date.now() });
+          if (online) {
+            // A reload can interrupt a server-registered raid after the id was
+            // issued. Reconcile it in the background so army/world locks do
+            // not linger for minutes, without holding the boot screen open.
+            void Backend.reconcileInterruptedBattle().catch(error => {
+              console.warn('Interrupted battle reconciliation is still pending:', error);
+            });
+          }
+          setUser({
+            id: authUser.id,
+            username: authUser.username,
+            trophies: authUser.trophies ?? 0,
+            registered: Boolean(authUser.registered),
+            lastLogin: Date.now()
+          });
         } else {
           setUser(null);
         }
@@ -87,21 +167,21 @@ function App() {
     };
   }, []);
 
-  const applySolDelta = useCallback(async (delta: number, reason: string, refId?: string) => {
-    if (!user) return { applied: false, sol: resourcesRef.current.sol };
+  const applyGoldDelta = useCallback(async (delta: number, reason: string, refId?: string) => {
+    if (!user) return { applied: false, gold: resourcesRef.current.gold };
 
     const userId = user.id || 'default_player';
-    const currentSol = resourcesRef.current.sol;
+    const currentSol = resourcesRef.current.gold;
     if (delta < 0 && currentSol + delta < 0) {
-      return { applied: false, sol: currentSol };
+      return { applied: false, gold: currentSol };
     }
 
     const optimisticSol = Math.max(0, currentSol + delta);
-    resourcesRef.current = { sol: optimisticSol };
-    setResources({ sol: optimisticSol });
+    resourcesRef.current = { ...resourcesRef.current, gold: optimisticSol };
+    setResources(prev => ({ ...prev, gold: optimisticSol }));
 
     if (!isOnline) {
-      return { applied: true, sol: optimisticSol };
+      return { applied: true, gold: optimisticSol };
     }
 
     const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -109,33 +189,64 @@ function App() {
       : `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
     void Backend.applyResourceDelta(userId, delta, reason, refId, requestId)
-      .then(server => {
-        if (!server || typeof server.sol !== 'number') return;
-        const reconciledSol = Math.max(0, server.sol);
-        resourcesRef.current = { sol: reconciledSol };
-        setResources({ sol: reconciledSol });
-      })
+      // Backend emits one revision-gated world sync. Do not independently
+      // apply this response here: a newer poll may already have landed.
+      .then(() => undefined)
       .catch(async error => {
         console.warn('Resource sync failed, reconciling from server:', error);
         try {
           await Backend.calculateOfflineProduction(userId);
           const cached = Backend.getCachedWorld(userId);
           if (cached) {
-            const reconciledSol = Math.max(0, cached.resources.sol);
-            resourcesRef.current = { sol: reconciledSol };
-            setResources({ sol: reconciledSol });
+            const reconciledSol = Math.max(0, cached.resources.gold);
+            resourcesRef.current = { ...resourcesRef.current, gold: reconciledSol };
+            setResources(prev => ({ ...prev, gold: reconciledSol }));
             return;
           }
         } catch (reconcileError) {
           console.warn('Resource reconcile failed:', reconcileError);
         }
 
-        resourcesRef.current = { sol: currentSol };
-        setResources({ sol: currentSol });
+        resourcesRef.current = { ...resourcesRef.current, gold: currentSol };
+        setResources(prev => ({ ...prev, gold: currentSol }));
       });
 
-    return { applied: true, sol: optimisticSol };
+    return { applied: true, gold: optimisticSol };
   }, [user, isOnline]);
+
+  // Stable handle for long-lived closures (Phaser UI handlers) so they never go stale
+  // and the game-lifecycle effect doesn't need applyGoldDelta in its deps.
+  const applyGoldDeltaRef = useRef(applyGoldDelta);
+  useEffect(() => {
+    applyGoldDeltaRef.current = applyGoldDelta;
+  }, [applyGoldDelta]);
+
+  // One merchant deal: the server re-derives today's offers from the same
+  // shared generator and prices the trade itself. Resources do not move
+  // optimistically: the returned authoritative snapshot is adopted by Backend,
+  // so a dropped/failed response can never trigger an arithmetic resource mint.
+  const handleMerchantTrade = useCallback(async (offer: MerchantOffer) => {
+    if (offer.done || merchantTradesInFlightRef.current.has(offer.id) || displayResources[offer.give.kind] < offer.give.amount) return;
+    merchantTradesInFlightRef.current.add(offer.id);
+    offer.done = true;
+    setMerchantOffers(prev => prev ? [...prev] : prev);
+    try {
+      const result = await Backend.merchantTrade(offer.id);
+      if (!result?.applied) throw new Error('The merchant refused the deal');
+      soundSystem.play('trade');
+      if (soundSystem.unlockTrack('merchants_tune')) {
+        showToast("New track unlocked: Merchant's Tune!");
+      }
+    } catch (error) {
+      console.warn('Merchant trade failed:', error);
+      offer.done = false;
+      setMerchantOffers(prev => prev ? [...prev] : prev);
+      if (userId) await Backend.forceLoadFromCloud(userId).catch(() => null);
+      showToast('That deal fell through — nothing was traded.');
+    } finally {
+      merchantTradesInFlightRef.current.delete(offer.id);
+    }
+  }, [displayResources, showToast, userId]);
 
 
   useEffect(() => {
@@ -188,7 +299,7 @@ function App() {
       cloudHideTimerRef.current = window.setTimeout(() => {
         setShowCloudOverlay(false);
         setCloudOpening(false);
-      }, 650);
+      }, 880); // OPEN_MS (800) + a beat — hiding early clips the part
     }, 220);
   }, [clearCloudTimers]);
 
@@ -261,7 +372,7 @@ function App() {
   useEffect(() => {
     if (!authReady) return;
 
-    if (!user || !isOnline) {
+    if (!userId || !isOnline) {
       setWorldReady(false);
       clearCloudTimers();
       setLoading(false);
@@ -277,7 +388,6 @@ function App() {
         setWorldReady(false);
         setLoading(true);
         beginVillageLoadCloud(8);
-        const userId = user.id || 'default_player';
 
         // Hydrate from a known-good cached snapshot first (primed by auth/session when available).
         const cachedWorld = Backend.getCachedWorld(userId);
@@ -315,8 +425,18 @@ function App() {
 
         updateVillageLoadCloud(72);
         setResources({
-          sol: Math.max(0, world.resources.sol)
+          gold: Math.max(0, world.resources.gold),
+          ore: Math.max(0, world.resources.ore ?? 0),
+          food: Math.max(0, world.resources.food ?? 0)
         });
+        if (world.population) {
+          setPopulation({
+            count: Math.max(0, world.population.count),
+            capacity: Math.max(0, world.population.capacity),
+            workersNeeded: Math.max(0, world.population.workersNeeded ?? 0),
+            staffing: Math.min(1, Math.max(0, world.population.staffing ?? 1))
+          });
+        }
 
         // Load Army from storage and sync capacity
         if (world.army) {
@@ -334,7 +454,7 @@ function App() {
         updateVillageLoadCloud(88);
         const scene = gameRef.current?.scene.getScene('MainScene') as any;
         if (scene && scene.updateUsername) {
-          scene.updateUsername(user.username);
+          scene.updateUsername(userRef.current?.username ?? '');
         }
 
         // IMPORTANT: Trigger Phaser to reload the base using the now-known userId.
@@ -354,8 +474,8 @@ function App() {
         loaded = sceneLoaded;
         setWorldReady(sceneLoaded);
 
-        if (offline.sol > 0) {
-          console.log(`Welcome back ${user.username}! Offline Production: ${offline.sol} SOL`);
+        if (offline.gold > 0) {
+          console.log(`Welcome back ${userRef.current?.username ?? ''}! Offline Production: ${offline.gold} GOLD`);
         }
       } catch (error) {
         console.error('Error initializing game:', error);
@@ -370,14 +490,14 @@ function App() {
     };
 
     init();
-  }, [authReady, user, isOnline, beginVillageLoadCloud, updateVillageLoadCloud, revealVillageFromCloud, clearCloudTimers, ensureSceneBaseLoaded, loadCloudWorldWithRetry]);
+  }, [authReady, userId, isOnline, beginVillageLoadCloud, updateVillageLoadCloud, revealVillageFromCloud, clearCloudTimers, ensureSceneBaseLoaded, loadCloudWorldWithRetry]);
 
   // Persist resources & army
   useEffect(() => {
     if (user && !loading && worldReady) {
       try {
         const userId = user.id || 'default_player';
-        Backend.updateResources(userId, resources.sol);
+        Backend.updateResources(userId, resources.gold);
         Backend.updateArmy(userId, army);
       } catch (error) {
         console.error('Error saving game state:', error);
@@ -386,14 +506,16 @@ function App() {
   }, [resources, army, user, loading, worldReady]);
 
   const [capacity, setCapacity] = useState({ current: 0, max: 30 });
-  const [selectedTroopType, setSelectedTroopType] = useState<'warrior' | 'archer' | 'giant' | 'wallbreaker' | 'ward' | 'recursion' | 'ram' | 'stormmage' | 'golem' | 'sharpshooter' | 'mobilemortar' | 'davincitank' | 'phalanx'>('warrior');
+  const [selectedTroopType, setSelectedTroopType] = useState<PlayerTroopType>('warrior');
   const [visibleTroops, setVisibleTroops] = useState<string[]>([]);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [isBuildingOpen, setIsBuildingOpen] = useState(false);
   const [view, setView] = useState<GameMode>('HOME');
   const [selectedInMap, setSelectedInMap] = useState<string | null>(null);
-  const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<{ id: string; type: BuildingType; level: number } | null>(null);
-  const [battleStats, setBattleStats] = useState({ destruction: 0, solLooted: 0 });
+  const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<{ id: string; type: BuildingType; level: number; gridX?: number; gridY?: number; upgradeEndsAt?: number } | null>(null);
+  const [showAtlas, setShowAtlas] = useState(false);
+  const [showTheatre, setShowTheatre] = useState(false);
+  const [battleStats, setBattleStats] = useState({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
   const [battleStarted, setBattleStarted] = useState(false); // Track if first troop deployed
   const [isExiting, setIsExiting] = useState(false);
   const [showBattleResults, setShowBattleResults] = useState(false);
@@ -402,7 +524,6 @@ function App() {
   const [troopLevel, setTroopLevel] = useState(1);
   const [barracksLevel, setBarracksLevel] = useState(1);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
-  const [isDummyActive, setIsDummyActive] = useState(false);
   const [scoutTarget, setScoutTarget] = useState<{ userId: string; username: string } | null>(null);
   const [incomingAttack, setIncomingAttack] = useState<IncomingAttackSession | null>(null);
   const [dismissedIncomingAttackId, setDismissedIncomingAttackId] = useState<string | null>(null);
@@ -411,9 +532,186 @@ function App() {
   const armyRef = useRef(army);
   const selectedTroopTypeRef = useRef(selectedTroopType);
   const battleStatsRef = useRef(battleStats);
+  const populationRef = useRef(population);
+  const armyTransactionInFlightRef = useRef(false);
+  useEffect(() => {
+    populationRef.current = population;
+  }, [population]);
+
+  // ONE adoption gate for every server-authoritative world state (session
+  // load, save responses, settlements, trades, polls). Revision-ordered so an
+  // older snapshot can never clobber a newer one.
+  const lastAdoptedRevRef = useRef(0);
+  useEffect(() => {
+    lastAdoptedRevRef.current = 0;
+  }, [userId]);
+  const storageCapsRef = useRef<{ ore: number; food: number } | null>(null);
+  const adoptWorld = useCallback((world: SerializedWorld | null | undefined) => {
+    if (!world) return;
+    const rev = Number(world.revision ?? 0);
+    if ((rev === 0 && lastAdoptedRevRef.current > 0) || (rev !== 0 && rev < lastAdoptedRevRef.current)) return;
+    if (rev > 0) lastAdoptedRevRef.current = rev;
+    storageCapsRef.current = world.storage
+      ? { ore: world.storage.ore, food: world.storage.food }
+      : resourceCapacity(world.buildings ?? []);
+    if (world.resources) {
+      setResources(prev => ({
+        gold: Math.max(0, Math.floor(world.resources.gold ?? prev.gold)),
+        ore: Math.max(0, Math.floor(world.resources.ore ?? prev.ore)),
+        food: Math.max(0, Math.floor(world.resources.food ?? prev.food))
+      }));
+    }
+    if (world.population) {
+      setPopulation({
+        count: Math.max(0, world.population.count),
+        capacity: Math.max(0, world.population.capacity),
+        workersNeeded: Math.max(0, world.population.workersNeeded ?? 0),
+        staffing: Math.min(1, Math.max(0, world.population.staffing ?? 1))
+      });
+      gameManager.syncPopulation(world.population.count);
+    }
+    if (world.army) {
+      const serverArmy = world.army;
+      setArmy(prev => {
+        const next: Record<string, number> = { ...prev };
+        for (const key of Object.keys(next)) next[key] = 0;
+        for (const [type, count] of Object.entries(serverArmy)) {
+          if (type in next) next[type] = Math.max(0, Math.floor(Number(count) || 0));
+        }
+        return next as typeof prev;
+      });
+      const totalSpace = Object.entries(serverArmy).reduce((sum, [type, count]) => {
+        const def = TROOP_DEFINITIONS[type as TroopType];
+        return sum + (def ? def.space * Math.max(0, Math.floor(Number(count) || 0)) : 0);
+      }, 0);
+      setCapacity(prev => ({ ...prev, current: totalSpace }));
+    }
+  }, []);
+
+  // Population/production poll: the server grows the village on its own clock;
+  // every so often we adopt the authoritative snapshot (births walk out of the
+  // town hall as children, balances re-anchor the predictive counters).
+  useEffect(() => {
+    if (!userId || !isOnline || view !== 'HOME') return;
+    let cancelled = false;
+    const tick = async () => {
+      if (document.hidden) return;
+      const world = await Backend.fetchWorldSnapshot();
+      if (cancelled || !world) return;
+      adoptWorld(world);
+    };
+    const interval = window.setInterval(() => void tick(), 45_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [userId, isOnline, view, adoptWorld]);
+
+  // ---- predictive HUD counters ----
+  // The displayed balances tick forward between authoritative syncs using the
+  // SAME production math the server runs (shared Economy code): base value +
+  // staffed rate x elapsed, ore/food capped by storage. Every server response
+  // re-anchors the base, so the counter is honest to the second.
+  const resourcesSyncedAtRef = useRef(Date.now());
+  useEffect(() => {
+    resourcesRef.current = resources;
+    resourcesSyncedAtRef.current = Date.now();
+  }, [resources]);
+  useEffect(() => {
+    const tick = () => {
+      const base = resourcesRef.current;
+      const world = userId ? Backend.getCachedWorld(userId) : null;
+      if (!world || !isOnline) {
+        setDisplayResources(prev => (
+          prev.gold === base.gold && prev.ore === base.ore && prev.food === base.food ? prev : { ...base }
+        ));
+        return;
+      }
+      const rates = productionRatesPerSecond(world.buildings);
+      const staffing = Math.min(1, Math.max(0, populationRef.current.staffing ?? 1));
+      const elapsed = Math.max(0, (Date.now() - resourcesSyncedAtRef.current) / 1000);
+      const caps = storageCapsRef.current;
+      const next = {
+        gold: Math.floor(base.gold + rates.gold * elapsed),
+        ore: Math.min(caps?.ore ?? Number.MAX_SAFE_INTEGER, Math.floor(base.ore + rates.ore * staffing * elapsed)),
+        food: Math.min(caps?.food ?? Number.MAX_SAFE_INTEGER, Math.floor(base.food + rates.food * staffing * elapsed))
+      };
+      setDisplayResources(prev => (
+        prev.gold === next.gold && prev.ore === next.ore && prev.food === next.food ? prev : next
+      ));
+    };
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [userId, isOnline]);
+
+  // Read through a ref so dismissing a popup doesn't tear down and restart the
+  // polling interval (which also fired an extra immediate request each time).
+  const dismissedIncomingAttackRef = useRef<string | null>(null);
+  useEffect(() => {
+    dismissedIncomingAttackRef.current = dismissedIncomingAttackId;
+  }, [dismissedIncomingAttackId]);
+
+  // A dead session (401 anywhere) announces itself exactly once.
+  useEffect(() => {
+    const onExpired = () => {
+      // Stop the writable-looking game immediately. Keeping an expired token
+      // alive lets optimistic layout edits accumulate even though none can save.
+      setSessionExpired(true);
+      setWorldReady(false);
+      setShowCloudOverlay(false);
+      setPlotPanel(null);
+      setIsTrainingOpen(false);
+      setIsBuildingOpen(false);
+      showToast('Session expired — reconnect before making more changes.');
+      void Auth.logout().finally(() => {
+        Backend.clearAllCaches();
+        setUser(null);
+        setIsOnline(false);
+      });
+    };
+    window.addEventListener('clash:session-expired', onExpired);
+    return () => window.removeEventListener('clash:session-expired', onExpired);
+  }, [showToast]);
 
   useEffect(() => {
-    if (!user || !isOnline || view !== 'HOME') {
+    const onActiveElsewhere = () => {
+      showToast('A raid is still active on another tab or device. Starting a new raid will take it over.');
+    };
+    window.addEventListener('clash:active-battle-elsewhere', onActiveElsewhere);
+    return () => window.removeEventListener('clash:active-battle-elsewhere', onActiveElsewhere);
+  }, [showToast]);
+
+  // A rejected save (the server refused the bill) reverts balances AND
+  // reloads the scene from the reverted truth; ordinary syncs re-anchor
+  // the predictive counters through the same adoption gate.
+  useEffect(() => {
+    const onSynced = (event: Event) => {
+      adoptWorld((event as CustomEvent<{ world?: SerializedWorld }>).detail?.world);
+    };
+    const onRejected = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; world?: SerializedWorld }>).detail;
+      adoptWorld(detail?.world);
+      void gameManager.loadBase().catch(() => undefined);
+      showToast(`${detail?.message ?? 'Not enough resources'} — changes reverted.`);
+    };
+    const onTrophies = (event: Event) => {
+      const trophies = Number((event as CustomEvent<{ trophies?: number }>).detail?.trophies);
+      if (!Number.isFinite(trophies)) return;
+      setUser(prev => prev ? { ...prev, trophies: Math.max(0, Math.floor(trophies)) } : prev);
+    };
+    window.addEventListener('clash:world-synced', onSynced);
+    window.addEventListener('clash:save-rejected', onRejected);
+    window.addEventListener('clash:trophies-synced', onTrophies);
+    return () => {
+      window.removeEventListener('clash:world-synced', onSynced);
+      window.removeEventListener('clash:save-rejected', onRejected);
+      window.removeEventListener('clash:trophies-synced', onTrophies);
+    };
+  }, [adoptWorld, showToast]);
+
+  useEffect(() => {
+    if (!userId || !isOnline || view !== 'HOME') {
       setIncomingAttack(null);
       return;
     }
@@ -421,16 +719,20 @@ function App() {
     let cancelled = false;
 
     const refreshIncoming = async () => {
+      if (document.hidden) return;
       try {
-        const sessions = await Backend.getIncomingAttacks(user.id);
+        const sessions = await Backend.getIncomingAttacks(userId);
         if (cancelled) return;
         const latest = sessions[0] ?? null;
+        // Even a dismissed popup keeps the villagers hiding — the raid is still live.
+        // This poll is the ONE siege detector: it also drives the in-scene banner.
+        gameManager.setUnderAttack(Boolean(latest), latest?.attackId ?? null);
         if (!latest) {
           setIncomingAttack(null);
           setDismissedIncomingAttackId(null);
           return;
         }
-        if (latest.attackId === dismissedIncomingAttackId) {
+        if (latest.attackId === dismissedIncomingAttackRef.current) {
           setIncomingAttack(null);
           return;
         }
@@ -451,7 +753,7 @@ function App() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [user, isOnline, view, dismissedIncomingAttackId]);
+  }, [userId, isOnline, view]);
 
   useEffect(() => {
     selectedInMapRef.current = selectedInMap;
@@ -461,75 +763,62 @@ function App() {
     resourcesRef.current = resources;
   }, [selectedInMap, army, selectedTroopType, battleStats, resources]);
 
-  const handleLoginAccount = async (identifier: string, password: string) => {
-    setLoading(true);
-    setWorldReady(false);
-    try {
-      const existingId = user?.id;
-      if (existingId) {
-        await Backend.flushPendingSave();
-        Backend.clearCacheForUser(existingId);
-      }
-      const { user: authUser, world } = await Auth.login(identifier, password);
-      // Clear any stale cache for the NEW user from a previous session on this browser
-      Backend.clearCacheForUser(authUser.id);
-      if (hasRenderableWorldPayload(world)) {
-        Backend.primeWorldCache(authUser.id, world);
-      }
-      setUser({ id: authUser.id, email: authUser.email, username: authUser.username, lastLogin: Date.now() });
-      setIsOnline(true);
-      setIsAccountOpen(false);
-    } catch (error) {
-      setLoading(false);
-      throw error;
-    }
+  const handleRenameAccount = async (name: string) => {
+    await Backend.flushPendingSave();
+    const renamed = await Auth.rename(name);
+    if (userId) await Backend.forceLoadFromCloud(userId);
+    setUser(prev => (prev ? { ...prev, username: renamed.username } : prev));
+    const scene = gameRef.current?.scene.getScene('MainScene') as { updateUsername?: (name: string) => void } | null;
+    scene?.updateUsername?.(renamed.username);
   };
 
-  const handleRegisterAccount = async (email: string, username: string, password: string) => {
-    setLoading(true);
-    setWorldReady(false);
-    try {
-      const existingId = user?.id;
-      if (existingId) {
-        await Backend.flushPendingSave();
-        Backend.clearCacheForUser(existingId);
-      }
-      const { user: authUser, world } = await Auth.register(email, username, password);
-      // Clear any stale cache for the NEW user from a previous session on this browser
-      Backend.clearCacheForUser(authUser.id);
-      if (hasRenderableWorldPayload(world)) {
-        Backend.primeWorldCache(authUser.id, world);
-      }
-      setUser({ id: authUser.id, email: authUser.email, username: authUser.username, lastLogin: Date.now() });
-      setIsOnline(true);
-      setIsAccountOpen(false);
-    } catch (error) {
-      setLoading(false);
-      throw error;
-    }
+  const handleRegisterAccount = async (username: string, password: string) => {
+    await Backend.flushPendingSave();
+    const player = await Auth.register(username, password);
+    if (userId) await Backend.forceLoadFromCloud(userId);
+    setUser(prev => (prev ? { ...prev, username: player.username, registered: true } : prev));
+    const scene = gameRef.current?.scene.getScene('MainScene') as { updateUsername?: (name: string) => void } | null;
+    scene?.updateUsername?.(player.username);
+  };
+
+  // Login/logout swap the whole identity, so the cleanest correct path is a full
+  // reload: flush pending saves, switch the stored session, boot fresh.
+  const handleLoginAccount = async (username: string, password: string) => {
+    // Do not abandon unsaved edits just because the account switch was
+    // requested; a failed flush leaves the current session fully intact.
+    await Backend.flushPendingSave();
+    await Auth.login(username, password);
+    Backend.clearAllCaches();
+    window.location.reload();
   };
 
   const handleLogoutAccount = async () => {
-    setLoading(true);
-    setWorldReady(false);
-    try {
-      if (user?.id) {
-        await Backend.flushPendingSave();
-        Backend.clearCacheForUser(user.id);
-      }
-      await Auth.logout();
-      setUser(null);
-      setIsOnline(false);
-      setIsAccountOpen(true);
-    } finally {
-      setLoading(false);
-    }
+    await Backend.flushPendingSave().catch(() => undefined);
+    await Auth.logout();
+    Backend.clearAllCaches();
+    window.location.reload();
+  };
+
+  const handleReseedWorld = async () => {
+    await Backend.flushPendingSave();
+    const result = await Auth.reseedWorld();
+    Backend.clearAllCaches();
+    // Leave the success notice visible briefly, then rebuild every world-map
+    // cache from the server's newly seeded authoritative state.
+    window.setTimeout(() => window.location.reload(), 1_200);
+    return result;
+  };
+
+  const handleRetryConnection = () => {
+    window.location.reload();
   };
 
   useEffect(() => {
     // Ensure game is destroyed to clean up state
-    if (!user || !isOnline) {
+    if (!userId || !isOnline) {
       gameManager.clearUI();
+      displayResolutionCleanupRef.current?.();
+      displayResolutionCleanupRef.current = null;
       if (gameRef.current) {
         try {
           gameRef.current.destroy(true);
@@ -552,7 +841,14 @@ function App() {
         console.error('Game container not found!');
         return;
       }
-      gameRef.current = new Phaser.Game(GameConfig);
+      const game = new Phaser.Game(createGameConfig(container));
+      gameRef.current = game;
+      displayResolutionCleanupRef.current = installDisplayResolution(game, container, {
+        isMobile: MobileUtils.isMobile()
+      });
+      // Debug/tooling handles (harmless in production; used by screenshot tests)
+      (window as unknown as { __clashGame?: Phaser.Game }).__clashGame = gameRef.current;
+      (window as unknown as { __clashGM?: typeof gameManager }).__clashGM = gameManager;
       console.log('Phaser game initialized successfully');
     } catch (error) {
       console.error('Error creating Phaser game:', error);
@@ -581,32 +877,32 @@ function App() {
             }
             return null;
           });
-        }, 600); // Match CSS animation duration
-      },
-      addSol: (amount: number) => {
-        // Update display locally only — no server call.
-        // Server tracks production independently via applyProduction on load.
-        // Sending production ticks to the server caused race conditions with
-        // spend calls, making the balance bounce back to pre-spend values.
-        setResources(prev => ({ ...prev, sol: Math.max(0, prev.sol + amount) }));
+        }, 880); // OPEN_MS (800) + a beat — hiding early clips the part
       },
       setGameMode: (mode: GameMode) => {
         setView(mode);
-        setIsDummyActive(false);
         if (mode === 'HOME') {
           setScoutTarget(null);
           setActiveReplay(null);
           setBattleStarted(false);
           setIncomingAttack(null);
+          setSelectedInMap(null);
+          setSelectedBuildingInfo(null);
+          // Practice is a sandbox: troops deployed in a drill come home.
+          const drill = practiceArmyRef.current;
+          if (drill) {
+            practiceArmyRef.current = null;
+            setArmy(drill.army);
+            setCapacity(drill.capacity);
+          }
         }
         if (mode === 'ATTACK') {
           setActiveReplay(null);
-          setBattleStats({ destruction: 0, solLooted: 0 });
+          setBattleStats({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
           setBattleStarted(false); // Reset when entering attack mode
 
           // Auto-select first available troop
-          const availableTroops: Array<'warrior' | 'archer' | 'giant' | 'wallbreaker' | 'ward' | 'recursion' | 'ram' | 'stormmage' | 'golem' | 'sharpshooter' | 'mobilemortar' | 'davincitank' | 'phalanx'> =
-            ['warrior', 'archer', 'giant', 'wallbreaker', 'ward', 'recursion', 'ram', 'stormmage', 'golem', 'sharpshooter', 'mobilemortar', 'davincitank', 'phalanx'];
+          const availableTroops = PLAYER_TROOP_TYPES;
           const currentArmy = armyRef.current;
           const firstAvailable = availableTroops.find(type => currentArmy[type] > 0);
           if (firstAvailable) {
@@ -619,14 +915,20 @@ function App() {
         if (mode === 'REPLAY') {
           setScoutTarget(null);
           setVisibleTroops([]);
-          setBattleStats({ destruction: 0, solLooted: 0 });
+          setBattleStats({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
           setBattleStarted(true);
         }
       },
-      updateBattleStats: (destruction: number, sol: number) => {
-        setBattleStats({ destruction, solLooted: sol });
+      updateBattleStats: (destruction: number, gold: number, ore = 0, food = 0) => {
+        // Fired per damage event during raids — bail out when nothing changed
+        // so React doesn't re-render the whole HUD subtree on every hit.
+        setBattleStats(prev => (
+          prev.destruction === destruction && prev.goldLooted === gold && prev.oreLooted === ore && prev.foodLooted === food
+            ? prev
+            : { destruction, goldLooted: gold, oreLooted: ore, foodLooted: food }
+        ));
       },
-      onBuildingSelected: (data: { id: string; type: BuildingType; level: number } | null) => {
+      onBuildingSelected: (data: { id: string; type: BuildingType; level: number; gridX?: number; gridY?: number } | null) => {
         // Handle legacy calls that might strictly pass a string ID (just in case) or the new object
         const id = data && typeof data === 'object' ? data.id : (typeof data === 'string' ? data : null);
 
@@ -656,41 +958,31 @@ function App() {
       },
       onPlacementCancelled: () => {
         setSelectedInMap(null);
+        setSelectedBuildingInfo(null);
       },
-      onRaidEnded: async (solLooted: number) => {
+      onRaidEnded: async (goldLooted: number) => {
         const scene = gameRef.current?.scene.getScene('MainScene') as any;
         const enemyWorld = scene?.currentEnemyWorld;
-        const destruction = battleStatsRef.current.destruction;
-        let lootWon = Math.max(0, solLooted);
+        let lootWon = Math.max(0, goldLooted);
 
-        if (enemyWorld && isOnline && !enemyWorld.isBot && enemyWorld.id !== 'practice') {
-          const result = await Backend.recordAttack(
-            enemyWorld.id,
-            user?.id || '',
-            user?.username || 'Unknown',
-            solLooted,
-            destruction,
-            enemyWorld.attackId
-          );
-          const lootApplied = (typeof result?.lootApplied === 'number' && Number.isFinite(result.lootApplied))
-            ? Math.max(0, Math.floor(result.lootApplied))
-            : null;
-          if (typeof result?.attackerBalance === 'number' && Number.isFinite(result.attackerBalance)) {
-            setResources({ sol: Math.max(0, Math.floor(result.attackerBalance)) });
-          } else if (lootApplied !== null) {
-            setResources(prev => ({ ...prev, sol: Math.max(0, prev.sol + lootApplied) }));
-          }
-          if (lootApplied !== null) {
-            setBattleStats(prev => ({ ...prev, solLooted: lootApplied }));
-            lootWon = Math.max(0, lootApplied);
-          } else {
-            lootWon = 0;
-          }
-        } else {
-          const delta = await applySolDelta(solLooted, 'battle_loot');
+        if (enemyWorld && isOnline && !enemyWorld.isBot && enemyWorld.id !== 'practice' && enemyWorld.attackId) {
+          // MainScene owns the one authoritative settlement request and passes
+          // its applied payout here. Issuing /attacks/end again doubled finish
+          // traffic and let a second network failure hide a successful payout.
+          setBattleStats(prev => ({ ...prev, goldLooted: lootWon }));
+        } else if (enemyWorld?.isBot) {
+          // Bot raids settle server-side in MainScene (world-map camps pay on
+          // a cooldown; practice drills pay nothing). The number arriving here
+          // is already the settled loot — never grant it again.
+          lootWon = Math.max(0, Math.floor(goldLooted));
+        } else if (!isOnline) {
+          // Offline sandbox: local-only credit.
+          const delta = await applyGoldDeltaRef.current(goldLooted, 'battle_loot');
           if (!delta.applied) {
             lootWon = 0;
           }
+        } else {
+          lootWon = 0;
         }
 
         // Auto-trigger "Return Home" flow on raid end
@@ -698,25 +990,20 @@ function App() {
         transitionHome(lootWon);
       },
       getArmy: () => armyRef.current,
+      getResources: () => resourcesRef.current,
       getSelectedTroopType: () => selectedTroopTypeRef.current,
       deployTroop: (type: string) => {
+        const def = TROOP_DEFINITIONS[type as TroopType];
+        if (!def) return;
         setBattleStarted(true); // Battle has started!
-        setArmy(prev => {
-          const def = TROOP_DEFINITIONS[type as keyof typeof TROOP_DEFINITIONS];
-          if (def) {
-            setCapacity(c => ({ ...c, current: Math.max(0, c.current - def.space) }));
-          }
-          return { ...prev, [type]: prev[type as keyof typeof prev] - 1 };
-        });
+        setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - def.space) }));
+        setArmy(prev => ({
+          ...prev,
+          [type]: Math.max(0, (prev[type as keyof typeof prev] ?? 0) - 1)
+        }));
       },
       refreshCampCapacity: (campLevels: number[]) => {
-        // Base cap = 30. L1 = 20, L2 = 25, L3+ = 30 per camp.
-        // With 4 L3 camps this reaches the intended player cap of 150.
-        const totalCapacity = 30 + campLevels.reduce((sum, level) => {
-          if (level >= 3) return sum + 30;
-          if (level >= 2) return sum + 25;
-          return sum + 20;
-        }, 0);
+        const totalCapacity = 30 + campLevels.reduce((sum, level) => sum + campHousingAtLevel(level), 0);
         setCapacity(prev => ({ ...prev, max: Math.min(150, totalCapacity) }));
       },
       closeMenus: () => {
@@ -725,8 +1012,56 @@ function App() {
         setSelectedInMap(null);
         setSelectedBuildingInfo(null);
       },
-      setDummyActive: (active: boolean) => {
-        setIsDummyActive(active);
+      openJukebox: () => {
+        setIsJukeboxOpen(true);
+      },
+      openMerchant: (offers: MerchantOffer[]) => {
+        setMerchantOffers(offers);
+      },
+      openPlotPanel: (info: PlotPanelInfo) => {
+        setPlotPanel(info);
+      },
+      closePlotPanel: () => {
+        setPlotPanel(null);
+      },
+      requestScoutOnUser: (targetUserId: string, username: string) => {
+        setIsTrainingOpen(false);
+        setIsBuildingOpen(false);
+        setPlotPanel(null);
+        setScoutTarget({ userId: targetUserId, username });
+        setActiveReplay(null);
+        gameManager.startScoutOnUser(targetUserId, username);
+      },
+      requestWatchLiveAttack: (attackId: string, attackerName: string) => {
+        if (!attackId) return;
+        setPlotPanel(null);
+        setDismissedIncomingAttackId(attackId);
+        setIncomingAttack(null);
+        setActiveReplay({ attackId, attackerName, live: true });
+        gameManager.watchLiveAttack(attackId);
+      },
+      showToast: (message: string) => {
+        showToast(message);
+      },
+      collectResource: (kind: 'ore' | 'food', amount: number) => {
+        // Optimistic bump; the server clamps to storage capacity and the
+        // cached world reconciles us right after.
+        setResources(prev => ({ ...prev, [kind]: Math.max(0, prev[kind] + amount) }));
+        const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+        void Backend.applyResourceDelta(userId ?? 'default_player', amount, kind === 'food' ? 'egg_collect' : 'rock_haul', undefined, requestId, kind)
+          .then(() => {
+            const cached = Backend.getCachedWorld(userId ?? 'default_player');
+            if (cached) {
+              setResources(prev => ({
+                ...prev,
+                ore: Math.max(0, cached.resources.ore ?? prev.ore),
+                food: Math.max(0, cached.resources.food ?? prev.food)
+              }));
+            }
+          })
+          .catch(error => console.warn('Resource collect sync failed:', error));
       }
     });
 
@@ -747,7 +1082,13 @@ function App() {
       if (bonusComboActive) {
         if (!bonusComboTriggered) {
           bonusComboTriggered = true;
-          void applySolDelta(10_000, 'debug_bonus_combo');
+          // Server-gated: pays out only when the server runs with CLASH_ALLOW_DEBUG_GRANTS=1.
+          void applyGoldDeltaRef.current(10_000, 'debug_grant');
+          // Ore and food ride the same debug grant (the server clamps them at
+          // the storage caps); the revision-gated world sync refreshes the HUD.
+          const uid = userRef.current?.id || 'default_player';
+          void Backend.applyResourceDelta(uid, 10_000, 'debug_grant', undefined, undefined, 'ore').catch(() => undefined);
+          void Backend.applyResourceDelta(uid, 10_000, 'debug_grant', undefined, undefined, 'food').catch(() => undefined);
         }
         return;
       }
@@ -755,7 +1096,17 @@ function App() {
       if (e.repeat) return;
 
       if (key === 'd') {
+        // Summon the dragon's shadow for a flyover.
+        gameManager.summonDragon();
+        return;
+      }
+      if (key === 'p') {
         setIsDebugOpen(prev => !prev);
+        return;
+      }
+      if (key === 'n') {
+        // Debug: step the day/night cycle to its next phase.
+        gameManager.advanceDayNight();
         return;
       }
       if (key === 'm' && selectedInMapRef.current) {
@@ -784,12 +1135,17 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', clearPressedKeys);
+      // Drop the UI handlers registered above so no stale closures survive
+      // between this teardown and a potential re-register.
+      gameManager.clearUI();
+      displayResolutionCleanupRef.current?.();
+      displayResolutionCleanupRef.current = null;
       if (gameRef.current) {
         gameRef.current.destroy(true);
         gameRef.current = null;
       }
     };
-  }, [user, isOnline, applySolDelta, clearCloudTimers]);
+  }, [userId, isOnline, clearCloudTimers]);
 
 
   const refreshBuildingCounts = useCallback(async () => {
@@ -866,7 +1222,7 @@ function App() {
         }
         const def = (BUILDING_DEFINITIONS as any)[type];
         if (def) {
-          let cost = def.cost;
+          let placementLevel = 1;
           if (type === 'wall') {
             try {
               const world = await Backend.getWorld(user.id || 'default_player');
@@ -877,18 +1233,26 @@ function App() {
                 const wallLevel = Number.isFinite(storedWallLevel) && storedWallLevel > 0
                   ? Math.max(maxPlacedLevel, Math.floor(storedWallLevel))
                   : maxPlacedLevel;
-                cost = def.cost * wallLevel;
+                placementLevel = wallLevel;
               }
             } catch (error) {
               console.error('Error calculating wall cost:', error);
             }
           }
-          void applySolDelta(-cost, 'build');
+          const charge = placementCharge(type as BuildingType, placementLevel);
+          // Optimistic display only: the debounced save is the actual purchase
+          // (the server prices the layout diff), and a rejected save reverts
+          // everything through clash:save-rejected.
+          setResources(prev => ({
+            ...prev,
+            gold: Math.max(0, prev.gold - charge.gold),
+            ore: Math.max(0, prev.ore - charge.ore)
+          }));
         }
         refreshBuildingCounts();
       }
     });
-  }, [user, refreshBuildingCounts, applySolDelta]);
+  }, [user, refreshBuildingCounts]);
 
   const handleSelect = (type: string) => {
     gameManager.selectBuilding(type);
@@ -897,13 +1261,22 @@ function App() {
   };
 
   const handleTrainTroop = async (type: string) => {
+    if (armyTransactionInFlightRef.current) {
+      showToast('Finish the current army order first.');
+      return;
+    }
     const def = TROOP_DEFINITIONS[type as keyof typeof TROOP_DEFINITIONS];
     if (!def) return;
     const cost = def.cost;
     const space = def.space;
 
-    if (resources.sol < cost) {
-      alert("Not enough SOL!");
+    const foodCost = troopFoodCostOf(type as TroopType);
+    if (displayResources.gold < cost) {
+      alert("Not enough gold!");
+      return;
+    }
+    if (displayResources.food < foodCost) {
+      alert("Not enough food! Harvest the farm, collect eggs or trade for more.");
       return;
     }
     if (capacity.current + space > capacity.max) {
@@ -911,60 +1284,118 @@ function App() {
       return;
     }
 
-    if (isOnline) {
-      const result = await applySolDelta(-cost, 'train_troop');
-      if (!result.applied) {
-        alert("Not enough SOL!");
-        return;
-      }
-    }
+    armyTransactionInFlightRef.current = true;
 
+    // Optimistic: the tile fills instantly; the server (which owns the army,
+    // checks the barracks unlock, housing and the bill) reconciles right after.
+    setResources(prev => ({
+      ...prev,
+      gold: Math.max(0, prev.gold - cost),
+      food: Math.max(0, prev.food - foodCost)
+    }));
     setArmy(prev => {
       const key = type as keyof typeof prev;
       return { ...prev, [key]: (prev[key] ?? 0) + 1 };
     });
-    if (!isOnline) {
-      setResources(prev => ({
-        ...prev,
-        sol: Math.max(0, prev.sol - cost)
-      }));
-    }
     setCapacity(prev => ({ ...prev, current: prev.current + space }));
+
+    if (!isOnline) {
+      armyTransactionInFlightRef.current = false;
+      return;
+    }
+    try {
+      const result = await Backend.trainTroop(type, 1);
+      if (!result) throw new Error('Training did not reach the server');
+    } catch (error) {
+      console.warn('Training failed, reverting:', error);
+      const truth = await Backend.fetchWorldSnapshot();
+      if (truth) {
+        adoptWorld(truth);
+      } else {
+        setResources(prev => ({ ...prev, gold: prev.gold + cost, food: prev.food + foodCost }));
+        setArmy(prev => {
+          const key = type as keyof typeof prev;
+          return { ...prev, [key]: Math.max(0, (prev[key] ?? 0) - 1) };
+        });
+        setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - space) }));
+      }
+      gameManager.showToast(`${error instanceof Error ? error.message : 'Training failed'}`);
+    } finally {
+      armyTransactionInFlightRef.current = false;
+    }
   };
 
   const handleUntrainTroop = async (type: string) => {
+    if (armyTransactionInFlightRef.current) {
+      showToast('Finish the current army order first.');
+      return;
+    }
     if (army[type as keyof typeof army] <= 0) return;
     const def = TROOP_DEFINITIONS[type as keyof typeof TROOP_DEFINITIONS];
     if (!def) return;
     const cost = def.cost;
     const space = def.space;
 
-    if (isOnline) {
-      const result = await applySolDelta(cost, 'untrain_troop');
-      if (!result.applied) {
-        return;
-      }
-    }
+    armyTransactionInFlightRef.current = true;
 
+    // Optimistic dismissal; the server refunds the full training bill.
+    const foodRefund = troopFoodCostOf(type as TroopType);
+    setResources(prev => ({ ...prev, gold: prev.gold + cost, food: prev.food + foodRefund }));
     setArmy(prev => {
       const key = type as keyof typeof prev;
       return { ...prev, [key]: (prev[key] ?? 0) - 1 };
     });
-    if (!isOnline) {
-      setResources(prev => ({ ...prev, sol: prev.sol + cost }));
-    }
     setCapacity(prev => ({ ...prev, current: prev.current - space }));
+
+    if (!isOnline) {
+      armyTransactionInFlightRef.current = false;
+      return;
+    }
+    try {
+      const result = await Backend.untrainTroop(type, 1);
+      if (!result) throw new Error('Dismissal did not reach the server');
+    } catch (error) {
+      console.warn('Untrain failed, reverting:', error);
+      const truth = await Backend.fetchWorldSnapshot();
+      if (truth) {
+        adoptWorld(truth);
+      } else {
+        setResources(prev => ({
+          ...prev,
+          gold: Math.max(0, prev.gold - cost),
+          food: Math.max(0, prev.food - foodRefund)
+        }));
+        setArmy(prev => {
+          const key = type as keyof typeof prev;
+          return { ...prev, [key]: (prev[key] ?? 0) + 1 };
+        });
+        setCapacity(prev => ({ ...prev, current: prev.current + space }));
+      }
+    } finally {
+      armyTransactionInFlightRef.current = false;
+    }
   };
 
   const transitionHome = useCallback((rewardAmount: number = 0) => {
-    setCloudTransitionReward(rewardAmount > 0 ? Math.floor(rewardAmount) : null);
     const scene = gameRef.current?.scene.getScene('MainScene') as any;
-    if (scene) {
-      scene.showCloudTransition(async () => {
+    if (scene?.battleInPlace) {
+      // A next-door raid: no clouds — the flag bearer leads the remaining
+      // troops home on screen and the world never cuts away.
+      setCloudTransitionReward(null);
+      void scene.goHome().then(() => {
         setView('HOME');
         setSelectedInMap(null);
         setScoutTarget(null);
+      });
+      return;
+    }
+    setCloudTransitionReward(rewardAmount > 0 ? Math.floor(rewardAmount) : null);
+    if (scene) {
+      scene.showCloudTransition(async () => {
         await scene.goHome();
+        setView('HOME');
+        setSelectedInMap(null);
+        setScoutTarget(null);
       });
     } else {
       setCloudTransitionReward(null);
@@ -978,16 +1409,6 @@ function App() {
     transitionHome();
   }, [transitionHome]);
 
-  const handleToggleDummy = () => {
-    gameManager.toggleDummyTroop();
-    setIsDummyActive(prev => !prev);
-  };
-
-  const handleStartAttack = () => {
-    if (capacity.current === 0) return;
-    // Don't set view here - the game will call setGameMode when transition is complete
-    gameManager.startAttack();
-  };
 
 
   const handleGoHome = () => {
@@ -1004,8 +1425,12 @@ function App() {
     gameManager.startAttack();
   };
 
+  // Drills cost nothing: snapshot the army going in, restore it coming home.
+  const practiceArmyRef = useRef<{ army: typeof army; capacity: typeof capacity } | null>(null);
+
   const handleStartPractice = () => {
     if (capacity.current === 0) return;
+    practiceArmyRef.current = { army: { ...army }, capacity: { ...capacity } };
     gameManager.startPracticeAttack();
     setIsTrainingOpen(false);
   };
@@ -1020,18 +1445,6 @@ function App() {
     setIsTrainingOpen(false);
   };
 
-  const handleAttackUser = (userId: string, username: string) => {
-    if (capacity.current === 0) {
-      alert('Train some troops first!');
-      return;
-    }
-    // Close any open modals
-    setIsTrainingOpen(false);
-    setScoutTarget(null);
-    // Start attack on specific user
-    gameManager.startAttackOnUser(userId, username);
-  };
-
   const handleScoutUser = (userId: string, username: string) => {
     // Close any open modals
     setIsTrainingOpen(false);
@@ -1039,15 +1452,32 @@ function App() {
     gameManager.startScoutOnUser(userId, username);
   };
 
-  const handleAttackScouted = () => {
-    if (!scoutTarget) return;
-    if (capacity.current === 0) {
+  // World-map neighbour sheet: every attack path funnels through here, so an
+  // empty army can never launch a raid — it opens the barracks instead.
+  const handlePlotAction = (action: PlotPanelAction) => {
+    setPlotPanel(null);
+    if (action.kind === 'attack' && capacity.current === 0) {
+      showToast('Train some troops first!');
       setIsTrainingOpen(true);
       return;
     }
-    const { userId, username } = scoutTarget;
+    action.run();
+  };
+
+  const handleDirectUserAttack = (targetUserId: string, username: string) => {
+    if (capacity.current === 0) {
+      showToast('Train some troops first!');
+      setIsTrainingOpen(true);
+      return false;
+    }
     setScoutTarget(null);
-    gameManager.startAttackOnUser(userId, username);
+    gameManager.startAttackOnUser(targetUserId, username);
+    return true;
+  };
+
+  const handleAttackScouted = () => {
+    if (!scoutTarget) return;
+    handleDirectUserAttack(scoutTarget.userId, scoutTarget.username);
   };
 
   const handleWatchLiveAttack = useCallback((attackId: string, attackerName: string) => {
@@ -1058,26 +1488,46 @@ function App() {
     gameManager.watchLiveAttack(attackId);
   }, []);
 
+  const handleWatchReplay = useCallback((attackId: string, attackerName: string) => {
+    if (!attackId) return;
+    setActiveReplay({ attackId, attackerName, live: false });
+    gameManager.watchReplay(attackId);
+  }, []);
+
   const handleBattleResultsGoHome = () => {
     setShowBattleResults(false);
-    transitionHome(Math.max(0, battleStatsRef.current.solLooted));
+    transitionHome(Math.max(0, battleStatsRef.current.goldLooted));
   };
 
 
   const handleDeleteBuilding = () => {
     if (selectedInMap && selectedBuildingInfo) {
-      gameManager.deleteSelectedBuilding();
+      if (selectedBuildingInfo.type === 'town_hall') return;
+      if (campSaleBlocked) {
+        showToast('Dismiss troops before selling this camp. Your army needs its housing.');
+        return;
+      }
+      const deleted = gameManager.deleteSelectedBuilding();
+      if (!deleted) return;
+      // Optimistic display — the save's layout diff carries the real refund.
       const stats = getBuildingStats(selectedBuildingInfo.type, selectedBuildingInfo.level);
       const refund = Math.floor(stats.cost * 0.8);
-      if (isOnline) {
-        void applySolDelta(refund, 'refund_building');
-      } else {
-        setResources(prev => ({ ...prev, sol: prev.sol + refund }));
-      }
+      setResources(prev => ({ ...prev, gold: prev.gold + refund }));
       setSelectedInMap(null);
       setSelectedBuildingInfo(null);
     }
   };
+
+  const campSaleBlocked = (() => {
+    if (selectedBuildingInfo?.type !== 'army_camp') return false;
+    const world = userId ? Backend.getCachedWorld(userId) : null;
+    if (!world) {
+      const removedHousing = campHousingAtLevel(selectedBuildingInfo.level);
+      return capacity.current > Math.max(30, capacity.max - removedHousing);
+    }
+    const remaining = world.buildings.filter(building => building.id !== selectedBuildingInfo.id);
+    return armySpaceUsed(world.army ?? army) > campCapacityOf(remaining);
+  })();
 
   const upgradeInProgressRef = useRef(false);
 
@@ -1107,17 +1557,16 @@ function App() {
             }
           }
 
-          if (resources.sol >= upgradeCost) {
-            if (isOnline) {
-              const result = await applySolDelta(-upgradeCost, 'upgrade_building');
-              if (!result.applied) return;
-            } else {
-              // Subtract cost locally
-              setResources(prev => ({
-                ...prev,
-                sol: Math.max(0, prev.sol - upgradeCost)
-              }));
-            }
+          const upgradeOre = upgradeOreCostOf(upgradeCost);
+          if (displayResources.gold >= upgradeCost && displayResources.ore >= upgradeOre) {
+            // Optimistic display only. The save that follows IS the purchase:
+            // the server prices the level diff and charges it; a rejection
+            // reverts everything (scene + balances) via clash:save-rejected.
+            setResources(prev => ({
+              ...prev,
+              gold: Math.max(0, prev.gold - upgradeCost),
+              ore: Math.max(0, prev.ore - upgradeOre)
+            }));
 
             // Start the save immediately (returns a promise).
             // upgradeBuilding updates the cache synchronously, then fires
@@ -1130,9 +1579,14 @@ function App() {
               setSelectedBuildingInfo(prev => prev ? { ...prev, level: newLevel } : null);
             }
 
-            // Fire save in background so next upgrade can start immediately.
+            // The tap did its work — close the card and let the scaffold
+            // (and its progress bubble) take over the storytelling.
+            (gameRef.current?.scene.getScene('MainScene') as { cancelPlacement?: () => void } | undefined)?.cancelPlacement?.();
+
             void savePromise.catch(error => {
-              console.error('Upgrade save failed:', error);
+              // Transport failures retry on the next save cycle; a server
+              // rejection has already reverted local state via clash:save-rejected.
+              console.warn('Upgrade save failed:', error);
             });
           }
         } finally {
@@ -1141,33 +1595,6 @@ function App() {
       }
     }
   };
-
-  const defenseShopOrder: BuildingType[] = ['wall', 'cannon', 'ballista', 'mortar', 'tesla', 'xbow', 'prism', 'frostfall', 'magmavent', 'spike_launcher', 'dragons_breath'];
-  const defenseOrderIndex = new Map(defenseShopOrder.map((type, index) => [type, index]));
-  const categoryOrder: Record<string, number> = {
-    defense: 0,
-    military: 1,
-    resource: 2,
-    other: 3,
-    army: 1
-  };
-
-  const buildingList = Object.values(BUILDING_DEFINITIONS).sort((a, b) => {
-    const categoryRankA = categoryOrder[a.category || 'other'] ?? 99;
-    const categoryRankB = categoryOrder[b.category || 'other'] ?? 99;
-    if (categoryRankA !== categoryRankB) return categoryRankA - categoryRankB;
-
-    if (a.category === 'defense' && b.category === 'defense') {
-      const orderA = defenseOrderIndex.get(a.id as BuildingType) ?? 999;
-      const orderB = defenseOrderIndex.get(b.id as BuildingType) ?? 999;
-      if (orderA !== orderB) return orderA - orderB;
-    }
-
-    if (a.cost !== b.cost) return a.cost - b.cost;
-    return a.name.localeCompare(b.name);
-  });
-  const troopList = Object.values(TROOP_DEFINITIONS).filter(t => t.id !== 'romanwarrior');
-
 
   // Pre-calculation for UI: Wall Bulk Upgrade Cost
   const [wallUpgradeCostOverride, setWallUpgradeCostOverride] = useState<number | undefined>();
@@ -1212,13 +1639,15 @@ function App() {
 
       <Hud
         view={view}
-        resources={resources}
+        resources={displayResources}
+        storageCaps={storageCapsRef.current}
+        population={population}
         battleStats={battleStats}
         battleStarted={battleStarted}
-        capacity={capacity}
         visibleTroops={visibleTroops}
         selectedTroopType={selectedTroopType}
         army={army}
+        armyCapacity={capacity.max}
         selectedBuildingInfo={selectedBuildingInfo}
         isExiting={isExiting}
         wallUpgradeCostOverride={wallUpgradeCostOverride}
@@ -1230,15 +1659,15 @@ function App() {
         onOpenSettings={() => setIsAccountOpen(true)}
         onOpenBuild={() => setIsBuildingOpen(true)}
         onOpenTrain={() => setIsTrainingOpen(true)}
-        onStartAttack={handleStartAttack}
         onSelectTroop={(type) => setSelectedTroopType(type as typeof selectedTroopType)}
         onNextMap={handleNextMap}
         onGoHome={handleGoHome}
         onDeleteBuilding={handleDeleteBuilding}
+        deleteBuildingDisabled={campSaleBlocked}
+        deleteBuildingDisabledReason={campSaleBlocked ? 'Dismiss troops before selling this camp' : undefined}
         onUpgradeBuilding={handleUpgradeBuilding}
         onMoveBuilding={() => gameManager.moveSelectedBuilding()}
-        isDummyActive={isDummyActive}
-        onToggleDummy={handleToggleDummy}
+        onOpenMap={() => setShowAtlas(true)}
         troopLevel={troopLevel}
       />
 
@@ -1254,6 +1683,9 @@ function App() {
       {/* Notifications and Leaderboard - only show when in HOME mode and online */}
       {view === 'HOME' && isOnline && user && (
         <div className="top-right-btns">
+          <button className="atlas-btn" title="Replay theatre" onClick={() => setShowTheatre(true)}>
+            <span className="sym sym-watch" />
+          </button>
           <LeaderboardPanel
             currentUserId={user.id}
             isOnline={isOnline}
@@ -1264,8 +1696,19 @@ function App() {
             isOnline={isOnline}
             incomingAttack={incomingAttack}
             onWatchLive={handleWatchLiveAttack}
+            onWatchReplay={handleWatchReplay}
+            onRevenge={handleDirectUserAttack}
           />
         </div>
+      )}
+
+      {showAtlas && <MapAtlasModal onClose={() => setShowAtlas(false)} />}
+      {showTheatre && user && (
+        <ReplayTheatreModal
+          userId={user.id}
+          onWatch={handleWatchReplay}
+          onClose={() => setShowTheatre(false)}
+        />
       )}
 
       {view === 'HOME' && incomingAttack && (
@@ -1286,6 +1729,7 @@ function App() {
               onClick={() => {
                 setDismissedIncomingAttackId(incomingAttack.attackId);
                 setIncomingAttack(null);
+                gameManager.dismissSiegeBanner();
               }}
             >
               LATER
@@ -1310,23 +1754,40 @@ function App() {
 
       <DebugMenu isOpen={isDebugOpen} />
 
+      <JukeboxModal isOpen={isJukeboxOpen} onClose={() => setIsJukeboxOpen(false)} />
+
+      <MerchantModal
+        offers={merchantOffers}
+        resources={displayResources}
+        onTrade={handleMerchantTrade}
+        onClose={() => setMerchantOffers(null)}
+      />
+
+      <PlotPanel info={plotPanel} onAction={handlePlotAction} onClose={() => setPlotPanel(null)} />
+
+      {toast && <div className="toast-banner">{toast}</div>}
+
       <AccountModal
-        isOpen={isAccountOpen || isLockedOut}
+        isOpen={isAccountOpen}
         currentUser={user}
         isOnline={isOnline}
         onClose={() => setIsAccountOpen(false)}
-        onLogin={handleLoginAccount}
+        onRename={handleRenameAccount}
         onRegister={handleRegisterAccount}
+        onLogin={handleLoginAccount}
         onLogout={handleLogoutAccount}
+        onReseedWorld={handleReseedWorld}
       />
 
       {isLockedOut && (
         <div className="auth-lock-overlay">
           <div className="auth-lock-panel">
-            <h2>LOGIN REQUIRED</h2>
-            <p>Sign in to access your base and play online.</p>
-            <button className="action-btn" onClick={() => setIsAccountOpen(true)}>
-              OPEN LOGIN
+            <h2>{sessionExpired ? 'SESSION EXPIRED' : "CAN'T REACH THE GAME SERVER"}</h2>
+            <p>{sessionExpired
+              ? 'Your session was closed before any more local changes could be lost. Reconnect to continue.'
+              : 'Your village lives on the game server. Start it (npm run dev) and try again.'}</p>
+            <button className="action-btn" onClick={handleRetryConnection}>
+              {sessionExpired ? 'RECONNECT' : 'RETRY'}
             </button>
           </div>
         </div>
@@ -1336,7 +1797,7 @@ function App() {
         isOpen={isTrainingOpen}
         showCloudOverlay={showCloudOverlay}
         capacity={capacity}
-        resources={resources}
+        resources={displayResources}
         army={army}
         troops={troopList}
         troopLevel={troopLevel}
@@ -1353,7 +1814,7 @@ function App() {
         showCloudOverlay={showCloudOverlay}
         buildingList={buildingList}
         buildingCounts={buildingCounts}
-        resources={resources}
+        resources={displayResources}
         shopWallLevel={shopWallLevel}
         onClose={() => setIsBuildingOpen(false)}
         onSelect={handleSelect}

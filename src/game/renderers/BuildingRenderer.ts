@@ -1,3126 +1,2069 @@
 
 import Phaser from 'phaser';
-import { IsoUtils } from '../utils/IsoUtils';
+import { windAtScreen, windSwayAtScreen } from '../systems/Wind';
+import { IsoUtils, TILE_HEIGHT } from '../utils/IsoUtils';
 import { BUILDING_DEFINITIONS } from '../config/GameDefinitions';
 
 export class BuildingRenderer {
 
     /**
+     * Vapor and powder effects (chimney smoke, muzzle smoke, launch columns)
+     * are a RUNTIME effect layer, not part of a building's body art. The
+     * sprite bake turns this off so baked frames stay clean — smoke returns
+     * as a separately-added effect (docs/AGENTS_SPRITE_PIPELINE.md).
+     */
+    static AMBIENT_VAPOR = true;
+
+    /**
      * Draws the Town Hall as a simple, bright building with flag.
      */
-    static drawTownHall(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, time: number, alpha: number = 1, tint: number | null = null, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
+    /**
+     * TOWN HALL — the Great Hall.
+     *
+     * The heart of the village: a two-story timber-and-stone hall with a
+     * long terracotta gable, a round watchtower flying the village banner, a
+     * smoking chimney, lantern-lit arched doors and a stepped entrance. It is
+     * built to feel alive — the banner waves, smoke drifts, lanterns and
+     * windows breathe with warm light.
+     */
+    /**
+     * TOWN HALL — the Great Keep.
+     *
+     * A two-tier keep in the village's clean box-and-pyramid language: a
+     * stone ground story with an arched, lantern-lit door; a walled roof
+     * terrace with gold pinnacles; a timber-framed upper hall; and a
+     * terracotta pyramid crown flying the village banner. Chimney smoke
+     * drifts, lanterns breathe, windows glow.
+     */
+    /**
+     * Clash-style defense footing: a compact chamfered platform just big
+     * enough to carry the machine, floating on the lawn with grass visible
+     * all around — never a full-footprint plate.
+     */
+    private static chamferPad(g: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, scale: number, topColor: number, edgeColor: number, trim: number | null = null) {
+        const cut = 0.22;
+        const corners = [c1, c2, c3, c4].map(a => new Phaser.Math.Vector2(
+            center.x + (a.x - center.x) * scale,
+            center.y + (a.y - center.y) * scale
+        ));
+        const ring: Phaser.Math.Vector2[] = [];
+        for (let i = 0; i < 4; i++) {
+            const a2 = corners[i];
+            const b2 = corners[(i + 1) % 4];
+            ring.push(new Phaser.Math.Vector2(a2.x + (b2.x - a2.x) * cut, a2.y + (b2.y - a2.y) * cut));
+            ring.push(new Phaser.Math.Vector2(a2.x + (b2.x - a2.x) * (1 - cut), a2.y + (b2.y - a2.y) * (1 - cut)));
+        }
+        // Thin drop edge for thickness, then the top
+        g.fillStyle(edgeColor, alpha);
+        g.fillPoints(ring.map(pt => new Phaser.Math.Vector2(pt.x, pt.y + 2.5)), true);
+        g.fillStyle(topColor, alpha);
+        g.fillPoints(ring, true);
+        if (trim !== null) {
+            g.lineStyle(1.4, trim, alpha * 0.85);
+            g.strokePoints(ring, true, true);
+        }
+    }
+
+    /**
+     * Clash-style grounding: buildings sit straight on the lawn under a soft
+     * contact shadow instead of a hard-edged material plate, so the village
+     * ground reads as one continuous meadow.
+     *
+     * Shape follows the footprint: single-tile buildings keep a round contact
+     * shadow, anything larger gets a chamfered isometric rectangle that hugs
+     * its actual base instead of a blob spilling past the corners.
+     */
+    private static groundShadow(g: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, strength: number = 1, scale: number = 0.8) {
+        // (c3.y - c1.y) spans (width + height) * TILE_HEIGHT / 2 -> 1x1 == TILE_HEIGHT.
+        const footprintTiles = (c3.y - c1.y) / TILE_HEIGHT;
+        if (footprintTiles <= 1.2) {
+            const rx = Math.max(8, (c2.x - c4.x) * 0.5 * scale);
+            const ry = Math.max(4, (c3.y - c1.y) * 0.5 * scale);
+            g.fillStyle(0x18220f, alpha * 0.16 * strength);
+            g.fillEllipse(center.x, center.y + 1, rx * 2, ry * 2);
+            g.fillStyle(0x18220f, alpha * 0.15 * strength);
+            g.fillEllipse(center.x, center.y + 1, rx * 1.4, ry * 1.4);
+            return;
+        }
+
+        const chamferedFootprint = (spread: number): number[][] => {
+            const corners = [c1, c2, c3, c4].map(p => [
+                center.x + (p.x - center.x) * spread,
+                center.y + 1 + (p.y - center.y) * spread
+            ]);
+            // Cut each diamond corner: two points a fraction along its edges.
+            const cut = 0.26;
+            const poly: number[][] = [];
+            for (let i = 0; i < 4; i++) {
+                const prev = corners[(i + 3) % 4];
+                const curr = corners[i];
+                const next = corners[(i + 1) % 4];
+                poly.push([curr[0] + (prev[0] - curr[0]) * cut, curr[1] + (prev[1] - curr[1]) * cut]);
+                poly.push([curr[0] + (next[0] - curr[0]) * cut, curr[1] + (next[1] - curr[1]) * cut]);
+            }
+            return poly;
+        };
+        const fillPoly = (poly: number[][], a: number) => {
+            g.fillStyle(0x18220f, a);
+            g.beginPath();
+            g.moveTo(poly[0][0], poly[0][1]);
+            for (let i = 1; i < poly.length; i++) g.lineTo(poly[i][0], poly[i][1]);
+            g.closePath();
+            g.fillPath();
+        };
+        fillPoly(chamferedFootprint(scale * 1.12), alpha * 0.16 * strength);
+        fillPoly(chamferedFootprint(scale * 0.8), alpha * 0.15 * strength);
+    }
+
+    static drawTownHall(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, time: number, alpha: number = 1, _tint: number | null = null, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, doorOpen: number = 0) {
         const info = BUILDING_DEFINITIONS['town_hall'];
         const c1 = IsoUtils.cartToIso(gridX, gridY);
         const c2 = IsoUtils.cartToIso(gridX + info.width, gridY);
         const c3 = IsoUtils.cartToIso(gridX + info.width, gridY + info.height);
         const c4 = IsoUtils.cartToIso(gridX, gridY + info.height);
         const center = IsoUtils.cartToIso(gridX + info.width / 2, gridY + info.height / 2);
-
         const g = baseGraphics || graphics;
 
-        // Building dimensions - simple box
-        const height = 55;
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
+        const lerp = (a: Phaser.Math.Vector2, t: number): number[] => [
+            center.x + (a.x - center.x) * t,
+            center.y + (a.y - center.y) * t
+        ];
+        const up = (pt: number[], h: number): number[] => [pt[0], pt[1] - h];
 
-        // Wall top corners
-        const t1 = new Phaser.Math.Vector2(c1.x, c1.y - height);
-        const t2 = new Phaser.Math.Vector2(c2.x, c2.y - height);
-        const t3 = new Phaser.Math.Vector2(c3.x, c3.y - height);
-        const t4 = new Phaser.Math.Vector2(c4.x, c4.y - height);
+        // ===== PALETTE =====
+        const stone = 0xa89884;
+        const stoneLit = 0xbcac96;
+        const stoneDark = 0x8a7a66;
+        const timber = 0x5d4037;
+        const roofLit = 0xc0563c;
+        const roofDark = 0x94402c;
+        const roofRidge = 0x7a3222;
+        const gold = 0xdaa520;
+        const warm = 0xffc966;
 
+        // ===== PLINTH =====
         if (!skipBase) {
-            // === SIMPLE STONE FOUNDATION ===
-            g.fillStyle(tint ?? 0x9a8a7a, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Light stone texture
-            g.fillStyle(0xa89888, alpha * 0.4);
-            for (let i = 0; i < 6; i++) {
-                const px = center.x + Math.sin(i * 2.3) * 22;
-                const py = center.y + Math.cos(i * 1.7) * 13;
-                g.fillCircle(px, py, 3);
-            }
-
-            // Foundation border
-            g.lineStyle(2, 0x7a6a5a, alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.86);
+            // Simple flat stone border around the house
+            const bs = 0.76;
+            quad(g, [lerp(c1, bs), lerp(c2, bs), lerp(c3, bs), lerp(c4, bs)], 0x99917e, alpha);
+            g.lineStyle(1.4, 0x7a7263, alpha * 0.8);
+            g.lineBetween(lerp(c4, bs)[0], lerp(c4, bs)[1], lerp(c3, bs)[0], lerp(c3, bs)[1]);
+            g.lineBetween(lerp(c3, bs)[0], lerp(c3, bs)[1], lerp(c2, bs)[0], lerp(c2, bs)[1]);
         }
 
-        if (!onlyBase) {
-            const windowGlow = 0.75 + Math.sin(time / 600) * 0.05;  // Very subtle pulse
+        if (onlyBase) return;
 
-            // === SIMPLE WALLS (warm stone colors) ===
-            // Right wall (slightly darker)
-            graphics.fillStyle(tint ?? 0xc4a484, alpha);
-            graphics.fillPoints([c2, c3, t3, t2], true);
+        // ===== STORY 1 — stone hall (smaller than the plot, leaving a
+        // courtyard ring for the path) =====
+        const s1 = 0.62;
+        const H1 = 24;
+        const p2 = lerp(c2, s1);
+        const p3 = lerp(c3, s1);
+        const p4 = lerp(c4, s1);
+        quad(graphics, [p2, p3, up(p3, H1), up(p2, H1)], stoneDark, alpha);
+        quad(graphics, [p3, p4, up(p4, H1), up(p3, H1)], stoneLit, alpha);
+        // Stone coursing
+        graphics.lineStyle(1, 0x7a6a56, alpha * 0.5);
+        for (let i = 1; i < 3; i++) {
+            const hh = (H1 * i) / 3;
+            graphics.lineBetween(p4[0], p4[1] - hh, p3[0], p3[1] - hh);
+            graphics.lineBetween(p3[0], p3[1] - hh, p2[0], p2[1] - hh);
+        }
 
-            // Left wall (lighter)
-            graphics.fillStyle(tint ?? 0xdcc4a4, alpha);
-            graphics.fillPoints([c3, c4, t4, t3], true);
+        // Arched double door + gold studs + steps + lanterns, centred on the
+        // SOUTH-WEST wall face. Everything is skewed to the face's slope so
+        // the door sits flush in the wall plane (bottom parallel to the base).
+        const dX = (p3[0] + p4[0]) / 2;
+        const dY = (p3[1] + p4[1]) / 2 - 1;
+        const sk = (p3[1] - p4[1]) / (p3[0] - p4[0]); // SW face slope (~0.5)
+        const dp = (ox: number, h: number): number[] => [dX + ox, dY + ox * sk - h];
+        // Step slab in front of the door
+        quad(graphics, [dp(-9, -6), dp(9, -6), dp(10.5, -2.5), dp(-10.5, -2.5)], stone, alpha);
+        quad(graphics, [dp(-7.5, -2.5), dp(7.5, -2.5), dp(9, 0.5), dp(-9, 0.5)], stoneDark, alpha);
+        // Timber frame
+        quad(graphics, [dp(-6.5, 0), dp(6.5, 0), dp(6.5, 13), dp(-6.5, 13)], timber, alpha);
+        const opened = Math.max(0, Math.min(1, doorOpen));
+        const panelColor = opened > 0.02 ? 0x120d09 : 0x3a2a1a;
+        quad(graphics, [dp(-5, 0.5), dp(5, 0.5), dp(5, 11.5), dp(-5, 11.5)], panelColor, alpha);
+        graphics.fillStyle(panelColor, alpha);
+        graphics.fillCircle(dX, dY - 11.5, 5);
+        if (opened > 0.02) {
+            // Warm hearth light spilling out of the opening.
+            graphics.fillStyle(warm, alpha * 0.3 * opened);
+            graphics.fillEllipse(dX, dY - 5, 7, 8.5);
+            // The two leaves swung aside — narrowing slivers at the jambs.
+            const leaf = 5 * (1 - opened * 0.82);
+            quad(graphics, [dp(-5, 0.5), dp(-5 + leaf, 0.5), dp(-5 + leaf, 11.5), dp(-5, 11.5)], 0x3a2a1a, alpha);
+            quad(graphics, [dp(5 - leaf, 0.5), dp(5, 0.5), dp(5, 11.5), dp(5 - leaf, 11.5)], 0x3a2a1a, alpha);
+        }
+        if (opened < 0.3) {
+            const closedAlpha = alpha * (1 - opened / 0.3);
+            graphics.lineStyle(1, 0x8a6a48, closedAlpha * 0.9);
+            graphics.lineBetween(dp(0, 0.5)[0], dp(0, 0.5)[1], dp(0, 12)[0], dp(0, 12)[1]);
+            graphics.fillStyle(gold, closedAlpha * 0.9);
+            graphics.fillCircle(dp(-2, 5)[0], dp(-2, 5)[1], 1);
+            graphics.fillCircle(dp(2, 5)[0], dp(2, 5)[1], 1);
+        }
+        const lamp = 0.6 + Math.sin(time / 340) * 0.25;
+        for (const side of [-1, 1]) {
+            const [lx, ly] = dp(side * 11, 9);
+            graphics.fillStyle(0x2a2a2a, alpha);
+            graphics.fillRect(lx - 1.6, ly - 3, 3.2, 4.6);
+            graphics.fillStyle(warm, alpha * lamp);
+            graphics.fillRect(lx - 1, ly - 2.4, 2, 3.4);
+            graphics.fillStyle(warm, alpha * lamp * 0.22);
+            graphics.fillCircle(lx, ly - 0.5, 4.5);
+        }
 
-            // Wall edge outlines
-            graphics.lineStyle(2, 0xa48464, alpha * 0.7);
-            graphics.lineBetween(c2.x, c2.y, t2.x, t2.y);
-            graphics.lineBetween(c3.x, c3.y, t3.x, t3.y);
-            graphics.lineBetween(c4.x, c4.y, t4.x, t4.y);
+        // Ground-story windows
+        const win = (wx: number, wy: number, phase: number) => {
+            const glow2 = 0.5 + Math.sin(time / 420 + phase) * 0.22;
+            quad(graphics, [[wx - 2.8, wy + 3], [wx + 2.8, wy + 4.2], [wx + 2.8, wy - 2.6], [wx - 2.8, wy - 3.8]], timber, alpha);
+            quad(graphics, [[wx - 1.9, wy + 2.1], [wx + 1.9, wy + 3], [wx + 1.9, wy - 1.9], [wx - 1.9, wy - 2.8]], warm, alpha * glow2);
+        };
+        win((p3[0] + p4[0]) / 2 + 16, (p3[1] + p4[1]) / 2 + 8 - H1 * 0.55, 0);
+        win((p2[0] + p3[0]) / 2 + 6, (p2[1] + p3[1]) / 2 - 3 - H1 * 0.5, 2.2);
 
-            // === ISOMETRIC WINDOWS matching wall angles ===
-            const rightWallDir = { x: (c3.x - c2.x), y: (c3.y - c2.y) };
-            const leftWallDir = { x: (c4.x - c3.x), y: (c4.y - c3.y) };
+        // ===== THE GREAT ROOF — one huge hipped crown, the Clash-style
+        // silhouette that says "town hall" at any distance =====
+        const o = 1.08;
+        const roofH = 30;
+        const r1 = up(lerp(c1, s1 * o), H1);
+        const r2 = up(lerp(c2, s1 * o), H1);
+        const r3 = up(lerp(c3, s1 * o), H1);
+        const r4 = up(lerp(c4, s1 * o), H1);
+        const peak = [center.x, center.y - H1 - roofH];
+        quad(graphics, [r4, r3, peak], roofLit, alpha);
+        quad(graphics, [r3, r2, peak], roofDark, alpha);
+        quad(graphics, [r2, r1, peak], roofDark, alpha * 0.92);
+        quad(graphics, [r1, r4, peak], roofLit, alpha * 0.92);
+        // Tile courses on the two visible faces
+        graphics.lineStyle(1, roofRidge, alpha * 0.45);
+        for (let i = 1; i <= 2; i++) {
+            const t = i / 3;
+            graphics.lineBetween(
+                r4[0] + (peak[0] - r4[0]) * t, r4[1] + (peak[1] - r4[1]) * t,
+                r3[0] + (peak[0] - r3[0]) * t, r3[1] + (peak[1] - r3[1]) * t
+            );
+            graphics.lineBetween(
+                r3[0] + (peak[0] - r3[0]) * t, r3[1] + (peak[1] - r3[1]) * t,
+                r2[0] + (peak[0] - r2[0]) * t, r2[1] + (peak[1] - r2[1]) * t
+            );
+        }
+        // Eave line + front hips
+        graphics.lineStyle(2, roofRidge, alpha * 0.8);
+        graphics.lineBetween(r4[0], r4[1], r3[0], r3[1]);
+        graphics.lineBetween(r3[0], r3[1], r2[0], r2[1]);
+        graphics.lineBetween(r3[0], r3[1], peak[0], peak[1]);
 
-            // Right wall window - parallelogram following the c2->c3 wall
-            const rMidPt = 0.5;  // Position along wall (0 to 1)
-            const rWinBaseX = c2.x + rightWallDir.x * rMidPt;
-            const rWinBaseY = c2.y + rightWallDir.y * rMidPt;
-            const rWinTopY = rWinBaseY - height * 0.7;  // Window top
-            const rWinBotY = rWinBaseY - height * 0.3;  // Window bottom
-            const rWinWidth = rightWallDir.x * 0.15;  // Width along wall direction
-            const rWinSlant = rightWallDir.y * 0.15;  // Vertical slant matching wall
-            // Window frame
-            graphics.fillStyle(0x4a3020, alpha);
-            graphics.beginPath();
-            graphics.moveTo(rWinBaseX - rWinWidth, rWinTopY - rWinSlant);
-            graphics.lineTo(rWinBaseX + rWinWidth, rWinTopY + rWinSlant);
-            graphics.lineTo(rWinBaseX + rWinWidth, rWinBotY + rWinSlant);
-            graphics.lineTo(rWinBaseX - rWinWidth, rWinBotY - rWinSlant);
-            graphics.closePath();
-            graphics.fillPath();
-            // Window glass glow
-            graphics.fillStyle(0xffeebb, alpha * windowGlow);
-            graphics.beginPath();
-            graphics.moveTo(rWinBaseX - rWinWidth + 2, rWinTopY - rWinSlant + 2);
-            graphics.lineTo(rWinBaseX + rWinWidth - 2, rWinTopY + rWinSlant + 2);
-            graphics.lineTo(rWinBaseX + rWinWidth - 2, rWinBotY + rWinSlant - 2);
-            graphics.lineTo(rWinBaseX - rWinWidth + 2, rWinBotY - rWinSlant - 2);
-            graphics.closePath();
-            graphics.fillPath();
+        // Chimney on the east slope, gently smoking
+        const chX = (r2[0] + peak[0]) / 2 + 4;
+        const chY = (r2[1] + peak[1]) / 2 + 2;
+        quad(graphics, [[chX - 3.2, chY + 3], [chX + 3.2, chY + 3], [chX + 3.2, chY - 9], [chX - 3.2, chY - 9]], stoneDark, alpha);
+        quad(graphics, [[chX - 3.2, chY - 7], [chX + 3.2, chY - 7], [chX + 3.2, chY - 9], [chX - 3.2, chY - 9]], stone, alpha);
+        graphics.fillStyle(0x2a2a2a, alpha);
+        graphics.fillEllipse(chX, chY - 9, 5, 2);
+        if (BuildingRenderer.AMBIENT_VAPOR) for (let i = 0; i < 3; i++) {
+            const t = ((time / 1500) + i * 0.33) % 1;
+            graphics.fillStyle(0xe8e4dc, alpha * (1 - t) * 0.5);
+            graphics.fillCircle(chX + t * (3 + windAtScreen(chX, chY, time) * 9) + Math.sin(t * 6 + i) * 2, chY - 11 - t * 14, 1.8 + t * 3);
+        }
 
-            // Left wall window - parallelogram following the c3->c4 wall
-            const lMidPt = 0.5;
-            const lWinBaseX = c3.x + leftWallDir.x * lMidPt;
-            const lWinBaseY = c3.y + leftWallDir.y * lMidPt;
-            const lWinTopY = lWinBaseY - height * 0.7;
-            const lWinBotY = lWinBaseY - height * 0.3;
-            const lWinWidth = leftWallDir.x * 0.15;
-            const lWinSlant = leftWallDir.y * 0.15;
-            // Window frame
-            graphics.fillStyle(0x4a3020, alpha);
-            graphics.beginPath();
-            graphics.moveTo(lWinBaseX - lWinWidth, lWinTopY - lWinSlant);
-            graphics.lineTo(lWinBaseX + lWinWidth, lWinTopY + lWinSlant);
-            graphics.lineTo(lWinBaseX + lWinWidth, lWinBotY + lWinSlant);
-            graphics.lineTo(lWinBaseX - lWinWidth, lWinBotY - lWinSlant);
-            graphics.closePath();
-            graphics.fillPath();
-            // Window glass glow
-            graphics.fillStyle(0xffeebb, alpha * windowGlow);
-            graphics.beginPath();
-            graphics.moveTo(lWinBaseX - lWinWidth + 2, lWinTopY - lWinSlant + 2);
-            graphics.lineTo(lWinBaseX + lWinWidth - 2, lWinTopY + lWinSlant + 2);
-            graphics.lineTo(lWinBaseX + lWinWidth - 2, lWinBotY + lWinSlant - 2);
-            graphics.lineTo(lWinBaseX - lWinWidth + 2, lWinBotY - lWinSlant - 2);
-            graphics.closePath();
-            graphics.fillPath();
+        // Gold finial + the village banner at the very top
+        graphics.fillStyle(gold, alpha);
+        graphics.fillCircle(peak[0], peak[1] - 1, 2.4);
+        graphics.lineStyle(2, timber, alpha);
+        graphics.lineBetween(peak[0], peak[1] - 2, peak[0], peak[1] - 17);
+        graphics.fillStyle(gold, alpha);
+        graphics.fillCircle(peak[0], peak[1] - 17.5, 1.7);
+        const wave = windSwayAtScreen(peak[0], peak[1], time);
+        quad(graphics, [
+            [peak[0], peak[1] - 16.5],
+            [peak[0] + 14, peak[1] - 13.5 + wave * 2.4],
+            [peak[0] + 11, peak[1] - 11 + wave * 1.6],
+            [peak[0] + 14.5, peak[1] - 8.5 + wave * 2.4],
+            [peak[0], peak[1] - 6]
+        ], 0xc0392b, alpha);
+        graphics.fillStyle(gold, alpha * 0.95);
+        graphics.fillCircle(peak[0] + 5, peak[1] - 11 + wave * 0.8, 1.9);
+    }
 
-            // === SIMPLE PITCHED ROOF ===
-            // Roof base (flat top)
-            graphics.fillStyle(tint ?? 0xd4a484, alpha);
-            graphics.fillPoints([t1, t2, t3, t4], true);
+    static drawBarracks(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        const g = baseGraphics || graphics;
+        const level = Math.max(1, Math.min(13, Number(building?.level) || 1));
+        const tier = level >= 13 ? 5 : Math.min(4, Math.ceil(level / 3));
+        const sub = tier === 5 ? 3 : level - (tier - 1) * 3; // 1..3 inside the tier
 
-            // Roof peak
-            const peakHeight = 25;
-            const peak = new Phaser.Math.Vector2(center.x, center.y - height - peakHeight);
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
+        const lerp = (a: Phaser.Math.Vector2, t: number): number[] => [
+            center.x + (a.x - center.x) * t,
+            center.y + (a.y - center.y) * t
+        ];
+        const up = (pt: number[], h: number): number[] => [pt[0], pt[1] - h];
 
-            // Front roof face (lighter)
-            graphics.fillStyle(0xcc6644, alpha);
-            graphics.fillTriangle(t4.x, t4.y, t1.x, t1.y, peak.x, peak.y);
+        // ===== TIER PALETTES =====
+        const wallLits = [0xc9b892, 0x8d6e63, 0xa5a5b2, 0x4a4a56, 0xbfb49a];
+        const wallDarks = [0xa8977a, 0x6d5348, 0x84848f, 0x35353f, 0x9d9078];
+        const roofLits = [0xb9a884, 0xa8823c, 0x66666f, 0x3c3c46, 0xdaa520];
+        const roofDarks = [0x97865f, 0x84652c, 0x4c4c55, 0x2b2b33, 0xb8860b];
+        const bannerCs = [0xb9553a, 0xc0392b, 0x8e44ad, 0x2c3e50, 0xffd700];
+        const trims = [0x5d4037, 0x5d4037, 0x55555f, 0x62626e, 0xffd700];
+        const i5 = tier - 1;
+        const wallLit = wallLits[i5];
+        const wallDark = wallDarks[i5];
+        const roofLit = roofLits[i5];
+        const roofDark = roofDarks[i5];
+        const bannerC = bannerCs[i5];
+        const trim = trims[i5];
+        const wood = 0x5d4037;
+        const woodLight = 0x795548;
+        const iron = 0x42424c;
 
-            // Right roof face
-            graphics.fillStyle(0xb85534, alpha);
-            graphics.fillTriangle(t1.x, t1.y, t2.x, t2.y, peak.x, peak.y);
+        // ===== YARD PAD =====
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 1, 0.78);
+            if (tier === 1) {
+                g.fillStyle(0x74603f, alpha * 0.4);
+                g.fillEllipse(center.x + 6, center.y + 6, 52, 24);
+            }
+        }
+        if (onlyBase) return;
 
-            // Back roof faces (darker)
-            graphics.fillStyle(0xa84424, alpha);
-            graphics.fillTriangle(t2.x, t2.y, t3.x, t3.y, peak.x, peak.y);
-            graphics.fillTriangle(t3.x, t3.y, t4.x, t4.y, peak.x, peak.y);
+        const wave = windSwayAtScreen(center.x, center.y, time);
 
-            // Roof ridge lines
-            graphics.lineStyle(2, 0xd4a04a, alpha * 0.8);
-            graphics.lineBetween(t1.x, t1.y, peak.x, peak.y);
-            graphics.lineBetween(t4.x, t4.y, peak.x, peak.y);
+        if (tier === 1) {
+            // ===== WAR CAMP: canvas tent + palisade =====
+            const tx = center.x - 8;
+            const ty = center.y - 6;
+            const ridgeY = ty - 24;
+            graphics.fillStyle(0x111111, alpha * 0.3);
+            graphics.fillEllipse(tx, ty + 8, 52, 18);
+            quad(graphics, [[tx - 26, ty + 2], [tx - 2, ridgeY], [tx + 24, ty - 8]], 0xa8977a, alpha);
+            quad(graphics, [[tx - 26, ty + 2], [tx - 2, ridgeY], [tx + 26, ty + 10]], wallLit, alpha);
+            graphics.lineStyle(1, 0x97865f, alpha * 0.7);
+            graphics.lineBetween(tx - 14, ty - 4, tx - 2, ridgeY + 2);
+            graphics.lineBetween(tx + 12, ty - 2, tx - 2, ridgeY + 2);
+            quad(graphics, [[tx - 4, ty + 4.6], [tx + 8, ty + 7], [tx - 2, ridgeY + 10]], 0x8a7a5c, alpha);
+            quad(graphics, [[tx - 1, ty + 5.2], [tx + 6, ty + 6.6], [tx + 1.5, ty - 5]], 0x3a2f20, alpha * 0.9);
+            graphics.lineStyle(2, wood, alpha);
+            graphics.lineBetween(tx - 2, ridgeY, tx - 2, ridgeY - 12);
+            quad(graphics, [[tx - 2, ridgeY - 12], [tx + 8, ridgeY - 10 + wave * 1.6], [tx - 2, ridgeY - 7.5]], bannerC, alpha);
+            // Rope fence at the east corner, clear of the tent's silhouette
+            graphics.lineStyle(3, wood, alpha);
+            const f1x = c2.x - 20;
+            const f1y = c2.y + 6;
+            const f2x = c2.x - 6;
+            const f2y = c2.y + 13;
+            graphics.lineBetween(f1x, f1y, f1x, f1y - 12);
+            graphics.lineBetween(f2x, f2y, f2x, f2y - 12);
+            graphics.fillStyle(woodLight, alpha);
+            graphics.fillCircle(f1x, f1y - 12, 1.5);
+            graphics.fillCircle(f2x, f2y - 12, 1.5);
+            graphics.lineStyle(1.2, 0xb8a07a, alpha);
+            graphics.lineBetween(f1x, f1y - 9, f2x, f2y - 9);
+            graphics.lineBetween(f1x, f1y - 4.5, f2x, f2y - 4.5);
+        } else {
+            // ===== HALL (box + pyramid crown, like the lab) =====
+            // Size progression: small house (T2) -> full hall (T3-4) -> grand legion hall (T5)
+            const s = tier === 2 ? 0.52 : 0.68;
+            const wallH = tier === 2 ? 13 : tier === 3 ? 19 : tier === 4 ? 21 : 23;
+            const p2 = lerp(c2, s);
+            const p3 = lerp(c3, s);
+            const p4 = lerp(c4, s);
+            quad(graphics, [p2, p3, up(p3, wallH), up(p2, wallH)], wallDark, alpha);
+            quad(graphics, [p3, p4, up(p4, wallH), up(p3, wallH)], wallLit, alpha);
+            if (tier === 2) {
+                // Log coursing
+                graphics.lineStyle(1.2, 0x5a4335, alpha * 0.6);
+                for (let i = 1; i < 3; i++) {
+                    const hh = (wallH * i) / 3;
+                    graphics.lineBetween(p4[0], p4[1] - hh, p3[0], p3[1] - hh);
+                    graphics.lineBetween(p3[0], p3[1] - hh, p2[0], p2[1] - hh);
+                }
+            } else {
+                graphics.lineStyle(1, tier === 5 ? 0xc9c9b4 : (tier === 4 ? 0x2b2b33 : 0x6f6f7c), alpha * 0.5);
+                const hh = wallH * 0.5;
+                graphics.lineBetween(p4[0], p4[1] - hh, p3[0], p3[1] - hh);
+                graphics.lineBetween(p3[0], p3[1] - hh, p2[0], p2[1] - hh);
+            }
 
-            // === PROMINENT FLAG POLE AND BANNER ===
-            const flagPoleX = center.x;
-            const flagPoleY = center.y - height - peakHeight + 5;
-            const flagWave = Math.sin(time / 150) * 5;
+            // Door on the SW face
+            const dX = (p3[0] + p4[0]) / 2;
+            const dY = (p3[1] + p4[1]) / 2;
+            quad(graphics, [[dX - 5, dY + 1], [dX + 5, dY + 3], [dX + 5, dY - 11], [dX - 5, dY - 13]], tier === 5 ? 0xb8860b : wood, alpha);
+            const doorOpen = Math.max(0, Math.min(1, (building as { doorOpen?: number } | undefined)?.doorOpen ?? 0));
+            if (doorOpen > 0.02) {
+                // Doorway falls into shadow with a sliver of the swung-open leaf at the jamb.
+                quad(graphics, [[dX - 3.6, dY], [dX + 3.6, dY + 1.8], [dX + 3.6, dY - 9.6], [dX - 3.6, dY - 11.2]], 0x14100b, alpha);
+                graphics.fillStyle(0xd8a648, alpha * 0.22 * doorOpen);
+                graphics.fillEllipse(dX, dY - 4.5, 5, 7);
+                const leaf = 7.2 * (1 - doorOpen * 0.85);
+                quad(graphics, [[dX - 3.6, dY], [dX - 3.6 + leaf, dY + 0.9], [dX - 3.6 + leaf, dY - 10.4], [dX - 3.6, dY - 11.2]], 0x2f2317, alpha);
+            } else {
+                quad(graphics, [[dX - 3.6, dY], [dX + 3.6, dY + 1.8], [dX + 3.6, dY - 9.6], [dX - 3.6, dY - 11.2]], 0x2f2317, alpha);
+            }
 
-            // Flag pole
-            graphics.lineStyle(4, 0x6a5040, alpha);
-            graphics.lineBetween(flagPoleX, flagPoleY, flagPoleX, flagPoleY - 35);
+            // Shield wall on the facade: fills with each level of the tier
+            const shieldCount = Math.min(3, sub + (tier >= 4 ? 1 : 0));
+            for (let i = 0; i < shieldCount; i++) {
+                const t = 0.2 + i * 0.22;
+                const sx = p4[0] + (p3[0] - p4[0]) * t;
+                const sy = p4[1] + (p3[1] - p4[1]) * t - wallH * 0.55;
+                graphics.fillStyle(tier === 5 ? 0xffd700 : bannerC, alpha);
+                graphics.fillCircle(sx, sy, 3.4);
+                graphics.lineStyle(1.2, tier === 5 ? 0xb8860b : trim, alpha);
+                graphics.strokeCircle(sx, sy, 3.4);
+                graphics.fillStyle(tier === 5 ? 0x8a6a2a : trim, alpha);
+                graphics.fillCircle(sx, sy, 1.1);
+            }
 
-            // Pole top finial (golden ball)
+            // Hipped ridge roof with tile courses — deliberately softer than
+            // the lab/town-hall pyramids so the barracks reads as its own thing
+            const o = 1.22;
+            const roofH = tier === 2 ? 8 : 9 + tier * 1.2;
+            const r1 = up(lerp(c1, s * o), wallH);
+            const r2 = up(lerp(c2, s * o), wallH);
+            const r3 = up(lerp(c3, s * o), wallH);
+            const r4 = up(lerp(c4, s * o), wallH);
+            // Ridge runs along the grid-x axis through the centre
+            const q = s * 0.22;
+            const RA = [center.x - (c2.x - c1.x) * q, center.y - (c2.y - c1.y) * q - wallH - roofH];
+            const RB = [center.x + (c2.x - c1.x) * q, center.y + (c2.y - c1.y) * q - wallH - roofH];
+            const mix = (a2: number[], b2: number[], t: number): number[] => [a2[0] + (b2[0] - a2[0]) * t, a2[1] + (b2[1] - a2[1]) * t];
+            // Far slope and far hip first
+            quad(graphics, [r1, r2, RB, RA], roofDark, alpha * 0.92);
+            quad(graphics, [r4, r1, RA], roofLit, alpha * 0.92);
+            // Near slope and near hip
+            quad(graphics, [r4, r3, RB, RA], roofLit, alpha);
+            quad(graphics, [r3, r2, RB], roofDark, alpha);
+            // Tile courses following the eaves
+            graphics.lineStyle(1, tier === 5 ? 0xb8860b : roofDark, alpha * 0.6);
+            for (const t of [0.3, 0.55, 0.8]) {
+                const ta = mix(r4, RA, t);
+                const tb = mix(r3, RB, t);
+                graphics.lineBetween(ta[0], ta[1], tb[0], tb[1]);
+            }
+            graphics.lineStyle(1, 0x000000, alpha * 0.16);
+            for (const t of [0.35, 0.65]) {
+                const ta = mix(r3, RB, t);
+                const tb = mix(r2, RB, t);
+                graphics.lineBetween(ta[0], ta[1], tb[0], tb[1]);
+            }
+            // Eaves, near hip edge and ridge cap
+            graphics.lineStyle(1.6, tier === 5 ? 0xb8860b : roofDark, alpha * 0.85);
+            graphics.lineBetween(r4[0], r4[1], r3[0], r3[1]);
+            graphics.lineBetween(r3[0], r3[1], r2[0], r2[1]);
+            graphics.lineBetween(r3[0], r3[1], RB[0], RB[1]);
+            graphics.lineStyle(2.4, tier === 5 ? 0xdaa520 : trim, alpha);
+            graphics.lineBetween(RA[0], RA[1], RB[0], RB[1]);
+            const peak = [center.x, center.y - wallH - roofH];
+
+            // Tier crowns along the ridge
+            if (tier === 2 && sub >= 3) {
+                graphics.lineStyle(2.2, woodLight, alpha);
+                graphics.lineBetween(peak[0] - 1, peak[1], peak[0] - 7, peak[1] - 7);
+                graphics.lineBetween(peak[0] + 1, peak[1], peak[0] + 7, peak[1] - 7);
+            } else if (tier === 3) {
+                // Stone chimney at the east end of the ridge
+                const chX = RB[0] + 1;
+                const chY = RB[1] + 3;
+                quad(graphics, [[chX - 3, chY + 2], [chX + 3, chY + 2], [chX + 3, chY - 9], [chX - 3, chY - 9]], 0x84848f, alpha);
+                graphics.fillStyle(0x2a2a2a, alpha);
+                graphics.fillEllipse(chX, chY - 9, 4.6, 1.9);
+                if (BuildingRenderer.AMBIENT_VAPOR) for (let i = 0; i < 2; i++) {
+                    const t = ((time / 1500) + i * 0.5) % 1;
+                    graphics.fillStyle(0xe8e4dc, alpha * (1 - t) * 0.45);
+                    graphics.fillCircle(chX + t * (2.5 + windAtScreen(chX, chY, time) * 8), chY - 11 - t * 12, 1.6 + t * 2.6);
+                }
+            } else if (tier === 4) {
+                // Iron spikes along the ridge
+                graphics.fillStyle(iron, alpha);
+                for (const t of [0.12, 0.5, 0.88]) {
+                    const ex = RA[0] + (RB[0] - RA[0]) * t;
+                    const ey = RA[1] + (RB[1] - RA[1]) * t;
+                    quad(graphics, [[ex - 1.8, ey], [ex + 1.8, ey], [ex, ey - 5.5]], iron, alpha);
+                }
+            }
+            if (tier === 5) {
+                // Marble lantern cupola — a proper little iso box astride the ridge
+                const kx = peak[0];
+                const ky = peak[1] + 1;
+                const khw = 8;   // half-width on screen
+                const kh = 9;    // wall height
+                const bE = [kx + khw, ky];
+                const bS = [kx, ky + khw * 0.5];
+                const bW = [kx - khw, ky];
+                // SE (dark) and SW (lit) faces
+                quad(graphics, [bE, bS, [bS[0], bS[1] - kh], [bE[0], bE[1] - kh]], 0xa89d84, alpha);
+                quad(graphics, [bS, bW, [bW[0], bW[1] - kh], [bS[0], bS[1] - kh]], 0xcfc5ae, alpha);
+                // Lantern slit on the lit face, skewed into the face plane
+                const wmx = (bS[0] + bW[0]) / 2;
+                const wmy = (bS[1] + bW[1]) / 2;
+                quad(graphics, [
+                    [wmx - 1.6, wmy - 2.6 - 0.8], [wmx + 1.6, wmy - 2.6 + 0.8],
+                    [wmx + 1.6, wmy - 7.2 + 0.8], [wmx - 1.6, wmy - 7.2 - 0.8]
+                ], 0x8a6a2a, alpha * 0.9);
+                // Gold pyramid cap with a slight overhang
+                const oh = 1.3;
+                const rN = [kx, ky - khw * 0.5 * oh - kh];
+                const rE = [kx + khw * oh, ky - kh];
+                const rS = [kx, ky + khw * 0.5 * oh - kh];
+                const rW = [kx - khw * oh, ky - kh];
+                const tip = [kx, ky - kh - 9];
+                quad(graphics, [rE, rN, tip], 0xb8860b, alpha * 0.92);
+                quad(graphics, [rN, rW, tip], 0xdaa520, alpha * 0.92);
+                quad(graphics, [rW, rS, tip], 0xdaa520, alpha);
+                quad(graphics, [rS, rE, tip], 0xb8860b, alpha);
+                // Gilded eagle standard at the very top
+                graphics.lineStyle(2, 0xb8860b, alpha);
+                graphics.lineBetween(tip[0], tip[1], tip[0], tip[1] - 7.5);
+                quad(graphics, [[tip[0] - 5.5, tip[1] - 7.5], [tip[0] + 5.5, tip[1] - 7.5], [tip[0], tip[1] - 12]], 0xffd700, alpha);
+                graphics.fillStyle(0xffd700, alpha);
+                graphics.fillCircle(tip[0], tip[1] - 13, 1.9);
+            } else if (tier >= 3) {
+                // Finials at the ridge ends
+                graphics.fillStyle(tier === 4 ? 0x62626e : trim, alpha);
+                graphics.fillCircle(RA[0], RA[1] - 0.5, 1.7);
+                graphics.fillCircle(RB[0], RB[1] - 0.5, 1.7);
+            }
+
+            // Banner pole at the east corner
+            const bx = p2[0] + 4;
+            const by = p2[1] + 1;
+            graphics.lineStyle(2.2, tier === 5 ? 0xb8860b : wood, alpha);
+            graphics.lineBetween(bx, by, bx, by - wallH - 18);
+            graphics.fillStyle(tier === 5 ? 0xffd700 : trim, alpha);
+            graphics.fillCircle(bx, by - wallH - 18.5, 1.7);
+            quad(graphics, [
+                [bx, by - wallH - 17],
+                [bx + 12, by - wallH - 14.5 + wave * 2.2],
+                [bx + 9.5, by - wallH - 12 + wave * 1.5],
+                [bx + 12.5, by - wallH - 9.5 + wave * 2.2],
+                [bx, by - wallH - 7]
+            ], bannerC, alpha);
+            if (level >= 9) {
+                graphics.lineStyle(2.2, tier === 5 ? 0xb8860b : wood, alpha);
+                graphics.lineBetween(bx, by - wallH - 18, bx, by - wallH - 25);
+                quad(graphics, [
+                    [bx, by - wallH - 24], [bx + 8, by - wallH - 22 + wave * 1.6], [bx, by - wallH - 19.5]
+                ], tier === 5 ? 0xffd700 : 0xe8e0d0, alpha);
+            }
+        }
+
+        // ===== TRAINING YARD PROPS (south half) =====
+        const uX = center.x + 26;
+        const uY = center.y + 12;
+        graphics.fillStyle(0x111111, alpha * 0.3);
+        graphics.fillEllipse(uX, uY + 3, 10, 4);
+        graphics.lineStyle(2.6, wood, alpha);
+        graphics.lineBetween(uX, uY + 2, uX, uY - 10);
+        graphics.lineBetween(uX - 6, uY - 7, uX + 6, uY - 7);
+        if (tier >= 3) {
+            graphics.fillStyle(iron, alpha);
+            graphics.fillCircle(uX, uY - 12, 3.2);
+            graphics.fillRect(uX - 3.4, uY - 9, 6.8, 5);
+            graphics.fillStyle(tier === 5 ? 0xffd700 : 0x62626e, alpha);
+            graphics.fillCircle(uX, uY - 12, 1.4);
+        } else {
+            graphics.fillStyle(0xc9b892, alpha);
+            graphics.fillCircle(uX, uY - 12, 3);
+            graphics.lineStyle(1, 0x97865f, alpha);
+            graphics.strokeCircle(uX, uY - 12, 3);
+        }
+
+        if (level >= 2) {
+            const rX = center.x - 30;
+            const rY = center.y + 14;
+            graphics.fillStyle(0x111111, alpha * 0.3);
+            graphics.fillEllipse(rX + 2, rY + 3, 16, 5);
+            graphics.lineStyle(2.2, wood, alpha);
+            graphics.lineBetween(rX - 7, rY + 2, rX - 7, rY - 9);
+            graphics.lineBetween(rX + 9, rY + 2, rX + 9, rY - 9);
+            graphics.lineBetween(rX - 8, rY - 8, rX + 10, rY - 8);
+            const blades = Math.min(4, 1 + Math.floor((level - 2) / 3));
+            for (let i = 0; i < blades; i++) {
+                const wx = rX - 4 + i * 4;
+                graphics.lineStyle(1.6, tier === 5 ? 0xffd700 : 0xc9ccd4, alpha);
+                graphics.lineBetween(wx, rY + 1, wx + 2, rY - 7.5);
+                graphics.lineStyle(1.4, wood, alpha);
+                graphics.lineBetween(wx - 1.2, rY - 4.6, wx + 2.4, rY - 5.6);
+            }
+        }
+
+        if (level >= 3) {
+            const fX = center.x - 2;
+            const fY = center.y + 22;
+            const flick = 0.7 + Math.sin(time / 130) * 0.2;
+            if (tier >= 3) {
+                graphics.fillStyle(iron, alpha);
+                graphics.fillEllipse(fX, fY, 9, 4);
+                graphics.fillRect(fX - 4.5, fY - 5, 9, 5);
+                graphics.fillStyle(tier === 5 ? 0xb8860b : 0x2b2b33, alpha);
+                graphics.fillEllipse(fX, fY - 5, 9, 4);
+            } else {
+                graphics.fillStyle(0x6b5334, alpha);
+                graphics.fillEllipse(fX, fY - 1, 11, 5);
+                graphics.fillStyle(0x3a2f20, alpha);
+                graphics.fillEllipse(fX, fY - 2, 8, 3.6);
+            }
+            quad(graphics, [
+                [fX - 3, fY - 5], [fX + 3, fY - 5],
+                [fX + 1 + Math.sin(time / 90) * 1.2, fY - 11 - flick * 3], [fX - 1, fY - 8.5]
+            ], 0xff8c2e, alpha * flick);
+            quad(graphics, [
+                [fX - 1.4, fY - 5.5], [fX + 1.6, fY - 5.5], [fX + 0.2, fY - 9 - flick * 2]
+            ], 0xffd25e, alpha * flick);
+        }
+    }
+    /**
+     * WATCHTOWER — the village's far-seeing eye. A dressed-stone footing, a
+     * tapered timber shaft with cross-bracing, a jettied lookout platform on
+     * brackets, and a four-post canopy. A watchman turns slowly on the deck
+     * and his spyglass throws a periodic glint; a brazier burns beside him
+     * (the night lamp anchors there). L2 rebuilds the shaft in sandstone with
+     * a deep-blue, gold-trimmed canopy and a snapping pennant.
+     */
+    static drawWatchtower(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        const g = baseGraphics || graphics;
+        const level = Math.min(2, Math.max(1, Number(building?.level) || 1));
+
+        // ===== PALETTE — four tiers of masonry =====
+        // L1 raw timber; L2 jumps straight to the max look — warm sandstone
+        // with a deep-blue canopy and gold/white ACCENTS (never masses).
+        const tier = level >= 2 ? 3 : 0;
+        const shaftLits = [0x8a6a42, 0x9aa2ae, 0xbfb49a, 0xcfc4a6];
+        const shaftDarks = [0x6e5335, 0x7c8490, 0xa39878, 0xb3a684];
+        const braceCols = [0x5c4326, 0x5a616c, 0x8a7c5c, 0xb8860b];
+        const deckCols = [0xa08a64, 0xa08a64, 0xc9b593, 0xdcd3ba];
+        const roofLits = [0x8a3d2f, 0x8a3d2f, 0x3a5f8a, 0x3a5f8a];
+        const roofDarks = [0x6e2f24, 0x6e2f24, 0x2c4a70, 0x2c4a70];
+        const trims = [0x5c4326, 0x4a5058, 0xb8860b, 0xdaa520];
+        const shaftLit = shaftLits[tier];
+        const shaftDark = shaftDarks[tier];
+        const braceCol = braceCols[tier];
+        const stoneLit = 0xb0a892;
+        const stoneDark = 0x8a8272;
+        const deckCol = deckCols[tier];
+        const roofLit = roofLits[tier];
+        const roofDark = roofDarks[tier];
+        const trim = trims[tier];
+        const isL2 = level >= 2; // masonry-era details from here up
+        const isL4 = level >= 2;
+
+        // ===== BASE: contact shadow + compact pad =====
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 1, 0.7);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.62,
+                isL2 ? 0xbfb49a : 0x9a8a6a, isL2 ? 0x9a8f76 : 0x7a6a50, isL2 ? 0xdaa520 : null);
+        }
+        if (onlyBase) return;
+
+        const T = time * 0.001;
+        const bx = center.x;
+        const by = center.y;
+
+        // ===== STONE FOOTING (small iso box) =====
+        const footW = 15;
+        const footH = 9;
+        graphics.fillStyle(stoneDark, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx - footW, by - 2);
+        graphics.lineTo(bx, by + footW * 0.5 - 2);
+        graphics.lineTo(bx, by + footW * 0.5 - 2 - footH);
+        graphics.lineTo(bx - footW, by - 2 - footH);
+        graphics.closePath();
+        graphics.fillPath();
+        graphics.fillStyle(stoneLit, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx + footW, by - 2);
+        graphics.lineTo(bx, by + footW * 0.5 - 2);
+        graphics.lineTo(bx, by + footW * 0.5 - 2 - footH);
+        graphics.lineTo(bx + footW, by - 2 - footH);
+        graphics.closePath();
+        graphics.fillPath();
+        // Mortar seams.
+        graphics.lineStyle(0.8, 0x6e6658, alpha * 0.6);
+        graphics.lineBetween(bx - footW * 0.7, by - 4.4, bx - 0.5, by + 2.4);
+        graphics.lineBetween(bx + footW * 0.7, by - 4.4, bx + 0.5, by + 2.4);
+
+        // ===== TAPERED SHAFT (two faces, narrowing upward) =====
+        const baseHalf = 11;
+        const topHalf = 7.5;
+        const shaftBaseY = by - 2 - footH;
+        const shaftTop = shaftBaseY - (isL2 ? 42 : 32); // the rebuild stands taller
+        // SW face (dark)
+        graphics.fillStyle(shaftDark, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx - baseHalf, shaftBaseY);
+        graphics.lineTo(bx, shaftBaseY + baseHalf * 0.5);
+        graphics.lineTo(bx, shaftTop + topHalf * 0.5);
+        graphics.lineTo(bx - topHalf, shaftTop);
+        graphics.closePath();
+        graphics.fillPath();
+        // SE face (lit)
+        graphics.fillStyle(shaftLit, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx + baseHalf, shaftBaseY);
+        graphics.lineTo(bx, shaftBaseY + baseHalf * 0.5);
+        graphics.lineTo(bx, shaftTop + topHalf * 0.5);
+        graphics.lineTo(bx + topHalf, shaftTop);
+        graphics.closePath();
+        graphics.fillPath();
+        // Corner edge highlight.
+        graphics.lineStyle(1.2, isL2 ? 0xe8dcc0 : 0xa08050, alpha * 0.9);
+        graphics.lineBetween(bx, shaftBaseY + baseHalf * 0.5, bx, shaftTop + topHalf * 0.5);
+        // Cross-bracing on both faces.
+        graphics.lineStyle(1.3, braceCol, alpha);
+        for (const side of [-1, 1]) {
+            const b0 = baseHalf * side;
+            const t0 = topHalf * side;
+            graphics.lineBetween(bx + b0 * 0.9, shaftBaseY - 2, bx + t0 * 0.3, shaftTop + 10);
+            graphics.lineBetween(bx + b0 * 0.25, shaftBaseY + 2, bx + t0 * 0.95, shaftTop + 8);
+        }
+        // Arrow slit on the lit face.
+        graphics.fillStyle(0x2c2418, alpha);
+        graphics.fillRect(bx + 4.4, shaftTop + 14, 2, 6);
+
+        // ===== JETTIED LOOKOUT PLATFORM =====
+        const deckHalf = 13;
+        const deckY = shaftTop - 1;
+        // Support brackets.
+        graphics.lineStyle(1.6, braceCol, alpha);
+        graphics.lineBetween(bx - topHalf, shaftTop + 4, bx - deckHalf + 1.5, deckY + 2);
+        graphics.lineBetween(bx + topHalf, shaftTop + 4, bx + deckHalf - 1.5, deckY + 2);
+        // Deck slab (iso diamond).
+        graphics.fillStyle(deckCol, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx, deckY - deckHalf * 0.5);
+        graphics.lineTo(bx + deckHalf, deckY);
+        graphics.lineTo(bx, deckY + deckHalf * 0.5);
+        graphics.lineTo(bx - deckHalf, deckY);
+        graphics.closePath();
+        graphics.fillPath();
+        // Deck edge (front faces).
+        graphics.fillStyle(isL2 ? 0xb3a684 : 0x8a744e, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx - deckHalf, deckY);
+        graphics.lineTo(bx, deckY + deckHalf * 0.5);
+        graphics.lineTo(bx, deckY + deckHalf * 0.5 + 3);
+        graphics.lineTo(bx - deckHalf, deckY + 3);
+        graphics.closePath();
+        graphics.fillPath();
+        graphics.beginPath();
+        graphics.moveTo(bx + deckHalf, deckY);
+        graphics.lineTo(bx, deckY + deckHalf * 0.5);
+        graphics.lineTo(bx, deckY + deckHalf * 0.5 + 3);
+        graphics.lineTo(bx + deckHalf, deckY + 3);
+        graphics.closePath();
+        graphics.fillPath();
+        // Plank seams.
+        graphics.lineStyle(0.7, braceCol, alpha * 0.7);
+        for (let s = -2; s <= 2; s++) {
+            graphics.lineBetween(bx + s * 3 - deckHalf * 0.4, deckY + Math.abs(s) * 0.8 - deckHalf * 0.22, bx + s * 3 + deckHalf * 0.4, deckY + Math.abs(s) * 0.8 + deckHalf * 0.22);
+        }
+        // Railing around the two camera-facing edges.
+        graphics.lineStyle(1.1, trim, alpha);
+        for (let r = 0; r <= 4; r++) {
+            const t = r / 4;
+            const rx = bx - deckHalf + deckHalf * t;
+            const ry = deckY + deckHalf * 0.5 * t;
+            graphics.lineBetween(rx, ry + 1, rx, ry - 5);
+            const rx2 = bx + deckHalf - deckHalf * t;
+            graphics.lineBetween(rx2, ry + 1, rx2, ry - 5);
+        }
+        graphics.lineBetween(bx - deckHalf, deckY - 4, bx, deckY + deckHalf * 0.5 - 4);
+        graphics.lineBetween(bx + deckHalf, deckY - 4, bx, deckY + deckHalf * 0.5 - 4);
+
+        // ===== THE WATCHMAN (slow scan) + SPYGLASS GLINT =====
+        const scan = Math.sin(T * 0.6 + (Number(building?.gridX) || 0));
+        const wmX = bx + scan * 3.5;
+        const wmY = deckY - 6;
+        graphics.fillStyle(0x4a4258, alpha);
+        graphics.fillTriangle(wmX - 2.6, wmY + 5, wmX + 2.6, wmY + 5, wmX, wmY - 3.5);
+        graphics.fillStyle(0xd9b38c, alpha);
+        graphics.fillCircle(wmX, wmY - 4.6, 1.9);
+        // Spyglass toward scan direction.
+        graphics.lineStyle(1.3, 0x5c4326, alpha);
+        graphics.lineBetween(wmX + 1.5 * Math.sign(scan || 1), wmY - 4, wmX + 5 * Math.sign(scan || 1), wmY - 5.2);
+        // The glint: a brief star at the spyglass tip, every few seconds.
+        const glintGate = Math.max(0, Math.sin(T * 1.4 + 1.1));
+        if (glintGate > 0.965) {
+            const gx2 = wmX + 5.6 * Math.sign(scan || 1);
+            const gy2 = wmY - 5.4;
+            const flare = (glintGate - 0.965) / 0.035;
+            graphics.fillStyle(0xffffff, alpha * flare);
+            graphics.fillTriangle(gx2 - 3.4, gy2, gx2 + 3.4, gy2, gx2, gy2 - 1.2);
+            graphics.fillTriangle(gx2 - 3.4, gy2, gx2 + 3.4, gy2, gx2, gy2 + 1.2);
+            graphics.fillTriangle(gx2, gy2 - 3.4, gx2, gy2 + 3.4, gx2 - 1.2, gy2);
+            graphics.fillTriangle(gx2, gy2 - 3.4, gx2, gy2 + 3.4, gx2 + 1.2, gy2);
+        }
+
+        // ===== BRAZIER (the night lamp anchor) =====
+        const brX = bx - 8;
+        const brY = deckY - 3;
+        graphics.fillStyle(0x3c3222, alpha);
+        graphics.fillRect(brX - 1.9, brY - 3, 3.8, 3);
+        graphics.lineStyle(1, 0x3c3222, alpha);
+        graphics.lineBetween(brX - 2.6, brY, brX + 2.6, brY);
+        const lick = Math.sin(T * 16 + 2) * 1.1;
+        graphics.fillStyle(0xff7a2a, alpha * 0.95);
+        graphics.fillTriangle(brX - 1.7, brY - 3, brX + 1.7, brY - 3, brX + lick * 0.4, brY - 7.5 - Math.abs(lick));
+        graphics.fillStyle(0xffc36a, alpha * 0.95);
+        graphics.fillTriangle(brX - 1, brY - 3, brX + 1, brY - 3, brX + lick * 0.3, brY - 5.4 - Math.abs(lick) * 0.6);
+
+        // ===== CANOPY: four posts + pyramid roof =====
+        const roofBaseY = deckY - 14;
+        const apexY = roofBaseY - (isL2 ? 15 : 11);
+        const roofHalf = deckHalf - 1.5;
+        graphics.lineStyle(1.4, trim, alpha);
+        graphics.lineBetween(bx - deckHalf + 1.5, deckY + 0.5, bx - roofHalf, roofBaseY);
+        graphics.lineBetween(bx + deckHalf - 1.5, deckY + 0.5, bx + roofHalf, roofBaseY);
+        graphics.lineBetween(bx, deckY + deckHalf * 0.5 - 1, bx, roofBaseY + roofHalf * 0.5);
+        // Roof faces.
+        graphics.fillStyle(roofDark, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx - roofHalf, roofBaseY);
+        graphics.lineTo(bx, roofBaseY + roofHalf * 0.5);
+        graphics.lineTo(bx, apexY);
+        graphics.closePath();
+        graphics.fillPath();
+        graphics.fillStyle(roofLit, alpha);
+        graphics.beginPath();
+        graphics.moveTo(bx + roofHalf, roofBaseY);
+        graphics.lineTo(bx, roofBaseY + roofHalf * 0.5);
+        graphics.lineTo(bx, apexY);
+        graphics.closePath();
+        graphics.fillPath();
+        // Eave trim.
+        graphics.lineStyle(1.3, trim, alpha);
+        graphics.lineBetween(bx - roofHalf, roofBaseY, bx, roofBaseY + roofHalf * 0.5);
+        graphics.lineBetween(bx + roofHalf, roofBaseY, bx, roofBaseY + roofHalf * 0.5);
+        // Finial + pennant.
+        graphics.lineStyle(1.2, trim, alpha);
+        graphics.lineBetween(bx, apexY, bx, apexY - 7);
+        if (isL2) {
             graphics.fillStyle(0xffd700, alpha);
-            graphics.fillCircle(flagPoleX, flagPoleY - 38, 5);
-
-            // Large waving banner
-            graphics.fillStyle(0xdd3333, alpha);
-            graphics.beginPath();
-            graphics.moveTo(flagPoleX, flagPoleY - 35);
-            graphics.lineTo(flagPoleX + 25, flagPoleY - 30 + flagWave * 0.3);
-            graphics.lineTo(flagPoleX + 22, flagPoleY - 22 + flagWave * 0.5);
-            graphics.lineTo(flagPoleX + 25, flagPoleY - 14 + flagWave * 0.3);
-            graphics.lineTo(flagPoleX, flagPoleY - 17);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Banner golden stripe
-            graphics.fillStyle(0xffd700, alpha);
-            graphics.beginPath();
-            graphics.moveTo(flagPoleX, flagPoleY - 30);
-            graphics.lineTo(flagPoleX + 20, flagPoleY - 26 + flagWave * 0.4);
-            graphics.lineTo(flagPoleX + 20, flagPoleY - 23 + flagWave * 0.4);
-            graphics.lineTo(flagPoleX, flagPoleY - 27);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Banner shadow/outline
-            graphics.lineStyle(1, 0x991111, alpha * 0.6);
-            graphics.beginPath();
-            graphics.moveTo(flagPoleX, flagPoleY - 35);
-            graphics.lineTo(flagPoleX + 25, flagPoleY - 30 + flagWave * 0.3);
-            graphics.lineTo(flagPoleX + 22, flagPoleY - 22 + flagWave * 0.5);
-            graphics.lineTo(flagPoleX + 25, flagPoleY - 14 + flagWave * 0.3);
-            graphics.lineTo(flagPoleX, flagPoleY - 17);
-            graphics.strokePath();
+            graphics.fillCircle(bx, apexY - 7.5, 2);
         }
+        if (isL4) {
+            // A whisper of gold along the eaves — accent, never a mass.
+            graphics.lineStyle(1, 0xffd700, alpha * 0.85);
+            graphics.lineBetween(bx - roofHalf, roofBaseY - 0.8, bx, apexY + 1);
+            graphics.lineBetween(bx + roofHalf, roofBaseY - 0.8, bx, apexY + 1);
+        }
+        const wave = Math.sin(T * 6 + (Number(building?.gridY) || 0)) * 1.6;
+        graphics.fillStyle(isL4 ? 0xf4ecd8 : 0xd8563c, alpha);
+        graphics.fillTriangle(bx, apexY - 6.5, bx + 8, apexY - 5 + wave, bx, apexY - 2.5);
     }
 
-    static drawBarracks(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        const level = building?.level ?? 1;
-        // Visual tiers: L1-4 wooden, L5-8 stone, L9-13 iron-fortified
-        const tier = level >= 9 ? 3 : level >= 5 ? 2 : 1;
-        const wallHeight = tier >= 3 ? 36 : tier >= 2 ? 32 : 26;
+    static drawLab(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
         const g = baseGraphics || graphics;
+        const level = Number(building?.level) || 1;
+        const isL2 = level >= 2;
+        const isL3 = level >= 3;
 
-        // Wall top corners
-        const t1 = new Phaser.Math.Vector2(c1.x, c1.y - wallHeight);
-        const t2 = new Phaser.Math.Vector2(c2.x, c2.y - wallHeight);
-        const t3 = new Phaser.Math.Vector2(c3.x, c3.y - wallHeight);
-        const t4 = new Phaser.Math.Vector2(c4.x, c4.y - wallHeight);
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
+        const lerp = (a: Phaser.Math.Vector2, t: number) => [
+            center.x + (a.x - center.x) * t,
+            center.y + (a.y - center.y) * t
+        ];
 
-        // Wall direction vectors (for isometric-aligned windows/details)
-        const rwDirX = c3.x - c2.x;
-        const rwDirY = c3.y - c2.y;
-        const lwDirX = c4.x - c3.x;
-        const lwDirY = c4.y - c3.y;
+        // ===== PALETTE =====
+        const wallLit = isL3 ? 0xf1f1e4 : isL2 ? 0x9a9aa8 : 0xd8ccab;
+        const wallDark = isL3 ? 0xd6d6c4 : isL2 ? 0x767684 : 0xb3a684;
+        const frame = isL3 ? 0xb8860b : isL2 ? 0x55555f : 0x5d4037;
+        const roofLit = isL3 ? 0x7a55c8 : isL2 ? 0x6644aa : 0x5c4a86;
+        const roofDark = isL3 ? 0x5c3f9a : isL2 ? 0x4e3384 : 0x463868;
+        const copper = isL3 ? 0xd9912f : 0xb06a3a;
+        const copperDark = isL3 ? 0xa0651b : 0x7e4826;
+        const liquid = isL3 ? 0xffd76a : isL2 ? 0xb37cff : 0x59e08f;
+        const liquidHi = isL3 ? 0xfff2c0 : isL2 ? 0xd9bcff : 0xa8f0c8;
 
+        // ===== FLAGSTONE PAD =====
         if (!skipBase) {
-            if (tier >= 3) {
-                // Tier 3: Dark reinforced stone slab
-                g.fillStyle(tint ?? 0x484048, alpha);
-                g.fillPoints([c1, c2, c3, c4], true);
-                g.lineStyle(2, 0x606060, alpha * 0.7);
-                g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-                g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-                // Iron rivets on foundation
-                g.fillStyle(0x707070, alpha * 0.6);
-                g.fillCircle(center.x - 12, center.y + 1, 2);
-                g.fillCircle(center.x + 10, center.y + 3, 2);
-                g.fillCircle(center.x - 2, center.y + 5, 2);
-                g.fillCircle(center.x + 14, center.y - 1, 1.5);
-            } else if (tier >= 2) {
-                // Tier 2: Cut stone slab
-                g.fillStyle(tint ?? 0x5a5058, alpha);
-                g.fillPoints([c1, c2, c3, c4], true);
-                g.lineStyle(2, 0x70706e, alpha * 0.7);
-                g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-                g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-                g.fillStyle(0x4a444e, alpha * 0.5);
-                g.fillCircle(center.x - 10, center.y + 2, 3);
-                g.fillCircle(center.x + 7, center.y + 4, 2.5);
-            } else {
-                // Tier 1: Wooden planks
-                g.fillStyle(tint ?? 0x7a6a5a, alpha);
-                g.fillPoints([c1, c2, c3, c4], true);
-                g.fillStyle(0x6a5a4a, alpha * 0.45);
-                g.fillCircle(center.x - 8, center.y + 3, 3);
-                g.fillCircle(center.x + 6, center.y + 5, 2);
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 1, 0.78);
+        }
+
+        if (onlyBase) return;
+
+        // ===== MAIN HALL (iso box on a shrunken footprint) =====
+        const s = 0.68;
+        const wallH = isL3 ? 23 : isL2 ? 20 : 17;
+        const p2 = lerp(c2, s); // east
+        const p3 = lerp(c3, s); // south
+        const p4 = lerp(c4, s); // west
+        const up = (pt: number[], h: number) => [pt[0], pt[1] - h];
+
+        // South-east face (darker)
+        quad(graphics, [p2, p3, up(p3, wallH), up(p2, wallH)], wallDark, alpha);
+        // South-west face (lit)
+        quad(graphics, [p3, p4, up(p4, wallH), up(p3, wallH)], wallLit, alpha);
+
+        if (!isL2) {
+            // Timber framing on the L1 workshop
+            graphics.lineStyle(2.4, frame, alpha);
+            graphics.lineBetween(p3[0], p3[1], p3[0], p3[1] - wallH);
+            graphics.lineBetween(p4[0], p4[1], p4[0], p4[1] - wallH);
+            graphics.lineBetween(p2[0], p2[1], p2[0], p2[1] - wallH);
+            graphics.lineBetween(p4[0], p4[1] - wallH * 0.55, p3[0], p3[1] - wallH * 0.55);
+            graphics.lineBetween(p3[0], p3[1] - wallH * 0.55, p2[0], p2[1] - wallH * 0.55);
+            // Diagonal brace
+            graphics.lineBetween(p4[0], p4[1] - wallH * 0.55, (p4[0] + p3[0]) / 2, p3[1] - 2);
+        } else {
+            // Stone/marble coursing
+            graphics.lineStyle(1, isL3 ? 0xc9c9b4 : 0x5f5f6c, alpha * 0.5);
+            for (let i = 1; i < 3; i++) {
+                const hh = (wallH * i) / 3;
+                graphics.lineBetween(p4[0], p4[1] - hh, p3[0], p3[1] - hh);
+                graphics.lineBetween(p3[0], p3[1] - hh, p2[0], p2[1] - hh);
             }
         }
 
-        if (!onlyBase) {
-            // === WALLS ===
-            if (tier >= 3) {
-                // Dark iron-banded stone
-                graphics.fillStyle(tint ?? 0x4a3a3a, alpha);
-                graphics.fillPoints([c2, c3, t3, t2], true);
-                graphics.fillStyle(tint ?? 0x5a4848, alpha);
-                graphics.fillPoints([c3, c4, t4, t3], true);
-                // Stone block mortar lines following isometric angles
-                graphics.lineStyle(1, 0x3a2020, alpha * 0.4);
-                for (let i = 1; i <= 4; i++) {
-                    const frac = i / 5;
-                    // Right wall: lines run parallel to c2->c3
-                    const y1 = c2.y + (t2.y - c2.y) * frac;
-                    const y2 = c3.y + (t3.y - c3.y) * frac;
-                    graphics.lineBetween(c2.x, y1, c3.x, y2);
-                    // Left wall: lines run parallel to c3->c4
-                    const y3 = c3.y + (t3.y - c3.y) * frac;
-                    const y4 = c4.y + (t4.y - c4.y) * frac;
-                    graphics.lineBetween(c3.x, y3, c4.x, y4);
-                }
-                // Iron bands
-                graphics.lineStyle(2, 0x555555, alpha * 0.7);
-                graphics.lineBetween(t2.x, t2.y + 2, t3.x, t3.y + 2);
-                graphics.lineBetween(t3.x, t3.y + 2, t4.x, t4.y + 2);
-                // Iron corner rivets
-                graphics.fillStyle(0x888888, alpha * 0.8);
-                graphics.fillCircle(c2.x, c2.y - 5, 2);
-                graphics.fillCircle(c3.x, c3.y - 5, 2);
-                graphics.fillCircle(c4.x, c4.y - 5, 2);
-                graphics.fillCircle(t2.x, t2.y + 4, 2);
-                graphics.fillCircle(t3.x, t3.y + 4, 2);
-                graphics.fillCircle(t4.x, t4.y + 4, 2);
-            } else if (tier >= 2) {
-                // Cut stone walls
-                graphics.fillStyle(tint ?? 0x6a4a3a, alpha);
-                graphics.fillPoints([c2, c3, t3, t2], true);
-                graphics.fillStyle(tint ?? 0x7a5a48, alpha);
-                graphics.fillPoints([c3, c4, t4, t3], true);
-                // Mortar lines
-                graphics.lineStyle(1, 0x5a3020, alpha * 0.3);
-                for (let i = 1; i <= 3; i++) {
-                    const frac = i / 4;
-                    const y1 = c2.y + (t2.y - c2.y) * frac;
-                    const y2 = c3.y + (t3.y - c3.y) * frac;
-                    graphics.lineBetween(c2.x, y1, c3.x, y2);
-                    const y3 = c3.y + (t3.y - c3.y) * frac;
-                    const y4 = c4.y + (t4.y - c4.y) * frac;
-                    graphics.lineBetween(c3.x, y3, c4.x, y4);
-                }
-            } else {
-                // Wooden walls
-                graphics.fillStyle(tint ?? 0x8b3030, alpha);
-                graphics.fillPoints([c2, c3, t3, t2], true);
-                graphics.fillStyle(tint ?? 0xa04040, alpha);
-                graphics.fillPoints([c3, c4, t4, t3], true);
+        // Door on the SW face
+        const doorX = (p3[0] + p4[0]) / 2 - 4;
+        const doorBaseY = (p3[1] + p4[1]) / 2 - 2;
+        const labDoorOpen = Math.max(0, Math.min(1, (building as { doorOpen?: number } | undefined)?.doorOpen ?? 0));
+        if (labDoorOpen > 0.02) {
+            quad(graphics, [
+                [doorX - 4, doorBaseY], [doorX + 4, doorBaseY + 2],
+                [doorX + 4, doorBaseY - 9], [doorX - 4, doorBaseY - 11]
+            ], 0x110d09, alpha);
+            // Eerie potion glow from inside the lab.
+            graphics.fillStyle(0x7fe7c9, alpha * 0.2 * labDoorOpen);
+            graphics.fillEllipse(doorX, doorBaseY - 4, 5.5, 7);
+            const leaf = 8 * (1 - labDoorOpen * 0.85);
+            quad(graphics, [
+                [doorX - 4, doorBaseY], [doorX - 4 + leaf, doorBaseY + 1], [doorX - 4 + leaf, doorBaseY - 10], [doorX - 4, doorBaseY - 11]
+            ], 0x3a2a1a, alpha);
+        } else {
+            quad(graphics, [
+                [doorX - 4, doorBaseY], [doorX + 4, doorBaseY + 2],
+                [doorX + 4, doorBaseY - 9], [doorX - 4, doorBaseY - 11]
+            ], 0x3a2a1a, alpha);
+        }
+        graphics.lineStyle(1.4, frame, alpha);
+        graphics.strokeRect(doorX - 4, doorBaseY - 11, 0.01, 0.01);
+
+        // Glowing window on the SE face (potion light)
+        const winPulse = 0.55 + Math.sin(time / 480) * 0.2;
+        const wx = (p2[0] + p3[0]) / 2 + 2;
+        const wy = (p2[1] + p3[1]) / 2 - wallH * 0.52;
+        quad(graphics, [
+            [wx - 3.4, wy + 3], [wx + 3.4, wy + 1.6], [wx + 3.4, wy - 4], [wx - 3.4, wy - 2.6]
+        ], 0x1e1826, alpha);
+        quad(graphics, [
+            [wx - 2.4, wy + 2.2], [wx + 2.4, wy + 1], [wx + 2.4, wy - 3.2], [wx - 2.4, wy - 2]
+        ], liquid, alpha * winPulse);
+
+        // ===== ROOF SLAB (overhanging diamond) =====
+        const o = 1.14;
+        const r1 = up(lerp(c1, s * o), wallH);
+        const r2 = up(lerp(c2, s * o), wallH);
+        const r3 = up(lerp(c3, s * o), wallH);
+        const r4 = up(lerp(c4, s * o), wallH);
+        const peak = [center.x - 2, center.y - wallH - 11];
+        // Slate panels toward the peak
+        quad(graphics, [r4, r3, peak], roofLit, alpha);
+        quad(graphics, [r3, r2, peak], roofDark, alpha);
+        quad(graphics, [r2, r1, peak], roofDark, alpha * 0.92);
+        quad(graphics, [r1, r4, peak], roofLit, alpha * 0.92);
+        graphics.lineStyle(1.6, isL3 ? 0xdaa520 : roofDark, alpha * 0.9);
+        graphics.lineBetween(r4[0], r4[1], r3[0], r3[1]);
+        graphics.lineBetween(r3[0], r3[1], r2[0], r2[1]);
+        if (isL3) {
+            graphics.lineStyle(1.2, 0xffd700, alpha * 0.8);
+            graphics.lineBetween(r3[0], r3[1], peak[0], peak[1]);
+        }
+
+        // ===== THE RETORT (glass bulb of glowing liquid on the roof) =====
+        const bulbR = isL3 ? 10 : isL2 ? 9 : 8;
+        const bulbX = center.x - 2;
+        const bulbY = center.y - wallH - 14 - bulbR * 0.7;
+
+        // Copper cradle arms holding the bulb to the roof peak
+        graphics.lineStyle(2.6, copperDark, alpha);
+        graphics.lineBetween(bulbX - bulbR * 0.7, bulbY + bulbR * 0.6, peak[0] - 4, peak[1] + 2);
+        graphics.lineBetween(bulbX + bulbR * 0.7, bulbY + bulbR * 0.6, peak[0] + 4, peak[1] + 2);
+
+        // Liquid inside (drawn first, glass over) with a sloshing surface
+        const slosh = Math.sin(time / 520) * 1.4;
+        graphics.fillStyle(liquid, alpha * 0.9);
+        graphics.fillEllipse(bulbX, bulbY + bulbR * 0.32, bulbR * 1.62, bulbR * 1.05);
+        graphics.fillStyle(liquidHi, alpha * 0.8);
+        graphics.fillEllipse(bulbX + slosh, bulbY + bulbR * 0.02, bulbR * 1.3, bulbR * 0.34);
+        // Bubbles rising on a deterministic clock
+        for (let i = 0; i < 3; i++) {
+            const t = ((time / 900) + i * 0.37) % 1;
+            const bx = bulbX + Math.sin(i * 2.4 + t * 5) * bulbR * 0.34;
+            const by = bulbY + bulbR * 0.42 - t * bulbR * 0.85;
+            graphics.fillStyle(liquidHi, alpha * (1 - t) * 0.9);
+            graphics.fillCircle(bx, by, 1 + (1 - t) * 0.8);
+        }
+        // Glass shell: rim + specular
+        graphics.lineStyle(1.6, 0xcfeef8, alpha * 0.75);
+        graphics.strokeCircle(bulbX, bulbY, bulbR);
+        graphics.fillStyle(0xffffff, alpha * 0.35);
+        graphics.fillCircle(bulbX - bulbR * 0.4, bulbY - bulbR * 0.4, bulbR * 0.22);
+        // Neck + cork
+        graphics.fillStyle(0xcfeef8, alpha * 0.55);
+        graphics.fillRect(bulbX - 2, bulbY - bulbR - 5, 4, 6);
+        graphics.fillStyle(frame, alpha);
+        graphics.fillRect(bulbX - 2.6, bulbY - bulbR - 7.5, 5.2, 3);
+
+        // ===== COPPER PIPEWORK down into a condenser keg =====
+        const kegX = p4[0] + 6;
+        const kegY = p4[1] + 3;
+        graphics.lineStyle(2.8, copper, alpha);
+        graphics.lineBetween(bulbX - bulbR * 0.85, bulbY + bulbR * 0.35, p4[0] + 9, p4[1] - wallH * 0.6);
+        graphics.lineBetween(p4[0] + 9, p4[1] - wallH * 0.6, kegX + 2, kegY - 9);
+        graphics.lineStyle(1.2, copperDark, alpha * 0.8);
+        graphics.lineBetween(bulbX - bulbR * 0.85, bulbY + bulbR * 0.35 + 1.4, p4[0] + 9, p4[1] - wallH * 0.6 + 1.4);
+        // Keg
+        graphics.fillStyle(0x111111, alpha * 0.3);
+        graphics.fillEllipse(kegX, kegY + 4.5, 12, 4.5);
+        graphics.fillStyle(0x5d4037, alpha);
+        graphics.fillRect(kegX - 4.5, kegY - 8, 9, 12);
+        graphics.fillStyle(0x795548, alpha);
+        graphics.fillRect(kegX - 4.5, kegY - 8, 3.4, 12);
+        graphics.lineStyle(1.4, copperDark, alpha);
+        graphics.lineBetween(kegX - 5, kegY - 5.5, kegX + 5, kegY - 5.5);
+        graphics.lineBetween(kegX - 5, kegY + 0.5, kegX + 5, kegY + 0.5);
+        graphics.fillStyle(0x795548, alpha);
+        graphics.fillEllipse(kegX, kegY - 8, 9, 3.6);
+        // Drip glow where the pipe meets the keg
+        const drip = 0.5 + Math.sin(time / 260) * 0.35;
+        graphics.fillStyle(liquid, alpha * drip);
+        graphics.fillCircle(kegX + 2, kegY - 8.5, 1.6);
+
+        // ===== FLASK SHELF (L2+): three little potions by the door =====
+        if (isL2) {
+            const sx = p3[0] + 2;
+            const sy = p3[1] + 1;
+            graphics.fillStyle(frame, alpha);
+            graphics.fillRect(sx - 8, sy - 6, 16, 2);
+            graphics.lineStyle(1.6, frame, alpha);
+            graphics.lineBetween(sx - 7, sy - 4, sx - 7, sy + 1);
+            graphics.lineBetween(sx + 7, sy - 4, sx + 7, sy + 1);
+            const flaskColors = [0xff6a6a, 0x6ab8ff, 0x8dff7a];
+            for (let i = 0; i < 3; i++) {
+                const fx = sx - 4.5 + i * 4.5;
+                graphics.fillStyle(flaskColors[i], alpha * 0.9);
+                graphics.fillCircle(fx, sy - 8, 1.9);
+                graphics.fillStyle(0xcfeef8, alpha * 0.5);
+                graphics.fillRect(fx - 0.7, sy - 11.4, 1.4, 2.4);
             }
+        }
 
-            // Wall edge outlines
-            graphics.lineStyle(1, tier >= 2 ? 0x3a2020 : 0x4a1a1a, 0.6 * alpha);
-            graphics.lineBetween(c2.x, c2.y, t2.x, t2.y);
-            graphics.lineBetween(c3.x, c3.y, t3.x, t3.y);
-            graphics.lineBetween(c4.x, c4.y, t4.x, t4.y);
-
-            // === ISOMETRIC WINDOWS (aligned to wall plane) ===
-            // Helper: draw a parallelogram window on a wall face
-            const drawIsoWindow = (wallBaseX: number, wallBaseY: number, dirX: number, dirY: number, wallH: number, posFrac: number, widthFrac: number, topFrac: number, botFrac: number, frameColor: number, glassColor: number) => {
-                const cx = wallBaseX + dirX * posFrac;
-                const cy = wallBaseY + dirY * posFrac;
-                const hw = dirX * widthFrac;
-                const hs = dirY * widthFrac;
-                const wt = cy - wallH * topFrac;
-                const wb = cy - wallH * botFrac;
-                // Frame
-                graphics.fillStyle(frameColor, alpha);
-                graphics.beginPath();
-                graphics.moveTo(cx - hw, wt - hs);
-                graphics.lineTo(cx + hw, wt + hs);
-                graphics.lineTo(cx + hw, wb + hs);
-                graphics.lineTo(cx - hw, wb - hs);
-                graphics.closePath();
-                graphics.fillPath();
-                // Glass
-                graphics.fillStyle(glassColor, alpha * 0.8);
-                graphics.beginPath();
-                graphics.moveTo(cx - hw + 1, wt - hs + 1);
-                graphics.lineTo(cx + hw - 1, wt + hs + 1);
-                graphics.lineTo(cx + hw - 1, wb + hs - 1);
-                graphics.lineTo(cx - hw + 1, wb - hs - 1);
-                graphics.closePath();
-                graphics.fillPath();
-            };
-
-            // Right wall window
-            const rwFrame = tier >= 3 ? 0x333333 : tier >= 2 ? 0x3a2515 : 0x4a2010;
-            const rwGlass = tier >= 3 ? 0x4466aa : tier >= 2 ? 0x4a6090 : 0x4169e1;
-            drawIsoWindow(c2.x, c2.y, rwDirX, rwDirY, wallHeight, 0.5, 0.1, 0.7, 0.35, rwFrame, rwGlass);
-
-            // Left wall windows (two smaller ones)
-            const lwFrame = tier >= 3 ? 0x333333 : tier >= 2 ? 0x3a2515 : 0x4a2010;
-            const lwGlass = tier >= 3 ? 0x4466aa : tier >= 2 ? 0x4a6090 : 0x4169e1;
-            drawIsoWindow(c3.x, c3.y, lwDirX, lwDirY, wallHeight, 0.3, 0.08, 0.7, 0.4, lwFrame, lwGlass);
-            drawIsoWindow(c3.x, c3.y, lwDirX, lwDirY, wallHeight, 0.7, 0.08, 0.7, 0.4, lwFrame, lwGlass);
-
-            // === DOORWAY on left wall ===
-            const doorHeight = tier >= 3 ? 20 : tier >= 2 ? 18 : 16;
-            const wallLen = Math.sqrt(lwDirX * lwDirX + lwDirY * lwDirY);
-            const normX = lwDirX / wallLen;
-            const normY = lwDirY / wallLen;
-            const doorCenterX = (c3.x + c4.x) / 2;
-            const doorCenterY = (c3.y + c4.y) / 2;
-            const doorHalfWidth = 10;
-            const dbl = { x: doorCenterX - normX * doorHalfWidth, y: doorCenterY - normY * doorHalfWidth };
-            const dbr = { x: doorCenterX + normX * doorHalfWidth, y: doorCenterY + normY * doorHalfWidth };
-            const dtl = { x: dbl.x, y: dbl.y - doorHeight };
-            const dtr = { x: dbr.x, y: dbr.y - doorHeight };
-
-            graphics.fillStyle(0x1a0a0a, alpha);
-            graphics.fillPoints([
-                new Phaser.Math.Vector2(dbl.x, dbl.y),
-                new Phaser.Math.Vector2(dbr.x, dbr.y),
-                new Phaser.Math.Vector2(dtr.x, dtr.y),
-                new Phaser.Math.Vector2(dtl.x, dtl.y)
-            ], true);
-
-            const doorFrameColor = tier >= 3 ? 0x666666 : tier >= 2 ? 0x5d4e37 : 0x5d4e37;
-            graphics.lineStyle(2, doorFrameColor, alpha);
-            graphics.lineBetween(dbl.x, dbl.y, dtl.x, dtl.y);
-            graphics.lineBetween(dbr.x, dbr.y, dtr.x, dtr.y);
-            graphics.lineBetween(dtl.x, dtl.y, dtr.x, dtr.y);
-
-            if (tier >= 2) {
-                // Door studs
-                graphics.fillStyle(0x999999, alpha * 0.8);
-                const doorMidX = (dbl.x + dbr.x) / 2;
-                const doorMidY = (dbl.y + dbr.y) / 2 - doorHeight / 2;
-                graphics.fillCircle(doorMidX - 4, doorMidY - 3, 1.5);
-                graphics.fillCircle(doorMidX + 4, doorMidY - 3, 1.5);
-                graphics.fillCircle(doorMidX - 4, doorMidY + 3, 1.5);
-                graphics.fillCircle(doorMidX + 4, doorMidY + 3, 1.5);
+        // ===== ORRERY (L3): brass rings swinging around the retort =====
+        if (isL3) {
+            const swing = Math.sin(time / 700);
+            graphics.lineStyle(1.6, 0xdaa520, alpha * 0.9);
+            graphics.strokeEllipse(bulbX, bulbY, bulbR * 2.5, bulbR * (0.7 + 0.5 * Math.abs(swing)));
+            graphics.lineStyle(1.2, 0xffd700, alpha * 0.75);
+            graphics.strokeEllipse(bulbX, bulbY, bulbR * (0.7 + 0.5 * Math.abs(Math.cos(time / 700))), bulbR * 2.5);
+            // Two orbiting motes
+            for (let i = 0; i < 2; i++) {
+                const a2 = time / 620 + i * Math.PI;
+                graphics.fillStyle(0xffd700, alpha * 0.95);
+                graphics.fillCircle(bulbX + Math.cos(a2) * bulbR * 1.25, bulbY + Math.sin(a2) * bulbR * 0.42, 1.7);
             }
-
-            // === ISOMETRIC ROOF ===
-            const roofHeight = tier >= 3 ? 22 : tier >= 2 ? 20 : 18;
-            const roofOverhang = tier >= 3 ? 6 : tier >= 2 ? 5 : 4;
-            const r1 = new Phaser.Math.Vector2(t1.x, t1.y - roofOverhang);
-            const r2 = new Phaser.Math.Vector2(t2.x + roofOverhang, t2.y);
-            const r3 = new Phaser.Math.Vector2(t3.x, t3.y + roofOverhang);
-            const r4 = new Phaser.Math.Vector2(t4.x - roofOverhang, t4.y);
-            const peakFront = new Phaser.Math.Vector2(center.x + 10, center.y - wallHeight - roofHeight + 5);
-            const peakBack = new Phaser.Math.Vector2(center.x - 10, center.y - wallHeight - roofHeight - 5);
-
-            if (tier >= 3) {
-                // Dark steel roof
-                graphics.fillStyle(0x222028, alpha);
-                graphics.fillTriangle(r1.x, r1.y, r4.x, r4.y, peakBack.x, peakBack.y);
-                graphics.fillStyle(0x2a2832, alpha);
-                graphics.fillTriangle(r1.x, r1.y, r2.x, r2.y, peakBack.x, peakBack.y);
-                graphics.fillStyle(0x3a3640, alpha);
-                graphics.fillTriangle(r2.x, r2.y, r3.x, r3.y, peakFront.x, peakFront.y);
-                graphics.fillTriangle(r2.x, r2.y, peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-                graphics.fillStyle(0x484450, alpha);
-                graphics.fillTriangle(r3.x, r3.y, r4.x, r4.y, peakFront.x, peakFront.y);
-                graphics.fillTriangle(r4.x, r4.y, peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-                // Iron ridge cap
-                graphics.lineStyle(3, 0x707070, alpha * 0.9);
-                graphics.lineBetween(peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-                graphics.fillStyle(0x888888, alpha);
-                graphics.fillCircle(peakFront.x, peakFront.y - 1, 3);
-                graphics.fillCircle(peakBack.x, peakBack.y - 1, 3);
-                // Banner on peak
-                graphics.fillStyle(0xcc2222, alpha * 0.8);
-                const bx = peakFront.x + 2;
-                const by = peakFront.y - 8;
-                graphics.fillTriangle(bx, by, bx + 7, by + 4, bx, by + 9);
-                graphics.lineStyle(1, 0x555555, alpha);
-                graphics.lineBetween(bx, by - 3, bx, by + 11);
-            } else if (tier >= 2) {
-                // Slate roof
-                graphics.fillStyle(0x2a2832, alpha);
-                graphics.fillTriangle(r1.x, r1.y, r4.x, r4.y, peakBack.x, peakBack.y);
-                graphics.fillStyle(0x3a3640, alpha);
-                graphics.fillTriangle(r1.x, r1.y, r2.x, r2.y, peakBack.x, peakBack.y);
-                graphics.fillStyle(0x484450, alpha);
-                graphics.fillTriangle(r2.x, r2.y, r3.x, r3.y, peakFront.x, peakFront.y);
-                graphics.fillTriangle(r2.x, r2.y, peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-                graphics.fillStyle(0x56525e, alpha);
-                graphics.fillTriangle(r3.x, r3.y, r4.x, r4.y, peakFront.x, peakFront.y);
-                graphics.fillTriangle(r4.x, r4.y, peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-                graphics.lineStyle(2, 0x555555, alpha * 0.6);
-                graphics.lineBetween(peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-            } else {
-                // Wooden thatch roof
-                graphics.fillStyle(0x3a2515, alpha);
-                graphics.fillTriangle(r1.x, r1.y, r4.x, r4.y, peakBack.x, peakBack.y);
-                graphics.fillStyle(0x4a3020, alpha);
-                graphics.fillTriangle(r1.x, r1.y, r2.x, r2.y, peakBack.x, peakBack.y);
-                graphics.fillStyle(0x5a3a25, alpha);
-                graphics.fillTriangle(r2.x, r2.y, r3.x, r3.y, peakFront.x, peakFront.y);
-                graphics.fillTriangle(r2.x, r2.y, peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-                graphics.fillStyle(0x6a4a30, alpha);
-                graphics.fillTriangle(r3.x, r3.y, r4.x, r4.y, peakFront.x, peakFront.y);
-                graphics.fillTriangle(r4.x, r4.y, peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-                graphics.lineStyle(2, 0x2a1510, alpha);
-                graphics.lineBetween(peakBack.x, peakBack.y, peakFront.x, peakFront.y);
-            }
-
-            graphics.lineStyle(1, tier >= 2 ? 0x5a5a6a : 0x7a5a40, alpha * 0.6);
-            graphics.lineBetween(r4.x, r4.y, peakFront.x, peakFront.y);
         }
     }
 
-    static drawLab(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        const level = building?.level ?? 1;
+    static drawCannon(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        BuildingRenderer.renderCannonV2(1, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+    }
+
+    static drawCannonLevel2(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        BuildingRenderer.renderCannonV2(2, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+    }
+
+    static drawCannonLevel3(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        BuildingRenderer.renderCannonV2(3, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+    }
+
+    static drawCannonLevel4(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        BuildingRenderer.renderCannonV2(4, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+    }
+
+    /**
+     * CANNON — a real artillery emplacement.
+     *
+     * Story across levels: field gun on packed earth (L1) -> emplaced gun on
+     * cobbles with a powder keg (L2) -> brooding iron bastion gun (L3) ->
+     * gilded royal basilisk on marble (L4).
+     *
+     * Layer order (back to front):
+     *   ground pad (baseGraphics) -> static props -> barrel shadow ->
+     *   [barrel if aiming up-screen] -> carriage cheeks + pivot ->
+     *   [barrel if aiming down-screen] -> muzzle smoke.
+     * The barrel pivots at (center.x, center.y - 14) and its muzzle sits at
+     * +28 along the aim — exactly where MainScene spawns the cannonball.
+     */
+    private static renderCannonV2(level: number, graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
         const g = baseGraphics || graphics;
-
-        // Octagon isometric building with huge centered smokestack
-        // Compute octagon vertices from the diamond corners
-        // Cut corners of the diamond to create 8 sides
-        const cut = 0.3; // how much to cut each corner
-
-        // The 4 original corners become 8 points by cutting
-        // Going clockwise from top: c1(top) -> c2(right) -> c3(bottom) -> c4(left)
-        const o1 = { x: c1.x + (c2.x - c1.x) * cut, y: c1.y + (c2.y - c1.y) * cut }; // top-right of top
-        const o2 = { x: c2.x + (c1.x - c2.x) * cut, y: c2.y + (c1.y - c2.y) * cut }; // top of right
-        const o3 = { x: c2.x + (c3.x - c2.x) * cut, y: c2.y + (c3.y - c2.y) * cut }; // bottom of right
-        const o4 = { x: c3.x + (c2.x - c3.x) * cut, y: c3.y + (c2.y - c3.y) * cut }; // right of bottom
-        const o5 = { x: c3.x + (c4.x - c3.x) * cut, y: c3.y + (c4.y - c3.y) * cut }; // left of bottom
-        const o6 = { x: c4.x + (c3.x - c4.x) * cut, y: c4.y + (c3.y - c4.y) * cut }; // bottom of left
-        const o7 = { x: c4.x + (c1.x - c4.x) * cut, y: c4.y + (c1.y - c4.y) * cut }; // top of left
-        const o8 = { x: c1.x + (c4.x - c1.x) * cut, y: c1.y + (c4.y - c1.y) * cut }; // left of top
-
-        const wallHeight = level >= 3 ? 36 : level >= 2 ? 32 : 26;
-
-        if (!skipBase) {
-            // Octagonal foundation
-            const baseColor = level >= 3 ? 0x484058 : level >= 2 ? 0x5a5568 : 0x6a6a78;
-            g.fillStyle(tint ?? baseColor, alpha);
-            g.beginPath();
-            g.moveTo(o1.x, o1.y);
-            g.lineTo(o2.x, o2.y);
-            g.lineTo(o3.x, o3.y);
-            g.lineTo(o4.x, o4.y);
-            g.lineTo(o5.x, o5.y);
-            g.lineTo(o6.x, o6.y);
-            g.lineTo(o7.x, o7.y);
-            g.lineTo(o8.x, o8.y);
-            g.closePath();
-            g.fillPath();
-            // Foundation outline
-            g.lineStyle(2, 0x444455, alpha * 0.7);
-            g.beginPath();
-            g.moveTo(o1.x, o1.y); g.lineTo(o2.x, o2.y); g.lineTo(o3.x, o3.y); g.lineTo(o4.x, o4.y);
-            g.lineTo(o5.x, o5.y); g.lineTo(o6.x, o6.y); g.lineTo(o7.x, o7.y); g.lineTo(o8.x, o8.y);
-            g.closePath();
-            g.strokePath();
-        }
-
-        if (!onlyBase) {
-            // === OCTAGONAL WALLS ===
-            // Only draw the visible walls (right half of the building in isometric view)
-            // Visible wall segments: o2-o3, o3-o4, o4-o5, o5-o6
-            const rwColor = tint ?? (level >= 3 ? 0x3a3448 : level >= 2 ? 0x4a4458 : 0x5a5a6a);
-            const lwColor = tint ?? (level >= 3 ? 0x4a4458 : level >= 2 ? 0x5a5468 : 0x6a6a7a);
-            const darkColor = tint ?? (level >= 3 ? 0x2a2438 : level >= 2 ? 0x3a3448 : 0x4a4a5a);
-
-            // Wall segment helper: draws a wall face from bottom edge to top edge
-            const drawWallSeg = (ax: number, ay: number, bx: number, by: number, color: number) => {
-                graphics.fillStyle(color, alpha);
-                graphics.beginPath();
-                graphics.moveTo(ax, ay);
-                graphics.lineTo(bx, by);
-                graphics.lineTo(bx, by - wallHeight);
-                graphics.lineTo(ax, ay - wallHeight);
-                graphics.closePath();
-                graphics.fillPath();
-            };
-
-            // Draw visible wall segments (back to front for layering)
-            // Back-right face (o2 -> o3)
-            drawWallSeg(o2.x, o2.y, o3.x, o3.y, rwColor);
-            // Right face (o3 -> o4) — brightest, most visible
-            drawWallSeg(o3.x, o3.y, o4.x, o4.y, rwColor);
-            // Front face (o4 -> o5) — transitions to left
-            drawWallSeg(o4.x, o4.y, o5.x, o5.y, darkColor);
-            // Front-left face (o5 -> o6)
-            drawWallSeg(o5.x, o5.y, o6.x, o6.y, lwColor);
-
-            // Wall edge outlines
-            graphics.lineStyle(1, 0x2a2a3a, 0.6 * alpha);
-            const visiblePts = [o2, o3, o4, o5, o6];
-            for (const p of visiblePts) {
-                graphics.lineBetween(p.x, p.y, p.x, p.y - wallHeight);
-            }
-
-            // Stone block lines on visible faces
-            if (level >= 2) {
-                graphics.lineStyle(1, 0x2a2838, alpha * 0.25);
-                for (let i = 1; i <= 3; i++) {
-                    const frac = i / 4;
-                    const yOff = -wallHeight * frac;
-                    // Draw horizontal mortar lines across visible segments
-                    for (let s = 0; s < visiblePts.length - 1; s++) {
-                        const pa = visiblePts[s];
-                        const pb = visiblePts[s + 1];
-                        graphics.lineBetween(pa.x, pa.y + yOff, pb.x, pb.y + yOff);
-                    }
-                }
-            }
-
-            // === GLOWING WINDOWS on right face (o3-o4) ===
-            const windowGlow = 0.6 + Math.sin(time / 500) * 0.15;
-            const glowColor = level >= 3 ? 0xcc44ff : level >= 2 ? 0x8844ff : 0x44cc88;
-            const wMidX = (o3.x + o4.x) / 2;
-            const wMidY = (o3.y + o4.y) / 2;
-            // Window frame
-            graphics.fillStyle(0x1a1a2a, alpha);
-            graphics.fillRect(wMidX - 4, wMidY - wallHeight * 0.7, 8, wallHeight * 0.35);
-            graphics.fillStyle(glowColor, alpha * windowGlow);
-            graphics.fillRect(wMidX - 3, wMidY - wallHeight * 0.68, 6, wallHeight * 0.31);
-
-            // Small window on front-left face (o5-o6)
-            const w2MidX = (o5.x + o6.x) / 2;
-            const w2MidY = (o5.y + o6.y) / 2;
-            graphics.fillStyle(0x1a1a2a, alpha);
-            graphics.fillRect(w2MidX - 3, w2MidY - wallHeight * 0.65, 6, wallHeight * 0.25);
-            graphics.fillStyle(glowColor, alpha * windowGlow * 0.8);
-            graphics.fillRect(w2MidX - 2, w2MidY - wallHeight * 0.63, 4, wallHeight * 0.21);
-
-            // === DOOR on front face (o4-o5) ===
-            const doorMidX = (o4.x + o5.x) / 2;
-            const doorMidY = (o4.y + o5.y) / 2;
-            const doorW = 7;
-            const doorH = wallHeight * 0.55;
-            // Dark interior
-            graphics.fillStyle(0x0a0a15, alpha);
-            graphics.fillRect(doorMidX - doorW / 2, doorMidY - doorH, doorW, doorH);
-            // Interior glow
-            const interiorGlow = 0.3 + Math.sin(time / 300) * 0.1;
-            const interiorColor = level >= 3 ? 0xaa44ff : level >= 2 ? 0x6644cc : 0x33aa66;
-            graphics.fillStyle(interiorColor, alpha * interiorGlow);
-            graphics.fillCircle(doorMidX, doorMidY - doorH * 0.4, 3);
-            // Door frame
-            graphics.lineStyle(1.5, level >= 2 ? 0x555555 : 0x4a4a5a, alpha);
-            graphics.strokeRect(doorMidX - doorW / 2, doorMidY - doorH, doorW, doorH);
-
-            // === OCTAGONAL ROOF ===
-            const roofOverhang = 4;
-            // Roof is the octagon shape lifted to wall top, with slight overhang
-            const roofPts = [o1, o2, o3, o4, o5, o6, o7, o8].map(p => {
-                // Shift outward from center slightly for overhang
-                const dx = p.x - center.x;
-                const dy = p.y - center.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                const scale = (dist + roofOverhang) / dist;
-                return new Phaser.Math.Vector2(
-                    center.x + dx * scale,
-                    center.y + dy * scale - wallHeight
-                );
-            });
-
-            const roofColor = level >= 3 ? 0x2a2238 : level >= 2 ? 0x3a3448 : 0x4a4a5a;
-            graphics.fillStyle(roofColor, alpha);
-            graphics.fillPoints(roofPts, true);
-            graphics.lineStyle(1, 0x1a1a2a, alpha * 0.8);
-            graphics.strokePoints(roofPts, true, true);
-
-            // Roof detail: radial lines from center to each vertex
-            if (level >= 2) {
-                const roofCenterY = center.y - wallHeight;
-                graphics.lineStyle(1, 0x222233, alpha * 0.4);
-                for (const rp of roofPts) {
-                    graphics.lineBetween(center.x, roofCenterY, rp.x, rp.y);
-                }
-            }
-
-            // === HUGE CENTERED SMOKESTACK ===
-            const stackRadius = level >= 3 ? 12 : level >= 2 ? 10 : 8;
-            const stackH = level >= 3 ? 40 : level >= 2 ? 32 : 24;
-            const stackBaseY = center.y - wallHeight;
-            const stackTopY = stackBaseY - stackH;
-
-            // Cylindrical smokestack rendered as isometric column
-            // Right face
-            graphics.fillStyle(level >= 3 ? 0x3a3a44 : level >= 2 ? 0x4a4a55 : 0x555566, alpha);
-            graphics.beginPath();
-            graphics.moveTo(center.x, stackBaseY + stackRadius * 0.35);
-            graphics.lineTo(center.x + stackRadius, stackBaseY);
-            graphics.lineTo(center.x + stackRadius, stackTopY);
-            graphics.lineTo(center.x, stackTopY + stackRadius * 0.35);
-            graphics.closePath();
-            graphics.fillPath();
-            // Left face
-            graphics.fillStyle(level >= 3 ? 0x4a4a55 : level >= 2 ? 0x5a5a66 : 0x666677, alpha);
-            graphics.beginPath();
-            graphics.moveTo(center.x, stackBaseY + stackRadius * 0.35);
-            graphics.lineTo(center.x - stackRadius, stackBaseY);
-            graphics.lineTo(center.x - stackRadius, stackTopY);
-            graphics.lineTo(center.x, stackTopY + stackRadius * 0.35);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Stack edge outlines
-            graphics.lineStyle(1, 0x2a2a33, alpha * 0.7);
-            graphics.lineBetween(center.x + stackRadius, stackBaseY, center.x + stackRadius, stackTopY);
-            graphics.lineBetween(center.x - stackRadius, stackBaseY, center.x - stackRadius, stackTopY);
-
-            // Horizontal band rings on smokestack
-            const bandColor = level >= 3 ? 0x555566 : level >= 2 ? 0x606070 : 0x6a6a7a;
-            graphics.lineStyle(2, bandColor, alpha * 0.6);
-            const bandCount = level >= 3 ? 4 : 3;
-            for (let i = 1; i <= bandCount; i++) {
-                const frac = i / (bandCount + 1);
-                const bandY = stackBaseY + (stackTopY - stackBaseY) * frac;
-                // Isometric ellipse band
-                graphics.strokeEllipse(center.x, bandY + stackRadius * 0.17, stackRadius * 2, stackRadius * 0.7);
-            }
-
-            // Chimney top cap (isometric ellipse)
-            graphics.fillStyle(level >= 3 ? 0x2a2a33 : level >= 2 ? 0x3a3a44 : 0x444455, alpha);
-            graphics.fillEllipse(center.x, stackTopY + stackRadius * 0.17, stackRadius * 2 + 4, stackRadius * 0.7 + 2);
-            // Inner opening
-            graphics.fillStyle(0x111118, alpha);
-            graphics.fillEllipse(center.x, stackTopY + stackRadius * 0.17, stackRadius * 1.4, stackRadius * 0.5);
-
-            // Interior glow from stack opening
-            const stackGlow = 0.25 + Math.sin(time / 350) * 0.1;
-            graphics.fillStyle(interiorColor, alpha * stackGlow);
-            graphics.fillEllipse(center.x, stackTopY + stackRadius * 0.17, stackRadius * 0.8, stackRadius * 0.3);
-
-            // === SMOKE (animated, rises from center) ===
-            const smokePhase = time / 700;
-            const smokeCount = level >= 3 ? 7 : level >= 2 ? 5 : 3;
-            for (let i = 0; i < smokeCount; i++) {
-                const t = (smokePhase + i * 0.7) % (smokeCount * 0.7);
-                const rise = t * 12;
-                const drift = Math.sin(smokePhase * 0.5 + i * 1.3) * (4 + rise * 0.15);
-                const sy = stackTopY - 4 - rise;
-                const sx = center.x + drift;
-                const smokeColor = level >= 3 ? 0x6633aa : level >= 2 ? 0x7744aa : 0x888899;
-                const smokeAlpha = Math.max(0.04, 0.4 - t * 0.06);
-                const smokeRadius = 3 + t * 1.2;
-                graphics.fillStyle(smokeColor, alpha * smokeAlpha);
-                graphics.fillCircle(sx, sy, smokeRadius);
-            }
-
-            // === Level 2+: Glowing runes on walls ===
-            if (level >= 2) {
-                const runeGlow = 0.4 + Math.sin(time / 400) * 0.2;
-                const runeColor = level >= 3 ? 0xcc66ff : 0x9966ff;
-                graphics.fillStyle(runeColor, alpha * runeGlow);
-                // Runes on right face (o3-o4)
-                for (let i = 0; i < 2; i++) {
-                    const frac = 0.3 + i * 0.4;
-                    const rx = o3.x + (o4.x - o3.x) * frac;
-                    const ry = o3.y + (o4.y - o3.y) * frac - wallHeight * 0.35;
-                    graphics.fillCircle(rx, ry, 1.5);
-                    graphics.lineStyle(1, runeColor, alpha * runeGlow * 0.5);
-                    graphics.lineBetween(rx - 1.5, ry - 2.5, rx + 1.5, ry + 2.5);
-                    graphics.lineBetween(rx - 2, ry, rx + 2, ry);
-                }
-                // Runes on front-left face (o5-o6)
-                const rx2 = (o5.x + o6.x) / 2;
-                const ry2 = (o5.y + o6.y) / 2 - wallHeight * 0.35;
-                graphics.fillCircle(rx2, ry2, 1.5);
-            }
-
-            // === Level 3: Pipe details on walls ===
-            if (level >= 3) {
-                // Exposed pipes running down the right face
-                graphics.lineStyle(2, 0x555566, alpha * 0.7);
-                const pipeX1 = o3.x + (o4.x - o3.x) * 0.15;
-                const pipeY1 = o3.y + (o4.y - o3.y) * 0.15;
-                graphics.lineBetween(pipeX1, pipeY1, pipeX1, pipeY1 - wallHeight);
-                // Pipe connects to stack
-                graphics.lineBetween(pipeX1, pipeY1 - wallHeight, center.x + stackRadius - 2, stackBaseY - stackH * 0.3);
-
-                // Second pipe on left face
-                const pipeX2 = o5.x + (o6.x - o5.x) * 0.8;
-                const pipeY2 = o5.y + (o6.y - o5.y) * 0.8;
-                graphics.lineBetween(pipeX2, pipeY2, pipeX2, pipeY2 - wallHeight * 0.7);
-                graphics.lineBetween(pipeX2, pipeY2 - wallHeight * 0.7, center.x - stackRadius + 2, stackBaseY - stackH * 0.2);
-
-                // Pipe joints
-                graphics.fillStyle(0x666677, alpha);
-                graphics.fillCircle(pipeX1, pipeY1 - wallHeight, 2);
-                graphics.fillCircle(pipeX2, pipeY2 - wallHeight * 0.7, 2);
-            }
-        }
-    }
-
-    static drawCannon(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        BuildingRenderer.renderTaperedCannon(1, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-    }
-
-    static drawCannonLevel2(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        BuildingRenderer.renderTaperedCannon(2, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-    }
-
-    static drawCannonLevel3(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        BuildingRenderer.renderTaperedCannon(3, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-    }
-
-    static drawCannonLevel4(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        BuildingRenderer.renderTaperedCannon(4, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-    }
-
-    private static renderTaperedCannon(level: number, graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // Find nearest target if not actively attacking to track it
-        let angle = building?.ballistaAngle ?? Math.PI / 4;
-
-        if (building && building.scene && building.scene.troops && !building.target) {
-            // Track closest troop if we have a scene reference and no active target
-            let closestDist = Infinity;
-            let closestTroop: any = null;
-            const cx = building.gridX + (building.width || 2) / 2;
-            const cy = building.gridY + (building.height || 2) / 2;
-
-            building.scene.troops.forEach((t: any) => {
-                if (t.health > 0 && t.owner !== building.owner) {
-                    const tx = t.gridX;
-                    const ty = t.gridY;
-                    const d = Math.sqrt((tx - cx) ** 2 + (ty - cy) ** 2);
-                    if (d < closestDist && d < (building.range || 5)) {
-                        closestDist = d;
-                        closestTroop = t;
-                    }
-                }
-            });
-
-            if (closestTroop) {
-                // Iso angle tracking
-                const dx = closestTroop.gridX - cx;
-                const dy = closestTroop.gridY - cy;
-                const isoDx = dx - dy;
-                const isoDy = (dx + dy) * 0.5;
-                angle = Math.atan2(isoDy, isoDx);
-            }
-        }
-
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const pCos = Math.cos(angle + Math.PI / 2);
-        const pSin = Math.sin(angle + Math.PI / 2);
-        const g = baseGraphics || graphics;
-
         const isL2 = level >= 2;
         const isL3 = level >= 3;
         const isL4 = level >= 4;
 
-        if (!skipBase) {
-            // Static Foundation Platform
-            const baseColor = isL4 ? 0xeeeedd : (isL3 ? 0x3a3a4a : (isL2 ? 0x6a6a6a : 0x7a7a7a));
-            g.fillStyle(tint ?? baseColor, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.lineStyle(2, isL4 ? 0xdaa520 : 0x222222, alpha * 0.5);
-            g.strokePoints([c1, c2, c3, c4], true, true);
+        const angle = building?.ballistaAngle ?? Math.PI / 4;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        // Aim-space helpers: a() walks along the barrel, p() walks across it.
+        // Y is squashed x0.5 for the isometric ground plane — but when the gun
+        // points up-screen the squash would collapse the tube to a stub, so
+        // the barrel reads as pitched slightly upward instead (x0.74).
+        const ax = (d: number) => cos * d;
+        const aySquash = sin < 0 ? 0.74 : 0.5;
+        const ay = (d: number) => sin * aySquash * d;
+        const px = (w: number) => -sin * w;
+        const py = (w: number) => cos * 0.5 * w;
 
-            // Central rotating mount
-            const mountW = isL4 ? 22 : (isL3 ? 20 : 16);
-            const mountH = isL4 ? 14 : (isL3 ? 12 : 10);
-            const mountColor = isL4 ? 0xddddcc : (isL3 ? 0x4a4a5a : (isL2 ? 0x4a3018 : 0x5a4030));
-            g.fillStyle(mountColor, alpha);
-            g.fillEllipse(center.x, center.y - 2, mountW, mountH);
-            g.lineStyle(2, isL4 ? 0xdaa520 : 0x222222, alpha);
-            g.strokeEllipse(center.x, center.y - 2, mountW, mountH);
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
+
+        // ===== PALETTE =====
+        const timberDark = isL4 ? 0xb9b4a2 : isL3 ? 0x241a12 : 0x3f2a18;
+        const timberMid = isL4 ? 0xd8d4c4 : isL3 ? 0x35261a : 0x5d4037;
+        const timberLight = isL4 ? 0xefece0 : isL3 ? 0x453424 : 0x795548;
+        const ironDark = isL4 ? 0x8a6508 : 0x2b2b2b;
+        const ironMid = isL4 ? 0xb8860b : 0x4a4a4a;
+        const barrelDark = isL4 ? 0x9c7208 : isL3 ? 0x14141a : 0x1c1c1c;
+        const barrelMid = isL4 ? 0xc9992a : isL3 ? 0x2c2c38 : 0x323232;
+        const barrelLight = isL4 ? 0xe8c25a : isL3 ? 0x474758 : 0x515151;
+        const bandColor = isL4 ? 0xffd700 : isL3 ? 0x5a5a6e : 0x101010;
+
+        // ===== GROUND PAD =====
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.78);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.72,
+                isL4 ? 0xcfc5ae : isL3 ? 0x3c3c46 : isL2 ? 0x8a8272 : 0x8a7355,
+                isL4 ? 0xafa58c : isL3 ? 0x23232b : isL2 ? 0x5f5b50 : 0x5f4d38,
+                isL4 ? 0xdaa520 : null);
         }
 
-        if (!onlyBase) {
-            // Barrel pivot height
-            const pivotY = center.y - 12;
+        if (onlyBase) return;
 
-            // Recoil offset (small recoil)
-            const recoilAmount = (building?.cannonRecoilOffset ?? 0) * (isL4 ? 8 : 6);
-            const recoilOffsetX = -cos * recoilAmount;
-            const recoilOffsetY = -sin * 0.6 * recoilAmount; // Isometric recoil Y
+        // ===== STATIC PROPS (do not rotate with the barrel) =====
+        // Cannonball stack, tucked on the west corner of the pad.
+        const stackX = center.x - 17;
+        const stackY = center.y + 6;
+        const ballC = isL4 ? 0xf3f3e6 : 0x22222a;
+        const ballHi = isL4 ? 0xffffff : 0x3d3d49;
+        graphics.fillStyle(0x111111, alpha * 0.3);
+        graphics.fillEllipse(stackX + 1, stackY + 3, 14, 5);
+        graphics.fillStyle(ballC, alpha);
+        graphics.fillCircle(stackX - 3.2, stackY, 3.4);
+        graphics.fillCircle(stackX + 3.2, stackY, 3.4);
+        graphics.fillCircle(stackX, stackY - 4.4, 3.4);
+        graphics.fillStyle(ballHi, alpha * 0.8);
+        graphics.fillCircle(stackX - 4.2, stackY - 1.2, 1.1);
+        graphics.fillCircle(stackX + 2.2, stackY - 1.2, 1.1);
+        graphics.fillCircle(stackX - 1, stackY - 5.6, 1.1);
 
-            // Larger barrel lengths
-            const length = isL4 ? 40 : (isL3 ? 34 : (isL2 ? 30 : 25));
+        if (isL2 && !isL4) {
+            // Powder keg on the east side: small upright barrel
+            const kx = center.x + 18;
+            const ky = center.y + 4;
+            graphics.fillStyle(0x111111, alpha * 0.3);
+            graphics.fillEllipse(kx, ky + 4, 10, 4);
+            graphics.fillStyle(timberMid, alpha);
+            graphics.fillRect(kx - 4, ky - 8, 8, 11);
+            graphics.fillStyle(timberLight, alpha);
+            graphics.fillRect(kx - 4, ky - 8, 3, 11);
+            graphics.fillStyle(ironMid, alpha);
+            graphics.fillRect(kx - 4.5, ky - 6.5, 9, 1.5);
+            graphics.fillRect(kx - 4.5, ky - 0.5, 9, 1.5);
+            graphics.fillStyle(timberLight, alpha);
+            graphics.fillEllipse(kx, ky - 8, 8, 3.4);
+        }
 
-            const breechOffset = isL4 ? 12 : 10;
-            const breechX = center.x - cos * breechOffset + recoilOffsetX;
-            // Isometric perspective: apply * 0.6 to sinusoidal Y displacement (less squished)
-            const breechY = pivotY - sin * 0.6 * breechOffset + recoilOffsetY;
-
-            const muzzleX = center.x + cos * length + recoilOffsetX;
-            const muzzleY = pivotY + sin * 0.6 * length + recoilOffsetY;
-
-            // Cannon Drop Shadow
-            graphics.fillStyle(0x111111, alpha * 0.4);
-            graphics.fillEllipse(center.x + cos * (length / 2), center.y + 2, length * 0.9, 10);
-
-            // Draw Barrel Pivot / Carriage Arms
-            const armColor = isL4 ? 0xffd700 : (isL3 ? 0x2a2a3a : 0x3a2008);
-            graphics.lineStyle(6, armColor, alpha);
-            const armSpread = isL4 ? 8 : 6;
-            graphics.lineBetween(center.x - armSpread, center.y - 2, center.x - armSpread, pivotY + 2);
-            graphics.lineBetween(center.x + armSpread, center.y - 2, center.x + armSpread, pivotY + 2);
-            graphics.fillStyle(isL4 ? 0xdaa520 : 0x555555, alpha);
-            graphics.fillCircle(center.x + recoilOffsetX, pivotY + recoilOffsetY, 5); // Pivot pin
-
-            const barrelColor = isL4 ? 0xddb922 : (isL3 ? 0x444455 : 0x2a2a2a);
-            graphics.fillStyle(barrelColor, alpha);
-
-            // Rounded back of the cannon
-            graphics.fillCircle(breechX, breechY, isL4 ? 10 : (isL3 ? 9 : 8));
-
-            const wB = isL4 ? 12 : (isL3 ? 11 : 10); // Breech half-width (Thick!)
-            const wM = isL4 ? 8 : (isL3 ? 7.5 : 6.5); // Muzzle half-width (Thicker!)
-
-            // Tapered Barrel Polygon
+        if (isL4) {
+            // Royal pennant on a short pole at the east corner, waving gently
+            const bx = center.x + 19;
+            const by = center.y + 2;
+            graphics.lineStyle(2, 0x8a6508, alpha);
+            graphics.lineBetween(bx, by, bx, by - 22);
+            graphics.fillStyle(0xffd700, alpha);
+            const wave = windSwayAtScreen(bx, by, time) * 2.5;
             graphics.beginPath();
-            // Isometric perspective: less squash using 0.6 multiplier
-            graphics.moveTo(breechX + pCos * wB, breechY + pSin * 0.6 * wB);
-            graphics.lineTo(breechX - pCos * wB, breechY - pSin * 0.6 * wB);
-            graphics.lineTo(muzzleX - pCos * wM, muzzleY - pSin * 0.6 * wM);
-            graphics.lineTo(muzzleX + pCos * wM, muzzleY + pSin * 0.6 * wM);
+            graphics.moveTo(bx, by - 22);
+            graphics.lineTo(bx + 11, by - 19.5 + wave);
+            graphics.lineTo(bx, by - 17);
             graphics.closePath();
             graphics.fillPath();
+        }
 
-            graphics.lineStyle(2, isL4 ? 0xffea77 : 0x555555, alpha * 0.6);
-            graphics.lineBetween(breechX, breechY - 2, muzzleX, muzzleY - 2);
+        // ===== TURRET GEOMETRY =====
+        const pivotX = center.x;
+        const pivotY = center.y - 14;
+        const recoil = (building?.cannonRecoilOffset ?? 0) * (isL4 ? 7 : 6);
+        const rX = -ax(recoil);
+        const rY = -ay(recoil);
+        const breechD = -6;
+        const muzzleD = 34;
+        const wBreech = 6.8 + level * 0.85;
+        const wMuzzle = 4.5 + level * 0.7;
 
-            // Muzzle Flare Ring
-            graphics.fillStyle(isL4 ? 0xc8a211 : 0x1a1a1a, alpha);
-            const fM = wM + 2.5;
-            const flareLen = 4;
-            const flareEndX = muzzleX + cos * flareLen;
-            const flareEndY = muzzleY + sin * 0.5 * flareLen;
-            graphics.beginPath();
-            graphics.moveTo(muzzleX + pCos * fM, muzzleY + pSin * 0.5 * fM);
-            graphics.lineTo(muzzleX - pCos * fM, muzzleY - pSin * 0.5 * fM);
-            graphics.lineTo(flareEndX - pCos * fM, flareEndY - pSin * 0.5 * fM);
-            graphics.lineTo(flareEndX + pCos * fM, flareEndY + pSin * 0.5 * fM);
-            graphics.closePath();
-            graphics.fillPath();
+        const bX = pivotX + ax(breechD) + rX;
+        const bY = pivotY + ay(breechD) + rY;
+        const mX = pivotX + ax(muzzleD) + rX;
+        const mY = pivotY + ay(muzzleD) + rY;
 
-            // Bore Hole
-            graphics.fillStyle(0x000000, alpha);
-            graphics.fillEllipse(flareEndX, flareEndY, isL4 ? 5 : 4, (isL4 ? 5 : 4) * 0.8);
+        // Shadow cast by the barrel on the pad
+        graphics.fillStyle(0x111111, alpha * 0.3);
+        graphics.fillEllipse(center.x + ax(10), center.y + ay(10) + 3, 30, 8);
 
-            // Iron/Gold Bands
-            const bands = isL3 ? [0.2, 0.45, 0.75] : [0.3, 0.7];
-            graphics.lineStyle(isL3 ? 3 : 2, isL4 ? 0xffffff : 0x111111, alpha * 0.8);
+        // ===== BARREL, split so each half can layer against the carriage =====
+        // The breech (with its round gold cap) points toward the viewer when
+        // the gun aims up-screen and must then draw OVER the carriage.
+        const drawBreech = () => {
+            // Rounded closed end of the tube: a cap tucked into the barrel so
+            // it only bulges slightly past the rear, plus a small cascabel
+            // knob — unmistakably a cannon's back end, never a ball.
+            graphics.fillStyle(barrelMid, alpha);
+            graphics.fillCircle(bX + ax(2), bY + ay(2), wBreech * 0.85);
+            graphics.fillStyle(barrelLight, alpha * 0.45);
+            graphics.fillCircle(bX + ax(1), bY + ay(1) - wBreech * 0.3, wBreech * 0.34);
+            // Cascabel knob
+            graphics.fillStyle(isL4 ? 0xb8860b : barrelDark, alpha);
+            graphics.fillCircle(bX + ax(-wBreech * 0.55), bY + ay(-wBreech * 0.55), isL4 ? 3.2 : 2.7);
+        };
+
+        const drawBarrel = () => {
+            // A cannon tube is a CYLINDER: its silhouette is a capsule in
+            // screen space (offset perpendicular to the projected axis), and
+            // its shading wraps around it — belly shadow, broad top light,
+            // and rings that curve with the surface. Never a flat ribbon.
+            const dxs = mX - bX;
+            const dys = mY - bY;
+            const lenS = Math.max(0.001, Math.hypot(dxs, dys));
+            const uxS = dxs / lenS;
+            const uyS = dys / lenS;
+            // Screen normal, oriented to point down-screen (the belly side)
+            let nxS = -uyS;
+            let nyS = uxS;
+            if (nyS < 0) { nxS = -nxS; nyS = -nyS; }
+            const edge = (d: number, w: number, sgn: number): [number, number] => [
+                bX + uxS * d + nxS * w * sgn,
+                bY + uyS * d + nyS * w * sgn
+            ];
+            const tubeLen = lenS;
+            const wAt = (t: number) => wBreech + (wMuzzle - wBreech) * t;
+
+            // Full silhouette (mid tone)
+            quad(graphics, [
+                edge(0, wBreech, 1), edge(0, wBreech, -1),
+                edge(tubeLen, wMuzzle, -1), edge(tubeLen, wMuzzle, 1)
+            ], barrelMid, alpha);
+
+            // Belly shadow hugging the lower edge
+            quad(graphics, [
+                edge(0, wBreech * 0.35, 1), edge(0, wBreech, 1),
+                edge(tubeLen, wMuzzle, 1), edge(tubeLen, wMuzzle * 0.35, 1)
+            ], barrelDark, alpha * 0.9);
+
+            // Broad top light + a thin specular line
+            quad(graphics, [
+                edge(0, wBreech * 0.75, -1), edge(0, wBreech * 0.2, -1),
+                edge(tubeLen, wMuzzle * 0.2, -1), edge(tubeLen, wMuzzle * 0.75, -1)
+            ], barrelLight, alpha * 0.65);
+
+            // Reinforcing rings that curve around the cylinder
+            const bands = [0.3, 0.62];
             for (const t of bands) {
-                const bandX = breechX + (muzzleX - breechX) * t;
-                const bandY = breechY + (muzzleY - breechY) * t;
-                const bw = wB - (wB - wM) * t + 0.5;
-                graphics.beginPath();
-                graphics.moveTo(bandX + pCos * bw, bandY + pSin * 0.5 * bw);
-                graphics.lineTo(bandX - pCos * bw, bandY - pSin * 0.5 * bw);
-                graphics.strokePath();
-            }
-        }
-    }
-
-    static drawGoldMine(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        const level = building?.level ?? 1;
-        const isLevel2 = level >= 2;
-        const isLevel3 = level >= 3;
-        const isLevel4 = level >= 4;
-        const isLevel5 = level >= 5;
-        const g = baseGraphics || graphics;
-
-        if (!skipBase) {
-            // === ROCKY GROUND BASE ===
-            const baseColor = isLevel5 ? 0x5a5a5a : (isLevel4 ? 0x8a7a6a : (isLevel3 ? 0x7d6d5d : (isLevel2 ? 0x7a6a5a : 0x6b5a4a)));
-            g.fillStyle(tint ?? baseColor, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            const borderColor = isLevel5 ? 0x777777 : (isLevel3 ? 0x9b8365 : (isLevel2 ? 0x8b7355 : 0x4a3a2a));
-            g.lineStyle(isLevel5 ? 3 : (isLevel3 ? 2 : (isLevel2 ? 2 : 1)), borderColor, 0.6 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-            // Level 2+: Gold-trimmed corners (L5 uses metal)
-            if (isLevel2) {
-                const cornerColor = isLevel5 ? 0x888888 : (isLevel4 ? 0xeecc00 : (isLevel3 ? 0xe0b000 : 0xdaa520));
-                g.fillStyle(cornerColor, alpha * 0.8);
-                g.fillCircle(c1.x, c1.y, isLevel5 ? 5 : (isLevel4 ? 4 : 3));
-                g.fillCircle(c2.x, c2.y, isLevel5 ? 4 : (isLevel3 ? 3 : 2));
-                g.fillCircle(c3.x, c3.y, isLevel5 ? 4 : (isLevel3 ? 3 : 2));
-                g.fillCircle(c4.x, c4.y, isLevel5 ? 5 : (isLevel4 ? 4 : 2));
-                // L5: Metal bolt highlights
-                if (isLevel5) {
-                    g.fillStyle(0xaaaaaa, alpha * 0.6);
-                    g.fillCircle(c1.x, c1.y - 1, 2);
-                    g.fillCircle(c3.x, c3.y - 1, 2);
+                const w = wAt(t) + 0.6;
+                const d0 = tubeLen * t;
+                graphics.lineStyle(isL3 ? 2.8 : 2.2, bandColor, alpha * 0.95);
+                let prev: [number, number] | null = null;
+                for (let i = 0; i <= 6; i++) {
+                    const phi = -1 + (i / 3);
+                    const pt = edge(d0 + (1 - phi * phi) * w * 0.35, w * phi, 1);
+                    if (prev) graphics.lineBetween(prev[0], prev[1], pt[0], pt[1]);
+                    prev = pt;
                 }
             }
 
-            // L4+: Rim highlights (L5 uses steel)
-            if (isLevel4) {
-                g.lineStyle(1, isLevel5 ? 0x999999 : 0xcccccc, alpha * 0.5);
-                g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-                g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            }
+            // Muzzle collar: a short, slightly wider drum at the mouth
+            const wC = wMuzzle + 1.9;
+            const cLen = tubeLen - 5;
+            quad(graphics, [
+                edge(cLen, wC, 1), edge(cLen, wC, -1),
+                edge(tubeLen, wC, -1), edge(tubeLen, wC, 1)
+            ], isL4 ? 0xb8860b : barrelDark, alpha);
 
-            // Scattered rocks/dirt texture (reduced for L5 industrial)
-            if (!isLevel5) {
-                g.fillStyle(0x5a4a3a, alpha * 0.6);
-                g.fillCircle(center.x - 15, center.y + 6, 5);
-                g.fillCircle(center.x + 12, center.y + 4, 4);
-                g.fillCircle(center.x - 8, center.y + 10, 3);
-                g.fillStyle(0x7a6a5a, alpha * 0.4);
-                g.fillCircle(center.x + 5, center.y + 8, 3);
-            } else {
-                // L5: Metal floor plates
-                g.fillStyle(0x666666, alpha * 0.5);
-                g.fillRect(center.x - 18, center.y + 3, 10, 6);
-                g.fillRect(center.x + 8, center.y + 5, 10, 5);
-            }
-        }
-
-        if (!onlyBase) {
-            // === MINE SHAFT ENTRANCE (dark tunnel) ===
-            // Entrance frame - wooden supports
-            graphics.fillStyle(0x3a2a1a, alpha);
-            graphics.fillRect(center.x - 12, center.y - 8, 4, 16);
-            graphics.fillRect(center.x + 8, center.y - 8, 4, 16);
-
-            // Entrance top beam
-            graphics.fillStyle(0x4a3a2a, alpha);
-            graphics.fillRect(center.x - 14, center.y - 12, 28, 5);
-            graphics.fillStyle(0x5a4a3a, alpha);
-            graphics.fillRect(center.x - 13, center.y - 11, 26, 2);
-
-            // Dark tunnel interior
-            graphics.fillStyle(0x1a1a1a, alpha);
-            graphics.fillRect(center.x - 8, center.y - 6, 16, 14);
-            graphics.fillStyle(0x0a0a0a, alpha);
-            graphics.fillRect(center.x - 6, center.y - 4, 12, 10);
-
-            // === MINE CART TRACKS ===
-            g.lineStyle(2, 0x555555, alpha);
-            g.lineBetween(center.x - 6, center.y + 8, center.x + 20, center.y + 2);
-            g.lineBetween(center.x - 2, center.y + 10, center.x + 24, center.y + 4);
-
-            // Track ties
-            g.fillStyle(0x3a2a1a, alpha);
-            for (let i = 0; i < 4; i++) {
-                const tx = center.x - 4 + i * 7;
-                const ty = center.y + 9 - i * 1.5;
-                g.fillRect(tx, ty, 6, 2);
-            }
-
-            // === ANIMATED MINE CART ===
-            const cartCycle = (time / 2000) % 1;
-            const cartInTunnel = cartCycle < 0.3 || cartCycle > 0.8;
-
-            if (!cartInTunnel) {
-                const cartProgress = (cartCycle - 0.3) / 0.5; // 0 to 1 while visible
-                const cartX = center.x - 4 + cartProgress * 16;
-                const cartY = center.y + 6 - cartProgress * 3;
-
-                // Cart body
-                graphics.fillStyle(0x5a5a5a, alpha);
-                graphics.fillRect(cartX - 6, cartY - 8, 12, 8);
-                graphics.fillStyle(0x4a4a4a, alpha);
-                graphics.fillRect(cartX - 5, cartY - 7, 10, 6);
-
-                // Gold ore in cart
-                graphics.fillStyle(0xffd700, alpha);
-                graphics.fillCircle(cartX - 2, cartY - 6, 3);
-                graphics.fillCircle(cartX + 2, cartY - 5, 2);
-                graphics.fillCircle(cartX, cartY - 8, 2);
-
-                // Cart wheels
-                graphics.fillStyle(0x333333, alpha);
-                graphics.fillCircle(cartX - 4, cartY, 2);
-                graphics.fillCircle(cartX + 4, cartY, 2);
-            }
-
-            // === HEADFRAME TOWER ===
-            // L5: Metal industrial tower, otherwise wooden
-            const beamColor = isLevel5 ? 0x555555 : 0x4a3a2a;
-            const beamColorLight = isLevel5 ? 0x666666 : 0x5a4a3a;
-            const beamColorDark = isLevel5 ? 0x444444 : 0x4a3a2a;
-
-            // Main support beams (A-frame)
-            graphics.fillStyle(beamColor, alpha);
-            graphics.fillRect(center.x - 20, center.y - 35, isLevel5 ? 5 : 4, 40);
-            graphics.fillRect(center.x - 6, center.y - 35, isLevel5 ? 5 : 4, 40);
-
-            // L5: Metal beam highlights
-            if (isLevel5) {
-                graphics.fillStyle(0x777777, alpha * 0.6);
-                graphics.fillRect(center.x - 19, center.y - 35, 1, 40);
-                graphics.fillRect(center.x - 5, center.y - 35, 1, 40);
-            }
-
-            // Cross beams
-            graphics.fillStyle(beamColorLight, alpha);
-            graphics.fillRect(center.x - 21, center.y - 30, 20, isLevel5 ? 4 : 3);
-            graphics.fillRect(center.x - 21, center.y - 18, 20, isLevel5 ? 4 : 3);
-
-            // Diagonal bracing
-            graphics.lineStyle(isLevel5 ? 3 : 2, beamColorDark, alpha);
-            graphics.lineBetween(center.x - 19, center.y - 28, center.x - 5, center.y - 16);
-            graphics.lineBetween(center.x - 19, center.y - 16, center.x - 5, center.y - 28);
-
-            // Pulley wheel at top (larger for L5)
-            const pulleySize = isLevel5 ? 7 : 5;
-            graphics.fillStyle(isLevel5 ? 0x666666 : 0x555555, alpha);
-            graphics.fillCircle(center.x - 13, center.y - 38, pulleySize);
-            graphics.fillStyle(isLevel5 ? 0x888888 : 0x666666, alpha);
-            graphics.fillCircle(center.x - 13, center.y - 38, pulleySize - 2);
-
-            // Animated wheel rotation
-            const wheelAngle = time / (isLevel5 ? 300 : 400);  // Faster for L5
-            graphics.lineStyle(isLevel5 ? 2 : 1, isLevel5 ? 0x555555 : 0x444444, alpha);
-            for (let i = 0; i < 4; i++) {
-                const a = wheelAngle + (i / 4) * Math.PI * 2;
-                graphics.lineBetween(
-                    center.x - 13 + Math.cos(a) * (pulleySize - 1),
-                    center.y - 38 + Math.sin(a) * (pulleySize - 1),
-                    center.x - 13 - Math.cos(a) * (pulleySize - 1),
-                    center.y - 38 - Math.sin(a) * (pulleySize - 1)
-                );
-            }
-
-            // L5: Secondary gear
-            if (isLevel5) {
-                graphics.fillStyle(0x666666, alpha);
-                graphics.fillCircle(center.x - 5, center.y - 42, 4);
-                graphics.fillStyle(0x888888, alpha * 0.7);
-                graphics.fillCircle(center.x - 5, center.y - 42, 2);
-                // Gear teeth hint
-                graphics.lineStyle(1, 0x555555, alpha);
-                for (let i = 0; i < 4; i++) {
-                    const a = -wheelAngle * 1.5 + (i / 4) * Math.PI * 2;
-                    graphics.lineBetween(
-                        center.x - 5 + Math.cos(a) * 3,
-                        center.y - 42 + Math.sin(a) * 3,
-                        center.x - 5 - Math.cos(a) * 3,
-                        center.y - 42 - Math.sin(a) * 3
-                    );
+            // Muzzle face + bore, as a true disc perpendicular to the barrel:
+            // edge-on when sideways, round toward the viewer; the bore is a
+            // hole and only shows when the gun points down-screen.
+            const disc = (x: number, y: number, r: number): number[][] => {
+                const pts: number[][] = [];
+                for (let i = 0; i < 14; i++) {
+                    const t = (i / 14) * Math.PI * 2;
+                    pts.push([
+                        x + px(Math.cos(t) * r),
+                        y + py(Math.cos(t) * r) - Math.sin(t) * r
+                    ]);
                 }
+                return pts;
+            };
+            if (sin > 0.05) {
+                quad(graphics, disc(mX, mY, wC), isL4 ? 0xc9992a : barrelMid, alpha);
+                quad(graphics, disc(mX + ax(0.6), mY + ay(0.6), wMuzzle * 0.72), 0x000000, alpha * Math.min(1, sin * 3));
+            }
+        };
+
+        // ===== CARRIAGE (cheeks + pivot cap; rocks slightly with recoil) =====
+        const drawCarriage = () => {
+            const rock = (building?.cannonRecoilOffset ?? 0) * 1.4;
+            // Rotating footing ring under the carriage
+            graphics.fillStyle(timberDark, alpha);
+            graphics.fillEllipse(center.x, center.y - 1, 24, 12.5);
+            graphics.fillStyle(timberMid, alpha);
+            graphics.fillEllipse(center.x, center.y - 2, 21, 10.5);
+
+            // Two timber cheeks flanking the barrel; they carry the trunnions.
+            for (const side of [-1, 1]) {
+                const w0 = wBreech * 1.18;
+                const rearD = -7;
+                const frontD = 7.5;
+                const topY = pivotY + 2 + rock;
+                const baseY = center.y - 1;
+                const cheekDark = side === 1 ? timberDark : timberMid;
+                const cheekLit = side === 1 ? timberMid : timberLight;
+                // Face
+                quad(graphics, [
+                    [center.x + ax(rearD) + px(side * w0) + rX * 0.5, baseY + ay(rearD) + py(side * w0)],
+                    [center.x + ax(frontD) + px(side * w0) + rX * 0.5, baseY + ay(frontD) + py(side * w0)],
+                    [center.x + ax(frontD - 2.4) + px(side * w0) + rX * 0.5, topY + ay(frontD - 2.4) + py(side * w0)],
+                    [center.x + ax(rearD + 1.2) + px(side * w0) + rX * 0.5, topY + ay(rearD + 1.2) + py(side * w0)]
+                ], cheekLit, alpha);
+                // Top edge sliver for thickness
+                quad(graphics, [
+                    [center.x + ax(rearD + 1.2) + px(side * w0) + rX * 0.5, topY + ay(rearD + 1.2) + py(side * w0)],
+                    [center.x + ax(frontD - 2.4) + px(side * w0) + rX * 0.5, topY + ay(frontD - 2.4) + py(side * w0)],
+                    [center.x + ax(frontD - 2.4) + px(side * (w0 - 2.4)) + rX * 0.5, topY + ay(frontD - 2.4) + py(side * (w0 - 2.4))],
+                    [center.x + ax(rearD + 1.2) + px(side * (w0 - 2.4)) + rX * 0.5, topY + ay(rearD + 1.2) + py(side * (w0 - 2.4))]
+                ], cheekDark, alpha);
             }
 
-            // Rope/chain from pulley
-            graphics.lineStyle(isLevel5 ? 2 : 1, isLevel5 ? 0x555555 : 0x8b7355, alpha);
-            graphics.lineBetween(center.x - 13, center.y - 33, center.x - 13, center.y - 5);
+            // Trunnion axle: crosses over the barrel between cheek tops
+            const axW = wBreech * 1.24;
+            graphics.lineStyle(3.4, ironDark, alpha);
+            graphics.lineBetween(
+                pivotX + px(axW) + rX * 0.5, pivotY + 2 + py(axW) + rock,
+                pivotX - px(axW) + rX * 0.5, pivotY + 2 - py(axW) + rock
+            );
+            graphics.fillStyle(ironMid, alpha);
+            graphics.fillCircle(pivotX + px(axW) + rX * 0.5, pivotY + 2 + py(axW) + rock, 2.6);
+            graphics.fillCircle(pivotX - px(axW) + rX * 0.5, pivotY + 2 - py(axW) + rock, 2.6);
 
-            // === GOLD ORE PILES ===
-            const pileScale = isLevel5 ? 1.5 : (isLevel4 ? 1.3 : (isLevel3 ? 1.15 : (isLevel2 ? 1.0 : 0.85)));
-            // Large pile
-            graphics.fillStyle(isLevel5 ? 0xab9375 : (isLevel4 ? 0x9b8365 : 0x8b7355), alpha);
-            graphics.fillCircle(center.x + 18, center.y - 2, 8 * pileScale);
-            graphics.fillCircle(center.x + 22, center.y + 2, 6 * pileScale);
+        };
 
-            // Level 2+: Extra gold pile
-            if (isLevel2) {
-                graphics.fillStyle(isLevel5 ? 0xbb9a85 : (isLevel3 ? 0xab9375 : 0x9b8365), alpha);
-                graphics.fillCircle(center.x + 26, center.y - 1, 5 * pileScale);
-            }
-
-            // L3+: Third pile
-            if (isLevel3) {
-                graphics.fillStyle(0x9b8365, alpha);
-                graphics.fillCircle(center.x + 14, center.y + 3, 4 * pileScale);
-            }
-
-            // Gold chunks in pile
-            graphics.fillStyle(isLevel5 ? 0xffee00 : (isLevel4 ? 0xffe000 : 0xffd700), alpha);
-            graphics.fillCircle(center.x + 16, center.y - 4, 3 * pileScale);
-            graphics.fillCircle(center.x + 20, center.y - 1, 4 * pileScale);
-            graphics.fillCircle(center.x + 24, center.y + 1, 2.5 * pileScale);
-            graphics.fillCircle(center.x + 18, center.y, 2.5 * pileScale);
-
-            // Level 2+: Extra gold chunks
-            if (isLevel2) {
-                graphics.fillCircle(center.x + 26, center.y - 2, 3);
-                graphics.fillCircle(center.x + 14, center.y - 2, 2);
-                graphics.fillCircle(center.x + 22, center.y - 3, 2);
-            }
-
-            // L4+: Refined gold bars (stacked) - more for L5
-            if (isLevel4) {
-                graphics.fillStyle(0xffd700, alpha);
-                graphics.fillRect(center.x + 10, center.y + 4, isLevel5 ? 10 : 8, 3);
-                graphics.fillStyle(0xffe855, alpha);
-                graphics.fillRect(center.x + 11, center.y + 4, isLevel5 ? 8 : 6, 1);
-                graphics.fillStyle(0xeec000, alpha);
-                graphics.fillRect(center.x + 11, center.y + 2, 7, 2);
-            }
-
-            // Sparkling gold highlights (animated)
-            const sparkle1 = 0.5 + Math.sin(time / 150) * 0.5;
-            const sparkle2 = 0.5 + Math.sin(time / 180 + 1) * 0.5;
-            const sparkle3 = 0.5 + Math.sin(time / 200 + 2) * 0.5;
-
-            graphics.fillStyle(isLevel4 ? 0xffffaa : 0xffff88, alpha * sparkle1);
-            graphics.fillCircle(center.x + 17, center.y - 5, 1.5 * pileScale);
-            graphics.fillStyle(isLevel4 ? 0xffffaa : 0xffff88, alpha * sparkle2);
-            graphics.fillCircle(center.x + 21, center.y - 2, 1.5 * pileScale);
-            graphics.fillStyle(0xffffaa, alpha * sparkle3);
-            graphics.fillCircle(center.x + 19, center.y - 3, 1 * pileScale);
-
-            // Level 2+: Extra sparkles
-            if (isLevel2) {
-                const sparkle4 = 0.5 + Math.sin(time / 120 + 3) * 0.5;
-                const sparkle5 = 0.5 + Math.sin(time / 160 + 4) * 0.5;
-                graphics.fillStyle(0xffff66, alpha * sparkle4);
-                graphics.fillCircle(center.x + 25, center.y - 1, 1.5);
-                graphics.fillStyle(0xffffcc, alpha * sparkle5);
-                graphics.fillCircle(center.x + 15, center.y - 3, 1);
-            }
-
-            // L3+: More sparkles
-            if (isLevel3) {
-                const sparkle6 = 0.5 + Math.sin(time / 100 + 5) * 0.5;
-                graphics.fillStyle(0xffffdd, alpha * sparkle6);
-                graphics.fillCircle(center.x + 13, center.y + 2, 1.2);
-            }
-
-            // === LANTERNS ===
-            // Left lantern on post
-            graphics.fillStyle(0x4a3a2a, alpha);
-            graphics.fillRect(center.x - 24, center.y - 5, 2, 12);
-
-            // Lantern glow (animated flicker)
-            const flicker = 0.7 + Math.sin(time / 80) * 0.3;
-            graphics.fillStyle(0xff8800, alpha * flicker);
-            graphics.fillCircle(center.x - 23, center.y - 8, isLevel3 ? 4 : 3);
-            graphics.fillStyle(0xffcc44, alpha * flicker * 0.8);
-            graphics.fillCircle(center.x - 23, center.y - 9, isLevel3 ? 2.5 : 2);
-
-            // Small gold coin/nugget detail near entrance
-            graphics.fillStyle(0xffd700, alpha);
-            graphics.fillCircle(center.x + 6, center.y + 5, isLevel3 ? 2.5 : 2);
-            graphics.fillCircle(center.x + 3, center.y + 7, isLevel3 ? 2 : 1.5);
-        }
-    }
-
-    static drawSolanaCollector(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        const g = baseGraphics || graphics;
-        const level = building?.level ?? 1;
-
-        const isL2 = level >= 2;
-        const isL4 = level >= 4;
-
-        // Sequence: Move up, move down (slam), shake, move back up, pause
-        const cycleLength = 8000;
-        const cycleTime = time % cycleLength;
-        let drillBobCurrent = 0;
-
-        if (cycleTime < 1500) {
-            const t = cycleTime / 1500;
-            drillBobCurrent = -10 - 15 * t;
-        } else if (cycleTime < 2000) {
-            const t = (cycleTime - 1500) / 500;
-            const bounce = Math.sin(t * Math.PI);
-            drillBobCurrent = -25 + 25 * t + bounce * 2;
-        } else if (cycleTime < 3000) {
-            drillBobCurrent = 0 + Math.sin(time / 25) * 2;
-        } else if (cycleTime < 4500) {
-            const t = (cycleTime - 3000) / 1500;
-            drillBobCurrent = 0 - 10 * t;
+        // Aim-aware layering: always far half -> carriage -> near half.
+        // Aiming down-screen: breech is far, muzzle near. Aiming up-screen:
+        // muzzle is far, the round breech cap is nearest and draws on top.
+        if (sin < 0) {
+            drawBarrel();
+            drawCarriage();
+            drawBreech();
         } else {
-            drillBobCurrent = -10 + Math.sin(time / 1200) * 1.5;
+            drawBreech();
+            drawCarriage();
+            drawBarrel();
         }
 
-        const drillBob = drillBobCurrent;
-        const drillSpin = cycleTime < 3000 && cycleTime > 1500 ? time / 150 : time / 800;
-        const rubbleSeed = time / 300;
-
-        // Wood palette
-        const woodDark = 0x3a2a1a;
-        const woodMid = 0x5a4030;
-        const woodLight = 0x6a5040;
-        const woodHighlight = 0x7a6050;
-
-        // Metal palette (used more in L2)
-        const metalDark = 0x4a4a4a;
-        const metalMid = 0x707070;
-        const metalLight = 0x9d9d9d;
-        const metalHighlight = 0xc0c0c0;
-
-        // Crystal ore accent (glowing mineral veins in the rock)
-        const oreGlow = 0xaaddff;
-
-        if (!skipBase) {
-            // === FLAT GROUND ===
-            // Ground surface — earthy brown
-            g.fillStyle(tint ?? 0x5a4a38, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Dirt patches
-            g.fillStyle(0x4a3a28, alpha * 0.7);
-            g.fillCircle(center.x - 18, center.y + 6, 7);
-            g.fillCircle(center.x + 20, center.y + 3, 6);
-            g.fillCircle(center.x + 5, center.y + 14, 5);
-            g.fillCircle(center.x - 8, center.y - 4, 5);
-
-            // Border
-            g.lineStyle(2, isL4 ? 0x8b7530 : 0x3a2a1a, alpha * 0.6);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-            // === JAGGED ROCKS in the center ===
-            // L4 marble rocks, L2 darker, L1 grey
-            const rockDark = isL4 ? 0xccccbb : (isL2 ? 0x2a2a2a : 0x4a4a4a);
-            const rockMid = isL4 ? 0xddddcc : (isL2 ? 0x3a3a3a : 0x5a5a5a);
-            const rockLight = isL4 ? 0xeeeedd : (isL2 ? 0x4a4a4a : 0x6a6a6a);
-
-            // Large base rocks
-            g.fillStyle(rockDark, alpha);
-            g.fillCircle(center.x - 8, center.y + 1, 9);
-            g.fillCircle(center.x + 7, center.y - 1, 8);
-            g.fillCircle(center.x, center.y + 6, 7);
-            g.fillCircle(center.x - 4, center.y - 5, 6);
-            g.fillCircle(center.x + 10, center.y + 5, 6);
-            // Extra rocks for density
-            g.fillCircle(center.x - 14, center.y - 2, 6);
-            g.fillCircle(center.x + 14, center.y - 3, 5);
-            g.fillCircle(center.x + 5, center.y - 7, 5);
-            g.fillCircle(center.x - 6, center.y + 8, 5);
-
-            // Medium rocks
-            g.fillStyle(rockMid, alpha);
-            g.fillCircle(center.x - 12, center.y + 4, 5);
-            g.fillCircle(center.x + 13, center.y + 2, 5);
-            g.fillCircle(center.x + 3, center.y - 4, 5);
-            g.fillCircle(center.x - 16, center.y + 1, 4);
-            g.fillCircle(center.x + 16, center.y + 1, 4);
-            g.fillCircle(center.x - 2, center.y - 8, 4);
-
-            // Rock highlights (lighter tops)
-            g.fillStyle(rockLight, alpha * 0.7);
-            g.fillCircle(center.x - 8, center.y - 1, 4);
-            g.fillCircle(center.x + 7, center.y - 3, 4);
-            g.fillCircle(center.x - 1, center.y + 3, 3);
-            g.fillCircle(center.x - 14, center.y - 4, 3);
-            g.fillCircle(center.x + 13, center.y - 1, 3);
-
-            // Jagged sharp edges (small triangular shapes via tiny circles)
-            g.fillStyle(isL4 ? 0xbbbbaa : (isL2 ? 0x353535 : 0x555555), alpha * 0.9);
-            g.fillCircle(center.x - 10, center.y - 4, 2);
-            g.fillCircle(center.x + 11, center.y - 3, 2);
-            g.fillCircle(center.x - 5, center.y + 9, 2);
-            g.fillCircle(center.x + 7, center.y + 7, 2);
-            g.fillCircle(center.x - 17, center.y + 3, 2);
-            g.fillCircle(center.x + 17, center.y + 3, 2);
-
-            // Dark crevices between rocks
-            g.fillStyle(isL4 ? 0xaaaaaa : 0x1a1a1a, alpha * (isL4 ? 0.4 : 0.8));
-            g.fillCircle(center.x, center.y + 1, 3);
-            g.fillCircle(center.x - 4, center.y + 3, 2);
-            g.fillCircle(center.x + 4, center.y - 1, 2);
-            g.fillCircle(center.x - 10, center.y + 2, 2);
-            g.fillCircle(center.x + 11, center.y + 3, 2);
-
-            // L4: Subtle gold veins in marble rocks
-            if (isL4) {
-                g.fillStyle(0xdaa520, alpha * 0.4);
-                g.fillCircle(center.x - 7, center.y + 2, 1.5);
-                g.fillCircle(center.x + 10, center.y - 1, 1.5);
-                g.fillCircle(center.x + 3, center.y + 6, 1);
-                g.fillCircle(center.x - 13, center.y - 1, 1);
+        // ===== POWDER SMOKE after firing (deterministic drift, no flicker) =====
+        const sinceFire = building?.lastFireTime ? (time - building.lastFireTime) : Infinity;
+        if (BuildingRenderer.AMBIENT_VAPOR && sinceFire < 1400 && time > 0) {
+            for (let i = 0; i < 3; i++) {
+                const p = sinceFire / 1400 - i * 0.14;
+                if (p <= 0 || p >= 1) continue;
+                const drift = 5 + p * 13;
+                const sway = Math.sin(p * 5 + i * 2.1) * 2.5;
+                graphics.fillStyle(0xd8d8d2, alpha * (1 - p) * 0.5);
+                graphics.fillCircle(mX + ax(drift) + sway, mY + ay(drift) - p * 15, 2.2 + p * 4);
             }
-
-            // L2: Glowing crystal ore veins in the rocks
-            if (isL2 && !isL4) {
-                const orePulse = 0.4 + Math.sin(time / 900) * 0.35;
-                g.fillStyle(oreGlow, alpha * orePulse * 0.85);
-                g.fillCircle(center.x - 6, center.y, 1.5);
-                g.fillCircle(center.x + 9, center.y - 2, 1);
-                g.fillCircle(center.x + 2, center.y + 5, 1);
-            }
-        }
-
-        if (!onlyBase) {
-            // === A-FRAME (wood for L1, wood+metal for L2, metal+gold for L4) ===
-            const legColor = isL4 ? 0x3a3a3a : (isL2 ? metalDark : woodDark);
-            const legHighlight = isL4 ? 0xb8860b : (isL2 ? metalLight : woodHighlight);
-
-            // Left leg
-            graphics.fillStyle(legColor, alpha);
-            graphics.fillRect(center.x - 26, center.y - 50, 5, 54);
-            graphics.fillStyle(legHighlight, alpha * 0.4);
-            graphics.fillRect(center.x - 25, center.y - 50, 2, 54);
-
-            // Right leg
-            graphics.fillStyle(legColor, alpha);
-            graphics.fillRect(center.x + 21, center.y - 50, 5, 54);
-            graphics.fillStyle(legHighlight, alpha * 0.4);
-            graphics.fillRect(center.x + 22, center.y - 50, 2, 54);
-
-            // L2+: Metal reinforcement bands on legs (gold at L4)
-            if (isL2) {
-                const bandColor = isL4 ? 0xdaa520 : metalHighlight;
-                graphics.fillStyle(bandColor, alpha * 0.5);
-                graphics.fillRect(center.x - 26, center.y - 42, 5, 2);
-                graphics.fillRect(center.x - 26, center.y - 20, 5, 2);
-                graphics.fillRect(center.x + 21, center.y - 42, 5, 2);
-                graphics.fillRect(center.x + 21, center.y - 20, 5, 2);
-            }
-
-            // Top crossbeam
-            const beamColor = isL4 ? 0x5a5a5a : (isL2 ? metalMid : woodMid);
-            const beamHighlight = isL4 ? 0xdaa520 : (isL2 ? metalLight : woodLight);
-            graphics.fillStyle(beamColor, alpha);
-            graphics.fillRect(center.x - 26, center.y - 54, 52, 6);
-            graphics.fillStyle(beamHighlight, alpha * 0.6);
-            graphics.fillRect(center.x - 24, center.y - 53, 48, 2);
-
-            // Mid crossbeam
-            graphics.fillStyle(beamColor, alpha);
-            graphics.fillRect(center.x - 24, center.y - 30, 48, 4);
-
-            // L2+: Rivets on crossbeams (gold at L4)
-            if (isL2) {
-                graphics.fillStyle(isL4 ? 0xffd700 : metalHighlight, alpha * 0.7);
-                graphics.fillCircle(center.x - 22, center.y - 51, 1.5);
-                graphics.fillCircle(center.x + 22, center.y - 51, 1.5);
-                graphics.fillCircle(center.x - 20, center.y - 28, 1.5);
-                graphics.fillCircle(center.x + 20, center.y - 28, 1.5);
-            }
-
-            // === ROPE (L1) or CHAIN (L2) from top beam ===
-            if (isL2) {
-                // Chain — alternating links
-                const chainTop = center.y - 48;
-                const chainBot = center.y - 22 + drillBob;
-                const chainLen = chainBot - chainTop;
-                const linkCount = Math.max(4, Math.floor(chainLen / 4));
-                for (let i = 0; i < linkCount; i++) {
-                    const ly = chainTop + (i / linkCount) * chainLen;
-                    const lx = center.x + (i % 2 === 0 ? -1 : 1);
-                    graphics.fillStyle(metalLight, alpha * 0.8);
-                    graphics.fillRect(lx - 1, ly, 3, 3);
-                }
-            } else {
-                graphics.lineStyle(2, 0x8b7355, alpha * 0.8);
-                graphics.lineBetween(center.x, center.y - 48, center.x, center.y - 22 + drillBob);
-            }
-
-            // === DRILL ASSEMBLY — hangs from rope/chain ===
-            const drillAnchorY = center.y - 20 + drillBob;
-
-            // Housing block (wood L1, metal L2)
-            graphics.fillStyle(isL2 ? metalMid : woodMid, alpha);
-            graphics.fillRect(center.x - 10, drillAnchorY - 6, 20, 10);
-            graphics.fillStyle(isL2 ? metalLight : woodLight, alpha * 0.5);
-            graphics.fillRect(center.x - 8, drillAnchorY - 5, 16, 3);
-
-            // Iron band around housing
-            graphics.fillStyle(isL2 ? metalHighlight : 0x555555, alpha);
-            graphics.fillRect(center.x - 11, drillAnchorY - 1, 22, 2);
-
-            // === DRILL BIT — tapered post ===
-            const bitTopY = drillAnchorY + 4;
-            const bitW = 10;
-            const bitLen = 22;
-
-            // Main shaft (tapered)
-            graphics.fillStyle(metalMid, alpha);
-            graphics.beginPath();
-            graphics.moveTo(center.x - bitW, bitTopY);
-            graphics.lineTo(center.x + bitW, bitTopY);
-            graphics.lineTo(center.x + 3, bitTopY + bitLen);
-            graphics.lineTo(center.x - 3, bitTopY + bitLen);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Light highlight
-            graphics.fillStyle(metalLight, alpha * 0.6);
-            graphics.beginPath();
-            graphics.moveTo(center.x - bitW + 2, bitTopY);
-            graphics.lineTo(center.x - bitW + 5, bitTopY);
-            graphics.lineTo(center.x - 1, bitTopY + bitLen);
-            graphics.lineTo(center.x - 2, bitTopY + bitLen);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Spiral groove marks (slow spin)
-            graphics.lineStyle(2, metalDark, alpha * 0.8);
-            for (let i = 0; i < 4; i++) {
-                const gt = (i / 4 + (drillSpin % 1) * 0.25) % 1;
-                const gy = bitTopY + gt * bitLen;
-                const wAtY = bitW * (1 - gt * 0.7);
-                const ox = Math.sin(drillSpin * 2 + i * 1.8) * wAtY * 0.35;
-                graphics.lineBetween(
-                    center.x - wAtY + ox, gy,
-                    center.x + wAtY + ox, gy
-                );
-            }
-
-            // Hardened tip
-            graphics.fillStyle(isL2 ? 0x222222 : 0x333333, alpha);
-            graphics.beginPath();
-            graphics.moveTo(center.x - 4, bitTopY + bitLen - 2);
-            graphics.lineTo(center.x + 4, bitTopY + bitLen - 2);
-            graphics.lineTo(center.x, bitTopY + bitLen + 6);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Tip highlight
-            graphics.fillStyle(metalHighlight, alpha * 0.8);
-            graphics.beginPath();
-            graphics.moveTo(center.x - 1, bitTopY + bitLen);
-            graphics.lineTo(center.x + 1, bitTopY + bitLen);
-            graphics.lineTo(center.x, bitTopY + bitLen + 4);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // === FRONT ROCKS — drawn over the drill to hide the bottom ===
-            const fRockDark = isL4 ? 0xccccbb : (isL2 ? 0x2a2a2a : 0x4a4a4a);
-            const fRockMid = isL4 ? 0xddddcc : (isL2 ? 0x3a3a3a : 0x5a5a5a);
-            const fRockLight = isL4 ? 0xeeeedd : (isL2 ? 0x4a4a4a : 0x6a6a6a);
-
-            graphics.fillStyle(fRockDark, alpha);
-            graphics.fillCircle(center.x - 10, center.y + 5, 8);
-            graphics.fillCircle(center.x + 9, center.y + 4, 7);
-            graphics.fillCircle(center.x, center.y + 8, 6);
-            graphics.fillCircle(center.x - 15, center.y + 3, 5);
-            graphics.fillCircle(center.x + 14, center.y + 3, 5);
-
-            // Rock highlights on front rocks
-            graphics.fillStyle(fRockMid, alpha);
-            graphics.fillCircle(center.x - 10, center.y + 3, 5);
-            graphics.fillCircle(center.x + 9, center.y + 2, 4);
-            graphics.fillCircle(center.x - 14, center.y + 1, 3);
-
-            graphics.fillStyle(fRockLight, alpha * 0.6);
-            graphics.fillCircle(center.x - 9, center.y + 1, 3);
-            graphics.fillCircle(center.x + 8, center.y + 1, 3);
-
-            // L4: Subtle gold veins on front rocks
-            if (isL4) {
-                graphics.fillStyle(0xdaa520, alpha * 0.4);
-                graphics.fillCircle(center.x - 9, center.y + 3, 1.5);
-                graphics.fillCircle(center.x + 8, center.y + 2, 1);
-            }
-
-            // L2/L3: Glowing crystal ore on front rocks
-            if (isL2 && !isL4) {
-                const orePulse = 0.4 + Math.sin(time / 900) * 0.35;
-                graphics.fillStyle(oreGlow, alpha * orePulse * 0.85);
-                graphics.fillCircle(center.x - 8, center.y + 4, 1);
-                graphics.fillCircle(center.x + 7, center.y + 3, 1);
-            }
-
-            // === RUBBLE flying up — only while actively drilling ===
-            const isDrilling = cycleTime >= 1500 && cycleTime < 3000;
-            if (isDrilling) {
-                const rubbleColors = [0x6b5a4a, 0x5a4a3a, 0x7a6a5a, 0x4a4a4a, 0x5a5a5a, 0x6b5a4a];
-                for (let i = 0; i < 6; i++) {
-                    const seed = rubbleSeed + i * 41.3;
-                    const life = (seed * 0.5 + i * 0.17) % 1;
-                    const rx = center.x + Math.sin(seed * 2.7 + i * 1.9) * (10 + i * 3);
-                    const ry = center.y + 2 - life * 35;
-                    const ra = life < 0.15 ? life / 0.15 : (life > 0.6 ? (1 - life) / 0.4 : 1);
-                    const rs = 1.5 + Math.sin(i * 2.1) * 1;
-
-                    graphics.fillStyle(rubbleColors[i % rubbleColors.length], alpha * ra * 0.7);
-                    graphics.fillCircle(rx, ry, rs);
-                }
-            }
-
-            // === VAPOR WISPS — only once drill is in the ground (shake phase) ===
-            const isShaking = cycleTime >= 2000 && cycleTime < 3000;
-            if (isShaking) {
-                const vaporSeed = time / 220;
-                for (let i = 0; i < 4; i++) {
-                    const vLife = (vaporSeed * 0.35 + i * 0.25) % 1;
-                    const vx = center.x + Math.sin(vaporSeed + i * 1.6) * 9;
-                    const vy = center.y + 2 - vLife * 30;
-                    const va = vLife < 0.12 ? vLife / 0.12 : (vLife > 0.55 ? (1 - vLife) / 0.45 : 1);
-                    const vs = 2 + vLife * 5;
-                    graphics.fillStyle(0xdddddd, alpha * va * 0.3);
-                    graphics.fillCircle(vx, vy, vs);
-                }
-            }
-
-            // === ACCENT — small lantern on left leg ===
-            const flicker = 0.6 + Math.sin(time / 400) * 0.4;
-            const lanternColor = isL4 ? 0xffd700 : 0xff7722;
-            graphics.fillStyle(lanternColor, alpha * flicker * 0.7);
-            graphics.fillCircle(center.x - 23, center.y - 40, 3);
-            graphics.fillStyle(lanternColor, alpha * flicker * 0.2);
-            graphics.fillCircle(center.x - 23, center.y - 40, 6);
         }
     }
 
-    static drawElixirCollector(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // Purple/pink theme for elixir
-        const level = building?.level ?? 1;
-        const isLevel2 = level >= 2;
-        const isLevel3 = level >= 3;
-        const isLevel4 = level >= 4;
-        const isLevel5 = level >= 5;
+    static drawBallista(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        BuildingRenderer.renderBallistaV2(1, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+    }
+
+    static drawBallistaLevel2(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        BuildingRenderer.renderBallistaV2(2, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+    }
+
+    static drawBallistaLevel3(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        BuildingRenderer.renderBallistaV2(3, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+    }
+
+    /**
+     * BALLISTA — a torsion-powered siege scorpio.
+     *
+     * The machine's power source is made visible: two rope-wound torsion
+     * housings flank the front of the rail and the limbs grow out of them
+     * (that is how a real scorpio works). The whole machine sits on a planked
+     * turntable whose seams rotate with the aim.
+     *
+     * Story across levels: timber scorpio (L1) -> iron arbalest (L2) ->
+     * marble-and-gold storm piercer (L3).
+     *
+     * building fields used: ballistaAngle, ballistaStringTension (0..1),
+     * ballistaBoltLoaded, lastFireTime.
+     */
+    private static renderBallistaV2(level: number, graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
         const g = baseGraphics || graphics;
+        const isL2 = level >= 2;
+        const isL3 = level >= 3;
 
-        const purpleDark = tint ?? (isLevel5 ? 0x9c64b3 : (isLevel4 ? 0x8c54a3 : (isLevel3 ? 0x7c4493 : (isLevel2 ? 0x7c4493 : 0x6c3483))));
-        const purpleMid = tint ?? (isLevel5 ? 0xbe74dd : (isLevel4 ? 0xae64cd : (isLevel3 ? 0x9e54bd : (isLevel2 ? 0x9e54bd : 0x8e44ad))));
-        const purpleLight = tint ?? (isLevel5 ? 0xd599ed : (isLevel4 ? 0xc589dd : (isLevel3 ? 0xb579cd : (isLevel2 ? 0xb579cd : 0xa569bd))));
-
-        // Stone base (enhanced for higher levels)
-        if (!skipBase) {
-            const baseColor = isLevel4 ? 0x7a7a7a : (isLevel3 ? 0x6f6f6f : (isLevel2 ? 0x6a6a6a : 0x5a5a5a));
-            g.fillStyle(baseColor, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.lineStyle(isLevel3 ? 2 : (isLevel2 ? 2 : 1), isLevel3 ? 0xbb8fce : (isLevel2 ? 0x9b59b6 : 0x3a3a3a), 0.5 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-            // Level 2+: Purple-trimmed corners
-            if (isLevel2) {
-                const cornerColor = isLevel4 ? 0xd7bde2 : (isLevel3 ? 0xc9a8d8 : 0xbb8fce);
-                g.fillStyle(cornerColor, alpha * 0.8);
-                g.fillCircle(c1.x, c1.y, isLevel4 ? 4 : 3);
-                g.fillCircle(c2.x, c2.y, isLevel3 ? 3 : 2);
-                g.fillCircle(c3.x, c3.y, isLevel3 ? 3 : 2);
-                g.fillCircle(c4.x, c4.y, isLevel4 ? 4 : 2);
-            }
-
-            // L4: Crystal purple rim highlights
-            if (isLevel4) {
-                g.lineStyle(1, 0xe8daef, alpha * 0.5);
-                g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-                g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            }
-
-        }
-
-        if (!onlyBase) {
-            // Elixir tank (glass container) - larger for higher levels
-            const tankScale = isLevel4 ? 1.2 : (isLevel3 ? 1.1 : 1.0);
-            const tankHeight = (isLevel2 ? 34 : 30) * tankScale;
-            const tankWidth = (isLevel2 ? 20 : 18) * tankScale;
-
-            // Tank back (darker)
-            graphics.fillStyle(purpleDark, alpha * 0.8);
-            graphics.fillEllipse(center.x, center.y - 5, tankWidth, tankWidth * 0.5);
-
-            // Tank body (glass effect)
-            graphics.fillStyle(purpleMid, alpha * 0.7);
-            graphics.fillRect(center.x - tankWidth / 2, center.y - 5 - tankHeight, tankWidth, tankHeight);
-
-            // Tank shine (glass reflection)
-            const shineAlpha = isLevel4 ? 0.3 : (isLevel3 ? 0.28 : (isLevel2 ? 0.25 : 0.2));
-            graphics.fillStyle(0xffffff, shineAlpha * alpha);
-            graphics.fillRect(center.x - tankWidth / 2 + 3, center.y - 5 - tankHeight + 3, isLevel3 ? 6 : (isLevel2 ? 5 : 4), tankHeight - 6);
-
-            // Level 2+: Secondary shine
-            if (isLevel2) {
-                graphics.fillStyle(0xffffff, (isLevel3 ? 0.18 : 0.15) * alpha);
-                graphics.fillRect(center.x + tankWidth / 2 - 6, center.y - 5 - tankHeight + 5, isLevel3 ? 3 : 2, tankHeight - 10);
-            }
-
-            // Tank top cap
-            graphics.fillStyle(purpleLight, alpha);
-            graphics.fillEllipse(center.x, center.y - 5 - tankHeight, tankWidth, tankWidth * 0.5);
-
-            // Level 2+: Glowing rim
-            if (isLevel2) {
-                graphics.lineStyle(isLevel4 ? 3 : 2, isLevel4 ? 0xe8daef : 0xd7bde2, alpha * (isLevel3 ? 0.7 : 0.6));
-                graphics.strokeEllipse(center.x, center.y - 5 - tankHeight, tankWidth - 2, (tankWidth - 2) * 0.5);
-            }
-
-            // Pump mechanism on top
-            const pumpOffset = Math.sin(time / 300) * (isLevel3 ? 5 : (isLevel2 ? 4 : 3));
-
-            // Pump base (reinforced for higher levels)
-            graphics.fillStyle(isLevel3 ? 0x6a6a6a : (isLevel2 ? 0x5a5a5a : 0x4a4a4a), alpha);
-            graphics.fillRect(center.x - 4, center.y - tankHeight - 20, 8, 10);
-
-            // L2+: Metal bands on pump
-            if (isLevel2 && !isLevel5) {
-                graphics.fillStyle(isLevel4 ? 0xbb8fce : 0x9b59b6, alpha * 0.7);
-                graphics.fillRect(center.x - 5, center.y - tankHeight - 20, 10, 2);
-                graphics.fillRect(center.x - 5, center.y - tankHeight - 12, 10, 2);
-            }
-
-            // Pump piston (animated up/down) - L1-L4 only
-            if (!isLevel5) {
-                graphics.fillStyle(isLevel3 ? 0x888888 : (isLevel2 ? 0x777777 : 0x666666), alpha);
-                graphics.fillRect(center.x - 2, center.y - tankHeight - 25 + pumpOffset, 4, 8);
-
-                // Pump handle
-                graphics.lineStyle(2, isLevel3 ? 0x777777 : (isLevel2 ? 0x666666 : 0x555555), alpha);
-                graphics.lineBetween(center.x, center.y - tankHeight - 25 + pumpOffset, center.x + 10, center.y - tankHeight - 20 + pumpOffset * 0.5);
-            } else {
-                // === L5: INDUSTRIAL DEEP EXTRACTION ===
-                // One big central pipe going into the ground with pump on top
-
-                // Big extraction pipe (main feature)
-                const pipeWidth = 14;
-
-                // Pipe shadow/depth
-                graphics.fillStyle(0x444444, alpha);
-                graphics.fillRect(center.x - pipeWidth / 2 - 1, center.y - 5, pipeWidth + 2, 18);
-
-                // Main pipe body
-                graphics.fillStyle(0x666666, alpha);
-                graphics.fillRect(center.x - pipeWidth / 2, center.y - 5, pipeWidth, 15);
-
-                // Pipe highlight (left edge)
-                graphics.fillStyle(0x888888, alpha * 0.7);
-                graphics.fillRect(center.x - pipeWidth / 2 + 1, center.y - 4, 2, 13);
-
-                // Pipe opening (dark hole going down)
-                graphics.fillStyle(0x222222, alpha);
-                graphics.fillEllipse(center.x, center.y + 8, pipeWidth - 2, 5);
-
-                // Pipe rim (top edge)
-                graphics.fillStyle(0x777777, alpha);
-                graphics.fillEllipse(center.x, center.y - 5, pipeWidth, 5);
-                graphics.fillStyle(0x555555, alpha);
-                graphics.fillEllipse(center.x, center.y - 5, pipeWidth - 4, 3);
-
-                // Connection pipe from tank to main pipe
-                graphics.fillStyle(0x666666, alpha);
-                graphics.fillRect(center.x - 3, center.y - tankHeight - 5, 6, tankHeight);
-                graphics.fillStyle(0x888888, alpha * 0.5);
-                graphics.fillRect(center.x - 2, center.y - tankHeight - 5, 1, tankHeight);
-
-                // Elixir flow inside connection pipe (animated) - only render within pipe bounds
-                const flowOffset = (time / 200) % 1;
-                const pipeTop = center.y - tankHeight - 5;
-                const pipeBottom = center.y - 5;
-                for (let i = 0; i < 3; i++) {
-                    const flowY = pipeTop + ((flowOffset + i * 0.33) % 1) * tankHeight;
-                    // Only draw if within pipe bounds
-                    if (flowY >= pipeTop && flowY <= pipeBottom - 8) {
-                        graphics.fillStyle(purpleMid, alpha * 0.8);
-                        graphics.fillRect(center.x - 1, flowY, 2, 8);
-                    }
-                }
-
-                // Industrial pump mechanism on top of tank
-                // Pump housing
-                graphics.fillStyle(0x555555, alpha);
-                graphics.fillRect(center.x - 8, center.y - tankHeight - 18, 16, 14);
-                graphics.fillStyle(0x666666, alpha);
-                graphics.fillRect(center.x - 7, center.y - tankHeight - 17, 14, 12);
-
-                // Pump highlight
-                graphics.fillStyle(0x777777, alpha * 0.6);
-                graphics.fillRect(center.x - 6, center.y - tankHeight - 16, 2, 10);
-
-                // Animated pump piston
-                graphics.fillStyle(0x888888, alpha);
-                graphics.fillRect(center.x - 2, center.y - tankHeight - 25 + pumpOffset, 4, 10);
-
-                // Pump top cap
-                graphics.fillStyle(0x666666, alpha);
-                graphics.fillEllipse(center.x, center.y - tankHeight - 25 + pumpOffset, 6, 2);
-
-                // Purple glow from pipe (elixir being extracted)
-                const glowPulse = 0.4 + Math.sin(time * 3) * 0.2;
-                graphics.fillStyle(purpleLight, alpha * glowPulse);
-                graphics.fillEllipse(center.x, center.y + 6, pipeWidth + 4, 8);
-            }
-
-            // Elixir bubbles (animated)
-            const bubbleTime = time / 200;
-            const bubbleCount = isLevel4 ? 7 : (isLevel3 ? 6 : (isLevel2 ? 5 : 3));
-            for (let i = 0; i < bubbleCount; i++) {
-                const bubbleY = ((bubbleTime + i * (isLevel3 ? 0.25 : (isLevel2 ? 0.35 : 0.5))) % 1) * tankHeight;
-                const bubbleX = Math.sin(bubbleTime * 2 + i) * (isLevel3 ? 6 : (isLevel2 ? 5 : 4));
-                graphics.fillStyle(isLevel4 ? 0xe8daef : 0xd7bde2, (isLevel3 ? 0.8 : (isLevel2 ? 0.7 : 0.6)) * alpha);
-                graphics.fillCircle(center.x + bubbleX, center.y - 5 - bubbleY, isLevel3 ? 3 : (isLevel2 ? 2.5 : 2));
-            }
-
-            // Level 2+: Glowing elixir particles
-            if (isLevel2) {
-                const glowTime = time / 150;
-                const particleCount = isLevel4 ? 5 : (isLevel3 ? 4 : 3);
-                for (let i = 0; i < particleCount; i++) {
-                    const glow = 0.3 + Math.sin(glowTime + i * 2) * 0.3;
-                    const px = center.x + Math.sin(glowTime * 0.5 + i * 2.5) * 6;
-                    const py = center.y - 5 - tankHeight * 0.5 + Math.cos(glowTime * 0.3 + i) * 8;
-                    graphics.fillStyle(isLevel4 ? 0xf0e8f5 : 0xe8daef, alpha * glow);
-                    graphics.fillCircle(px, py, isLevel4 ? 2 : 1.5);
-                }
-            }
-
-            // L4: Magical sparkle effect near top
-            if (isLevel4) {
-                const sparkleTime = time / 100;
-                for (let i = 0; i < 3; i++) {
-                    const sparkle = 0.4 + Math.sin(sparkleTime + i * 1.5) * 0.4;
-                    const sx = center.x + Math.cos(sparkleTime * 0.8 + i * 2) * 8;
-                    const sy = center.y - 5 - tankHeight + 5 + Math.sin(sparkleTime * 0.5 + i) * 5;
-                    graphics.fillStyle(0xffffff, alpha * sparkle * 0.6);
-                    graphics.fillCircle(sx, sy, 1);
-                }
-            }
-
-            // Wooden supports (reinforced for higher levels)
-            graphics.fillStyle(isLevel3 ? 0x7d6e57 : (isLevel2 ? 0x6d5e47 : 0x5d4e37), alpha);
-            graphics.fillRect(center.x - tankWidth / 2 - 3, center.y - 5, isLevel3 ? 5 : (isLevel2 ? 4 : 3), 8);
-            graphics.fillRect(center.x + tankWidth / 2 - (isLevel3 ? 2 : (isLevel2 ? 1 : 0)), center.y - 5, isLevel3 ? 5 : (isLevel2 ? 4 : 3), 8);
-
-            // Level 2+: Metal reinforcement bands on supports
-            if (isLevel2) {
-                graphics.fillStyle(isLevel4 ? 0xbb8fce : 0x9b59b6, alpha * (isLevel3 ? 0.7 : 0.6));
-                graphics.fillRect(center.x - tankWidth / 2 - 3, center.y - 3, isLevel3 ? 5 : 4, 2);
-                graphics.fillRect(center.x + tankWidth / 2 - (isLevel3 ? 2 : 1), center.y - 3, isLevel3 ? 5 : 4, 2);
-            }
-
-            // L4: Extra elixir pipe on side
-            if (isLevel4) {
-                graphics.fillStyle(0x9b59b6, alpha * 0.8);
-                graphics.fillRect(center.x + tankWidth / 2 + 2, center.y - tankHeight * 0.6, 3, 15);
-                graphics.fillStyle(0xbb8fce, alpha * 0.5);
-                graphics.fillRect(center.x + tankWidth / 2 + 3, center.y - tankHeight * 0.6 + 2, 1, 11);
-            }
-        }
-    }
-
-    static drawBallista(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // Get ballista state from building if provided
-        const angle = building?.ballistaAngle ?? 0; // Default facing right
-        const stringTension = building?.ballistaStringTension ?? 0; // 0 = relaxed, 1 = fully drawn
-        const boltLoaded = building?.ballistaBoltLoaded ?? true;
-        const g = baseGraphics || graphics;
-
-        if (!skipBase) {
-            // === STONE FOUNDATION PLATFORM ===
-            // Raised stone base with depth
-            const baseHeight = 6;
-
-            // Side faces of the platform (isometric 3D effect)
-            graphics.fillStyle(0x4a4a4a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c2.x, c2.y);
-            graphics.lineTo(c3.x, c3.y);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.lineTo(c2.x, c2.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0x3a3a3a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c3.x, c3.y);
-            graphics.lineTo(c4.x, c4.y);
-            graphics.lineTo(c4.x, c4.y + baseHeight);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Top face
-            g.fillStyle(tint ?? 0x5a5a5a, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Stone block lines
-            g.lineStyle(1, 0x4a4a4a, alpha * 0.5);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-
-            // Border
-            g.lineStyle(2, 0x3a3a3a, 0.6 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-        }
-
-        if (!onlyBase) {
-            // === WOODEN ROTATING PLATFORM ===
-            const baseRadiusX = 22;
-            const baseRadiusY = 13;
-            const baseY = center.y - 4;
-
-            // Shadow under platform
-            g.fillStyle(0x1a1a1a, alpha * 0.4);
-            g.fillEllipse(center.x + 2, baseY + 4, baseRadiusX, baseRadiusY);
-
-            // Main wooden platform
-            graphics.fillStyle(0x5a4030, alpha);
-            graphics.fillEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-
-            // Wood plank lines (radial pattern)
-            graphics.lineStyle(1, 0x3a2515, alpha * 0.5);
-            for (let i = 0; i < 6; i++) {
-                const ang = (i / 6) * Math.PI;
-                const x1 = center.x + Math.cos(ang) * (baseRadiusX - 2);
-                const y1 = baseY + Math.sin(ang) * (baseRadiusY - 1);
-                const x2 = center.x - Math.cos(ang) * (baseRadiusX - 2);
-                const y2 = baseY - Math.sin(ang) * (baseRadiusY - 1);
-                graphics.lineBetween(x1, y1, x2, y2);
-            }
-
-            // Iron outer ring
-            graphics.lineStyle(3, 0x4a4a4a, alpha);
-            graphics.strokeEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-            graphics.lineStyle(1, 0x606060, alpha * 0.6);
-            graphics.strokeEllipse(center.x, baseY - 1, baseRadiusX - 1, baseRadiusY - 1);
-
-            // Iron rivets around edge
-            graphics.fillStyle(0x555555, alpha);
-            for (let i = 0; i < 8; i++) {
-                const ang = (i / 8) * Math.PI * 2;
-                const rx = center.x + Math.cos(ang) * (baseRadiusX - 3);
-                const ry = baseY + Math.sin(ang) * (baseRadiusY - 2);
-                graphics.fillCircle(rx, ry, 2);
-            }
-
-            // Calculate rotation for the crossbow mechanism
-            const cos = Math.cos(angle);
-            const sin = Math.sin(angle);
-
-            // === CENTRAL PIVOT MECHANISM ===
-            // Heavy dark grey pivot hub on the wooden platform
-            graphics.fillStyle(0x2a2a2a, alpha);
-            graphics.fillCircle(center.x, baseY, 8);
-            graphics.fillStyle(0x3a3a3a, alpha);
-            graphics.fillCircle(center.x, baseY - 1, 6);
-            graphics.fillStyle(0x444444, alpha);
-            graphics.fillCircle(center.x, baseY - 2, 4);
-            // Highlight
-            graphics.fillStyle(0x606060, alpha * 0.6);
-            graphics.fillCircle(center.x - 1, baseY - 3, 2);
-
-            // === MASSIVE CROSSBOW ARMS ===
-            const armLength = 28; // Much bigger arms
-            const armWidth = 5;   // Thicker arms
-            const bowHeight = -16; // Higher mounting point
-
-            // Arm tip positions (perpendicular to firing direction)
-            const leftArmX = center.x + (-sin) * armLength;
-            const leftArmY = center.y + bowHeight + (cos * 0.5) * armLength;
-            const rightArmX = center.x + (sin) * armLength;
-            const rightArmY = center.y + bowHeight + (-cos * 0.5) * armLength;
-
-            // Draw curved bow arms with multiple layers for depth
-            // Outer shadow
-            graphics.lineStyle(armWidth + 3, 0x2a1a10, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Main wooden arm
-            graphics.lineStyle(armWidth + 1, 0x5a3520, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Wood highlight
-            graphics.lineStyle(armWidth - 1, 0x7a5540, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Center wood grain
-            graphics.lineStyle(2, 0x6a4530, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Metal reinforcement bands on arms
-            const bandDist1 = 0.3;
-            const bandDist2 = 0.6;
-            const bandDist3 = 0.85;
-
-            for (const dist of [bandDist1, bandDist2, bandDist3]) {
-                const leftBandX = center.x + (-sin) * armLength * dist;
-                const leftBandY = center.y + bowHeight + (cos * 0.5) * armLength * dist;
-                const rightBandX = center.x + (sin) * armLength * dist;
-                const rightBandY = center.y + bowHeight + (-cos * 0.5) * armLength * dist;
-
-                graphics.fillStyle(0x555555, alpha);
-                graphics.fillCircle(leftBandX, leftBandY, 3);
-                graphics.fillCircle(rightBandX, rightBandY, 3);
-                graphics.fillStyle(0x777777, alpha * 0.5);
-                graphics.fillCircle(leftBandX - 0.5, leftBandY - 0.5, 1.5);
-                graphics.fillCircle(rightBandX - 0.5, rightBandY - 0.5, 1.5);
-            }
-
-            // Large metal arm tips with hooks for string
-            graphics.fillStyle(0x3a3a3a, alpha);
-            graphics.fillCircle(leftArmX, leftArmY, 5);
-            graphics.fillCircle(rightArmX, rightArmY, 5);
-            graphics.fillStyle(0x555555, alpha);
-            graphics.fillCircle(leftArmX, leftArmY, 3);
-            graphics.fillCircle(rightArmX, rightArmY, 3);
-            graphics.fillStyle(0x888888, alpha * 0.5);
-            graphics.fillCircle(leftArmX - 1, leftArmY - 1, 1.5);
-            graphics.fillCircle(rightArmX - 1, rightArmY - 1, 1.5);
-
-            // Calculate bowstring position (needed for bolt placement)
-            const stringPullback = stringTension * 16;
-            const stringCenterX = center.x + cos * (-stringPullback);
-            const stringCenterY = center.y + bowHeight + sin * 0.5 * (-stringPullback);
-
-            // === MAIN RAIL/STOCK ===
-            const railLength = 28;
-            const railEndX = center.x + cos * railLength;
-            const railEndY = center.y + bowHeight + sin * 0.5 * railLength;
-            const railBackX = center.x + cos * (-12);
-            const railBackY = center.y + bowHeight + sin * 0.5 * (-12);
-
-            // Draw thick wooden rail
-            graphics.lineStyle(10, 0x2a1a10, alpha);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-            graphics.lineStyle(8, 0x3a2515, alpha);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-            graphics.lineStyle(5, 0x4a3520, alpha);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-
-            // Rail groove for bolt
-            graphics.lineStyle(2, 0x2a1a10, alpha * 0.7);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-
-            // Metal reinforcement plates on rail
-            const plateDist = 0.4;
-            const plateX = center.x + cos * railLength * plateDist;
-            const plateY = center.y + bowHeight + sin * 0.5 * railLength * plateDist;
-            graphics.fillStyle(0x444444, alpha);
-            graphics.fillRect(plateX - 4, plateY - 2, 8, 4);
-            graphics.fillStyle(0x666666, alpha * 0.5);
-            graphics.fillRect(plateX - 3, plateY - 1, 6, 2);
-
-            // === BOLT ===
-            if (boltLoaded) {
-                const boltLength = 24;
-                const boltStartX = stringCenterX;
-                const boltStartY = stringCenterY;
-                const boltEndX = boltStartX + cos * boltLength;
-                const boltEndY = boltStartY + sin * 0.5 * boltLength;
-
-                // Narrower bolt shaft
-                graphics.lineStyle(3, 0x4a3a25, alpha);
-                graphics.lineBetween(boltStartX, boltStartY, boltEndX, boltEndY);
-                graphics.lineStyle(2, 0x5d4e37, alpha);
-                graphics.lineBetween(boltStartX, boltStartY, boltEndX, boltEndY);
-                graphics.lineStyle(1, 0x7d6e57, alpha);
-                graphics.lineBetween(boltStartX, boltStartY, boltEndX, boltEndY);
-
-                // Arrowhead (smaller)
-                const headLength = 8;
-                const headWidth = 4;
-                const headTipX = boltEndX + cos * headLength;
-                const headTipY = boltEndY + sin * 0.5 * headLength;
-
-                graphics.fillStyle(0x2a2a2a, alpha);
-                graphics.beginPath();
-                graphics.moveTo(headTipX, headTipY);
-                graphics.lineTo(boltEndX + (-sin) * headWidth, boltEndY + (cos * 0.5) * headWidth);
-                graphics.lineTo(boltEndX + (sin) * headWidth, boltEndY + (-cos * 0.5) * headWidth);
-                graphics.closePath();
-                graphics.fillPath();
-
-                // Metal shine on head
-                graphics.fillStyle(0x555555, alpha * 0.6);
-                graphics.beginPath();
-                graphics.moveTo(headTipX, headTipY);
-                graphics.lineTo(boltEndX + (-sin) * headWidth * 0.5, boltEndY + (cos * 0.5) * headWidth * 0.5);
-                graphics.lineTo(boltEndX, boltEndY);
-                graphics.closePath();
-                graphics.fillPath();
-
-                // Smaller fletching
-                const fletchX = boltStartX + cos * 3;
-                const fletchY = boltStartY + sin * 0.5 * 3;
-                graphics.fillStyle(0xcc2222, alpha);
-                graphics.beginPath();
-                graphics.moveTo(fletchX, fletchY);
-                graphics.lineTo(fletchX + (-sin) * 5, fletchY + (cos * 0.5) * 5 - 3);
-                graphics.lineTo(boltStartX + cos * 8, boltStartY + sin * 0.5 * 8);
-                graphics.closePath();
-                graphics.fillPath();
-                graphics.beginPath();
-                graphics.moveTo(fletchX, fletchY);
-                graphics.lineTo(fletchX + (sin) * 5, fletchY + (-cos * 0.5) * 5 - 3);
-                graphics.lineTo(boltStartX + cos * 8, boltStartY + sin * 0.5 * 8);
-                graphics.closePath();
-                graphics.fillPath();
-            }
-
-            // === BOWSTRING (rendered on top of bolt) ===
-            graphics.lineStyle(3, 0x888888, alpha);
-            graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-            graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-            graphics.lineStyle(2, 0xaaaaaa, alpha);
-            graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-            graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-
-            // String tension glow when drawn
-            if (stringTension > 0.3) {
-                graphics.lineStyle(4, 0xffffff, alpha * 0.15 * stringTension);
-                graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-                graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-            }
-
-        }
-    }
-
-    static drawBallistaLevel2(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // LEVEL 2 BALLISTA: Reinforced with bronze accents and improved mechanism
         const angle = building?.ballistaAngle ?? 0;
-        const stringTension = building?.ballistaStringTension ?? 0;
+        const tension = building?.ballistaStringTension ?? 0;
         const boltLoaded = building?.ballistaBoltLoaded ?? true;
-        const g = baseGraphics || graphics;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const H = -26; // rail height above the deck
 
+        // Aim-space transforms (iso Y squashed x0.5)
+        const ax = (d: number) => cos * d;
+        const ay = (d: number) => sin * 0.5 * d;
+        const px = (w: number) => -sin * w;
+        const py = (w: number) => cos * 0.5 * w;
+        // A point at distance d along the aim, offset w across it, at height h
+        const P = (d: number, w: number, h: number) => [
+            center.x + ax(d) + px(w),
+            center.y + h + ay(d) + py(w)
+        ];
+
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
+
+        // ===== PALETTE =====
+        const woodDark = isL3 ? 0x4a3520 : 0x3f2a18;
+        const woodMid = isL3 ? 0x6b4a2a : 0x5d4037;
+        const woodLight = isL3 ? 0x8a6238 : 0x795548;
+        const limbDark = isL3 ? 0xcfcfc2 : isL2 ? 0x2e2e38 : woodDark;
+        const limbMid = isL3 ? 0xe8e8da : isL2 ? 0x454552 : woodMid;
+        const ironMid = isL3 ? 0xb8860b : 0x4a4a4a;
+        const ironLight = isL3 ? 0xffd700 : 0x6a6a72;
+        const rope = isL3 ? 0xd8b96a : 0xb8a07a;
+        const stringC = isL3 ? 0xffe9a0 : 0xe8e0d0;
+
+        // ===== RAISED DECK =====
         if (!skipBase) {
-            // === REINFORCED STONE FOUNDATION ===
-            const baseHeight = 8; // Taller base
-
-            // Side faces with stone texture
-            graphics.fillStyle(0x4a4a4a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c2.x, c2.y);
-            graphics.lineTo(c3.x, c3.y);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.lineTo(c2.x, c2.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0x3a3a3a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c3.x, c3.y);
-            graphics.lineTo(c4.x, c4.y);
-            graphics.lineTo(c4.x, c4.y + baseHeight);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Top face with improved stone
-            g.fillStyle(tint ?? 0x606060, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Stone block pattern
-            g.lineStyle(1, 0x4a4a4a, alpha * 0.6);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-            // Additional cross pattern
-            const mid12 = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
-            const mid34 = { x: (c3.x + c4.x) / 2, y: (c3.y + c4.y) / 2 };
-            g.lineBetween(mid12.x, mid12.y, mid34.x, mid34.y);
-
-            // Dark grey corner accents
-            g.fillStyle(0x444444, alpha * 0.8);
-            g.fillCircle(c1.x, c1.y, 3);
-            g.fillCircle(c2.x, c2.y, 2.5);
-            g.fillCircle(c3.x, c3.y, 2.5);
-            g.fillCircle(c4.x, c4.y, 2.5);
-
-            // Border
-            g.lineStyle(2, 0x3a3a3a, 0.7 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.85, 0.78);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.66,
+                isL3 ? 0xcfc5ae : isL2 ? 0x50505a : 0x8a7355,
+                isL3 ? 0xafa58c : isL2 ? 0x33333c : 0x5f4d38,
+                isL3 ? 0xdaa520 : null);
         }
 
-        if (!onlyBase) {
-            // === REINFORCED WOODEN PLATFORM ===
-            const baseRadiusX = 24;
-            const baseRadiusY = 14;
-            const baseY = center.y - 5;
+        if (onlyBase) return;
 
-            // Shadow
-            g.fillStyle(0x1a1a1a, alpha * 0.4);
-            g.fillEllipse(center.x + 2, baseY + 5, baseRadiusX, baseRadiusY);
+        // ===== STATIC PROP: bolt quiver near the east corner =====
+        const qx = center.x + 34;
+        const qy = center.y + 2;
+        graphics.fillStyle(0x111111, alpha * 0.3);
+        graphics.fillEllipse(qx, qy + 5, 12, 4.5);
+        quad(graphics, [[qx - 4, qy + 4], [qx + 4, qy + 4], [qx + 5.5, qy - 6], [qx - 2.5, qy - 6]], woodMid, alpha);
+        quad(graphics, [[qx - 4, qy + 4], [qx - 2.5, qy - 6], [qx - 0.5, qy - 6], [qx - 2, qy + 4]], woodLight, alpha);
+        graphics.lineStyle(1.6, isL3 ? 0xb8860b : 0x8a7355, alpha);
+        graphics.lineBetween(qx - 1, qy - 6, qx - 3, qy - 13);
+        graphics.lineBetween(qx + 1.6, qy - 6, qx + 1.6, qy - 14);
+        graphics.lineBetween(qx + 4, qy - 6, qx + 6.5, qy - 12);
+        graphics.fillStyle(isL3 ? 0xdaa520 : 0x9c2b2b, alpha);
+        graphics.fillCircle(qx - 3, qy - 13, 1.2);
+        graphics.fillCircle(qx + 1.6, qy - 14, 1.2);
+        graphics.fillCircle(qx + 6.5, qy - 12, 1.2);
 
-            // Main platform - darker wood
-            graphics.fillStyle(0x4a3525, alpha);
-            graphics.fillEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
+        // ===== TURNTABLE =====
+        graphics.fillStyle(0x111111, alpha * 0.35);
+        graphics.fillEllipse(center.x + 2, center.y + 2, 42, 22);
+        graphics.fillStyle(woodDark, alpha);
+        graphics.fillEllipse(center.x, center.y - 2, 40, 21);
+        graphics.fillStyle(woodMid, alpha);
+        graphics.fillEllipse(center.x, center.y - 3, 36, 19);
+        // Plank seams that rotate with the aim — the table visibly turns
+        graphics.lineStyle(1, woodDark, alpha * 0.8);
+        for (const t of [-0.62, -0.22, 0.22, 0.62]) {
+            graphics.lineBetween(
+                center.x + ax(-16) + px(t * 27), center.y - 3 + ay(-16) + py(t * 27),
+                center.x + ax(16) + px(t * 27), center.y - 3 + ay(16) + py(t * 27)
+            );
+        }
+        graphics.lineStyle(2.4, ironMid, alpha * 0.9);
+        graphics.strokeEllipse(center.x, center.y - 3, 36, 19);
 
-            // Wood planks
-            graphics.lineStyle(1, 0x2a1a10, alpha * 0.5);
-            for (let i = 0; i < 6; i++) {
-                const ang = (i / 6) * Math.PI;
-                const x1 = center.x + Math.cos(ang) * (baseRadiusX - 2);
-                const y1 = baseY + Math.sin(ang) * (baseRadiusY - 1);
-                const x2 = center.x - Math.cos(ang) * (baseRadiusX - 2);
-                const y2 = baseY - Math.sin(ang) * (baseRadiusY - 1);
-                graphics.lineBetween(x1, y1, x2, y2);
+        // ===== KING-POST (squared block, carries the rail) =====
+        const kw = 6.5;
+        quad(graphics, [ // south-east face
+            [center.x + kw, center.y - 3], [center.x, center.y - 3 + kw * 0.5],
+            [center.x, center.y + H + 4 + kw * 0.5], [center.x + kw, center.y + H + 4]
+        ], woodDark, alpha);
+        quad(graphics, [ // south-west face
+            [center.x - kw, center.y - 3], [center.x, center.y - 3 + kw * 0.5],
+            [center.x, center.y + H + 4 + kw * 0.5], [center.x - kw, center.y + H + 4]
+        ], woodMid, alpha);
+        quad(graphics, [ // top
+            [center.x, center.y + H + 4 - kw * 0.5], [center.x + kw, center.y + H + 4],
+            [center.x, center.y + H + 4 + kw * 0.5], [center.x - kw, center.y + H + 4]
+        ], woodLight, alpha);
+
+        // ===== MACHINE PIECES (closures for aim-aware layering) =====
+        const railBack = -33;
+        const railFront = 31;
+
+        const drawRail = () => {
+            // Rail: under-shade, body, lit top edge
+            const w = 4.4;
+            quad(graphics, [
+                P(railBack, w, H + 2.2), P(railBack, -w, H + 2.2),
+                P(railFront, -w, H + 2.2), P(railFront, w, H + 2.2)
+            ], woodDark, alpha);
+            quad(graphics, [
+                P(railBack, w, H), P(railBack, -w, H),
+                P(railFront, -w, H), P(railFront, w, H)
+            ], woodMid, alpha);
+            quad(graphics, [
+                P(railBack, -w * 0.55, H - 1.4), P(railBack, -w * 0.05, H - 1.4),
+                P(railFront, -w * 0.05, H - 1.4), P(railFront, -w * 0.55, H - 1.4)
+            ], woodLight, alpha * 0.85);
+            // Bolt groove
+            graphics.lineStyle(1.2, woodDark, alpha * 0.8);
+            graphics.lineBetween(P(railBack + 3, 0, H - 1)[0], P(railBack + 3, 0, H - 1)[1], P(railFront - 1, 0, H - 1)[0], P(railFront - 1, 0, H - 1)[1]);
+
+        };
+
+        const drawWinch = () => {
+            // Windlass across the rear of the rail with crank handles that
+            // spin as the string is drawn (tension drives the crank angle).
+            const d = railBack + 3;
+            const axleW = 11;
+            const [x1, y1] = P(d, axleW, H + 1);
+            const [x2, y2] = P(d, -axleW, H + 1);
+            graphics.lineStyle(5.4, woodDark, alpha);
+            graphics.lineBetween(x1, y1, x2, y2);
+            graphics.lineStyle(3, woodLight, alpha);
+            graphics.lineBetween(x1, y1, x2, y2);
+            for (const [ex, ey] of [[x1, y1], [x2, y2]]) {
+                graphics.fillStyle(ironMid, alpha);
+                graphics.fillCircle(ex, ey, 3.2);
+                graphics.fillStyle(ironLight, alpha * 0.7);
+                graphics.fillCircle(ex - 0.8, ey - 0.8, 1.3);
             }
+        };
 
-            // Dark grey outer ring
-            graphics.lineStyle(4, 0x3a3a3a, alpha);
-            graphics.strokeEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-            graphics.lineStyle(2, 0x555555, alpha * 0.5);
-            graphics.strokeEllipse(center.x, baseY - 1, baseRadiusX - 1, baseRadiusY - 1);
+        // Torsion housings + limbs, the scorpio's power plant. The housings
+        // straddle the middle of the rail so the drawn string and the loaded
+        // bolt both live on the rail (no overhang at rest).
+        const housingD = 9;
+        const housingW = 15.5;
+        const tipD = housingD + 12;
+        const tipW = housingW + 19;
+        // Tapered strip with true screen-space thickness (perpendicular to
+        // the segment, not merely vertical) so limbs read as curved blades.
+        const strip = (a: number[], b: number[], wa: number, wb: number, color: number) => {
+            const dx = b[0] - a[0];
+            const dy = b[1] - a[1];
+            const len = Math.max(0.001, Math.hypot(dx, dy));
+            const nx = -dy / len;
+            const ny = dx / len;
+            quad(graphics, [
+                [a[0] + nx * wa, a[1] + ny * wa],
+                [b[0] + nx * wb, b[1] + ny * wb],
+                [b[0] - nx * wb, b[1] - ny * wb],
+                [a[0] - nx * wa, a[1] - ny * wa]
+            ], color, alpha);
+        };
+        const drawPowerPlant = () => {
+            for (const side of [-1, 1]) {
+                const [hx, hy] = P(housingD, side * housingW, H + 9);
+                const hh = 15;
+                const r = 5.2;
+                // Vertical cylinder: bottom ellipse, wall, lit top
+                graphics.fillStyle(woodDark, alpha);
+                graphics.fillEllipse(hx, hy, r * 2, r);
+                graphics.fillStyle(woodMid, alpha);
+                graphics.fillRect(hx - r, hy - hh, r * 2, hh);
+                graphics.fillStyle(0x000000, alpha * 0.18);
+                graphics.fillRect(hx + r * 0.25, hy - hh, r * 0.75, hh);
+                // Rope windings
+                graphics.lineStyle(1.6, rope, alpha);
+                for (let i = 1; i <= 2; i++) {
+                    graphics.lineBetween(hx - r + 0.5, hy - (hh * i) / 3, hx + r - 0.5, hy - (hh * i) / 3 - 0.8);
+                }
+                // Cap
+                graphics.fillStyle(isL3 ? 0xdaa520 : isL2 ? ironMid : woodLight, alpha);
+                graphics.fillEllipse(hx, hy - hh, r * 2 + 1, r + 0.5);
 
-            // Dark grey rivets
-            graphics.fillStyle(0x444444, alpha);
-            for (let i = 0; i < 10; i++) {
-                const ang = (i / 10) * Math.PI * 2;
-                const rx = center.x + Math.cos(ang) * (baseRadiusX - 3);
-                const ry = baseY + Math.sin(ang) * (baseRadiusY - 2);
-                graphics.fillCircle(rx, ry, 2.5);
-                graphics.fillStyle(0x666666, alpha * 0.5);
-                graphics.fillCircle(rx - 0.5, ry - 0.5, 1);
-                graphics.fillStyle(0x444444, alpha);
+                // Limb: grows out of the housing, sweeping outward then
+                // curling forward — two tapered blade segments
+                const k1 = P(housingD - 1.5, side * (housingW + 0.5), H - 6);
+                const k3 = P(tipD, side * tipW, H - 9.5);
+                strip(k1, k3, 3.6, 1.8, limbMid);
+                graphics.lineStyle(1.1, limbDark, alpha * 0.8);
+                graphics.lineBetween(k1[0], k1[1], k3[0], k3[1]);
+                // Limb tip cap
+                graphics.fillStyle(isL3 ? 0xffd700 : ironMid, alpha);
+                graphics.fillCircle(k3[0], k3[1], 2.8);
             }
+        };
 
-            const cos = Math.cos(angle);
-            const sin = Math.sin(angle);
+        // String + bolt (always topmost). Rest nock sits just behind the limb
+        // tips; drawing hauls it back along the rail.
+        const pull = tension * 22;
+        const nockD = tipD - 4 - pull;
+        const drawStringAndBolt = () => {
+            const tipL = P(tipD, -tipW, H - 9.5);
+            const tipR = P(tipD, tipW, H - 9.5);
+            const nock = P(nockD, 0, H - 2);
+            graphics.lineStyle(1.6, stringC, alpha * 0.95);
+            graphics.lineBetween(tipL[0], tipL[1], nock[0], nock[1]);
+            graphics.lineBetween(tipR[0], tipR[1], nock[0], nock[1]);
 
-            // === DARK GREY PIVOT MECHANISM ===
-            graphics.fillStyle(0x2a2a2a, alpha);
-            graphics.fillCircle(center.x, baseY, 10);
-            graphics.fillStyle(0x3a3a3a, alpha);
-            graphics.fillCircle(center.x, baseY - 1, 7);
-            graphics.fillStyle(0x444444, alpha);
-            graphics.fillCircle(center.x, baseY - 2, 4);
-            graphics.fillStyle(0x666666, alpha * 0.5);
-            graphics.fillCircle(center.x - 1, baseY - 3, 2);
-
-            // === REINFORCED CROSSBOW ARMS ===
-            const armLength = 30;
-            const armWidth = 6;
-            const bowHeight = -18;
-
-            const leftArmX = center.x + (-sin) * armLength;
-            const leftArmY = center.y + bowHeight + (cos * 0.5) * armLength;
-            const rightArmX = center.x + (sin) * armLength;
-            const rightArmY = center.y + bowHeight + (-cos * 0.5) * armLength;
-
-            // Dark wood arm
-            graphics.lineStyle(armWidth + 2, 0x3a2515, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Wood core
-            graphics.lineStyle(armWidth, 0x5a3520, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Wood highlight
-            graphics.lineStyle(3, 0x6a4530, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Dark grey reinforcement bands
-            const bandDist1 = 0.25;
-            const bandDist2 = 0.5;
-            const bandDist3 = 0.75;
-
-            for (const dist of [bandDist1, bandDist2, bandDist3]) {
-                const leftBandX = center.x + (-sin) * armLength * dist;
-                const leftBandY = center.y + bowHeight + (cos * 0.5) * armLength * dist;
-                const rightBandX = center.x + (sin) * armLength * dist;
-                const rightBandY = center.y + bowHeight + (-cos * 0.5) * armLength * dist;
-
-                graphics.fillStyle(0x333333, alpha);
-                graphics.fillCircle(leftBandX, leftBandY, 4);
-                graphics.fillCircle(rightBandX, rightBandY, 4);
-                graphics.fillStyle(0x555555, alpha * 0.6);
-                graphics.fillCircle(leftBandX - 0.5, leftBandY - 0.5, 2);
-                graphics.fillCircle(rightBandX - 0.5, rightBandY - 0.5, 2);
-            }
-
-            // Dark grey arm tips
-            graphics.fillStyle(0x2a2a2a, alpha);
-            graphics.fillCircle(leftArmX, leftArmY, 6);
-            graphics.fillCircle(rightArmX, rightArmY, 6);
-            graphics.fillStyle(0x444444, alpha);
-            graphics.fillCircle(leftArmX, leftArmY, 4);
-            graphics.fillCircle(rightArmX, rightArmY, 4);
-            graphics.fillStyle(0x666666, alpha * 0.6);
-            graphics.fillCircle(leftArmX - 1, leftArmY - 1, 2);
-            graphics.fillCircle(rightArmX - 1, rightArmY - 1, 2);
-
-            // String position
-            const stringPullback = stringTension * 18;
-            const stringCenterX = center.x + cos * (-stringPullback);
-            const stringCenterY = center.y + bowHeight + sin * 0.5 * (-stringPullback);
-
-            // === REINFORCED RAIL ===
-            const railLength = 30;
-            const railEndX = center.x + cos * railLength;
-            const railEndY = center.y + bowHeight + sin * 0.5 * railLength;
-            const railBackX = center.x + cos * (-14);
-            const railBackY = center.y + bowHeight + sin * 0.5 * (-14);
-
-            graphics.lineStyle(10, 0x2a1510, alpha);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-            graphics.lineStyle(6, 0x3a2515, alpha);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-            graphics.lineStyle(2, 0x4a3525, alpha * 0.7);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-
-            // Dark grey rail plates
-            for (const t of [0.3, 0.6]) {
-                const plateX = center.x + cos * railLength * t;
-                const plateY = center.y + bowHeight + sin * 0.5 * railLength * t;
-                graphics.fillStyle(0x444444, alpha);
-                graphics.fillEllipse(plateX, plateY, 5, 3);
-                graphics.fillStyle(0x666666, alpha * 0.5);
-                graphics.fillCircle(plateX - 1, plateY - 1, 1.5);
-            }
-
-            // === BOLT ===
             if (boltLoaded) {
-                const boltLength = 26;
-                const boltStartX = stringCenterX;
-                const boltStartY = stringCenterY;
-                const boltEndX = boltStartX + cos * boltLength;
-                const boltEndY = boltStartY + sin * 0.5 * boltLength;
-
-                graphics.lineStyle(4, 0x3a2a15, alpha);
-                graphics.lineBetween(boltStartX, boltStartY, boltEndX, boltEndY);
-                graphics.lineStyle(2, 0x5d4e37, alpha);
-                graphics.lineBetween(boltStartX, boltStartY, boltEndX, boltEndY);
-
-                // Arrowhead
-                const headLength = 10;
-                const headWidth = 5;
-                const headTipX = boltEndX + cos * headLength;
-                const headTipY = boltEndY + sin * 0.5 * headLength;
-
-                graphics.fillStyle(0x2a2a2a, alpha);
-                graphics.beginPath();
-                graphics.moveTo(headTipX, headTipY);
-                graphics.lineTo(boltEndX + (-sin) * headWidth, boltEndY + (cos * 0.5) * headWidth);
-                graphics.lineTo(boltEndX + (sin) * headWidth, boltEndY + (-cos * 0.5) * headWidth);
-                graphics.closePath();
-                graphics.fillPath();
-
-                graphics.fillStyle(0x555555, alpha * 0.6);
-                graphics.beginPath();
-                graphics.moveTo(headTipX, headTipY);
-                graphics.lineTo(boltEndX + (-sin) * headWidth * 0.4, boltEndY + (cos * 0.5) * headWidth * 0.4);
-                graphics.lineTo(boltEndX, boltEndY);
-                graphics.closePath();
-                graphics.fillPath();
-
-                // Dark grey fletching
-                const fletchX = boltStartX + cos * 3;
-                const fletchY = boltStartY + sin * 0.5 * 3;
-                graphics.fillStyle(0x444444, alpha);
-                graphics.beginPath();
-                graphics.moveTo(fletchX, fletchY);
-                graphics.lineTo(fletchX + (-sin) * 6, fletchY + (cos * 0.5) * 6 - 3);
-                graphics.lineTo(boltStartX + cos * 9, boltStartY + sin * 0.5 * 9);
-                graphics.closePath();
-                graphics.fillPath();
-                graphics.beginPath();
-                graphics.moveTo(fletchX, fletchY);
-                graphics.lineTo(fletchX + (sin) * 6, fletchY + (-cos * 0.5) * 6 - 3);
-                graphics.lineTo(boltStartX + cos * 9, boltStartY + sin * 0.5 * 9);
-                graphics.closePath();
-                graphics.fillPath();
+                // THE BOLT is the hero: a huge spear spanning the machine,
+                // its head jutting proud past the rail — recognizable as a
+                // giant-arrow-thrower from any distance.
+                const head = Math.min(nockD + 36, railFront + 9);
+                const tail = head - 46;
+                const shaftW = 3.2;
+                // Shaft with a lit top edge
+                quad(graphics, [
+                    P(tail, shaftW, H - 2.6), P(tail, -shaftW, H - 2.6),
+                    P(head, -shaftW * 0.75, H - 2.6), P(head, shaftW * 0.75, H - 2.6)
+                ], isL3 ? 0xb8860b : (isL2 ? 0x777782 : 0x8a6a48), alpha);
+                quad(graphics, [
+                    P(tail, -shaftW * 0.15, H - 3.6), P(tail, -shaftW * 0.8, H - 3.6),
+                    P(head, -shaftW * 0.6, H - 3.6), P(head, -shaftW * 0.1, H - 3.6)
+                ], isL3 ? 0xffd700 : (isL2 ? 0x9a9aa6 : 0xa8845e), alpha * 0.8);
+                // Big leaf-shaped head
+                const hp = P(head + 11, 0, H - 2.6);
+                const hMid1 = P(head + 3.5, 5.4, H - 2.6);
+                const hMid2 = P(head + 3.5, -5.4, H - 2.6);
+                const hBase = P(head, 0, H - 2.6);
+                quad(graphics, [hp, hMid1, hBase, hMid2], isL3 ? 0xffd700 : 0x3a3a3a, alpha);
+                // Tall twin fletching at the tail
+                const f1 = P(tail - 2, 0, H - 2.6);
+                const f2 = P(tail + 13, 0, H - 2.6);
+                const fUp = P(tail + 3, 0, H - 13);
+                const fSide = P(tail + 3, 8.5, H + 0.5);
+                const fc = isL3 ? 0xffd700 : (isL2 ? 0x555560 : 0xcc3333);
+                quad(graphics, [f1, fUp, f2], fc, alpha);
+                quad(graphics, [f1, fSide, f2], fc, alpha * 0.85);
             }
+        };
 
-            // === BOWSTRING ===
-            graphics.lineStyle(3, 0x888888, alpha);
-            graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-            graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-            graphics.lineStyle(2, 0xbbbbbb, alpha);
-            graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-            graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-
-            if (stringTension > 0.3) {
-                graphics.lineStyle(5, 0xffffff, alpha * 0.2 * stringTension);
-                graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-                graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-            }
-
+        // Aim-aware assembly: whichever end of the machine faces up-screen is
+        // drawn first so nearer parts correctly cover it.
+        if (sin < 0) {
+            drawPowerPlant();
+            drawRail();
+            drawWinch();
+        } else {
+            drawWinch();
+            drawRail();
+            drawPowerPlant();
         }
-    }
+        drawStringAndBolt();
 
-    static drawBallistaLevel3(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // LEVEL 3 BALLISTA: Marble & Gold — prestigious royal siege weapon
-        const angle = building?.ballistaAngle ?? 0;
-        const stringTension = building?.ballistaStringTension ?? 0;
-        const boltLoaded = building?.ballistaBoltLoaded ?? true;
-        const g = baseGraphics || graphics;
-
-        if (!skipBase) {
-            // === MARBLE FOUNDATION ===
-            const baseHeight = 8;
-
-            // Side faces - marble
-            graphics.fillStyle(0xddddcc, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c2.x, c2.y);
-            graphics.lineTo(c3.x, c3.y);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.lineTo(c2.x, c2.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0xccccbb, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c3.x, c3.y);
-            graphics.lineTo(c4.x, c4.y);
-            graphics.lineTo(c4.x, c4.y + baseHeight);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Top face - bright marble
-            g.fillStyle(tint ?? 0xeeeedd, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Stone block pattern
-            g.lineStyle(1, 0xddddcc, alpha * 0.6);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-            const mid12 = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
-            const mid34 = { x: (c3.x + c4.x) / 2, y: (c3.y + c4.y) / 2 };
-            g.lineBetween(mid12.x, mid12.y, mid34.x, mid34.y);
-
-            // Gold corner accents
-            g.fillStyle(0xdaa520, alpha * 0.8);
-            g.fillCircle(c1.x, c1.y, 3);
-            g.fillCircle(c2.x, c2.y, 2.5);
-            g.fillCircle(c3.x, c3.y, 2.5);
-            g.fillCircle(c4.x, c4.y, 2.5);
-
-            // Gold border
-            g.lineStyle(2, 0xdaa520, 0.7 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-        }
-
-        if (!onlyBase) {
-            // === MARBLE PLATFORM ===
-            const baseRadiusX = 24;
-            const baseRadiusY = 14;
-            const baseY = center.y - 5;
-
-            // Shadow
-            g.fillStyle(0x1a1a1a, alpha * 0.4);
-            g.fillEllipse(center.x + 2, baseY + 5, baseRadiusX, baseRadiusY);
-
-            // Main platform - marble
-            graphics.fillStyle(0xddddcc, alpha);
-            graphics.fillEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-
-            // Wood planks (marble veining)
-            graphics.lineStyle(1, 0xccccbb, alpha * 0.5);
-            for (let i = 0; i < 6; i++) {
-                const ang = (i / 6) * Math.PI;
-                const x1 = center.x + Math.cos(ang) * (baseRadiusX - 2);
-                const y1 = baseY + Math.sin(ang) * (baseRadiusY - 1);
-                const x2 = center.x - Math.cos(ang) * (baseRadiusX - 2);
-                const y2 = baseY - Math.sin(ang) * (baseRadiusY - 1);
-                graphics.lineBetween(x1, y1, x2, y2);
-            }
-
-            // Gold outer ring
-            graphics.lineStyle(4, 0xdaa520, alpha);
-            graphics.strokeEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-            graphics.lineStyle(2, 0xffd700, alpha * 0.5);
-            graphics.strokeEllipse(center.x, baseY - 1, baseRadiusX - 1, baseRadiusY - 1);
-
-            // Gold rivets
-            graphics.fillStyle(0xffd700, alpha);
-            for (let i = 0; i < 10; i++) {
-                const ang = (i / 10) * Math.PI * 2;
-                const rx = center.x + Math.cos(ang) * (baseRadiusX - 3);
-                const ry = baseY + Math.sin(ang) * (baseRadiusY - 2);
-                graphics.fillCircle(rx, ry, 2.5);
-                graphics.fillStyle(0xffd700, alpha * 0.5);
-                graphics.fillCircle(rx - 0.5, ry - 0.5, 1);
-                graphics.fillStyle(0xffd700, alpha);
-            }
-
-            const cos = Math.cos(angle);
-            const sin = Math.sin(angle);
-
-            // === GOLD PIVOT MECHANISM ===
-            graphics.fillStyle(0xccccbb, alpha);
-            graphics.fillCircle(center.x, baseY, 10);
-            graphics.fillStyle(0xddddcc, alpha);
-            graphics.fillCircle(center.x, baseY - 1, 7);
-            graphics.fillStyle(0xdaa520, alpha);
-            graphics.fillCircle(center.x, baseY - 2, 4);
-            graphics.fillStyle(0xffd700, alpha * 0.5);
-            graphics.fillCircle(center.x - 1, baseY - 3, 2);
-
-            // === MARBLE & GOLD CROSSBOW ARMS ===
-            const armLength = 30;
-            const armWidth = 6;
-            const bowHeight = -18;
-
-            const leftArmX = center.x + (-sin) * armLength;
-            const leftArmY = center.y + bowHeight + (cos * 0.5) * armLength;
-            const rightArmX = center.x + (sin) * armLength;
-            const rightArmY = center.y + bowHeight + (-cos * 0.5) * armLength;
-
-            // Marble arm
-            graphics.lineStyle(armWidth + 2, 0xccccbb, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Marble core
-            graphics.lineStyle(armWidth, 0xeeeedd, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Gold highlight
-            graphics.lineStyle(3, 0xdaa520, alpha);
-            graphics.lineBetween(center.x, center.y + bowHeight, leftArmX, leftArmY);
-            graphics.lineBetween(center.x, center.y + bowHeight, rightArmX, rightArmY);
-
-            // Gold reinforcement bands
-            const bandDist1 = 0.25;
-            const bandDist2 = 0.5;
-            const bandDist3 = 0.75;
-
-            for (const dist of [bandDist1, bandDist2, bandDist3]) {
-                const leftBandX = center.x + (-sin) * armLength * dist;
-                const leftBandY = center.y + bowHeight + (cos * 0.5) * armLength * dist;
-                const rightBandX = center.x + (sin) * armLength * dist;
-                const rightBandY = center.y + bowHeight + (-cos * 0.5) * armLength * dist;
-
-                graphics.fillStyle(0xdaa520, alpha);
-                graphics.fillCircle(leftBandX, leftBandY, 4);
-                graphics.fillCircle(rightBandX, rightBandY, 4);
-                graphics.fillStyle(0xffd700, alpha * 0.6);
-                graphics.fillCircle(leftBandX - 0.5, leftBandY - 0.5, 2);
-                graphics.fillCircle(rightBandX - 0.5, rightBandY - 0.5, 2);
-            }
-
-            // Gold arm tips
-            graphics.fillStyle(0xb8860b, alpha);
-            graphics.fillCircle(leftArmX, leftArmY, 6);
-            graphics.fillCircle(rightArmX, rightArmY, 6);
-            graphics.fillStyle(0xdaa520, alpha);
-            graphics.fillCircle(leftArmX, leftArmY, 4);
-            graphics.fillCircle(rightArmX, rightArmY, 4);
-            graphics.fillStyle(0xffd700, alpha * 0.6);
-            graphics.fillCircle(leftArmX - 1, leftArmY - 1, 2);
-            graphics.fillCircle(rightArmX - 1, rightArmY - 1, 2);
-
-            // String position
-            const stringPullback = stringTension * 18;
-            const stringCenterX = center.x + cos * (-stringPullback);
-            const stringCenterY = center.y + bowHeight + sin * 0.5 * (-stringPullback);
-
-            // === MARBLE & GOLD RAIL ===
-            const railLength = 30;
-            const railEndX = center.x + cos * railLength;
-            const railEndY = center.y + bowHeight + sin * 0.5 * railLength;
-            const railBackX = center.x + cos * (-14);
-            const railBackY = center.y + bowHeight + sin * 0.5 * (-14);
-
-            graphics.lineStyle(10, 0xccccbb, alpha);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-            graphics.lineStyle(6, 0xddddcc, alpha);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-            graphics.lineStyle(2, 0xdaa520, alpha * 0.7);
-            graphics.lineBetween(railBackX, railBackY, railEndX, railEndY);
-
-            // Gold rail plates
-            for (const t of [0.3, 0.6]) {
-                const plateX = center.x + cos * railLength * t;
-                const plateY = center.y + bowHeight + sin * 0.5 * railLength * t;
-                graphics.fillStyle(0xdaa520, alpha);
-                graphics.fillEllipse(plateX, plateY, 5, 3);
-                graphics.fillStyle(0xffd700, alpha * 0.5);
-                graphics.fillCircle(plateX - 1, plateY - 1, 1.5);
-            }
-
-            // === BOLT ===
-            if (boltLoaded) {
-                const boltLength = 26;
-                const boltStartX = stringCenterX;
-                const boltStartY = stringCenterY;
-                const boltEndX = boltStartX + cos * boltLength;
-                const boltEndY = boltStartY + sin * 0.5 * boltLength;
-
-                graphics.lineStyle(4, 0xb8860b, alpha);
-                graphics.lineBetween(boltStartX, boltStartY, boltEndX, boltEndY);
-                graphics.lineStyle(2, 0xdaa520, alpha);
-                graphics.lineBetween(boltStartX, boltStartY, boltEndX, boltEndY);
-
-                // Gold arrowhead
-                const headLength = 10;
-                const headWidth = 5;
-                const headTipX = boltEndX + cos * headLength;
-                const headTipY = boltEndY + sin * 0.5 * headLength;
-
-                graphics.fillStyle(0xdaa520, alpha);
-                graphics.beginPath();
-                graphics.moveTo(headTipX, headTipY);
-                graphics.lineTo(boltEndX + (-sin) * headWidth, boltEndY + (cos * 0.5) * headWidth);
-                graphics.lineTo(boltEndX + (sin) * headWidth, boltEndY + (-cos * 0.5) * headWidth);
-                graphics.closePath();
-                graphics.fillPath();
-
-                graphics.fillStyle(0xffd700, alpha * 0.6);
-                graphics.beginPath();
-                graphics.moveTo(headTipX, headTipY);
-                graphics.lineTo(boltEndX + (-sin) * headWidth * 0.4, boltEndY + (cos * 0.5) * headWidth * 0.4);
-                graphics.lineTo(boltEndX, boltEndY);
-                graphics.closePath();
-                graphics.fillPath();
-
-                // Gold fletching
-                const fletchX = boltStartX + cos * 3;
-                const fletchY = boltStartY + sin * 0.5 * 3;
-                graphics.fillStyle(0xdaa520, alpha);
-                graphics.beginPath();
-                graphics.moveTo(fletchX, fletchY);
-                graphics.lineTo(fletchX + (-sin) * 6, fletchY + (cos * 0.5) * 6 - 3);
-                graphics.lineTo(boltStartX + cos * 9, boltStartY + sin * 0.5 * 9);
-                graphics.closePath();
-                graphics.fillPath();
-                graphics.beginPath();
-                graphics.moveTo(fletchX, fletchY);
-                graphics.lineTo(fletchX + (sin) * 6, fletchY + (-cos * 0.5) * 6 - 3);
-                graphics.lineTo(boltStartX + cos * 9, boltStartY + sin * 0.5 * 9);
-                graphics.closePath();
-                graphics.fillPath();
-            }
-
-            // === GOLD BOWSTRING ===
-            graphics.lineStyle(3, 0xdaa520, alpha);
-            graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-            graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-            graphics.lineStyle(2, 0xffd700, alpha);
-            graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-            graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-
-            if (stringTension > 0.3) {
-                graphics.lineStyle(5, 0xffffff, alpha * 0.2 * stringTension);
-                graphics.lineBetween(leftArmX, leftArmY, stringCenterX, stringCenterY);
-                graphics.lineBetween(rightArmX, rightArmY, stringCenterX, stringCenterY);
-            }
-
+        // Muzzle glint right after firing
+        const sinceFire = building?.lastFireTime ? (time - building.lastFireTime) : Infinity;
+        if (sinceFire < 130 && time > 0) {
+            const m = P(railFront + 2, 0, H - 2);
+            graphics.fillStyle(0xffffcc, alpha * 0.85);
+            graphics.fillCircle(m[0], m[1], 3);
         }
     }
 
     static drawXBow(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // X-Bow state
-        const angle = building?.ballistaAngle ?? 0;
-        const stringTension = building?.ballistaStringTension ?? 0;
-
-        // Calculate rotation
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const heightOffset = -18; // Height above ground
-        const g = baseGraphics || graphics;
-
-        if (!skipBase) {
-            // === HEAVY FORTIFIED STONE BASE ===
-            const baseHeight = 8;
-
-            // Side faces (isometric depth)
-            graphics.fillStyle(0x5a5a5a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c2.x, c2.y);
-            graphics.lineTo(c3.x, c3.y);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.lineTo(c2.x, c2.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0x4a4a4a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c3.x, c3.y);
-            graphics.lineTo(c4.x, c4.y);
-            graphics.lineTo(c4.x, c4.y + baseHeight);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Top face
-            g.fillStyle(tint ?? 0x6a6a6a, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Stone block pattern
-            g.lineStyle(1, 0x5a5a5a, alpha * 0.5);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-
-            // Border
-            g.lineStyle(2, 0x4a4a4a, 0.7 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-        }
-
-        if (!onlyBase) {
-            // === METAL ROTATING PLATFORM ===
-            const baseRadiusX = 24;
-            const baseRadiusY = 14;
-            const baseY = center.y - 4;
-
-            // Shadow
-            g.fillStyle(0x1a1a1a, alpha * 0.4);
-            g.fillEllipse(center.x + 2, baseY + 4, baseRadiusX, baseRadiusY);
-
-            // Dark metal platform
-            graphics.fillStyle(0x3a3a4a, alpha);
-            graphics.fillEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-
-            // Metal segment lines
-            graphics.lineStyle(1, 0x2a2a3a, alpha * 0.6);
-            for (let i = 0; i < 8; i++) {
-                const ang = (i / 8) * Math.PI * 2;
-                const x1 = center.x + Math.cos(ang) * (baseRadiusX - 2);
-                const y1 = baseY + Math.sin(ang) * (baseRadiusY - 1);
-                graphics.lineBetween(center.x, baseY, x1, y1);
-            }
-
-            // Outer ring
-            graphics.lineStyle(3, 0x4a4a5a, alpha);
-            graphics.strokeEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-            graphics.lineStyle(1, 0x5a5a6a, alpha * 0.6);
-            graphics.strokeEllipse(center.x, baseY - 1, baseRadiusX - 1, baseRadiusY - 1);
-
-            // Bolts
-            graphics.fillStyle(0x555560, alpha);
-            for (let i = 0; i < 8; i++) {
-                const ang = (i / 8) * Math.PI * 2;
-                const rx = center.x + Math.cos(ang) * (baseRadiusX - 3);
-                const ry = baseY + Math.sin(ang) * (baseRadiusY - 2);
-                graphics.fillCircle(rx, ry, 2);
-            }
-
-            // === CENTRAL PIVOT MECHANISM ===
-            graphics.fillStyle(0x2a2a3a, alpha);
-            graphics.fillCircle(center.x, baseY, 8);
-            graphics.fillStyle(0x3a3a4a, alpha);
-            graphics.fillCircle(center.x, baseY - 1, 6);
-            graphics.fillStyle(0x4a4a5a, alpha);
-            graphics.fillCircle(center.x, baseY - 2, 4);
-            graphics.fillStyle(0x5a5a6a, alpha * 0.6);
-            graphics.fillCircle(center.x - 1, baseY - 3, 2);
-
-            // === CROSSBOW BODY ===
-            // Define Front (Tip) and Back (Stock) relative to center using angle
-            // Front is +d along angle
-            const frontX = center.x + cos * 20;
-            const frontY = center.y + heightOffset + sin * 0.5 * 20;
-            const backX = center.x + cos * -20;
-            const backY = center.y + heightOffset + sin * 0.5 * -20;
-
-            // Draw Stock/Rail
-            graphics.lineStyle(10, 0x3a2515, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-            // Highlight
-            graphics.lineStyle(6, 0x5a3520, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-
-            // === ARMS (Mounted at Front) ===
-            // Arms extend perpendicular to aim
-            const armSpan = 30;
-            const armX = -sin * armSpan;
-            const armY = cos * 0.5 * armSpan;
-
-            // Mount point slightly behind tip
-            const mountX = center.x + cos * 15;
-            const mountY = center.y + heightOffset + sin * 0.5 * 15;
-
-            const lArmX = mountX + armX;
-            const lArmY = mountY + armY;
-            const rArmX = mountX - armX;
-            const rArmY = mountY - armY;
-
-            graphics.lineStyle(5, 0x4a2a10, alpha);
-            graphics.lineBetween(mountX, mountY, lArmX, lArmY);
-            graphics.lineBetween(mountX, mountY, rArmX, rArmY);
-
-            // Tips
-            graphics.fillStyle(0x888888, alpha);
-            graphics.fillCircle(lArmX, lArmY, 3);
-            graphics.fillCircle(rArmX, rArmY, 3);
-
-            // === STRING (Single) ===
-            // Connects tips to Nock. Nock moves with tension.
-            const pull = stringTension * 12; // 0 to 12px back
-            // Resting nock position (mid-rail) -> Pulled back (near stock)
-            // Resting: -5. Pulled: -17.
-            const nockOffset = -5 - pull;
-            const nockX = center.x + cos * nockOffset;
-            const nockY = center.y + heightOffset + sin * 0.5 * nockOffset;
-
-            graphics.lineStyle(1.5, 0xdddddd, alpha); // Thin string
-            graphics.lineBetween(lArmX, lArmY, nockX, nockY);
-            graphics.lineBetween(rArmX, rArmY, nockX, nockY);
-
-            // === BOLT (If loaded) ===
-            if (stringTension > 0.1) {
-                const boltTipX = frontX;
-                const boltTipY = frontY;
-                graphics.lineStyle(2, 0xffff00, alpha);
-                graphics.lineBetween(nockX, nockY, boltTipX, boltTipY);
-            }
-
-            // Firing Glow
-            const firingGlow = 0.3 + Math.sin(time / 50) * 0.2;
-            graphics.fillStyle(0xff8844, alpha * firingGlow);
-            graphics.fillCircle(frontX, frontY, 4);
-        }
+        BuildingRenderer.renderXBowV2(1, graphics, c1, c2, c3, c4, center, alpha, tint, building, time, baseGraphics, skipBase, onlyBase);
     }
 
     static drawXBowLevel2(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // LEVEL 2 X-BOW: Enhanced with purple/magenta accents and energy effects
-        const angle = building?.ballistaAngle ?? 0;
-        const stringTension = building?.ballistaStringTension ?? 0;
-
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const heightOffset = -20; // Slightly higher
-        const g = baseGraphics || graphics;
-
-        if (!skipBase) {
-            // === ENHANCED FORTIFIED BASE ===
-            const baseHeight = 10;
-
-            // Side faces with purple tint
-            graphics.fillStyle(0x5a5a6a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c2.x, c2.y);
-            graphics.lineTo(c3.x, c3.y);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.lineTo(c2.x, c2.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0x4a4a5a, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c3.x, c3.y);
-            graphics.lineTo(c4.x, c4.y);
-            graphics.lineTo(c4.x, c4.y + baseHeight);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Top face
-            g.fillStyle(tint ?? 0x6a6a7a, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Stone pattern
-            g.lineStyle(1, 0x5a5a6a, alpha * 0.5);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-            const mid12 = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
-            const mid34 = { x: (c3.x + c4.x) / 2, y: (c3.y + c4.y) / 2 };
-            g.lineBetween(mid12.x, mid12.y, mid34.x, mid34.y);
-
-            // Dark grey corner accents
-            g.fillStyle(0x444444, alpha * 0.9);
-            g.fillCircle(c1.x, c1.y, 4);
-            g.fillCircle(c2.x, c2.y, 3);
-            g.fillCircle(c3.x, c3.y, 3);
-            g.fillCircle(c4.x, c4.y, 3);
-            // Subtle grey glow
-            g.fillStyle(0x666666, alpha * 0.4);
-            g.fillCircle(c1.x, c1.y, 6);
-
-            g.lineStyle(2, 0x4a4a5a, 0.7 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-        }
-
-        if (!onlyBase) {
-            // === ENHANCED METAL PLATFORM ===
-            const baseRadiusX = 26;
-            const baseRadiusY = 15;
-            const baseY = center.y - 5;
-
-            // Shadow
-            g.fillStyle(0x1a1a2a, alpha * 0.4);
-            g.fillEllipse(center.x + 2, baseY + 5, baseRadiusX, baseRadiusY);
-
-            // Dark grey metal platform
-            graphics.fillStyle(0x333333, alpha);
-            graphics.fillEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-
-            // Geometric pattern
-            graphics.lineStyle(1, 0x444444, alpha * 0.4);
-            for (let i = 0; i < 8; i++) {
-                const ang = (i / 8) * Math.PI * 2 + time / 2000;
-                const x1 = center.x + Math.cos(ang) * (baseRadiusX - 2);
-                const y1 = baseY + Math.sin(ang) * (baseRadiusY - 1);
-                graphics.lineBetween(center.x, baseY, x1, y1);
-            }
-
-            // Dark grey outer ring
-            graphics.lineStyle(4, 0x3a3a3a, alpha);
-            graphics.strokeEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-            graphics.lineStyle(2, 0x555555, alpha * 0.5);
-            graphics.strokeEllipse(center.x, baseY - 1, baseRadiusX - 1, baseRadiusY - 1);
-
-            // Dark grey rivets
-            graphics.fillStyle(0x444444, alpha);
-            for (let i = 0; i < 10; i++) {
-                const ang = (i / 10) * Math.PI * 2;
-                const rx = center.x + Math.cos(ang) * (baseRadiusX - 3);
-                const ry = baseY + Math.sin(ang) * (baseRadiusY - 2);
-                graphics.fillCircle(rx, ry, 2.5);
-                graphics.fillStyle(0x666666, alpha * 0.5);
-                graphics.fillCircle(rx - 0.5, ry - 0.5, 1);
-                graphics.fillStyle(0x444444, alpha);
-            }
-
-            // === ENHANCED DARK GREY PIVOT ===
-            graphics.fillStyle(0x2a2a2a, alpha);
-            graphics.fillCircle(center.x, baseY, 10);
-            graphics.fillStyle(0x3a3a3a, alpha);
-            graphics.fillCircle(center.x, baseY - 1, 7);
-            graphics.fillStyle(0x444444, alpha);
-            graphics.fillCircle(center.x, baseY - 2, 4);
-            // Core highlight
-            graphics.fillStyle(0x666666, alpha * 0.6);
-            graphics.fillCircle(center.x, baseY - 2, 2);
-
-            // === ENHANCED CROSSBOW BODY ===
-            const frontX = center.x + cos * 22;
-            const frontY = center.y + heightOffset + sin * 0.5 * 22;
-            const backX = center.x + cos * -22;
-            const backY = center.y + heightOffset + sin * 0.5 * -22;
-
-            // Enhanced rail
-            graphics.lineStyle(12, 0x2a2a3a, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-            graphics.lineStyle(8, 0x333333, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-            graphics.lineStyle(4, 0x444444, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-
-            // Dark grey line along rail
-            graphics.lineStyle(2, 0x444444, alpha * 0.7);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-
-            // === ENHANCED ARMS ===
-            const armSpan = 34;
-            const armX = -sin * armSpan;
-            const armY = cos * 0.5 * armSpan;
-
-            const mountX = center.x + cos * 17;
-            const mountY = center.y + heightOffset + sin * 0.5 * 17;
-
-            const lArmX = mountX + armX;
-            const lArmY = mountY + armY;
-            const rArmX = mountX - armX;
-            const rArmY = mountY - armY;
-
-            // Shadow
-            graphics.lineStyle(7, 0x1a1a2a, alpha);
-            graphics.lineBetween(mountX, mountY, lArmX, lArmY);
-            graphics.lineBetween(mountX, mountY, rArmX, rArmY);
-
-            // Dark arms
-            graphics.lineStyle(5, 0x333333, alpha);
-            graphics.lineBetween(mountX, mountY, lArmX, lArmY);
-            graphics.lineBetween(mountX, mountY, rArmX, rArmY);
-
-            // Arm highlights
-            graphics.lineStyle(3, 0x444444, alpha);
-            graphics.lineBetween(mountX, mountY, lArmX, lArmY);
-            graphics.lineBetween(mountX, mountY, rArmX, rArmY);
-
-            // Dark grey tips
-            graphics.fillStyle(0x2a2a2a, alpha);
-            graphics.fillCircle(lArmX, lArmY, 5);
-            graphics.fillCircle(rArmX, rArmY, 5);
-            graphics.fillStyle(0x444444, alpha);
-            graphics.fillCircle(lArmX, lArmY, 3);
-            graphics.fillCircle(rArmX, rArmY, 3);
-            graphics.fillStyle(0x666666, alpha * 0.6);
-            graphics.fillCircle(lArmX - 0.5, lArmY - 0.5, 1.5);
-            graphics.fillCircle(rArmX - 0.5, rArmY - 0.5, 1.5);
-
-            // === ENERGY STRING ===
-            const pull = stringTension * 14;
-            const nockOffset = -6 - pull;
-            const nockX = center.x + cos * nockOffset;
-            const nockY = center.y + heightOffset + sin * 0.5 * nockOffset;
-
-            // Reinforced string effect
-            graphics.lineStyle(2, 0x555555, alpha);
-            graphics.lineBetween(lArmX, lArmY, nockX, nockY);
-            graphics.lineBetween(rArmX, rArmY, nockX, nockY);
-            graphics.lineStyle(1, 0x777777, alpha * 0.7);
-            graphics.lineBetween(lArmX, lArmY, nockX, nockY);
-            graphics.lineBetween(rArmX, rArmY, nockX, nockY);
-
-            // Reinforced bolt
-            if (stringTension > 0.1) {
-                const boltTipX = frontX;
-                const boltTipY = frontY;
-                graphics.lineStyle(4, 0x333333, alpha * 0.5);
-                graphics.lineBetween(nockX, nockY, boltTipX, boltTipY);
-                graphics.lineStyle(2, 0x555555, alpha);
-                graphics.lineBetween(nockX, nockY, boltTipX, boltTipY);
-                graphics.lineStyle(1, 0x777777, alpha * 0.8);
-                graphics.lineBetween(nockX, nockY, boltTipX, boltTipY);
-            }
-
-            graphics.fillCircle(frontX, frontY, 5);
-        }
+        BuildingRenderer.renderXBowV2(2, graphics, c1, c2, c3, c4, center, alpha, tint, building, time, baseGraphics, skipBase, onlyBase);
     }
 
     static drawXBowLevel3(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        // LEVEL 3 X-BOW: Marble & Gold — prestigious rapid-fire crossbow
-        const angle = building?.ballistaAngle ?? 0;
-        const stringTension = building?.ballistaStringTension ?? 0;
-
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        const heightOffset = -20;
-        const g = baseGraphics || graphics;
-
-        if (!skipBase) {
-            // === MARBLE FORTIFIED BASE ===
-            const baseHeight = 10;
-
-            // Side faces - marble
-            graphics.fillStyle(0xddddcc, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c2.x, c2.y);
-            graphics.lineTo(c3.x, c3.y);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.lineTo(c2.x, c2.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0xccccbb, alpha);
-            graphics.beginPath();
-            graphics.moveTo(c3.x, c3.y);
-            graphics.lineTo(c4.x, c4.y);
-            graphics.lineTo(c4.x, c4.y + baseHeight);
-            graphics.lineTo(c3.x, c3.y + baseHeight);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Top face - marble
-            g.fillStyle(tint ?? 0xeeeedd, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            // Stone pattern
-            g.lineStyle(1, 0xddddcc, alpha * 0.5);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-            const mid12 = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
-            const mid34 = { x: (c3.x + c4.x) / 2, y: (c3.y + c4.y) / 2 };
-            g.lineBetween(mid12.x, mid12.y, mid34.x, mid34.y);
-
-            // Gold corner accents
-            g.fillStyle(0xdaa520, alpha * 0.9);
-            g.fillCircle(c1.x, c1.y, 4);
-            g.fillCircle(c2.x, c2.y, 3);
-            g.fillCircle(c3.x, c3.y, 3);
-            g.fillCircle(c4.x, c4.y, 3);
-            // Gold glow
-            g.fillStyle(0xffd700, alpha * 0.4);
-            g.fillCircle(c1.x, c1.y, 6);
-
-            g.lineStyle(2, 0xdaa520, 0.7 * alpha);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-        }
-
-        if (!onlyBase) {
-            // === MARBLE & GOLD METAL PLATFORM ===
-            const baseRadiusX = 26;
-            const baseRadiusY = 15;
-            const baseY = center.y - 5;
-
-            // Shadow
-            g.fillStyle(0x1a1a2a, alpha * 0.4);
-            g.fillEllipse(center.x + 2, baseY + 5, baseRadiusX, baseRadiusY);
-
-            // Marble platform
-            graphics.fillStyle(0xddddcc, alpha);
-            graphics.fillEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-
-            // Geometric pattern
-            graphics.lineStyle(1, 0xccccbb, alpha * 0.4);
-            for (let i = 0; i < 8; i++) {
-                const ang = (i / 8) * Math.PI * 2 + time / 2000;
-                const x1 = center.x + Math.cos(ang) * (baseRadiusX - 2);
-                const y1 = baseY + Math.sin(ang) * (baseRadiusY - 1);
-                graphics.lineBetween(center.x, baseY, x1, y1);
-            }
-
-            // Gold outer ring
-            graphics.lineStyle(4, 0xdaa520, alpha);
-            graphics.strokeEllipse(center.x, baseY, baseRadiusX, baseRadiusY);
-            graphics.lineStyle(2, 0xffd700, alpha * 0.5);
-            graphics.strokeEllipse(center.x, baseY - 1, baseRadiusX - 1, baseRadiusY - 1);
-
-            // Gold rivets
-            graphics.fillStyle(0xffd700, alpha);
-            for (let i = 0; i < 10; i++) {
-                const ang = (i / 10) * Math.PI * 2;
-                const rx = center.x + Math.cos(ang) * (baseRadiusX - 3);
-                const ry = baseY + Math.sin(ang) * (baseRadiusY - 2);
-                graphics.fillCircle(rx, ry, 2.5);
-                graphics.fillStyle(0xffd700, alpha * 0.5);
-                graphics.fillCircle(rx - 0.5, ry - 0.5, 1);
-                graphics.fillStyle(0xffd700, alpha);
-            }
-
-            // === GOLD PIVOT ===
-            graphics.fillStyle(0xccccbb, alpha);
-            graphics.fillCircle(center.x, baseY, 10);
-            graphics.fillStyle(0xddddcc, alpha);
-            graphics.fillCircle(center.x, baseY - 1, 7);
-            graphics.fillStyle(0xdaa520, alpha);
-            graphics.fillCircle(center.x, baseY - 2, 4);
-            graphics.fillStyle(0xffd700, alpha * 0.6);
-            graphics.fillCircle(center.x, baseY - 2, 2);
-
-            // === MARBLE & GOLD CROSSBOW BODY ===
-            const frontX = center.x + cos * 22;
-            const frontY = center.y + heightOffset + sin * 0.5 * 22;
-            const backX = center.x + cos * -22;
-            const backY = center.y + heightOffset + sin * 0.5 * -22;
-
-            // Rail
-            graphics.lineStyle(12, 0xccccbb, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-            graphics.lineStyle(8, 0xddddcc, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-            graphics.lineStyle(4, 0xeeeedd, alpha);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-
-            // Gold line along rail
-            graphics.lineStyle(2, 0xdaa520, alpha * 0.7);
-            graphics.lineBetween(backX, backY, frontX, frontY);
-
-            // === MARBLE & GOLD ARMS ===
-            const armSpan = 34;
-            const armX = -sin * armSpan;
-            const armY = cos * 0.5 * armSpan;
-
-            const mountX = center.x + cos * 17;
-            const mountY = center.y + heightOffset + sin * 0.5 * 17;
-
-            const lArmX = mountX + armX;
-            const lArmY = mountY + armY;
-            const rArmX = mountX - armX;
-            const rArmY = mountY - armY;
-
-            // Marble arms
-            graphics.lineStyle(5, 0xddddcc, alpha);
-            graphics.lineBetween(mountX, mountY, lArmX, lArmY);
-            graphics.lineBetween(mountX, mountY, rArmX, rArmY);
-
-            // Gold highlights
-            graphics.lineStyle(3, 0xdaa520, alpha);
-            graphics.lineBetween(mountX, mountY, lArmX, lArmY);
-            graphics.lineBetween(mountX, mountY, rArmX, rArmY);
-
-            // Gold tips
-            graphics.fillStyle(0xb8860b, alpha);
-            graphics.fillCircle(lArmX, lArmY, 5);
-            graphics.fillCircle(rArmX, rArmY, 5);
-            graphics.fillStyle(0xdaa520, alpha);
-            graphics.fillCircle(lArmX, lArmY, 3);
-            graphics.fillCircle(rArmX, rArmY, 3);
-            graphics.fillStyle(0xffd700, alpha * 0.6);
-            graphics.fillCircle(lArmX - 0.5, lArmY - 0.5, 1.5);
-            graphics.fillCircle(rArmX - 0.5, rArmY - 0.5, 1.5);
-
-            // === GOLD STRING ===
-            const pull = stringTension * 14;
-            const nockOffset = -6 - pull;
-            const nockX = center.x + cos * nockOffset;
-            const nockY = center.y + heightOffset + sin * 0.5 * nockOffset;
-
-            graphics.lineStyle(2, 0xdaa520, alpha);
-            graphics.lineBetween(lArmX, lArmY, nockX, nockY);
-            graphics.lineBetween(rArmX, rArmY, nockX, nockY);
-            graphics.lineStyle(1, 0xffd700, alpha * 0.7);
-            graphics.lineBetween(lArmX, lArmY, nockX, nockY);
-            graphics.lineBetween(rArmX, rArmY, nockX, nockY);
-
-            // Gold bolt
-            if (stringTension > 0.1) {
-                const boltTipX = frontX;
-                const boltTipY = frontY;
-                graphics.lineStyle(4, 0xb8860b, alpha * 0.5);
-                graphics.lineBetween(nockX, nockY, boltTipX, boltTipY);
-                graphics.lineStyle(2, 0xdaa520, alpha);
-                graphics.lineBetween(nockX, nockY, boltTipX, boltTipY);
-                graphics.lineStyle(1, 0xffd700, alpha * 0.8);
-                graphics.lineBetween(nockX, nockY, boltTipX, boltTipY);
-            }
-
-            // Gold front tip
-            graphics.fillStyle(0xffd700, alpha);
-            graphics.fillCircle(frontX, frontY, 5);
-            graphics.fillStyle(0xdaa520, alpha * 0.7);
-            graphics.fillCircle(frontX, frontY, 3);
-        }
+        BuildingRenderer.renderXBowV2(3, graphics, c1, c2, c3, c4, center, alpha, tint, building, time, baseGraphics, skipBase, onlyBase);
     }
 
-    static drawMortar(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building: any, time: number, baseGraphics?: Phaser.GameObjects.Graphics) {
-        const level = building?.level ?? 1;
+    /**
+     * X-BOW — a rapid-fire magazine crossbow turret.
+     *
+     * A stout drum tower carries a compact repeating crossbow. Its energy is
+     * mechanical: a bolt hopper feeds the rail from above and a side flywheel
+     * visibly whirs while the weapon is cycling (it fires every ~220ms, so in
+     * combat the whole head is alive). The shuttle string snaps back on every
+     * shot via ballistaStringTension (1 = just fired, decays to 0).
+     *
+     * Story across levels: timber repeater (L1) -> iron autobow (L2) ->
+     * gilded marble arbalest (L3).
+     */
+    private static renderXBowV2(level: number, graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
+        const g = baseGraphics || graphics;
+        const isL2 = level >= 2;
+        const isL3 = level >= 3;
+
+        const angle = building?.ballistaAngle ?? 0;
+        const tension = building?.ballistaStringTension ?? 0;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const H = -31; // weapon height above ground (drum top is at -17)
+
+        const ax = (d: number) => cos * d;
+        const ay = (d: number) => sin * 0.5 * d;
+        const px = (w: number) => -sin * w;
+        const py = (w: number) => cos * 0.5 * w;
+        const P = (d: number, w: number, h: number) => [
+            center.x + ax(d) + px(w),
+            center.y + h + ay(d) + py(w)
+        ];
+
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
+
+        // ===== PALETTE =====
+        const drumWallLit = isL3 ? 0x7d5c3a : isL2 ? 0x4a4a56 : 0x6d5334;
+        const drumWallDark = isL3 ? 0x5f4526 : isL2 ? 0x35353f : 0x53401f;
+        const drumTopC = isL3 ? 0x8f6c46 : isL2 ? 0x5a5a66 : 0x7d6340;
+        const drumDetail = isL3 ? 0xdaa520 : isL2 ? 0x23232b : 0x453317;
+        const steelDark = isL3 ? 0x8a6508 : 0x26262e;
+        const steelMid = isL3 ? 0xb8860b : 0x42424c;
+        const steelLight = isL3 ? 0xffd700 : 0x6a6a76;
+        const limbA = isL3 ? 0xe8e4d4 : 0x42424c;
+        const limbB = isL3 ? 0xcfc9b8 : 0x26262e;
+        const woodMid = 0x5d4037;
+        const woodLight = 0x795548;
+        const receiverMid = isL3 ? 0xc9992a : isL2 ? 0x3c3c46 : woodMid;
+        const receiverLight = isL3 ? 0xe8c25a : isL2 ? 0x55555f : woodLight;
+        const boltTipC = isL3 ? 0xffd700 : 0x9a9aa4;
+        const stringC = isL3 ? 0xffe9a0 : 0xe8e0d0;
+
+        // ===== FORTIFIED PAD =====
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.78);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.6,
+                isL3 ? 0xcfc5ae : isL2 ? 0x50505a : 0x8a7355,
+                isL3 ? 0xafa58c : isL2 ? 0x33333c : 0x5f4d38,
+                isL3 ? 0xdaa520 : null);
+        }
+
+        if (onlyBase) return;
+
+        // ===== DRUM TOWER =====
+        const drumR = 29;
+        const drumRy = 15;
+        const drumTopY = center.y - 17;
+        // Ground contact shadow
+        graphics.fillStyle(0x111111, alpha * 0.35);
+        graphics.fillEllipse(center.x + 2, center.y + 2, drumR * 2 + 5, drumRy * 2 - 2);
+        // Wall: lower ellipse + rectangle + shading on the sun-away half
+        graphics.fillStyle(drumWallLit, alpha);
+        graphics.fillEllipse(center.x, center.y, drumR * 2, drumRy * 2);
+        graphics.fillRect(center.x - drumR, drumTopY, drumR * 2, center.y - drumTopY);
+        // Sun-away (east) half of the wall
+        graphics.fillStyle(drumWallDark, alpha);
+        graphics.beginPath();
+        graphics.moveTo(center.x + drumR * 0.12, drumTopY);
+        graphics.lineTo(center.x + drumR, drumTopY);
+        graphics.lineTo(center.x + drumR, center.y);
+        graphics.lineTo(center.x + drumR * 0.12, center.y + drumRy);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Bands drawn as front arcs so they hug the drum's curvature instead
+        // of cutting straight across it.
+        const drumHoop = (yc: number, color: number, widthPx: number) => {
+            graphics.lineStyle(widthPx, color, alpha);
+            let px0 = center.x - drumR;
+            let py0 = yc;
+            for (let i = 1; i <= 10; i++) {
+                const t = (i / 10) * Math.PI;
+                const px1 = center.x - Math.cos(t) * drumR;
+                const py1 = yc + Math.sin(t) * drumRy * 0.5;
+                graphics.lineBetween(px0, py0, px1, py1);
+                px0 = px1;
+                py0 = py1;
+            }
+        };
+        if (isL2 && !isL3) {
+            drumHoop(center.y - 6, drumDetail, 2.6);
+            drumHoop(drumTopY + 3, drumDetail, 2.2);
+            graphics.fillStyle(0x6a6a76, alpha * 0.9);
+            for (let i = -2; i <= 2; i++) {
+                graphics.fillCircle(center.x + i * (drumR * 0.42), center.y - 6 + Math.sin(Math.acos(Math.min(1, Math.abs(i * 0.42)))) * drumRy * 0.5, 1.3);
+            }
+        } else if (isL3) {
+            drumHoop(center.y - 6, 0xdaa520, 2.6);
+            graphics.lineStyle(1, 0x4a3520, alpha * 0.55);
+            for (let i = -2; i <= 2; i++) {
+                const sx = center.x + i * (drumR * 0.38);
+                graphics.lineBetween(sx, drumTopY + 3, sx, center.y + drumRy * Math.sqrt(Math.max(0, 1 - Math.pow(i * 0.38, 2))) - 2);
+            }
+        } else {
+            // Timber staves
+            graphics.lineStyle(1, drumDetail, alpha * 0.55);
+            for (let i = -3; i <= 3; i++) {
+                const sx = center.x + i * (drumR * 0.26);
+                graphics.lineBetween(sx, drumTopY + 2, sx, center.y + drumRy * Math.sqrt(Math.max(0, 1 - Math.pow(i * 0.27, 2))) - 1);
+            }
+        }
+
+        // Drum top + rotating cap ring
+        graphics.fillStyle(drumTopC, alpha);
+        graphics.fillEllipse(center.x, drumTopY, drumR * 2, drumRy * 2);
+        graphics.lineStyle(1.6, drumDetail, alpha * 0.7);
+        graphics.strokeEllipse(center.x, drumTopY, drumR * 2, drumRy * 2);
+        // Turntable cap: seams rotate with the aim
+        graphics.fillStyle(isL3 ? 0x74553c : isL2 ? 0x47474f : 0x6b5334, alpha);
+        graphics.fillEllipse(center.x, drumTopY - 1, 42, 21);
+        graphics.lineStyle(1, drumDetail, alpha * 0.8);
+        for (const t of [-0.55, 0, 0.55]) {
+            graphics.lineBetween(
+                center.x + ax(-17.5) + px(t * 17), drumTopY - 1 + ay(-17.5) + py(t * 17),
+                center.x + ax(17.5) + px(t * 17), drumTopY - 1 + ay(17.5) + py(t * 17)
+            );
+        }
+        graphics.lineStyle(2, isL3 ? 0xdaa520 : steelMid, alpha * 0.9);
+        graphics.strokeEllipse(center.x, drumTopY - 1, 42, 21);
+
+        // ===== WEAPON HEAD =====
+        const sinceFire = building?.lastFireTime ? (time - building.lastFireTime) : Infinity;
+        const cycling = sinceFire < 1500;
+
+        // Pedestal from cap up to the receiver
+        quad(graphics, [
+            [center.x + 5, drumTopY - 1], [center.x - 5, drumTopY - 1],
+            [center.x - 4, center.y + H + 6], [center.x + 4, center.y + H + 6]
+        ], steelDark, alpha);
+
+        const railBack = -18;
+        const railFront = 27;
+
+        const drawReceiver = () => {
+            const w = 5.6;
+            // Under-shade, body, lit top
+            quad(graphics, [
+                P(railBack, w, H + 2), P(railBack, -w, H + 2),
+                P(railFront, -w, H + 2), P(railFront, w, H + 2)
+            ], steelDark, alpha);
+            quad(graphics, [
+                P(railBack, w, H), P(railBack, -w, H),
+                P(railFront, -w, H), P(railFront, w, H)
+            ], receiverMid, alpha);
+            quad(graphics, [
+                P(railBack, -w * 0.5, H - 1.4), P(railBack, -w * 0.02, H - 1.4),
+                P(railFront, -w * 0.02, H - 1.4), P(railFront, -w * 0.5, H - 1.4)
+            ], receiverLight, alpha * 0.9);
+            // Ejection groove
+            graphics.lineStyle(1.1, steelDark, alpha * 0.9);
+            graphics.lineBetween(P(railBack + 2, 0, H - 1)[0], P(railBack + 2, 0, H - 1)[1], P(railFront - 1, 0, H - 1)[0], P(railFront - 1, 0, H - 1)[1]);
+            // Muzzle guide ring
+            const mz = P(railFront, 0, H - 1);
+            graphics.lineStyle(2, isL3 ? 0xdaa520 : steelMid, alpha);
+            graphics.strokeEllipse(mz[0], mz[1], 6.6, 4.2);
+
+            // Cocking cranks hugging the receiver's rear flanks: the
+            // repeating mechanism, spinning while the weapon cycles. They sit
+            // directly against the rail so nothing floats free of the body.
+            const crank = cycling ? time / 90 : time / 1100;
+            for (const side of [-1, 1]) {
+                const [ex, ey] = P(railBack + 2.5, side * 6, H + 1.2);
+                graphics.fillStyle(steelDark, alpha);
+                graphics.fillCircle(ex, ey, 3.2);
+                graphics.fillStyle(steelMid, alpha);
+                graphics.fillCircle(ex, ey, 2.2);
+                graphics.lineStyle(1.8, steelDark, alpha);
+                graphics.lineBetween(ex, ey, ex + Math.cos(crank) * 4.6, ey + Math.sin(crank) * 2.9);
+                graphics.fillStyle(isL3 ? 0xffd700 : steelLight, alpha);
+                graphics.fillCircle(ex + Math.cos(crank) * 4.6, ey + Math.sin(crank) * 2.9, 1.6);
+            }
+        };
+
+        const drawLimbs = () => {
+            // Stubby recurve prods with real thickness, like a compound bow's
+            // limbs — thickness runs perpendicular to each blade on screen.
+            const strip = (a: number[], b: number[], wa: number, wb: number, color: number) => {
+                const dx = b[0] - a[0];
+                const dy = b[1] - a[1];
+                const len = Math.max(0.001, Math.hypot(dx, dy));
+                const nx = -dy / len;
+                const ny = dx / len;
+                quad(graphics, [
+                    [a[0] + nx * wa, a[1] + ny * wa],
+                    [b[0] + nx * wb, b[1] + ny * wb],
+                    [b[0] - nx * wb, b[1] - ny * wb],
+                    [a[0] - nx * wa, a[1] - ny * wa]
+                ], color, alpha);
+            };
+            for (const side of [-1, 1]) {
+                const root = P(12, side * 5.5, H - 1);
+                const mid = P(15.5, side * 13, H - 2.6);
+                const tip = P(17.5, side * 20, H - 4);
+                strip(root, mid, 4.2, 3, limbA);
+                strip(mid, tip, 3, 1.8, limbB);
+                graphics.fillStyle(isL3 ? 0xffd700 : steelLight, alpha);
+                graphics.fillCircle(tip[0], tip[1], 2.4);
+            }
+        };
+
+        const drawHopper = () => {
+            // Magazine box perched over the rear of the receiver, tilted
+            // toward the rail: top face shows the next bolts waiting.
+            // Drawn as a real rotation-proof box: of its four side faces we
+            // always render exactly the two whose outward normals point
+            // down-screen, whatever the aim — no face can ever go missing.
+            const b0 = railBack;
+            const b1 = railBack + 13.5;
+            const wT = 7.5;
+            const hTop = H - 12.5;
+            const hBot = H - 2;
+            const sideLit = isL3 ? 0xc9992a : isL2 ? 0x3c3c46 : woodMid;
+            const baseShade = isL3 ? 0xb8860b : isL2 ? 0x2b2b33 : 0x4d3527;
+
+            // Cross faces (±wT): visible when their normal (±py) points down-screen
+            const crossFace = (side: number, color: number) => quad(graphics, [
+                P(b0, side * wT, hBot), P(b1, side * wT, hBot + 1.5),
+                P(b1, side * wT, hTop + 1.5), P(b0, side * wT, hTop)
+            ], color, alpha);
+            // Along faces (front b1 / rear b0): visible when ±ay points down-screen
+            const alongFace = (d: number, hUp: number, hDn: number, color: number) => quad(graphics, [
+                P(d, wT, hDn), P(d, -wT, hDn),
+                P(d, -wT, hUp), P(d, wT, hUp)
+            ], color, alpha);
+
+            if (cos >= 0) crossFace(1, sideLit); else crossFace(-1, sideLit);
+            if (sin >= 0) alongFace(b1, hTop + 1.5, hBot + 1.5, baseShade);
+            else alongFace(b0, hTop, hBot, baseShade);
+
+            // Top face, tilted toward the front — always visible, always last
+            quad(graphics, [
+                P(b0, wT, hTop), P(b1, wT, hTop + 1.5),
+                P(b1, -wT, hTop + 1.5), P(b0, -wT, hTop)
+            ], isL3 ? 0xe8c25a : isL2 ? 0x4a4a54 : woodLight, alpha);
+            if (isL3) {
+                // Gold lid trim along the hopper's front edge
+                const e1 = P(b1, wT, hTop + 1.5);
+                const e2 = P(b1, -wT, hTop + 1.5);
+                graphics.lineStyle(1.4, 0xdaa520, alpha * 0.95);
+                graphics.lineBetween(e1[0], e1[1], e2[0], e2[1]);
+            }
+            // Bolt butts waiting in the magazine
+            graphics.fillStyle(boltTipC, alpha);
+            for (let i = 0; i < 3; i++) {
+                const d = b0 + 3.2 + i * 4.3;
+                const s1 = P(d, 2.8, hTop + 0.4 + (d - b0) / (b1 - b0) * 1.8);
+                const s2 = P(d, -2.8, hTop + 0.4 + (d - b0) / (b1 - b0) * 1.8);
+                graphics.fillCircle(s1[0], s1[1], 1.45);
+                graphics.fillCircle(s2[0], s2[1], 1.45);
+            }
+            // Feed chute hint down to the rail
+            graphics.lineStyle(1.4, steelDark, alpha * 0.8);
+            graphics.lineBetween(P(b1 - 1, 0, hBot + 2)[0], P(b1 - 1, 0, hBot + 2)[1], P(b1 + 2, 0, H - 1.5)[0], P(b1 + 2, 0, H - 1.5)[1]);
+        };
+
+
+        // String + shuttle + loaded bolt (topmost)
+        const drawStringAndBolt = () => {
+            const pull = tension * 12;
+            const nockD = 12 - pull;
+            const tipL = P(17.5, -20, H - 4);
+            const tipR = P(17.5, 20, H - 4);
+            const nock = P(nockD, 0, H - 1.8);
+            graphics.lineStyle(1.4, stringC, alpha * 0.95);
+            graphics.lineBetween(tipL[0], tipL[1], nock[0], nock[1]);
+            graphics.lineBetween(tipR[0], tipR[1], nock[0], nock[1]);
+            // Shuttle block riding the groove
+            graphics.fillStyle(steelLight, alpha);
+            graphics.fillRect(nock[0] - 2.2, nock[1] - 2.2, 4.4, 4.4);
+
+            if (tension < 0.35) {
+                // Next bolt seated and ready — pale shaft so it reads on wood
+                const tail = nockD + 1;
+                const head = nockD + 15;
+                quad(graphics, [
+                    P(tail, 1.5, H - 2), P(tail, -1.5, H - 2),
+                    P(head, -1.2, H - 2), P(head, 1.2, H - 2)
+                ], isL3 ? 0xffd700 : 0xd8c49a, alpha);
+                const hp = P(head + 4.4, 0, H - 2);
+                quad(graphics, [hp, P(head, 2.3, H - 2), P(head, -2.3, H - 2)], boltTipC, alpha);
+            }
+        };
+
+        // Muzzle flash for a single frame-ish window after each shot
+        const drawFlash = () => {
+            if (sinceFire < 120) {
+                const m = P(railFront + 3, 0, H - 1.5);
+                graphics.fillStyle(0xffee88, alpha * 0.9);
+                quad(graphics, [
+                    P(railFront + 1, 2, H - 1.5), P(railFront + 8, 0, H - 1.5),
+                    P(railFront + 1, -2, H - 1.5)
+                ], 0xffee88, alpha * 0.9);
+                graphics.fillStyle(0xffffff, alpha * 0.9);
+                graphics.fillCircle(m[0], m[1], 1.6);
+            }
+        };
+
+        // Aim-aware layering: hopper sits at the rear of the head — when the
+        // rear faces the viewer it must draw over the receiver, and under it
+        // when it faces away.
+        if (sin < 0) {
+            drawHopper();
+            drawReceiver();
+            drawLimbs();
+        } else {
+            drawReceiver();
+            drawLimbs();
+            drawHopper();
+        }
+        drawStringAndBolt();
+        drawFlash();
+    }
+
+    static drawMortar(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building: any, time: number, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
+        const level = Number(building?.level) || 1;
         const isLevel2 = level >= 2;
         const isLevel3 = level >= 3;
         const isLevel4 = level >= 4;
@@ -3153,9 +2096,6 @@ export class BuildingRenderer {
         else if (horizontalAim < -0.25) rotationDeg = -10;
 
         // Colors - varies by level
-        const stoneBase = tint ?? (isLevel4 ? 0xeeeedd : (isLevel3 ? 0x5a5a5a : (isLevel2 ? 0x4a4540 : 0x5a5550)));
-        const stoneDark = isLevel4 ? 0xddddcc : (isLevel3 ? 0x4a4a4a : (isLevel2 ? 0x3a3530 : 0x4a4540));
-        const stoneLight = isLevel4 ? 0xeeeedd : (isLevel3 ? 0x7a7a7a : 0x6a6560);
         const ironColor = isLevel4 ? 0xdaa520 : (isLevel3 ? 0x4a4a4a : (isLevel2 ? 0x3a3a3a : 0x4a4a4a));
         const ironDark = isLevel4 ? 0xb8860b : (isLevel3 ? 0x3a3a3a : (isLevel2 ? 0x2a2a2a : 0x3a3a3a));
         const ironLight = isLevel4 ? 0xffd700 : (isLevel3 ? 0x6a6a6a : (isLevel2 ? 0x4a4a4a : 0x5a5a5a));
@@ -3165,69 +2105,29 @@ export class BuildingRenderer {
         // Emplacement dimensions
         const pitRadius = 22 * size;
         const pitY = center.y + 2;
-        const baseElevation = isLevel3 ? 4 : 0; // L3+ has elevated base
 
         // ============================================
         // STONE BASE PLATFORM
         // ============================================
-        // L3+: Draw elevated platform sides first
-        if (isLevel3) {
-            graphics.fillStyle(stoneDark, alpha);
-            // Front side of elevation
-            graphics.beginPath();
-            graphics.moveTo(c2.x, c2.y);
-            graphics.lineTo(c3.x, c3.y);
-            graphics.lineTo(c3.x, c3.y + baseElevation);
-            graphics.lineTo(c2.x, c2.y + baseElevation);
-            graphics.closePath();
-            graphics.fillPath();
-            // Right side
-            graphics.beginPath();
-            graphics.moveTo(c3.x, c3.y);
-            graphics.lineTo(c4.x, c4.y);
-            graphics.lineTo(c4.x, c4.y + baseElevation);
-            graphics.lineTo(c3.x, c3.y + baseElevation);
-            graphics.closePath();
-            graphics.fillPath();
+
+        // Clash-style grounding: soft shadow + a compact emplacement pad
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.85, 0.78);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.68,
+                isLevel4 ? 0xcfc5ae : isLevel3 ? 0x4a4540 : 0x6a655d,
+                isLevel4 ? 0xafa58c : isLevel3 ? 0x33302b : 0x4b463f,
+                isLevel4 ? 0xdaa520 : null);
+
+            if (isLevel3) {
+                // Small decorative stones near emplacement
+                g.fillStyle(isLevel4 ? 0xddddcc : 0x5a5a5a, alpha * 0.7);
+                g.fillCircle(center.x - 22, center.y - 8, 2.5);
+                g.fillCircle(center.x + 20, center.y - 6, 2);
+                g.fillCircle(center.x - 18, center.y + 10, 2);
+                g.fillCircle(center.x + 22, center.y + 8, 2.5);
+            }
         }
-
-        // Main platform top
-        g.fillStyle(stoneBase, alpha);
-        g.fillPoints([c1, c2, c3, c4], true);
-
-        // Edge highlights
-        g.lineStyle(2, stoneLight, alpha * 0.6);
-        g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-        g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-        g.lineStyle(2, stoneDark, alpha * 0.6);
-        g.lineBetween(c2.x, c2.y, c3.x, c3.y);
-        g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-
-        // L3+: Stone rim around edge + decorative garnishes
-        if (isLevel3) {
-            g.lineStyle(3, isLevel4 ? 0xdaa520 : 0x6a6a6a, alpha * 0.8);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-
-            // Corner rivets/stones
-            g.fillStyle(isLevel4 ? 0xffd700 : 0x7a7a7a, alpha);
-            g.fillCircle(c1.x, c1.y, 3);
-            g.fillCircle(c2.x, c2.y, 3);
-            g.fillCircle(c3.x, c3.y, 3);
-            g.fillCircle(c4.x, c4.y, 3);
-            // Inner highlight on rivets
-            g.fillStyle(isLevel4 ? 0xffd700 : 0x9a9a9a, alpha * 0.8);
-            g.fillCircle(c1.x - 1, c1.y - 1, 1.5);
-            g.fillCircle(c2.x - 1, c2.y - 1, 1.5);
-            g.fillCircle(c3.x - 1, c3.y - 1, 1.5);
-            g.fillCircle(c4.x - 1, c4.y - 1, 1.5);
-
-            // Small decorative stones near emplacement
-            g.fillStyle(isLevel4 ? 0xddddcc : 0x5a5a5a, alpha * 0.7);
-            g.fillCircle(center.x - 22, center.y - 8, 2.5);
-            g.fillCircle(center.x + 20, center.y - 6, 2);
-            g.fillCircle(center.x - 18, center.y + 10, 2);
-            g.fillCircle(center.x + 22, center.y + 8, 2.5);
-        }
+        if (onlyBase) return;
 
         // ============================================
         // DIRT EMPLACEMENT (the pit the mortar sits in)
@@ -3331,7 +2231,7 @@ export class BuildingRenderer {
         // ============================================
         // SMOKE EFFECT ON FIRING
         // ============================================
-        if (timeSinceFire < 300) {
+        if (BuildingRenderer.AMBIENT_VAPOR && timeSinceFire < 300) {
             const t = timeSinceFire / 300;
             const smokeAlpha = (1 - t) * 0.5;
             graphics.fillStyle(0x888888, alpha * smokeAlpha);
@@ -3341,8 +2241,8 @@ export class BuildingRenderer {
         }
     }
 
-    static drawTeslaCoil(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building: any, time: number, baseGraphics?: Phaser.GameObjects.Graphics) {
-        const level = building?.level ?? 1;
+    static drawTeslaCoil(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building: any, time: number, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
+        const level = Number(building?.level) || 1;
         const isLevel2 = level >= 2;
         const isLevel3 = level >= 3;
         const g = baseGraphics || graphics;
@@ -3380,26 +2280,21 @@ export class BuildingRenderer {
             yOffset = dipAmount;
         }
 
-        // Stone base platform (stays in place — this is the ground)
-        g.fillStyle(isLevel3 ? 0xeeeedd : (isLevel2 ? 0x6a6a6a : 0x5a5a5a), alpha);
-        g.fillPoints([c1, c2, c3, c4], true);
-        g.lineStyle(isLevel3 ? 2 : (isLevel2 ? 2 : 1), isLevel3 ? 0xdaa520 : (isLevel2 ? 0x4a4a4a : 0x3a3a3a), 0.5 * alpha);
-        g.strokePoints([c1, c2, c3, c4], true, true);
+        // Clash-style grounding: soft shadow + a compact pad
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.75);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.66,
+                isLevel3 ? 0xcfc5ae : isLevel2 ? 0x6a6a6a : 0x5a5a5a,
+                isLevel3 ? 0xafa58c : isLevel2 ? 0x4a4a4a : 0x3f3f3f,
+                isLevel3 ? 0xdaa520 : null);
 
-        // L2+: Raised platform edge
-        if (isLevel2) {
-            g.fillStyle(isLevel3 ? 0xddddcc : 0x555555, alpha * 0.8);
-            g.fillRect(center.x - 16, center.y + 2, 32, 4);
+            // L2+: Raised platform edge
+            if (isLevel2) {
+                g.fillStyle(isLevel3 ? 0xddddcc : 0x555555, alpha * 0.8);
+                g.fillRect(center.x - 16, center.y + 2, 32, 4);
+            }
         }
-
-        // L3: Gold corner accents
-        if (isLevel3) {
-            g.fillStyle(0xffd700, alpha * 0.8);
-            g.fillCircle(c1.x, c1.y, 3);
-            g.fillCircle(c2.x, c2.y, 2.5);
-            g.fillCircle(c3.x, c3.y, 2.5);
-            g.fillCircle(c4.x, c4.y, 3);
-        }
+        if (onlyBase) return;
 
         // Support post (shifted by yOffset)
         const postWidth = isLevel3 ? 10 : (isLevel2 ? 10 : 8);
@@ -3542,30 +2437,29 @@ export class BuildingRenderer {
         }
     }
 
-    static drawFrostfall(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, _building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+    static drawFrostfall(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, _building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
         if (time === 0) time = Date.now();
-        const level = _building?.level ?? 1;
+        const level = Number(_building?.level) || 1;
         const g = baseGraphics || graphics;
         const fireRate = 5000;
         const timeSinceFire = _building && _building.lastFireTime ? time - _building.lastFireTime : fireRate + 1;
         const projectileActive = _building?.frostfallProjectileActive === true;
 
-        // --- COLORS ---
-        const stoneBase = tint ?? 0x4a5560;
-        const stoneDark = 0x3a4550;
-        const stoneLight = 0x6a7580;
+        // --- COLORS (max level: gilded marble housing around the same ice) ---
+        const isMax = level >= 4;
+        const stoneDark = isMax ? 0xafa78f : 0x3a4550;
         const frostAccent = 0x88ccff;
-        const woodColor = 0x6b4226;
-        const woodDark = 0x4a2e1a;
-        const woodLight = 0x8b5a3a;
-        const ropeColor = 0x8b7355;
+        const woodColor = isMax ? 0x9a7428 : 0x6b4226;
+        const woodDark = isMax ? 0x74560f : 0x4a2e1a;
+        const woodLight = isMax ? 0xc9992a : 0x8b5a3a;
+        const ropeColor = isMax ? 0xdaa520 : 0x8b7355;
 
         // --- DIMENSIONS ---
         const pitRadiusX = 22;
         const pitRadiusY = 11;
         const pitY = center.y + 2;
-        const crystalH = level >= 3 ? 45 : (level >= 2 ? 40 : 35);
-        const crystalW = level >= 3 ? 22 : (level >= 2 ? 20 : 18);
+        const crystalH = level >= 4 ? 50 : level >= 3 ? 45 : (level >= 2 ? 40 : 35);
+        const crystalW = level >= 4 ? 24 : level >= 3 ? 22 : (level >= 2 ? 20 : 18);
 
         // --- SCAFFOLDING POSITIONS ---
         const scaffX = center.x - 22;
@@ -3655,36 +2549,11 @@ export class BuildingRenderer {
         // 1. STONE BASE PLATFORM
         // ============================================
         if (!skipBase) {
-            g.fillStyle(stoneDark, alpha);
-            g.beginPath();
-            g.moveTo(c2.x, c2.y);
-            g.lineTo(c3.x, c3.y);
-            g.lineTo(c3.x, c3.y + 6);
-            g.lineTo(c2.x, c2.y + 6);
-            g.closePath();
-            g.fillPath();
-
-            g.beginPath();
-            g.moveTo(c3.x, c3.y);
-            g.lineTo(c4.x, c4.y);
-            g.lineTo(c4.x, c4.y + 6);
-            g.lineTo(c3.x, c3.y + 6);
-            g.closePath();
-            g.fillPath();
-
-            g.fillStyle(stoneBase, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-
-            g.lineStyle(2, stoneLight, alpha * 0.5);
-            g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-            g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            g.lineStyle(2, stoneDark, alpha * 0.5);
-            g.lineBetween(c2.x, c2.y, c3.x, c3.y);
-            g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-
-            g.lineStyle(1, frostAccent, alpha * 0.15);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.85, 0.8);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.68,
+                isMax ? 0xd3ccb8 : 0x4a5560,
+                isMax ? 0xafa78f : 0x3a4550,
+                isMax ? 0xdaa520 : null);
         }
         if (onlyBase) return;
 
@@ -3958,634 +2827,251 @@ export class BuildingRenderer {
             }
         }
     }
-    static drawPrismTower(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, _building ?: any, baseGraphics ?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-    const time = Date.now();
-    const level = _building?.level ?? 1;
-    const isLevel3 = level >= 3;
-    const isLevel4 = level >= 4;
-    const g = baseGraphics || graphics;
+    /**
+     * PRISM TOWER — the Suspended Prism.
+     *
+     * No tower at all: leaning obsidian pylons hold a levitating crystal in a
+     * cage of light. The crystal bobs and spins, energy tethers flicker from
+     * the pylon tips, and higher levels add pylons, halos and orbiting motes.
+     * The crystal's tip sits at y ≈ -55, exactly where MainScene starts the
+     * beam.
+     *
+     * Levels: twin pylons + cyan shard (L1) -> three pylons + violet prism
+     * (L2) -> arcane halo + magenta prism (L3) -> four gold-capped pylons,
+     * double halo and radiant prism (L4).
+     */
+    static drawPrismTower(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        const g = baseGraphics || graphics;
+        const level = Number(building?.level) || 1;
+        const isL2 = level >= 2;
+        const isL3 = level >= 3;
+        const isL4 = level >= 4;
 
-    // === BASE LAYER ===
-    if (!skipBase) {
-        if (isLevel4) {
-            // Marble & gold platform
-            g.fillStyle(tint ?? 0xeeeedd, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            const runeGlow = 0.3 + Math.sin(time / 200) * 0.15;
-            g.lineStyle(1.5, 0xffd700, alpha * runeGlow);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-            g.lineStyle(1, 0xdaa520, alpha * runeGlow * 0.8);
-            const rd = 6;
-            g.lineBetween(center.x, center.y - rd, center.x + rd, center.y);
-            g.lineBetween(center.x + rd, center.y, center.x, center.y + rd);
-            g.lineBetween(center.x, center.y + rd, center.x - rd, center.y);
-            g.lineBetween(center.x - rd, center.y, center.x, center.y - rd);
-            g.lineStyle(2, 0xdaa520, alpha * 0.8);
-            g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-            g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            // Gold corner accents
-            g.fillStyle(0xffd700, alpha * 0.9);
-            g.fillCircle(c1.x, c1.y, 3);
-            g.fillCircle(c2.x, c2.y, 3);
-            g.fillCircle(c3.x, c3.y, 3);
-            g.fillCircle(c4.x, c4.y, 3);
-        } else if (isLevel3) {
-            // Obsidian runic platform with glowing rune channels
-            g.fillStyle(tint ?? 0x1a1a2a, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            const runeGlow = 0.3 + Math.sin(time / 200) * 0.15;
-            g.lineStyle(1.5, 0xcc66ff, alpha * runeGlow);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-            g.lineStyle(1, 0xcc66ff, alpha * runeGlow * 0.8);
-            const rd = 6;
-            g.lineBetween(center.x, center.y - rd, center.x + rd, center.y);
-            g.lineBetween(center.x + rd, center.y, center.x, center.y + rd);
-            g.lineBetween(center.x, center.y + rd, center.x - rd, center.y);
-            g.lineBetween(center.x - rd, center.y, center.x, center.y - rd);
-            g.lineStyle(1, 0x4a4a6a, alpha * 0.8);
-            g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-            g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-        } else {
-            g.fillStyle(tint ?? 0x4a4a5a, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.lineStyle(1, 0x6a6a7a, alpha * 0.8);
-            g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-            g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            g.lineStyle(1, 0x2a2a3a, alpha * 0.8);
-            g.lineBetween(c2.x, c2.y, c3.x, c3.y);
-            g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-        }
-    }
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
 
-    if (onlyBase) return;
+        // ===== PALETTE =====
+        const glow = isL4 ? 0xffe9a0 : isL3 ? 0xff5ce1 : isL2 ? 0xb37cff : 0x6ee8ff;
+        const glowDeep = isL4 ? 0xdaa520 : isL3 ? 0xc02fa8 : isL2 ? 0x7e4fd0 : 0x2fa8c8;
+        const stoneLit = isL4 ? 0xdcd3ba : 0x3c3c4a;
+        const stoneDark = isL4 ? 0xb3a98d : 0x26262f;
+        const trim = isL4 ? 0xffd700 : isL3 ? 0xd8d8e4 : glowDeep;
 
-    const baseHeight = isLevel4 ? 20 : (isLevel3 ? 18 : 15);
-    const pillarColor1 = isLevel4 ? 0xccccbb : (isLevel3 ? 0x2a1a3a : 0x3a3a4a);
-    const pillarColor2 = isLevel4 ? 0xddddcc : (isLevel3 ? 0x3a2a4a : 0x5a5a6a);
-
-    graphics.fillStyle(pillarColor1, alpha);
-    graphics.fillPoints([
-        new Phaser.Math.Vector2(center.x + 8, center.y + 4),
-        new Phaser.Math.Vector2(center.x + 8, center.y + 4 - baseHeight),
-        new Phaser.Math.Vector2(center.x, center.y - 4 - baseHeight),
-        new Phaser.Math.Vector2(center.x, center.y - 4)
-    ], true);
-    graphics.fillStyle(pillarColor2, alpha);
-    graphics.fillPoints([
-        new Phaser.Math.Vector2(center.x, center.y - 4),
-        new Phaser.Math.Vector2(center.x, center.y - 4 - baseHeight),
-        new Phaser.Math.Vector2(center.x - 8, center.y + 4 - baseHeight),
-        new Phaser.Math.Vector2(center.x - 8, center.y + 4)
-    ], true);
-
-    if (isLevel4) {
-        // Gold accent lines on pillar
-        const runeGlow2 = 0.35 + Math.sin(time / 180) * 0.2;
-        graphics.lineStyle(1.5, 0xffd700, alpha * runeGlow2);
-        graphics.lineBetween(center.x + 4, center.y + 2 - baseHeight * 0.3, center.x + 6, center.y + 2 - baseHeight * 0.7);
-        graphics.lineBetween(center.x - 4, center.y + 2 - baseHeight * 0.3, center.x - 6, center.y + 2 - baseHeight * 0.7);
-    } else if (isLevel3) {
-        const runeGlow2 = 0.35 + Math.sin(time / 180) * 0.2;
-        graphics.lineStyle(1, 0xaa44ee, alpha * runeGlow2);
-        graphics.lineBetween(center.x + 4, center.y + 2 - baseHeight * 0.3, center.x + 6, center.y + 2 - baseHeight * 0.7);
-        graphics.lineBetween(center.x - 4, center.y + 2 - baseHeight * 0.3, center.x - 6, center.y + 2 - baseHeight * 0.7);
-    }
-
-    const crystalBase = center.y - baseHeight;
-    const crystalHeight = isLevel4 ? 45 : (isLevel3 ? 42 : 35);
-    const hueSpeed = isLevel4 ? 12 : (isLevel3 ? 15 : 20);
-    const hue1 = (time / hueSpeed) % 360;
-    const hue2 = (hue1 + 120) % 360;
-    const hue3 = (hue1 + 240) % 360;
-
-    const hslToColor = (h: number, sat: number = 0.7) => {
-        const c = sat;
-        const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-        let r = 0, gg = 0, b = 0;
-        if (h < 60) { r = c; gg = x; }
-        else if (h < 120) { r = x; gg = c; }
-        else if (h < 180) { gg = c; b = x; }
-        else if (h < 240) { gg = x; b = c; }
-        else if (h < 300) { r = x; b = c; }
-        else { r = c; b = x; }
-        return ((Math.floor((r + 0.3) * 255) << 16) | (Math.floor((gg + 0.3) * 255) << 8) | Math.floor((b + 0.3) * 255));
-    };
-
-    const crystalW = isLevel4 ? 8 : (isLevel3 ? 7 : 6);
-    graphics.fillStyle(hslToColor(hue1), alpha * 0.8);
-    graphics.beginPath();
-    graphics.moveTo(center.x + crystalW, crystalBase + 4);
-    graphics.lineTo(center.x, crystalBase - crystalHeight);
-    graphics.lineTo(center.x, crystalBase - 2);
-    graphics.closePath();
-    graphics.fillPath();
-
-    graphics.fillStyle(hslToColor(hue2), alpha * 0.8);
-    graphics.beginPath();
-    graphics.moveTo(center.x - crystalW, crystalBase + 4);
-    graphics.lineTo(center.x, crystalBase - crystalHeight);
-    graphics.lineTo(center.x, crystalBase - 2);
-    graphics.closePath();
-    graphics.fillPath();
-
-    graphics.fillStyle(hslToColor(hue3), alpha * 0.9);
-    graphics.beginPath();
-    graphics.moveTo(center.x - crystalW, crystalBase + 4);
-    graphics.lineTo(center.x, crystalBase - crystalHeight);
-    graphics.lineTo(center.x + crystalW, crystalBase + 4);
-    graphics.closePath();
-    graphics.fillPath();
-
-    if (isLevel3) {
-        // Orbiting satellite crystals
-        const orbitCount = isLevel4 ? 4 : 3;
-        for (let i = 0; i < orbitCount; i++) {
-            const orbitAngle = (time / (isLevel4 ? 500 : 600) + i * (Math.PI * 2 / orbitCount)) % (Math.PI * 2);
-            const orbitRadius = isLevel4 ? 12 : 10;
-            const orbitY = crystalBase - crystalHeight * 0.5;
-            const ox = center.x + Math.cos(orbitAngle) * orbitRadius;
-            const oy = orbitY + Math.sin(orbitAngle) * orbitRadius * 0.4;
-            const miniHue = (hue1 + i * (360 / orbitCount)) % 360;
-            graphics.fillStyle(hslToColor(miniHue, 0.9), alpha * 0.75);
-            graphics.beginPath();
-            graphics.moveTo(ox, oy - 5);
-            graphics.lineTo(ox + 2.5, oy);
-            graphics.lineTo(ox, oy + 3);
-            graphics.lineTo(ox - 2.5, oy);
-            graphics.closePath();
-            graphics.fillPath();
+        // ===== ARCANE PAD =====
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.5, 0.7);
+            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.56,
+                isL4 ? 0xa89f8a : 0x2e2e38,
+                isL4 ? 0x8a8272 : 0x1c1c24,
+                isL4 ? 0xdaa520 : null);
+            const ringPulse = 0.35 + Math.sin(time / 420) * 0.15;
+            g.lineStyle(1.8, glow, alpha * ringPulse);
+            g.strokeEllipse(center.x, center.y, 34, 17);
+            g.lineStyle(1, glowDeep, alpha * ringPulse * 0.8);
+            g.strokeEllipse(center.x, center.y, 24, 12);
         }
 
-        // L4: Gold ring around crystal base
-        if (isLevel4) {
-            graphics.lineStyle(2, 0xffd700, alpha * 0.7);
-            graphics.strokeEllipse(center.x, crystalBase + 2, 14, 6);
-        }
+        if (onlyBase) return;
+
+        // ===== CRYSTAL STATE =====
+        const bob = Math.sin(time / 420) * 2.4;
+        const crystalY = center.y - 46 - bob;
+        const halfH = isL4 ? 11 : isL3 ? 10 : isL2 ? 9 : 8;
+        // Fake spin: the silhouette breathes as the prism rotates
+        const spinPhase = Math.cos(time / 640);
+        const halfW = (isL4 ? 8 : isL3 ? 7 : isL2 ? 6 : 5) * (0.6 + 0.4 * Math.abs(spinPhase));
+
+        // Floating shadow: tightens when the crystal rises (soft on marble)
+        graphics.fillStyle(0x000000, alpha * (isL4 ? 0.16 : 0.28) * (1 - bob / 10));
+        graphics.fillEllipse(center.x, center.y + 1, 16 + bob, 7 + bob * 0.4);
+
+        // ===== PYLONS (leaning obsidian monoliths) =====
+        // Base angles walk around the pad; count grows with level.
+        const pylonAngles = isL4
+            ? [Math.PI * 0.28, Math.PI * 0.78, Math.PI * 1.28, Math.PI * 1.78]
+            : isL2
+                ? [Math.PI * 0.5, Math.PI * 1.1, Math.PI * 1.85]
+                : [Math.PI * 0.85, Math.PI * 1.95];
+        const tipH = 30;
+        type Pylon = { bx: number; by: number; tx: number; ty: number; depth: number };
+        const pylons: Pylon[] = pylonAngles.map(a2 => {
+            const bx = center.x + Math.cos(a2) * 22;
+            const by = center.y + Math.sin(a2) * 11;
+            const tx = center.x + Math.cos(a2) * 7;
+            const ty = center.y + Math.sin(a2) * 3.5 - tipH;
+            return { bx, by, tx, ty, depth: by };
+        });
+        pylons.sort((a, b) => a.depth - b.depth); // far pylons first
+
+        const drawPylon = (p: Pylon) => {
+            const wBase = 4.6;
+            const wTip = 2.2;
+            // Two faces for a chiselled monolith: lit west, dark east
+            quad(graphics, [
+                [p.bx - wBase, p.by - 1], [p.bx, p.by + wBase * 0.55],
+                [p.tx, p.ty + wTip * 0.5], [p.tx - wTip, p.ty - 0.5]
+            ], stoneLit, alpha);
+            quad(graphics, [
+                [p.bx, p.by + wBase * 0.55], [p.bx + wBase, p.by - 1],
+                [p.tx + wTip, p.ty - 0.5], [p.tx, p.ty + wTip * 0.5]
+            ], stoneDark, alpha);
+            // Rune seam glowing up the lit face
+            const runePulse = 0.5 + Math.sin(time / 300 + p.bx) * 0.3;
+            graphics.lineStyle(1.2, isL4 ? 0xdaa520 : glow, alpha * runePulse);
+            graphics.lineBetween(p.bx - wBase * 0.4, p.by - 1, p.tx - wTip * 0.4, p.ty + 0.5);
+            // Tip cap
+            graphics.fillStyle(trim, alpha);
+            quad(graphics, [
+                [p.tx - wTip - 0.6, p.ty - 0.5], [p.tx + wTip + 0.6, p.ty - 0.5],
+                [p.tx, p.ty - 4.6]
+            ], trim, alpha);
+        };
+
+        const drawTethers = () => {
+            for (let i = 0; i < pylons.length; i++) {
+                const p = pylons[i];
+                const flicker = 0.4 + Math.sin(time / 160 + i * 2.1) * 0.25;
+                graphics.lineStyle(1.2, glow, alpha * flicker);
+                graphics.lineBetween(p.tx, p.ty - 3, center.x, crystalY + halfH * 0.4);
+            }
+        };
+
+        // While the beam fires, the ground ring feeds the crystal: the circle
+        // flares and motes of light spiral up out of it into the prism.
+        const firing = building?.lastFireTime ? time - building.lastFireTime < 260 : false;
+        const drawGroundSurge = () => {
+            if (!firing) return;
+            // Flared ring + soft pool of light in the circle
+            graphics.fillStyle(glow, alpha * 0.14);
+            graphics.fillEllipse(center.x, center.y, 30, 15);
+            graphics.lineStyle(2.2, glow, alpha * 0.85);
+            graphics.strokeEllipse(center.x, center.y, 34, 17);
+            // Faint column the motes travel inside
+            quad(graphics, [
+                [center.x - 7, center.y - 1],
+                [center.x + 7, center.y - 1],
+                [center.x + 2.5, crystalY + halfH * 0.5],
+                [center.x - 2.5, crystalY + halfH * 0.5]
+            ], glow, alpha * 0.07);
+            // Spiralling motes, ground -> crystal
+            const climb = center.y - (crystalY + halfH * 0.4);
+            for (let i = 0; i < 5; i++) {
+                const t = ((time / 620) + i / 5) % 1;
+                const swirl = time / 480 + i * 2.51;
+                const rad = 15 * (1 - t) + 2.5;
+                const mx = center.x + Math.cos(swirl) * rad;
+                const my = center.y - t * climb + Math.sin(swirl) * rad * 0.45;
+                const fade = Math.sin(t * Math.PI); // ease in and out
+                graphics.lineStyle(1.4, glow, alpha * fade * 0.85);
+                graphics.lineBetween(mx, my + 3, mx, my - 2);
+                graphics.fillStyle(0xffffff, alpha * fade * 0.9);
+                graphics.fillCircle(mx, my - 2.5, 1.1);
+            }
+        };
+
+        const drawCrystal = () => {
+            // Soft aura
+            const aura = 0.14 + Math.sin(time / 300) * 0.05;
+            graphics.fillStyle(glow, alpha * aura);
+            graphics.fillCircle(center.x, crystalY, halfH + 7);
+
+            // Bipyramid: left facet darker, right facet lighter; the split
+            // line flips with the spin phase for a turning feel.
+            const flip = spinPhase >= 0 ? 1 : -1;
+            const top: number[] = [center.x, crystalY - halfH];
+            const bot: number[] = [center.x, crystalY + halfH];
+            const left: number[] = [center.x - halfW, crystalY - halfH * 0.08];
+            const right: number[] = [center.x + halfW, crystalY - halfH * 0.08];
+            quad(graphics, [top, left, bot], flip > 0 ? glowDeep : glow, alpha * 0.95);
+            quad(graphics, [top, right, bot], flip > 0 ? glow : glowDeep, alpha * 0.95);
+            // Inner fire
+            quad(graphics, [
+                [center.x, crystalY - halfH * 0.55],
+                [center.x - halfW * 0.4, crystalY],
+                [center.x, crystalY + halfH * 0.55],
+                [center.x + halfW * 0.4, crystalY]
+            ], 0xffffff, alpha * 0.75);
+            // Glint at the beam tip
+            const glint = 0.5 + Math.sin(time / 190) * 0.35;
+            graphics.fillStyle(0xffffff, alpha * glint);
+            graphics.fillCircle(center.x, crystalY - halfH, 1.7);
+        };
+
+        const drawHalos = () => {
+            if (!isL3) return;
+            const wob = Math.abs(Math.sin(time / 780));
+            graphics.lineStyle(1.4, trim, alpha * 0.8);
+            graphics.strokeEllipse(center.x, crystalY, halfH * 2.4, 3.5 + wob * 4);
+            if (isL4) {
+                graphics.lineStyle(1, 0xffd700, alpha * 0.65);
+                graphics.strokeEllipse(center.x, crystalY, halfH * 3.1, 5.5 + (1 - wob) * 4);
+                // Orbiting motes
+                for (let i = 0; i < 3; i++) {
+                    const a2 = time / 520 + (i * Math.PI * 2) / 3;
+                    graphics.fillStyle(0xffe9a0, alpha * 0.95);
+                    graphics.fillCircle(
+                        center.x + Math.cos(a2) * halfH * 1.7,
+                        crystalY + Math.sin(a2) * halfH * 0.55,
+                        1.6
+                    );
+                }
+            }
+        };
+
+        // Far pylons -> ground surge -> tethers -> crystal -> near pylons, so
+        // the light cage wraps around the floating prism correctly.
+        const far = pylons.filter(p => p.depth <= center.y);
+        const near = pylons.filter(p => p.depth > center.y);
+        far.forEach(drawPylon);
+        drawGroundSurge();
+        drawTethers();
+        drawCrystal();
+        drawHalos();
+        near.forEach(drawPylon);
     }
-
-    const glowPulse = isLevel4 ? (0.6 + Math.sin(time / 70) * 0.25) : (isLevel3 ? (0.5 + Math.sin(time / 80) * 0.25) : (0.4 + Math.sin(time / 100) * 0.2));
-    const glowSize = isLevel4 ? 7 : (isLevel3 ? 6 : 4);
-    graphics.fillStyle(0xffffff, alpha * glowPulse);
-    graphics.fillCircle(center.x, crystalBase - crystalHeight + 5, glowSize);
-
-    if (isLevel3) {
-        graphics.fillStyle(isLevel4 ? 0xffd700 : 0xcc66ff, alpha * glowPulse * 0.4);
-        graphics.fillCircle(center.x, crystalBase - crystalHeight + 5, glowSize + 4);
-    }
-
-    const beamCount = isLevel4 ? 6 : (isLevel3 ? 5 : 3);
-    const beamAlpha = isLevel4 ? 0.45 : (isLevel3 ? 0.4 : 0.3);
-    graphics.lineStyle(isLevel4 ? 2 : (isLevel3 ? 1.5 : 1), 0xffffff, alpha * beamAlpha);
-    for (let i = 0; i < beamCount; i++) {
-        const beamAngle = (time / 500 + i * (Math.PI * 2 / beamCount)) % (Math.PI * 2);
-        const beamLen = (isLevel4 ? 22 : (isLevel3 ? 20 : 15)) + Math.sin(time / 150 + i) * 5;
-        graphics.lineBetween(
-            center.x, crystalBase - crystalHeight,
-            center.x + Math.cos(beamAngle) * beamLen,
-            crystalBase - crystalHeight + Math.sin(beamAngle) * beamLen * 0.5
-        );
-    }
-}
-
-    // === MAGMA VENT - VOLCANIC LAVA SPEWER WITH STEAMPUNK CONTROLS ===
-    static drawMagmaVent(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building ?: any, baseGraphics ?: Phaser.GameObjects.Graphics, time: number = 0, skipBase: boolean = false, onlyBase: boolean = false) {
-    const level = building?.level ?? 1;
-    const isLevel3 = level >= 3;
-    const g = baseGraphics || graphics;
-
-    // Level 2+ scale multiplier (bigger rocks and lava)
-    const scale = isLevel3 ? 1.3 : (level >= 2 ? 1.2 : 1.0);
-
-    // Attack state
-    const timeSinceFire = building?.lastFireTime ? (time - building.lastFireTime) : 100000;
-    const attackDuration = 1200;
-    const isAttacking = timeSinceFire < attackDuration;
-    const attackProgress = isAttacking ? timeSinceFire / attackDuration : 0;
-    const attackPower = isAttacking ? Math.sin(attackProgress * Math.PI) : 0;
-
-    // === COLOR PALETTE ===
-    // L3: rocks stay dark/volcanic, only brass accents become gold
-    const basaltDark = 0x1a1a1f;
-    const basaltMid = 0x2a2a32;
-    const basaltLight = 0x3a3a45;
-    const basaltHighlight = 0x4a4a55;
-    const lavaOrange = 0xff5500;
-    const lavaYellow = 0xffaa00;
-    const lavaWhite = 0xffdd66;
-    const brassColor = tint ?? (isLevel3 ? 0xdaa520 : 0x9a9a9a);
-    const brassLight = isLevel3 ? 0xffd700 : 0xc0c0c0;
-    const brassDark = isLevel3 ? 0xb8860b : 0x6a6a6a;
-
-    // Pool position constants (used in both base and dynamic rendering)
-    const poolY = center.y + 2;
-    const poolW = 36 * scale;
-    const poolH = 18 * scale;
-
-    // === BASE LAYER (baked to ground texture) ===
-    if (!skipBase) {
-        // === GROUND BASE === (always dark volcanic)
-        g.fillStyle(0x1a1410, alpha);
-        g.fillPoints([c1, c2, c3, c4], true);
-
-        // L3: Gold border accent
-        if (isLevel3) {
-            g.lineStyle(2, 0xdaa520, alpha * 0.6);
-            g.strokePoints([c1, c2, c3, c4], true, true);
-        }
-
-        // === LAVA CHANNEL GRID (drawn on base layer, under everything) ===
-        // Static dim channels for base - attacking glow is dynamic
-        const channelAlpha = 0.2;
-        const channelColor = lavaOrange;
-        const channelWidth = 2.5;
-
-        g.lineStyle(channelWidth, channelColor, alpha * channelAlpha);
-
-        // Main radial channels from center to corners
-        g.lineBetween(center.x, center.y, c1.x, c1.y);
-        g.lineBetween(center.x, center.y, c2.x, c2.y);
-        g.lineBetween(center.x, center.y, c3.x, c3.y);
-        g.lineBetween(center.x, center.y, c4.x, c4.y);
-
-        // Secondary channels to edge midpoints
-        const midNE = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
-        const midSE = { x: (c2.x + c3.x) / 2, y: (c2.y + c3.y) / 2 };
-        const midSW = { x: (c3.x + c4.x) / 2, y: (c3.y + c4.y) / 2 };
-        const midNW = { x: (c4.x + c1.x) / 2, y: (c4.y + c1.y) / 2 };
-
-        g.lineBetween(center.x, center.y, midNE.x, midNE.y);
-        g.lineBetween(center.x, center.y, midSE.x, midSE.y);
-        g.lineBetween(center.x, center.y, midSW.x, midSW.y);
-        g.lineBetween(center.x, center.y, midNW.x, midNW.y);
-
-        // === CENTRAL LAVA POOL (static base) ===
-        // Dark crater rim
-        g.fillStyle(basaltDark, alpha);
-        g.fillEllipse(center.x, poolY + 2, poolW + 8, poolH + 4);
-
-        // Static lava glow edge
-        g.fillStyle(lavaOrange, alpha * 0.35 * 0.6);
-        g.fillEllipse(center.x, poolY + 1, poolW + 5, poolH + 2);
-
-        // Main lava surface (idle state)
-        g.fillStyle(lavaOrange, alpha * 0.65);
-        g.fillEllipse(center.x, poolY, poolW, poolH);
-
-        // Hot center
-        g.fillStyle(lavaYellow, alpha * 0.65 * 0.95);
-        g.fillEllipse(center.x, poolY - 1, poolW * 0.55, poolH * 0.55);
-
-        // White-hot core
-        g.fillStyle(lavaWhite, alpha * 0.65 * 0.85);
-        g.fillEllipse(center.x, poolY - 2, poolW * 0.25, poolH * 0.25);
-    }
-
-    // Return early if only drawing base
-    if (onlyBase) return;
-
-    // === DYNAMIC LAYER (rendered each frame at building depth) ===
-
-    // Dynamic lava glow overlay when attacking
-    if (isAttacking) {
-        const channelAlpha = 0.7 + attackPower * 0.3;
-        const channelColor = lavaYellow;
-        const channelWidth = 5 + attackPower * 3;
-
-        graphics.lineStyle(channelWidth, channelColor, alpha * channelAlpha);
-        graphics.lineBetween(center.x, center.y, c1.x, c1.y);
-        graphics.lineBetween(center.x, center.y, c2.x, c2.y);
-        graphics.lineBetween(center.x, center.y, c3.x, c3.y);
-        graphics.lineBetween(center.x, center.y, c4.x, c4.y);
-
-        const midNE = { x: (c1.x + c2.x) / 2, y: (c1.y + c2.y) / 2 };
-        const midSE = { x: (c2.x + c3.x) / 2, y: (c2.y + c3.y) / 2 };
-        const midSW = { x: (c3.x + c4.x) / 2, y: (c3.y + c4.y) / 2 };
-        const midNW = { x: (c4.x + c1.x) / 2, y: (c4.y + c1.y) / 2 };
-
-        graphics.lineBetween(center.x, center.y, midNE.x, midNE.y);
-        graphics.lineBetween(center.x, center.y, midSE.x, midSE.y);
-        graphics.lineBetween(center.x, center.y, midSW.x, midSW.y);
-        graphics.lineBetween(center.x, center.y, midNW.x, midNW.y);
-
-        // White-hot inner glow
-        const hotLength = 0.3 + attackProgress * 0.4;
-        graphics.lineStyle(channelWidth * 0.4, lavaWhite, alpha * attackPower * 0.8);
-        graphics.lineBetween(center.x, center.y, center.x + (c1.x - center.x) * hotLength, center.y + (c1.y - center.y) * hotLength);
-        graphics.lineBetween(center.x, center.y, center.x + (c2.x - center.x) * hotLength, center.y + (c2.y - center.y) * hotLength);
-        graphics.lineBetween(center.x, center.y, center.x + (c3.x - center.x) * hotLength, center.y + (c3.y - center.y) * hotLength);
-        graphics.lineBetween(center.x, center.y, center.x + (c4.x - center.x) * hotLength, center.y + (c4.y - center.y) * hotLength);
-
-        // Central glow
-        graphics.fillStyle(lavaWhite, alpha * attackPower * 0.4);
-        graphics.fillCircle(center.x, center.y, 10 + attackPower * 12);
-
-        // Dynamic lava surface overlay
-        const lavaAlpha = 0.95;
-        const glowAmount = 0.7 + attackPower * 0.3;
-        graphics.fillStyle(lavaOrange, alpha * glowAmount * 0.6);
-        graphics.fillEllipse(center.x, poolY + 1, poolW + 5, poolH + 2);
-        graphics.fillStyle(lavaOrange, alpha * lavaAlpha);
-        graphics.fillEllipse(center.x, poolY, poolW, poolH);
-        graphics.fillStyle(lavaYellow, alpha * lavaAlpha * 0.95);
-        graphics.fillEllipse(center.x, poolY - 1, poolW * 0.55, poolH * 0.55);
-        const coreSize = 0.4 + attackPower * 0.3;
-        graphics.fillStyle(lavaWhite, alpha * lavaAlpha * 0.85);
-        graphics.fillEllipse(center.x, poolY - 2, poolW * coreSize, poolH * coreSize);
-    }
-
-    // === HUGE VOLCANIC ROCKS ===
-    const rockScale = scale;
-
-    // BACK-LEFT ROCK (huge, imposing) — marble at L3
-    graphics.fillStyle(isLevel3 ? 0xccccbb : basaltMid, alpha);
-    graphics.beginPath();
-    graphics.moveTo(center.x - 48 * rockScale, center.y + 15);
-    graphics.lineTo(center.x - 44 * rockScale, center.y - 25 * rockScale);
-    graphics.lineTo(center.x - 30 * rockScale, center.y - 35 * rockScale);
-    graphics.lineTo(center.x - 18 * rockScale, center.y - 28 * rockScale);
-    graphics.lineTo(center.x - 12 * rockScale, center.y - 8);
-    graphics.lineTo(center.x - 20 * rockScale, center.y + 12);
-    graphics.closePath();
-    graphics.fillPath();
-
-    // Back-left rock highlight face
-    graphics.fillStyle(isLevel3 ? 0xddddcc : basaltLight, alpha * 0.8);
-    graphics.beginPath();
-    graphics.moveTo(center.x - 48 * rockScale, center.y + 15);
-    graphics.lineTo(center.x - 44 * rockScale, center.y - 25 * rockScale);
-    graphics.lineTo(center.x - 36 * rockScale, center.y - 18 * rockScale);
-    graphics.lineTo(center.x - 38 * rockScale, center.y + 8);
-    graphics.closePath();
-    graphics.fillPath();
-
-    // Back-left rock shadow face
-    graphics.fillStyle(isLevel3 ? 0xbbbbaa : basaltDark, alpha);
-    graphics.beginPath();
-    graphics.moveTo(center.x - 18 * rockScale, center.y - 28 * rockScale);
-    graphics.lineTo(center.x - 12 * rockScale, center.y - 8);
-    graphics.lineTo(center.x - 20 * rockScale, center.y + 12);
-    graphics.lineTo(center.x - 22 * rockScale, center.y - 5);
-    graphics.closePath();
-    graphics.fillPath();
-
-    // BACK-RIGHT ROCK (huge) — marble at L3
-    graphics.fillStyle(isLevel3 ? 0xbbbbaa : basaltDark, alpha);
-    graphics.beginPath();
-    graphics.moveTo(center.x + 46 * rockScale, center.y + 18);
-    graphics.lineTo(center.x + 40 * rockScale, center.y - 20 * rockScale);
-    graphics.lineTo(center.x + 28 * rockScale, center.y - 30 * rockScale);
-    graphics.lineTo(center.x + 16 * rockScale, center.y - 22 * rockScale);
-    graphics.lineTo(center.x + 14 * rockScale, center.y + 5);
-    graphics.lineTo(center.x + 25 * rockScale, center.y + 16);
-    graphics.closePath();
-    graphics.fillPath();
-
-    // Back-right rock highlight
-    graphics.fillStyle(isLevel3 ? 0xddddcc : basaltMid, alpha * 0.7);
-    graphics.beginPath();
-    graphics.moveTo(center.x + 28 * rockScale, center.y - 30 * rockScale);
-    graphics.lineTo(center.x + 40 * rockScale, center.y - 20 * rockScale);
-    graphics.lineTo(center.x + 38 * rockScale, center.y - 5);
-    graphics.lineTo(center.x + 30 * rockScale, center.y - 15 * rockScale);
-    graphics.closePath();
-    graphics.fillPath();
-
-    // FRONT ROCK (smaller, foreground) — marble at L3 only
-    graphics.fillStyle(isLevel3 ? 0xccccbb : basaltMid, alpha);
-    graphics.beginPath();
-    graphics.moveTo(center.x + 8 * rockScale, center.y + 25);
-    graphics.lineTo(center.x + 4 * rockScale, center.y + 12);
-    graphics.lineTo(center.x + 15 * rockScale, center.y + 8);
-    graphics.lineTo(center.x + 22 * rockScale, center.y + 18);
-    graphics.closePath();
-    graphics.fillPath();
-
-    graphics.fillStyle(isLevel3 ? 0xddddcc : basaltHighlight, alpha * 0.6);
-    graphics.beginPath();
-    graphics.moveTo(center.x + 8 * rockScale, center.y + 25);
-    graphics.lineTo(center.x + 4 * rockScale, center.y + 12);
-    graphics.lineTo(center.x + 10 * rockScale, center.y + 14);
-    graphics.lineTo(center.x + 12 * rockScale, center.y + 22);
-    graphics.closePath();
-    graphics.fillPath();
-
-    // Rock lava glow (reflected light when attacking)
-    if (isAttacking) {
-        graphics.fillStyle(lavaOrange, alpha * attackPower * 0.4);
-        graphics.fillCircle(center.x - 28 * rockScale, center.y - 5, 14 * rockScale);
-        graphics.fillCircle(center.x + 28 * rockScale, center.y - 2, 12 * rockScale);
-        graphics.fillCircle(center.x + 12 * rockScale, center.y + 15, 8 * rockScale);
-    }
-
-    // === BIG ROTATING DIAL WHEEL ===
-    const wheelX = center.x;
-    const wheelY = center.y - 32;
-    const wheelRadius = 15 * scale;
-
-    // Wheel mount / housing base
-    graphics.fillStyle(brassDark, alpha);
-    graphics.fillRect(wheelX - 12, wheelY + 10, 24, 14);
-    graphics.fillStyle(brassColor, alpha);
-    graphics.fillRect(wheelX - 10, wheelY + 12, 20, 10);
-
-    // Wheel outer rim
-    graphics.lineStyle(6, brassDark, alpha);
-    graphics.strokeCircle(wheelX, wheelY, wheelRadius);
-    graphics.lineStyle(4, brassColor, alpha);
-    graphics.strokeCircle(wheelX, wheelY, wheelRadius - 2);
-    graphics.lineStyle(2, brassLight, alpha * 0.8);
-    graphics.strokeCircle(wheelX, wheelY, wheelRadius - 4);
-
-    // DIAL ROTATION - Spins when attacking!
-    const dialRotation = isAttacking
-        ? attackProgress * Math.PI * 3  // Spins 1.5 full rotations during attack
-        : Math.sin(time / 2000) * 0.1;  // Slight idle wobble
-
-    // Wheel spokes (8 for ship-wheel look)
-    graphics.lineStyle(3, brassColor, alpha);
-    for (let i = 0; i < 8; i++) {
-        const spokeAngle = (i / 8) * Math.PI * 2 + dialRotation;
-        const sx = wheelX + Math.cos(spokeAngle) * (wheelRadius - 5);
-        const sy = wheelY + Math.sin(spokeAngle) * (wheelRadius - 5) * 0.65;
-        graphics.lineBetween(wheelX, wheelY, sx, sy);
-    }
-
-    // Handle knobs on 4 spokes
-    graphics.fillStyle(brassDark, alpha);
-    for (let i = 0; i < 4; i++) {
-        const knobAngle = (i / 4) * Math.PI * 2 + dialRotation;
-        const kx = wheelX + Math.cos(knobAngle) * (wheelRadius - 3);
-        const ky = wheelY + Math.sin(knobAngle) * (wheelRadius - 3) * 0.65;
-        graphics.fillCircle(kx, ky, 3);
-    }
-    graphics.fillStyle(brassLight, alpha * 0.7);
-    for (let i = 0; i < 4; i++) {
-        const knobAngle = (i / 4) * Math.PI * 2 + dialRotation;
-        const kx = wheelX + Math.cos(knobAngle) * (wheelRadius - 3) - 0.5;
-        const ky = wheelY + Math.sin(knobAngle) * (wheelRadius - 3) * 0.65 - 0.5;
-        graphics.fillCircle(kx, ky, 1.5);
-    }
-
-    // Center hub
-    graphics.fillStyle(brassDark, alpha);
-    graphics.fillCircle(wheelX, wheelY, 7);
-    graphics.fillStyle(brassColor, alpha);
-    graphics.fillCircle(wheelX, wheelY, 5);
-    graphics.fillStyle(brassLight, alpha);
-    graphics.fillCircle(wheelX - 1.5, wheelY - 1.5, 2.5);
-
-    // === PRESSURE GAUGE (with animated needle) ===
-    const gaugeX = center.x - 35;
-    const gaugeY = center.y - 22;
-    const gaugeRadius = 11 * scale;
-
-    // Gauge mount bracket
-    graphics.fillStyle(brassDark, alpha);
-    graphics.fillRect(gaugeX - 5, gaugeY + gaugeRadius - 3, 10, 12);
-
-    // Gauge body
-    graphics.fillStyle(brassColor, alpha);
-    graphics.fillCircle(gaugeX, gaugeY, gaugeRadius + 2);
-    graphics.fillStyle(brassDark, alpha);
-    graphics.fillCircle(gaugeX, gaugeY, gaugeRadius);
-
-    // Gauge face
-    graphics.fillStyle(0xf5f5e8, alpha);
-    graphics.fillCircle(gaugeX, gaugeY, gaugeRadius - 2);
-
-    // Gauge zone arcs
-    const arcR = gaugeRadius - 4;
-    graphics.lineStyle(3, 0x44aa44, alpha * 0.65);
-    graphics.beginPath();
-    graphics.arc(gaugeX, gaugeY, arcR, -Math.PI * 0.8, -Math.PI * 0.35);
-    graphics.strokePath();
-    graphics.lineStyle(3, 0xddaa00, alpha * 0.65);
-    graphics.beginPath();
-    graphics.arc(gaugeX, gaugeY, arcR, -Math.PI * 0.35, Math.PI * 0.05);
-    graphics.strokePath();
-    graphics.lineStyle(3, 0xdd3333, alpha * 0.65);
-    graphics.beginPath();
-    graphics.arc(gaugeX, gaugeY, arcR, Math.PI * 0.05, Math.PI * 0.45);
-    graphics.strokePath();
-
-    // Tick marks
-    graphics.lineStyle(1, 0x333333, alpha);
-    for (let i = 0; i < 8; i++) {
-        const tickAngle = -Math.PI * 0.8 + (i / 7) * Math.PI * 1.25;
-        graphics.lineBetween(
-            gaugeX + Math.cos(tickAngle) * (gaugeRadius - 5),
-            gaugeY + Math.sin(tickAngle) * (gaugeRadius - 5),
-            gaugeX + Math.cos(tickAngle) * (gaugeRadius - 2),
-            gaugeY + Math.sin(tickAngle) * (gaugeRadius - 2)
-        );
-    }
-
-    // Needle - Smooth physics: shoots up, bounces at limit, falls back down
-    const idleNeedleWobble = Math.sin(time / 800) * 0.15;
-    const idleAngle = -Math.PI * 0.6 + idleNeedleWobble;  // Green zone
-    const maxAngle = Math.PI * 0.35;  // Deep red zone (limit)
-
-    let needleAngle: number;
-    if (isAttacking) {
-        // Smooth animation: fast shoot up, bounce at top, gradual fall
-        // Phase 1 (0-0.2): Rapid rise to max
-        // Phase 2 (0.2-0.5): Bounce/oscillate at top
-        // Phase 3 (0.5-1.0): Gradual fall back toward idle
-
-        if (attackProgress < 0.15) {
-            // SHOOT UP - fast ease-out curve
-            const riseProgress = attackProgress / 0.15;
-            const easeOut = 1 - Math.pow(1 - riseProgress, 3);  // cubic ease-out
-            needleAngle = idleAngle + (maxAngle - idleAngle) * easeOut;
-        } else if (attackProgress < 0.4) {
-            // BOUNCE at the top - damped oscillation
-            const bounceProgress = (attackProgress - 0.15) / 0.25;
-            const bounce = Math.sin(bounceProgress * Math.PI * 3) * Math.exp(-bounceProgress * 3) * 0.15;
-            needleAngle = maxAngle + bounce;
-        } else {
-            // FALL BACK DOWN - slow ease-in
-            const fallProgress = (attackProgress - 0.4) / 0.6;
-            const easeIn = Math.pow(fallProgress, 2);  // quadratic ease-in
-            needleAngle = maxAngle - (maxAngle - idleAngle) * easeIn;
-        }
-    } else {
-        needleAngle = idleAngle;
-    }
-
-    graphics.lineStyle(2.5, 0xcc0000, alpha);
-    graphics.lineBetween(
-        gaugeX, gaugeY,
-        gaugeX + Math.cos(needleAngle) * (gaugeRadius - 3),
-        gaugeY + Math.sin(needleAngle) * (gaugeRadius - 3)
-    );
-
-    // Needle hub
-    graphics.fillStyle(0x222222, alpha);
-    graphics.fillCircle(gaugeX, gaugeY, 3);
-    graphics.fillStyle(brassLight, alpha);
-    graphics.fillCircle(gaugeX - 0.5, gaugeY - 0.5, 1.5);
-
-    // Gauge glass rim
-    graphics.lineStyle(2, brassLight, alpha * 0.7);
-    graphics.strokeCircle(gaugeX, gaugeY, gaugeRadius + 1);
-
-    // === ERUPTION EFFECTS (on attack) ===
-    if (isAttacking) {
-        // Lava bubbles erupting from pool
-        for (let i = 0; i < 6; i++) {
-            const bubblePhase = (attackProgress + i * 0.15) % 1;
-            const bubbleX = center.x + Math.sin(i * 2.3 + time / 70) * 10 * scale;
-            const bubbleY = poolY - 6 - bubblePhase * 45 * scale;
-            const bubbleAlpha = (1 - bubblePhase) * attackPower;
-            const bubbleSize = (2.5 + (1 - bubblePhase) * 6) * scale;
-
-            graphics.fillStyle(lavaYellow, alpha * bubbleAlpha);
-            graphics.fillCircle(bubbleX, bubbleY, bubbleSize);
-            graphics.fillStyle(lavaWhite, alpha * bubbleAlpha * 0.65);
-            graphics.fillCircle(bubbleX, bubbleY, bubbleSize * 0.4);
-        }
-
-        // Large heat glow dome
-        graphics.fillStyle(lavaYellow, alpha * attackPower * 0.2);
-        graphics.fillEllipse(center.x, center.y, 70 * scale, 40 * scale);
-    }
-
-    // === SUBTLE IDLE SMOKE ===
-    if (!isAttacking) {
-        for (let i = 0; i < 2; i++) {
-            const smokePhase = ((time / 3500) + i * 0.5) % 1;
-            const smokeY = poolY - 10 - smokePhase * 35;
-            const smokeX = center.x + Math.sin(time / 500 + i * 3) * 8 * smokePhase;
-            const smokeAlpha = (1 - smokePhase) * 0.2;
-            graphics.fillStyle(0x444444, alpha * smokeAlpha);
-            graphics.fillCircle(smokeX, smokeY, 4 + smokePhase * 6);
-        }
-    }
-}
-
     static drawArmyCamp(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, baseGraphics ?: Phaser.GameObjects.Graphics, building ?: any, skipBase: boolean = false, onlyBase: boolean = false) {
     const time = Date.now();
     const g = baseGraphics || graphics; // Ground-plane elements render here.
-    const level = building?.level ?? 1;
+    const level = Number(building?.level) || 1;
     const isLevel4 = level >= 4;
     const showWeaponRack = level >= 2;
     const showDummy = level >= 3;
 
     // === TRAINING GROUND BASE ===
     if (!skipBase) {
-        // Packed dirt/sand arena floor
+        // Chamfered-square training ground, inset a touch from the footprint
+        // (no ground shadow — the patch itself grounds the camp)
+        const inset = (a: Phaser.Math.Vector2) => new Phaser.Math.Vector2(
+            center.x + (a.x - center.x) * 0.92,
+            center.y + (a.y - center.y) * 0.92
+        );
+        const k1 = inset(c1);
+        const k2 = inset(c2);
+        const k3 = inset(c3);
+        const k4 = inset(c4);
+        const cut = 0.16;
+        const kcorners = [k1, k2, k3, k4];
+        const dirtOcto: Phaser.Math.Vector2[] = [];
+        for (let i = 0; i < 4; i++) {
+            const a2 = kcorners[i];
+            const b2 = kcorners[(i + 1) % 4];
+            dirtOcto.push(new Phaser.Math.Vector2(a2.x + (b2.x - a2.x) * cut, a2.y + (b2.y - a2.y) * cut));
+            dirtOcto.push(new Phaser.Math.Vector2(a2.x + (b2.x - a2.x) * (1 - cut), a2.y + (b2.y - a2.y) * (1 - cut)));
+        }
         g.fillStyle(tint ?? 0xb8a080, alpha);
-        g.fillPoints([c1, c2, c3, c4], true);
-
-        // Inner training circle (worn area)
+        g.fillPoints(dirtOcto, true);
+        g.lineStyle(1.4, 0x9a8060, alpha * 0.6);
+        g.strokePoints(dirtOcto, true, true);
         g.lineStyle(2, 0xa89070, 0.5 * alpha);
         g.strokeEllipse(center.x, center.y, 45, 22.5);
         g.fillStyle(0xa89070, 0.3 * alpha);
         g.fillEllipse(center.x, center.y, 45, 22.5);
-
-        // Ground texture - packed earth patterns
         g.fillStyle(0x9a8060, alpha * 0.5);
         for (let i = 0; i < 12; i++) {
             const angle = (i / 12) * Math.PI * 2;
@@ -4594,27 +3080,7 @@ export class BuildingRenderer {
             const oy = Math.sin(angle) * dist * 0.4;
             g.fillCircle(center.x + ox, center.y + 5 + oy, 2 + (i % 2));
         }
-
-        // Decorative border
-        g.lineStyle(2, isLevel4 ? 0xccccbb : 0x8b7355, alpha * 0.7);
-        g.strokePoints([c1, c2, c3, c4], true, true);
-
-        // L4: Scattered white marble bricks around the edge
-        if (isLevel4) {
-            const brickColor1 = 0xddddcc;
-            const brickColor2 = 0xccccbb;
-            // A few small rectangular bricks along the perimeter
-            g.fillStyle(brickColor1, alpha * 0.8);
-            g.fillRect(center.x - 30, center.y + 12, 8, 4);
-            g.fillRect(center.x + 22, center.y + 10, 7, 4);
-            g.fillRect(center.x - 25, center.y - 10, 6, 3);
-            g.fillRect(center.x + 28, center.y - 8, 7, 3);
-            g.fillStyle(brickColor2, alpha * 0.7);
-            g.fillRect(center.x - 18, center.y + 14, 6, 3);
-            g.fillRect(center.x + 14, center.y - 12, 6, 3);
         }
-
-    }
 
     if (!onlyBase) {
         // === CENTRAL CAMPFIRE ===
@@ -4809,767 +3275,1028 @@ export class BuildingRenderer {
     }
 }
 
+    /**
+     * WALLS — overlap-proof isometric partition.
+     *
+     * Every tile draws exactly: its corner post, plus connector bars running
+     * SOUTH and EAST from its own centre to the neighbouring tile's centre.
+     * Connections to the north/west are owned by those neighbours. Because
+     * every piece of geometry extends only down-screen from its owning tile,
+     * painter's order by tile depth is exactly back-to-front — a nearer tile
+     * can never incorrectly paint over a farther tile's faces — and every
+     * bar end is hidden underneath the next tile's post, so runs are
+     * seamless at any shape: lines, corners, T's, crosses and staircases.
+     *
+     * Levels: wooden stakes (1) -> sandstone (2) -> dark rampart (3) ->
+     * gold-crowned stone (4).
+     */
     static drawWall(graphics: Phaser.GameObjects.Graphics, _center: Phaser.Math.Vector2, gridX: number, gridY: number, alpha: number, tint: number | null, building: any, neighbors: { nN: boolean, nS: boolean, nE: boolean, nW: boolean, owner: string }) {
-    const level = building?.level ?? 1;
-    const owner = neighbors.owner;
+        const level = Math.max(1, Math.min(4, Number(building?.level) || 1));
+        const { nN, nS, nE, nW } = neighbors;
+        // Straight runs stay slim and continuous; posts mark corners,
+        // junctions, dead ends and lone blocks — the Clash-like rhythm.
+        const isStraight = (nN && nS && !nE && !nW) || (nE && nW && !nN && !nS);
 
-    // Route to appropriate level renderer
-    if (level >= 4) {
-        this.drawWallLevel4(graphics, gridX, gridY, alpha, tint, owner, neighbors);
-    } else if (level >= 3) {
-        this.drawWallLevel3(graphics, gridX, gridY, alpha, tint, owner, neighbors);
-    } else if (level === 2) {
-        this.drawWallLevel2(graphics, gridX, gridY, alpha, tint, owner, neighbors);
-    } else {
-        this.drawWallLevel1(graphics, gridX, gridY, alpha, tint, owner, neighbors);
-    }
-}
+        // ---- Level styling ----
+        const cfg = level >= 4 ? {
+            h: 20, hw: 0.125, top: tint ?? 0xd8d2c0, front: 0xb3ac98, side: 0x968f7c,
+            seam: 0x8a8370, cap: 'gold' as const
+        } : level >= 3 ? {
+            h: 19, hw: 0.13, top: tint ?? 0x4f4f60, front: 0x3c3c4c, side: 0x2d2d3a,
+            seam: 0x23232e, cap: 'iron' as const
+        } : level >= 2 ? {
+            h: 15, hw: 0.115, top: tint ?? 0xd4c4a8, front: 0xa89878, side: 0x8a7a68,
+            seam: 0x776a58, cap: 'stone' as const
+        } : {
+            h: 16, hw: 0.11, top: tint ?? 0x8b6b4a, front: 0x6b4a30, side: 0x5a3a20,
+            seam: 0x4a2a15, cap: 'stake' as const
+        };
+        const H = cfg.h;
+        const hw = cfg.hw;
+        const cx = gridX + 0.5;
+        const cy = gridY + 0.5;
 
-    // === LEVEL 1: WOODEN PALISADE ===
-    private static drawWallLevel1(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, alpha: number, tint: number | null, _owner: string, neighbors: { nN: boolean, nS: boolean, nE: boolean, nW: boolean }) {
-    const wallHeight = 19;
-    const wallThickness = 0.35;
+        const quad = (pts: { x: number, y: number }[], color: number, a: number = alpha) => {
+            graphics.fillStyle(color, a);
+            graphics.beginPath();
+            graphics.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) graphics.lineTo(pts[i].x, pts[i].y);
+            graphics.closePath();
+            graphics.fillPath();
+        };
+        const up = (p: { x: number, y: number }, dy: number = H) => ({ x: p.x, y: p.y - dy });
 
-    // Wooden colors - warm browns
-    const woodTop = tint ?? 0x8b6b4a;
-    const woodFront = tint ?? 0x6b4a30;
-    const woodSide = tint ?? 0x5a3a20;
+        // Bars begin at the post's face on post tiles, at the centre otherwise.
+        const barStart = isStraight ? 0 : hw + 0.07;
+        // A GATE (straight pieces only): the bar starts late, leaving a
+        // doorway between this centre and the bar's end — the neighbour's
+        // own half-bar forms the far jamb. Battles treat it as plain wall;
+        // only villagers (and the eye) pass through.
+        const isGate = Boolean(building?.isGate) && isStraight;
+        const GATE_GAP = 0.42;
 
-    const { nN, nS, nE, nW } = neighbors;
+        if (!isStraight) {
+            // ---- POST: corners, junctions, ends and lone blocks only.
+            // Drawn BEFORE the bars: the bars emerge from its south/east faces
+            // and correctly wrap in front of its base.
+            const ps = hw + 0.07;
+            const pH = H + 3;
+            const pTL = IsoUtils.cartToIso(cx - ps, cy - ps);
+            const pTR = IsoUtils.cartToIso(cx + ps, cy - ps);
+            const pBR = IsoUtils.cartToIso(cx + ps, cy + ps);
+            const pBL = IsoUtils.cartToIso(cx - ps, cy + ps);
+            // East face
+            quad([pTR, pBR, up(pBR, pH), up(pTR, pH)], cfg.side);
+            // South face
+            quad([pBR, pBL, up(pBL, pH), up(pBR, pH)], cfg.front);
+            // Top
+            quad([up(pTL, pH), up(pTR, pH), up(pBR, pH), up(pBL, pH)], cfg.top);
 
-    const hw = wallThickness / 2;
-    const cx = gridX + 0.5;
-    const cy = gridY + 0.5;
+            const capX = (pTL.x + pBR.x) / 2;
+            const capY = (pTL.y + pBR.y) / 2 - pH;
 
-    const sideFaces: { points: Phaser.Math.Vector2[], color: number }[] = [];
-    const topFaces: Phaser.Math.Vector2[][] = [];
+            if (cfg.cap === 'stake') {
+                // Sharpened wooden stake: four-sided point
+                const peakY = capY - 4;
+                quad([{ x: capX, y: peakY }, up(pTR, pH), up(pBR, pH)], 0x9b7b5a);
+                quad([{ x: capX, y: peakY }, up(pBR, pH), up(pBL, pH)], 0x7b5b3a);
+                // Rope lashing on the front face
+                graphics.lineStyle(1.6, 0x8a7a5a, alpha);
+                graphics.lineBetween(capX - 3, capY + pH * 0.55, capX + 3, capY + pH * 0.55);
+            } else if (cfg.cap === 'stone') {
+                // Flat coping slab with a slight overhang
+                const o = 1.2;
+                quad([
+                    { x: up(pTL, pH).x - o, y: up(pTL, pH).y - 2 }, { x: up(pTR, pH).x, y: up(pTR, pH).y - o * 0.5 - 2 },
+                    { x: up(pBR, pH).x + o, y: up(pBR, pH).y - 2 }, { x: up(pBL, pH).x, y: up(pBL, pH).y + o * 0.5 - 2 }
+                ], 0xe2d4b8);
+                quad([
+                    { x: up(pBL, pH).x, y: up(pBL, pH).y + o * 0.5 - 2 }, { x: up(pBR, pH).x + o, y: up(pBR, pH).y - 2 },
+                    { x: up(pBR, pH).x + o, y: up(pBR, pH).y + 1 }, { x: up(pBL, pH).x, y: up(pBL, pH).y + o * 0.5 + 1 }
+                ], 0x8a7a68);
+            } else if (cfg.cap === 'iron') {
+                // Riveted iron cap band
+                quad([
+                    up(pTL, pH + 2.5), up(pTR, pH + 2.5), up(pBR, pH + 2.5), up(pBL, pH + 2.5)
+                ], 0x62626e);
+                quad([
+                    up(pBR, pH + 2.5), up(pBL, pH + 2.5), up(pBL, pH), up(pBR, pH)
+                ], 0x4a4a56);
+                graphics.fillStyle(0x7a7a88, alpha);
+                graphics.fillCircle(capX, capY - 1.4, 1.1);
+            } else {
+                // Gold pyramid crown, inset so a stone rim frames it
+                const inset = (p: { x: number, y: number }) => ({
+                    x: p.x + (capX - p.x) * 0.34,
+                    y: p.y + (capY - p.y) * 0.34
+                });
+                const iTR = inset(up(pTR, pH));
+                const iBR = inset(up(pBR, pH));
+                const iBL = inset(up(pBL, pH));
+                const peakY = capY - 4.5;
+                quad([{ x: capX, y: peakY }, iTR, iBR], 0xffd700);
+                quad([{ x: capX, y: peakY }, iBR, iBL], 0xb8860b);
+                graphics.fillStyle(0xffe9a0, alpha);
+                graphics.fillCircle(capX, peakY, 0.9);
+            }
 
-    const addSegment = (x1: number, y1: number, x2: number, y2: number) => {
-        const isVertical = Math.abs(y2 - y1) > Math.abs(x2 - x1);
-        if (isVertical) {
-            const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-            const bl = IsoUtils.cartToIso(x1 - hw, minY), br = IsoUtils.cartToIso(x1 + hw, minY);
-            const fl = IsoUtils.cartToIso(x1 - hw, maxY), fr = IsoUtils.cartToIso(x1 + hw, maxY);
-            const tbl = new Phaser.Math.Vector2(bl.x, bl.y - wallHeight);
-            const tbr = new Phaser.Math.Vector2(br.x, br.y - wallHeight);
-            const tfl = new Phaser.Math.Vector2(fl.x, fl.y - wallHeight);
-            const tfr = new Phaser.Math.Vector2(fr.x, fr.y - wallHeight);
-            sideFaces.push({ points: [br, fr, tfr, tbr], color: woodSide });
-            sideFaces.push({ points: [fr, fl, tfl, tfr], color: woodFront });
-            topFaces.push([tbl, tbr, tfr, tfl]);
-        } else {
-            const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-            const lt = IsoUtils.cartToIso(minX, y1 - hw), lb = IsoUtils.cartToIso(minX, y1 + hw);
-            const rt = IsoUtils.cartToIso(maxX, y1 - hw), rb = IsoUtils.cartToIso(maxX, y1 + hw);
-            const tlt = new Phaser.Math.Vector2(lt.x, lt.y - wallHeight);
-            const tlb = new Phaser.Math.Vector2(lb.x, lb.y - wallHeight);
-            const trt = new Phaser.Math.Vector2(rt.x, rt.y - wallHeight);
-            const trb = new Phaser.Math.Vector2(rb.x, rb.y - wallHeight);
-            sideFaces.push({ points: [rt, rb, trb, trt], color: woodSide });
-            sideFaces.push({ points: [rb, lb, tlb, trb], color: woodFront });
-            topFaces.push([tlt, trt, trb, tlb]);
-        }
-    };
-
-    // Straight-through detection: skip post for continuous stretches
-    const isStraightNS = nN && nS && !nE && !nW;
-    const isStraightEW = nE && nW && !nN && !nS;
-    const isStraight = isStraightNS || isStraightEW;
-
-    if (isStraight) {
-        // Draw a single full segment through the tile (no post)
-        if (isStraightNS) addSegment(cx, gridY, cx, gridY + 1);
-        if (isStraightEW) addSegment(gridX, cy, gridX + 1, cy);
-    } else {
-        // Half-segments: center to own tile edge to avoid depth overlap at corners
-        if (nN) addSegment(cx, cy, cx, gridY);
-        if (nS) addSegment(cx, cy, cx, gridY + 1);
-        if (nE) addSegment(cx, cy, gridX + 1, cy);
-        if (nW) addSegment(cx, cy, gridX, cy);
-
-        // Central post with direction-aware faces for isometric corners
-        const ps = wallThickness * 0.7;
-        const hps = ps / 2;
-        const pTL = IsoUtils.cartToIso(cx - hps, cy - hps);
-        const pTR = IsoUtils.cartToIso(cx + hps, cy - hps);
-        const pBR = IsoUtils.cartToIso(cx + hps, cy + hps);
-        const pBL = IsoUtils.cartToIso(cx - hps, cy + hps);
-        const ptTL = new Phaser.Math.Vector2(pTL.x, pTL.y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(pTR.x, pTR.y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(pBR.x, pBR.y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(pBL.x, pBL.y - wallHeight);
-        // East face: visible when no east segment hides it
-        if (!nE) sideFaces.push({ points: [pTR, pBR, ptBR, ptTR], color: woodSide });
-        // South face: visible when no south segment hides it
-        if (!nS) sideFaces.push({ points: [pBR, pBL, ptBL, ptBR], color: woodFront });
-        // West face: inner face exposed when east segment exists
-        if (nE && !nW) sideFaces.push({ points: [pBL, pTL, ptTL, ptBL], color: woodSide });
-        // North face: inner face exposed when south segment exists
-        if (nS && !nN) sideFaces.push({ points: [pTL, pTR, ptTR, ptTL], color: woodFront });
-        topFaces.push([ptTL, ptTR, ptBR, ptBL]);
-    }
-
-    // Render side faces
-    for (const face of sideFaces) {
-        graphics.fillStyle(face.color, alpha);
-        graphics.fillPoints(face.points, true);
-    }
-
-    // Render top faces
-    graphics.fillStyle(woodTop, alpha);
-    for (const top of topFaces) {
-        graphics.fillPoints(top, true);
-    }
-
-    // Post decorations only when not a straight segment
-    if (!isStraight) {
-        const ps = wallThickness * 0.7;
-        const hps = ps / 2;
-        const pTL = IsoUtils.cartToIso(cx - hps, cy - hps);
-        const pTR = IsoUtils.cartToIso(cx + hps, cy - hps);
-        const pBR = IsoUtils.cartToIso(cx + hps, cy + hps);
-        const pBL = IsoUtils.cartToIso(cx - hps, cy + hps);
-        const ptTL = new Phaser.Math.Vector2(pTL.x, pTL.y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(pTR.x, pTR.y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(pBR.x, pBR.y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(pBL.x, pBL.y - wallHeight);
-
-        // Wood grain lines on visible front faces
-        const pcx = (ptTL.x + ptBR.x) / 2;
-        const pcy = (ptTL.y + ptBR.y) / 2;
-        graphics.lineStyle(1, 0x4a2a15, alpha * 0.4);
-        graphics.lineBetween(pcx - 2, pcy + wallHeight * 0.3, pcx - 2, pcy + wallHeight * 0.8);
-        graphics.lineBetween(pcx + 1, pcy + wallHeight * 0.2, pcx + 1, pcy + wallHeight * 0.7);
-
-        // Sharpened top (pointed stake) — draw faces matching visible pillar sides
-        const peakY = pcy - 6;
-        // North face of peak (light)
-        if (!nN || (nS && !nN)) {
-            graphics.fillStyle(0x9b7b5a, alpha);
-            graphics.beginPath(); graphics.moveTo(pcx, peakY);
-            graphics.lineTo(ptTL.x, ptTL.y); graphics.lineTo(ptTR.x, ptTR.y);
-            graphics.closePath(); graphics.fillPath();
-        }
-        // East face of peak (medium)
-        if (!nE) {
-            graphics.fillStyle(0x9b7b5a, alpha);
-            graphics.beginPath(); graphics.moveTo(pcx, peakY);
-            graphics.lineTo(ptTR.x, ptTR.y); graphics.lineTo(ptBR.x, ptBR.y);
-            graphics.closePath(); graphics.fillPath();
-        }
-        // South face of peak (dark)
-        if (!nS) {
-            graphics.fillStyle(0x7b5b3a, alpha);
-            graphics.beginPath(); graphics.moveTo(pcx, peakY);
-            graphics.lineTo(ptBR.x, ptBR.y); graphics.lineTo(ptBL.x, ptBL.y);
-            graphics.closePath(); graphics.fillPath();
-        }
-        // West face of peak (medium)
-        if (nE && !nW) {
-            graphics.fillStyle(0x8b6b4a, alpha);
-            graphics.beginPath(); graphics.moveTo(pcx, peakY);
-            graphics.lineTo(ptBL.x, ptBL.y); graphics.lineTo(ptTL.x, ptTL.y);
-            graphics.closePath(); graphics.fillPath();
         }
 
-        // Rope binding
-        const ropeY = pcy + 8;
-        graphics.lineStyle(2, 0x8a7a5a, alpha);
-        graphics.lineBetween(pcx - 4, ropeY, pcx + 4, ropeY);
-        graphics.lineStyle(1, 0x6a5a3a, alpha * 0.6);
-        graphics.lineBetween(pcx - 3, ropeY + 2, pcx + 3, ropeY + 2);
-    }
-}
-
-    // === LEVEL 2: STONE WALL ===
-    private static drawWallLevel2(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, alpha: number, tint: number | null, _owner: string, neighbors: { nN: boolean, nS: boolean, nE: boolean, nW: boolean }) {
-    const wallHeight = 17;
-    const wallThickness = 0.37;
-
-    // Stone colors - classic grey
-    const stoneTop = tint ?? 0xd4c4a8;
-    const stoneFront = tint ?? 0xa89878;
-    const stoneSide = tint ?? 0x8a7a68;
-
-    const { nN, nS, nE, nW } = neighbors;
-
-    const hw = wallThickness / 2;
-    const cx = gridX + 0.5;
-    const cy = gridY + 0.5;
-
-    const sideFaces: { points: Phaser.Math.Vector2[], color: number }[] = [];
-    const topFaces: Phaser.Math.Vector2[][] = [];
-
-    const addSegment = (x1: number, y1: number, x2: number, y2: number) => {
-        const isVertical = Math.abs(y2 - y1) > Math.abs(x2 - x1);
-        if (isVertical) {
-            const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-            const bl = IsoUtils.cartToIso(x1 - hw, minY), br = IsoUtils.cartToIso(x1 + hw, minY);
-            const fl = IsoUtils.cartToIso(x1 - hw, maxY), fr = IsoUtils.cartToIso(x1 + hw, maxY);
-            const tbl = new Phaser.Math.Vector2(bl.x, bl.y - wallHeight);
-            const tbr = new Phaser.Math.Vector2(br.x, br.y - wallHeight);
-            const tfl = new Phaser.Math.Vector2(fl.x, fl.y - wallHeight);
-            const tfr = new Phaser.Math.Vector2(fr.x, fr.y - wallHeight);
-            sideFaces.push({ points: [br, fr, tfr, tbr], color: stoneSide });
-            sideFaces.push({ points: [fr, fl, tfl, tfr], color: stoneFront });
-            topFaces.push([tbl, tbr, tfr, tfl]);
-        } else {
-            const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-            const lt = IsoUtils.cartToIso(minX, y1 - hw), lb = IsoUtils.cartToIso(minX, y1 + hw);
-            const rt = IsoUtils.cartToIso(maxX, y1 - hw), rb = IsoUtils.cartToIso(maxX, y1 + hw);
-            const tlt = new Phaser.Math.Vector2(lt.x, lt.y - wallHeight);
-            const tlb = new Phaser.Math.Vector2(lb.x, lb.y - wallHeight);
-            const trt = new Phaser.Math.Vector2(rt.x, rt.y - wallHeight);
-            const trb = new Phaser.Math.Vector2(rb.x, rb.y - wallHeight);
-            sideFaces.push({ points: [rt, rb, trb, trt], color: stoneSide });
-            sideFaces.push({ points: [rb, lb, tlb, trb], color: stoneFront });
-            topFaces.push([tlt, trt, trb, tlb]);
+        // ---- EAST bar: own centre -> east neighbour's centre ----
+        if (nE) {
+            const x0 = cx + (isGate && nE && nW ? GATE_GAP : barStart);
+            const nw = IsoUtils.cartToIso(x0, cy - hw);
+            const ne = IsoUtils.cartToIso(cx + 1, cy - hw);
+            const se = IsoUtils.cartToIso(cx + 1, cy + hw);
+            const sw = IsoUtils.cartToIso(x0, cy + hw);
+            // South (front) face
+            quad([sw, se, up(se), up(sw)], cfg.front);
+            // Top
+            quad([up(nw), up(ne), up(se), up(sw)], cfg.top);
+            // A single mortar/grain tick keeps the slim face quiet
+            graphics.lineStyle(1, cfg.seam, alpha * 0.45);
+            const emx = (sw.x + se.x) / 2;
+            const emy = (sw.y + se.y) / 2;
+            graphics.lineBetween(emx - 5, emy - H * 0.45 + 2.5, emx + 5, emy - H * 0.45 + 7.5);
+            if (level >= 4) {
+                // Gold cornice along the top's front edge
+                graphics.lineStyle(1.6, 0xdaa520, alpha * 0.95);
+                graphics.lineBetween(up(sw).x, up(sw).y, up(se).x, up(se).y);
+            }
         }
-    };
 
-    // Straight-through detection: skip pillar for continuous stretches
-    const isStraightNS = nN && nS && !nE && !nW;
-    const isStraightEW = nE && nW && !nN && !nS;
-    const isStraight = isStraightNS || isStraightEW;
-
-    if (isStraight) {
-        if (isStraightNS) addSegment(cx, gridY, cx, gridY + 1);
-        if (isStraightEW) addSegment(gridX, cy, gridX + 1, cy);
-    } else {
-        // Half-segments: center to own tile edge to avoid depth overlap at corners
-        if (nN) addSegment(cx, cy, cx, gridY);
-        if (nS) addSegment(cx, cy, cx, gridY + 1);
-        if (nE) addSegment(cx, cy, gridX + 1, cy);
-        if (nW) addSegment(cx, cy, gridX, cy);
-
-        // Central pillar with direction-aware faces
-        const ps = wallThickness * 0.6;
-        const hps = ps / 2;
-        const pTL = IsoUtils.cartToIso(cx - hps, cy - hps);
-        const pTR = IsoUtils.cartToIso(cx + hps, cy - hps);
-        const pBR = IsoUtils.cartToIso(cx + hps, cy + hps);
-        const pBL = IsoUtils.cartToIso(cx - hps, cy + hps);
-        const ptTL = new Phaser.Math.Vector2(pTL.x, pTL.y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(pTR.x, pTR.y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(pBR.x, pBR.y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(pBL.x, pBL.y - wallHeight);
-        if (!nE) sideFaces.push({ points: [pTR, pBR, ptBR, ptTR], color: stoneSide });
-        if (!nS) sideFaces.push({ points: [pBR, pBL, ptBL, ptBR], color: stoneFront });
-        if (nE && !nW) sideFaces.push({ points: [pBL, pTL, ptTL, ptBL], color: stoneSide });
-        if (nS && !nN) sideFaces.push({ points: [pTL, pTR, ptTR, ptTL], color: stoneFront });
-        topFaces.push([ptTL, ptTR, ptBR, ptBL]);
-    }
-
-    // Render side faces
-    for (const face of sideFaces) {
-        graphics.fillStyle(face.color, alpha);
-        graphics.fillPoints(face.points, true);
-    }
-
-    // Render top faces
-    graphics.fillStyle(stoneTop, alpha);
-    for (const top of topFaces) {
-        graphics.fillPoints(top, true);
-    }
-
-    // Post decorations only when not a straight segment
-    if (!isStraight) {
-        const ps = wallThickness * 0.6;
-        const hps = ps / 2;
-        const ptTL = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx - hps, cy - hps).x, IsoUtils.cartToIso(cx - hps, cy - hps).y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx + hps, cy - hps).x, IsoUtils.cartToIso(cx + hps, cy - hps).y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx - hps, cy + hps).x, IsoUtils.cartToIso(cx - hps, cy + hps).y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx + hps, cy + hps).x, IsoUtils.cartToIso(cx + hps, cy + hps).y - wallHeight);
-
-        // Top highlights
-        graphics.lineStyle(1, 0xe8dcc8, alpha * 0.6);
-        graphics.lineBetween(ptTL.x, ptTL.y, ptTR.x, ptTR.y);
-        graphics.lineBetween(ptTL.x, ptTL.y, ptBL.x, ptBL.y);
-
-        // Junction decoration
-        const neighborCount = (nN ? 1 : 0) + (nS ? 1 : 0) + (nE ? 1 : 0) + (nW ? 1 : 0);
-        if (neighborCount >= 3) {
-            const pcx = (ptTL.x + ptBR.x) / 2;
-            const pcy = (ptTL.y + ptBR.y) / 2;
-            graphics.fillStyle(0xe8dcc8, alpha);
-            graphics.fillCircle(pcx, pcy, 2.5);
+        // ---- SOUTH bar: own centre -> south neighbour's centre ----
+        if (nS) {
+            const y0 = cy + (isGate && nN && nS ? GATE_GAP : barStart);
+            const nw = IsoUtils.cartToIso(cx - hw, y0);
+            const ne = IsoUtils.cartToIso(cx + hw, y0);
+            const se = IsoUtils.cartToIso(cx + hw, cy + 1);
+            const sw = IsoUtils.cartToIso(cx - hw, cy + 1);
+            // East (side) face
+            quad([ne, se, up(se), up(ne)], cfg.side);
+            // Top
+            quad([up(nw), up(ne), up(se), up(sw)], cfg.top);
+            graphics.lineStyle(1, cfg.seam, alpha * 0.45);
+            const smx = (ne.x + se.x) / 2;
+            const smy = (ne.y + se.y) / 2;
+            graphics.lineBetween(smx - 5, smy - H * 0.45 + 2.5, smx + 5, smy - H * 0.45 - 2.5);
+            if (level >= 4) {
+                graphics.lineStyle(1.6, 0xdaa520, alpha * 0.95);
+                graphics.lineBetween(up(ne).x, up(ne).y, up(se).x, up(se).y);
+            }
         }
-    }
-}
 
-    // === LEVEL 3: FORTIFIED DARK STONE ===
-    private static drawWallLevel3(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, alpha: number, tint: number | null, _owner: string, neighbors: { nN: boolean, nS: boolean, nE: boolean, nW: boolean }) {
-    const wallHeight = 22;
-    const wallThickness = 0.45;
-
-    // Dark obsidian fortress colors
-    const stoneTop = tint ?? 0x4a4a5a;
-    const stoneFront = tint ?? 0x3a3a4a;
-    const stoneSide = tint ?? 0x2a2a3a;
-
-    const { nN, nS, nE, nW } = neighbors;
-
-    const hw = wallThickness / 2;
-    const cx = gridX + 0.5;
-    const cy = gridY + 0.5;
-
-    const sideFaces: { points: Phaser.Math.Vector2[], color: number }[] = [];
-    const topFaces: Phaser.Math.Vector2[][] = [];
-
-    const addSegment = (x1: number, y1: number, x2: number, y2: number) => {
-        const isVertical = Math.abs(y2 - y1) > Math.abs(x2 - x1);
-        if (isVertical) {
-            const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-            const bl = IsoUtils.cartToIso(x1 - hw, minY), br = IsoUtils.cartToIso(x1 + hw, minY);
-            const fl = IsoUtils.cartToIso(x1 - hw, maxY), fr = IsoUtils.cartToIso(x1 + hw, maxY);
-            const tbl = new Phaser.Math.Vector2(bl.x, bl.y - wallHeight);
-            const tbr = new Phaser.Math.Vector2(br.x, br.y - wallHeight);
-            const tfl = new Phaser.Math.Vector2(fl.x, fl.y - wallHeight);
-            const tfr = new Phaser.Math.Vector2(fr.x, fr.y - wallHeight);
-            sideFaces.push({ points: [br, fr, tfr, tbr], color: stoneSide });
-            sideFaces.push({ points: [fr, fl, tfl, tfr], color: stoneFront });
-            topFaces.push([tbl, tbr, tfr, tfl]);
-        } else {
-            const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-            const lt = IsoUtils.cartToIso(minX, y1 - hw), lb = IsoUtils.cartToIso(minX, y1 + hw);
-            const rt = IsoUtils.cartToIso(maxX, y1 - hw), rb = IsoUtils.cartToIso(maxX, y1 + hw);
-            const tlt = new Phaser.Math.Vector2(lt.x, lt.y - wallHeight);
-            const tlb = new Phaser.Math.Vector2(lb.x, lb.y - wallHeight);
-            const trt = new Phaser.Math.Vector2(rt.x, rt.y - wallHeight);
-            const trb = new Phaser.Math.Vector2(rb.x, rb.y - wallHeight);
-            sideFaces.push({ points: [rt, rb, trb, trt], color: stoneSide });
-            sideFaces.push({ points: [rb, lb, tlb, trb], color: stoneFront });
-            topFaces.push([tlt, trt, trb, tlb]);
+        // ---- the gateway dressing: lintel over the doorway, an end-cap
+        // jamb, and a worn threshold. Subtle by design — the opening itself
+        // is the tell, in every direction and at every wall level.
+        if (isGate) {
+            const eastGate = nE && nW;
+            const a0 = eastGate ? IsoUtils.cartToIso(cx, cy - hw) : IsoUtils.cartToIso(cx - hw, cy);
+            const a1 = eastGate ? IsoUtils.cartToIso(cx + GATE_GAP, cy - hw) : IsoUtils.cartToIso(cx + hw, cy);
+            const b0 = eastGate ? IsoUtils.cartToIso(cx, cy + hw) : IsoUtils.cartToIso(cx - hw, cy + GATE_GAP);
+            const b1 = eastGate ? IsoUtils.cartToIso(cx + GATE_GAP, cy + hw) : IsoUtils.cartToIso(cx + hw, cy + GATE_GAP);
+            // Lintel: the wall carries on ABOVE the doorway (top slab + fascia).
+            quad([up(a0), up(a1), up(b1), up(b0)], cfg.top);
+            const f0 = eastGate ? b0 : a1;
+            const f1 = b1;
+            quad([up(f0), up(f1), up(f1, H - 4), up(f0, H - 4)], eastGate ? cfg.front : cfg.side);
+            // End-cap jamb where the late bar begins (its open end face).
+            const j0 = eastGate ? a1 : b0;
+            const j1 = b1;
+            quad([j0, j1, up(j1), up(j0)], cfg.seam, alpha * 0.9);
+            // Worn threshold under the doorway.
+            graphics.lineStyle(1.4, 0x1c1410, alpha * 0.35);
+            graphics.lineBetween((a0.x + b0.x) / 2, (a0.y + b0.y) / 2 + 1, (a1.x + b1.x) / 2, (a1.y + b1.y) / 2 + 1);
         }
-    };
+   }
 
-    // Straight-through detection: skip pillar for continuous stretches
-    const isStraightNS = nN && nS && !nE && !nW;
-    const isStraightEW = nE && nW && !nN && !nS;
-    const isStraight = isStraightNS || isStraightEW;
+    /**
+     * DRAGONS BREATH — sixteen-pod firecracker battery.
+     *
+     * Level 1 is a lacquered temple platform of rocket silos. At max level it
+     * becomes THE DRAGON ALTAR: the platform is the dragon. A gilded head
+     * rears from the centre of the battery with molten veins feeding every
+     * silo, jade eyes that smoulder while reloading, a jaw that runs
+     * white-hot during a salvo, and a crest of golden spines breaking
+     * through the deck along the northern rim.
+     *
+     * The pod state machine (stagger, launch, empty, rise-from-silo reload)
+     * is driven purely by building.lastFireTime, in sync with MainScene.
+     */
+    static drawDragonsBreath(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building ?: any, baseGraphics ?: Phaser.GameObjects.Graphics, gridX: number = 0, gridY: number = 0, time: number = 0, skipBase: boolean = false, onlyBase: boolean = false) {
+        const g = baseGraphics || graphics;
+        const level = Number(building?.level) || 1;
+        const isLevel2 = level >= 2;
 
-    if (isStraight) {
-        if (isStraightNS) addSegment(cx, gridY, cx, gridY + 1);
-        if (isStraightEW) addSegment(gridX, cy, gridX + 1, cy);
-    } else {
-        // Half-segments: center to own tile edge to avoid depth overlap at corners
-        if (nN) addSegment(cx, cy, cx, gridY);
-        if (nS) addSegment(cx, cy, cx, gridY + 1);
-        if (nE) addSegment(cx, cy, gridX + 1, cy);
-        if (nW) addSegment(cx, cy, gridX, cy);
+        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
+            gr.fillStyle(color, a);
+            gr.beginPath();
+            gr.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
+            gr.closePath();
+            gr.fillPath();
+        };
 
-        // Central pillar with direction-aware faces
-        const ps = wallThickness * 0.7;
-        const hps = ps / 2;
-        const pTL = IsoUtils.cartToIso(cx - hps, cy - hps);
-        const pTR = IsoUtils.cartToIso(cx + hps, cy - hps);
-        const pBR = IsoUtils.cartToIso(cx + hps, cy + hps);
-        const pBL = IsoUtils.cartToIso(cx - hps, cy + hps);
-        const ptTL = new Phaser.Math.Vector2(pTL.x, pTL.y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(pTR.x, pTR.y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(pBR.x, pBR.y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(pBL.x, pBL.y - wallHeight);
-        if (!nE) sideFaces.push({ points: [pTR, pBR, ptBR, ptTR], color: stoneSide });
-        if (!nS) sideFaces.push({ points: [pBR, pBL, ptBL, ptBR], color: stoneFront });
-        if (nE && !nW) sideFaces.push({ points: [pBL, pTL, ptTL, ptBL], color: stoneSide });
-        if (nS && !nN) sideFaces.push({ points: [pTL, pTR, ptTR, ptTL], color: stoneFront });
-        topFaces.push([ptTL, ptTR, ptBR, ptBL]);
-    }
+        // Firing state — extended salvo for 16 staggered pods
+        const timeSinceFire = building?.lastFireTime ? (time - building.lastFireTime) : 100000;
+        const fireRate = 3000;
+        const salvoActive = timeSinceFire < 800;
 
-    // Render side faces
-    for (const face of sideFaces) {
-        graphics.fillStyle(face.color, alpha);
-        graphics.fillPoints(face.points, true);
-    }
-
-    // Render top faces
-    graphics.fillStyle(stoneTop, alpha);
-    for (const top of topFaces) {
-        graphics.fillPoints(top, true);
-    }
-
-    // Post decorations only when not a straight segment
-    if (!isStraight) {
-        const ps = wallThickness * 0.7;
-        const hps = ps / 2;
-        const ptTL = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx - hps, cy - hps).x, IsoUtils.cartToIso(cx - hps, cy - hps).y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx + hps, cy - hps).x, IsoUtils.cartToIso(cx + hps, cy - hps).y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx - hps, cy + hps).x, IsoUtils.cartToIso(cx - hps, cy + hps).y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx + hps, cy + hps).x, IsoUtils.cartToIso(cx + hps, cy + hps).y - wallHeight);
-
-        // Top highlights & Gold/Steel trim
-        graphics.lineStyle(1, 0xc9a227, alpha * 0.8);
-        graphics.lineBetween(ptTL.x, ptTL.y, ptTR.x, ptTR.y);
-        graphics.lineBetween(ptTL.x, ptTL.y, ptBL.x, ptBL.y);
-
-        // Stone texture highlights
-        graphics.fillStyle(0xffffff, alpha * 0.08);
-        const pcx = (ptTL.x + ptBR.x) / 2;
-        const pcy = (ptTL.y + ptBR.y) / 2;
-        graphics.fillRect(pcx - 4, pcy + 7, 2, 2);
-        graphics.fillRect(pcx + 2, pcy + 13, 2, 2);
-    }
-}
-
-    // === LEVEL 4: MARBLE & GOLD WALL ===
-    private static drawWallLevel4(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, alpha: number, tint: number | null, _owner: string, neighbors: { nN: boolean, nS: boolean, nE: boolean, nW: boolean }) {
-    const wallHeight = 24;
-    const wallThickness = 0.48;
-
-    // Marble & gold colors
-    const stoneTop = tint ?? 0xeeeedd;
-    const stoneFront = tint ?? 0xddddcc;
-    const stoneSide = tint ?? 0xccccbb;
-
-    const { nN, nS, nE, nW } = neighbors;
-
-    const hw = wallThickness / 2;
-    const cx = gridX + 0.5;
-    const cy = gridY + 0.5;
-
-    const sideFaces: { points: Phaser.Math.Vector2[], color: number }[] = [];
-    const topFaces: Phaser.Math.Vector2[][] = [];
-
-    const addSegment = (x1: number, y1: number, x2: number, y2: number) => {
-        const isVertical = Math.abs(y2 - y1) > Math.abs(x2 - x1);
-        if (isVertical) {
-            const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
-            const bl = IsoUtils.cartToIso(x1 - hw, minY), br = IsoUtils.cartToIso(x1 + hw, minY);
-            const fl = IsoUtils.cartToIso(x1 - hw, maxY), fr = IsoUtils.cartToIso(x1 + hw, maxY);
-            const tbl = new Phaser.Math.Vector2(bl.x, bl.y - wallHeight);
-            const tbr = new Phaser.Math.Vector2(br.x, br.y - wallHeight);
-            const tfl = new Phaser.Math.Vector2(fl.x, fl.y - wallHeight);
-            const tfr = new Phaser.Math.Vector2(fr.x, fr.y - wallHeight);
-            sideFaces.push({ points: [br, fr, tfr, tbr], color: stoneSide });
-            sideFaces.push({ points: [fr, fl, tfl, tfr], color: stoneFront });
-            topFaces.push([tbl, tbr, tfr, tfl]);
-        } else {
-            const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
-            const lt = IsoUtils.cartToIso(minX, y1 - hw), lb = IsoUtils.cartToIso(minX, y1 + hw);
-            const rt = IsoUtils.cartToIso(maxX, y1 - hw), rb = IsoUtils.cartToIso(maxX, y1 + hw);
-            const tlt = new Phaser.Math.Vector2(lt.x, lt.y - wallHeight);
-            const tlb = new Phaser.Math.Vector2(lb.x, lb.y - wallHeight);
-            const trt = new Phaser.Math.Vector2(rt.x, rt.y - wallHeight);
-            const trb = new Phaser.Math.Vector2(rb.x, rb.y - wallHeight);
-            sideFaces.push({ points: [rt, rb, trb, trt], color: stoneSide });
-            sideFaces.push({ points: [rb, lb, tlb, trb], color: stoneFront });
-            topFaces.push([tlt, trt, trb, tlb]);
+        if (!skipBase) {
+            // ===== PLATFORM =====
+            // Octagonal altar deck: the corners are cut so grass shows through
+            // and the battery reads as an object on the lawn, not a tile plate.
+            const baseColor = tint ?? (isLevel2 ? 0x241418 : 0x3a2a2a);
+            const cut = 0.3;
+            const corners = [c1, c2, c3, c4];
+            const octo: Phaser.Math.Vector2[] = [];
+            for (let i = 0; i < 4; i++) {
+                const a2 = corners[i];
+                const b2 = corners[(i + 1) % 4];
+                octo.push(new Phaser.Math.Vector2(a2.x + (b2.x - a2.x) * cut, a2.y + (b2.y - a2.y) * cut));
+                octo.push(new Phaser.Math.Vector2(a2.x + (b2.x - a2.x) * (1 - cut), a2.y + (b2.y - a2.y) * (1 - cut)));
+            }
+            g.fillStyle(baseColor, alpha);
+            g.fillPoints(octo, true);
+            g.fillStyle(isLevel2 ? 0x1a0d10 : 0x2a1a1a, alpha * 0.55);
+            g.fillPoints(octo.map(pt => new Phaser.Math.Vector2(
+                pt.x + (center.x - pt.x) * 0.12, pt.y + (center.y - pt.y) * 0.12
+            )), true);
+            g.lineStyle(isLevel2 ? 3 : 2, isLevel2 ? 0xdaa520 : 0xb8860b, alpha * (isLevel2 ? 0.95 : 0.8));
+            g.strokePoints(octo, true, true);
+            // Jade-in-gold studs at the four cut corners
+            for (let i = 0; i < 8; i += 2) {
+                const sx = (octo[i].x + octo[(i + 7) % 8].x) / 2;
+                const sy = (octo[i].y + octo[(i + 7) % 8].y) / 2;
+                g.fillStyle(isLevel2 ? 0xdaa520 : 0xb8860b, alpha);
+                g.fillCircle(sx, sy, isLevel2 ? 4.5 : 3.6);
+                g.fillStyle(0x3f8f5f, alpha * 0.95);
+                g.fillCircle(sx, sy, isLevel2 ? 2.4 : 1.9);
+            }
         }
-    };
 
-    const isStraightNS = nN && nS && !nE && !nW;
-    const isStraightEW = nE && nW && !nN && !nS;
-    const isStraight = isStraightNS || isStraightEW;
+        if (onlyBase) return;
 
-    if (isStraight) {
-        if (isStraightNS) addSegment(cx, gridY, cx, gridY + 1);
-        if (isStraightEW) addSegment(gridX, cy, gridX + 1, cy);
-    } else {
-        if (nN) addSegment(cx, cy, cx, gridY);
-        if (nS) addSegment(cx, cy, cx, gridY + 1);
-        if (nE) addSegment(cx, cy, gridX + 1, cy);
-        if (nW) addSegment(cx, cy, gridX, cy);
+        // ===== MOLTEN VEINS (max level): the dragon's blood feeds the silos =====
+        if (isLevel2) {
+            const veinPulse = salvoActive
+                ? 0.75 + Math.sin(time / 60) * 0.25
+                : 0.3 + Math.sin(time / 380) * 0.15;
+            graphics.lineStyle(1.6, 0xff5a1e, alpha * veinPulse);
+            for (let row = 0; row < 4; row++) {
+                const a2 = IsoUtils.cartToIso(gridX + 0.5, gridY + row + 0.5);
+                const b2 = IsoUtils.cartToIso(gridX + 3.5, gridY + row + 0.5);
+                graphics.lineBetween(a2.x, a2.y + 2, b2.x, b2.y + 2);
+            }
+            for (let col = 0; col < 4; col++) {
+                const a2 = IsoUtils.cartToIso(gridX + col + 0.5, gridY + 0.5);
+                const b2 = IsoUtils.cartToIso(gridX + col + 0.5, gridY + 3.5);
+                graphics.lineBetween(a2.x, a2.y + 2, b2.x, b2.y + 2);
+            }
 
-        const ps = wallThickness * 0.7;
-        const hps = ps / 2;
-        const pTL = IsoUtils.cartToIso(cx - hps, cy - hps);
-        const pTR = IsoUtils.cartToIso(cx + hps, cy - hps);
-        const pBR = IsoUtils.cartToIso(cx + hps, cy + hps);
-        const pBL = IsoUtils.cartToIso(cx - hps, cy + hps);
-        const ptTL = new Phaser.Math.Vector2(pTL.x, pTL.y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(pTR.x, pTR.y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(pBR.x, pBR.y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(pBL.x, pBL.y - wallHeight);
-        if (!nE) sideFaces.push({ points: [pTR, pBR, ptBR, ptTR], color: stoneSide });
-        if (!nS) sideFaces.push({ points: [pBR, pBL, ptBL, ptBR], color: stoneFront });
-        if (nE && !nW) sideFaces.push({ points: [pBL, pTL, ptTL, ptBL], color: stoneSide });
-        if (nS && !nN) sideFaces.push({ points: [pTL, pTR, ptTR, ptTL], color: stoneFront });
-        topFaces.push([ptTL, ptTR, ptBR, ptBL]);
-    }
-
-    // Render side faces
-    for (const face of sideFaces) {
-        graphics.fillStyle(face.color, alpha);
-        graphics.fillPoints(face.points, true);
-    }
-
-    // Render top faces
-    graphics.fillStyle(stoneTop, alpha);
-    for (const top of topFaces) {
-        graphics.fillPoints(top, true);
-    }
-
-    // Post decorations only when not a straight segment
-    if (!isStraight) {
-        const ps = wallThickness * 0.7;
-        const hps = ps / 2;
-        const ptTL = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx - hps, cy - hps).x, IsoUtils.cartToIso(cx - hps, cy - hps).y - wallHeight);
-        const ptTR = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx + hps, cy - hps).x, IsoUtils.cartToIso(cx + hps, cy - hps).y - wallHeight);
-        const ptBL = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx - hps, cy + hps).x, IsoUtils.cartToIso(cx - hps, cy + hps).y - wallHeight);
-        const ptBR = new Phaser.Math.Vector2(IsoUtils.cartToIso(cx + hps, cy + hps).x, IsoUtils.cartToIso(cx + hps, cy + hps).y - wallHeight);
-
-        // Gold trim on top
-        graphics.lineStyle(1.5, 0xffd700, alpha * 0.9);
-        graphics.lineBetween(ptTL.x, ptTL.y, ptTR.x, ptTR.y);
-        graphics.lineBetween(ptTL.x, ptTL.y, ptBL.x, ptBL.y);
-
-        // Gold finial at junction
-        const neighborCount = (nN ? 1 : 0) + (nS ? 1 : 0) + (nE ? 1 : 0) + (nW ? 1 : 0);
-        const pcx = (ptTL.x + ptBR.x) / 2;
-        const pcy = (ptTL.y + ptBR.y) / 2;
-
-        // Gold ornament on pillar
-        graphics.fillStyle(0xffd700, alpha);
-        graphics.fillCircle(pcx, pcy - 3, 3);
-        graphics.fillStyle(0xdaa520, alpha * 0.8);
-        graphics.fillCircle(pcx, pcy - 3, 1.5);
-
-        if (neighborCount >= 3) {
-            // Extra gold finial for major junctions
-            graphics.fillStyle(0xffd700, alpha);
-            graphics.fillCircle(pcx, pcy - 6, 2);
+            // Crest of golden back-spines breaking through the north rim
+            for (let i = 0; i < 5; i++) {
+                const t = 0.18 + i * 0.16;
+                const sx = c1.x + (c2.x - c1.x) * t;
+                const sy = c1.y + (c2.y - c1.y) * t + 3;
+                const hgt = 7 + Math.sin(i * 1.9) * 2.5;
+                quad(graphics, [
+                    [sx - 3.4, sy], [sx + 3.4, sy], [sx + 0.6, sy - hgt]
+                ], 0xb8860b, alpha);
+                quad(graphics, [
+                    [sx - 3.4, sy], [sx + 0.6, sy - hgt], [sx - 1, sy]
+                ], 0xdaa520, alpha);
+            }
         }
-    }
-}
 
-
-    // === DRAGON'S BREATH - Subtle Asian-Themed Firecracker Battery ===
-    static drawDragonsBreath(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building ?: any, baseGraphics ?: Phaser.GameObjects.Graphics, gridX: number = 0, gridY: number = 0, time: number = 0, _skipBase: boolean = false, onlyBase: boolean = false) {
-    const g = baseGraphics || graphics;
-    const level = building?.level ?? 1;
-    const isLevel2 = level >= 2;
-
-    // Firing state - extended salvo time for 16 pods
-    const timeSinceFire = building?.lastFireTime ? (time - building.lastFireTime) : 100000;
-    const fireRate = 3000; // Full reload cycle
-    const salvoActive = timeSinceFire < 800; // Firing phase
-    const reloadPhase = timeSinceFire >= 800 ? Math.min(1, (timeSinceFire - 800) / (fireRate - 800)) : 0;
-
-    // === ELEGANT STONE PLATFORM (Subtle Asian Temple Style) ===
-    // Main platform — L2 marble, L1 dark slate
-    const baseColor = tint ?? (isLevel2 ? 0xeeeedd : 0x3a2a2a);
-    g.fillStyle(baseColor, alpha);
-    g.fillPoints([c1, c2, c3, c4], true);
-
-    // Subtle inner pattern
-    g.fillStyle(isLevel2 ? 0xddddcc : 0x2a1a1a, alpha * 0.5);
-    const inset = 8;
-    const inner1 = new Phaser.Math.Vector2(c1.x, c1.y + inset);
-    const inner2 = new Phaser.Math.Vector2(c2.x + inset * 0.5, c2.y);
-    const inner3 = new Phaser.Math.Vector2(c3.x, c3.y - inset);
-    const inner4 = new Phaser.Math.Vector2(c4.x - inset * 0.5, c4.y);
-    g.fillPoints([inner1, inner2, inner3, inner4], true);
-
-    // Elegant gold trim border (single refined line) — L2 heavier gold
-    g.lineStyle(isLevel2 ? 3 : 2, isLevel2 ? 0xdaa520 : 0xb8860b, alpha * (isLevel2 ? 0.9 : 0.8));
-    g.strokePoints([c1, c2, c3, c4], true, true);
-
-    // Corner ornaments - jade-gold studs
-    const corners = [c1, c2, c3, c4];
-    for (const corner of corners) {
-        g.fillStyle(0x4a6a4a, alpha * 0.9); // Jade green
-        g.fillCircle(corner.x, corner.y, 4);
-        g.fillStyle(0xb8860b, alpha); // Gold center
-        g.fillCircle(corner.x, corner.y, 2);
-    }
-
-    // Bamboo accent borders (subtle wooden frame)
-    g.lineStyle(1, 0x5a4a3a, alpha * 0.6);
-    g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-    g.lineBetween(c4.x, c4.y, c3.x, c3.y);
-
-    // If only drawing base (for baking to ground texture), stop here
-    if (onlyBase) return;
-
-    // === 16 SILO HOLES (4x4 Grid - evenly spread) ===
-
-    for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 4; col++) {
-            // Calculate center of each tile in the 4x4 grid
-            const tileGridX = gridX + col + 0.5;
-            const tileGridY = gridY + row + 0.5;
-            const tileCenter = IsoUtils.cartToIso(tileGridX, tileGridY);
-
+        // ===== 16 PODS on the 4x4 silo grid =====
+        const drawPodTile = (row: number, col: number) => {
+            const tileCenter = IsoUtils.cartToIso(gridX + col + 0.5, gridY + row + 0.5);
             const podIndex = row * 4 + col;
 
-            // Silo hole (dark pit)
-            g.fillStyle(0x1a0a0a, alpha);
-            g.fillEllipse(tileCenter.x, tileCenter.y + 2, 14, 7);
+            // Silo pit + ring
+            graphics.fillStyle(0x140808, alpha);
+            graphics.fillEllipse(tileCenter.x, tileCenter.y + 2, 14, 7);
+            graphics.lineStyle(2, isLevel2 ? 0xdaa520 : 0x6a4a2a, alpha);
+            graphics.strokeEllipse(tileCenter.x, tileCenter.y + 2, 14, 7);
+            if (isLevel2 && salvoActive) {
+                // Silo glows as the dragon exhales
+                graphics.fillStyle(0xff5a1e, alpha * (0.25 + Math.sin(time / 70 + podIndex) * 0.15));
+                graphics.fillEllipse(tileCenter.x, tileCenter.y + 2, 11, 5.2);
+            }
 
-            // Silo rim (brass ring) — L2 gold
-            g.lineStyle(2, isLevel2 ? 0xdaa520 : 0x6a4a2a, alpha);
-            g.strokeEllipse(tileCenter.x, tileCenter.y + 2, 14, 7);
-
-            // === FIRECRACKER POD STATE ===
-            // Staggered firing: each pod fires 40ms apart
-            const podFireDelay = podIndex * 40;
+            // Pod state machine
+            const podFireDelay = podIndex * 50;
             const podTimeSinceFire = timeSinceFire - podFireDelay;
-
-            // States: 
-            // -100 to 0: Fuse glowing
-            // 0 to 200: Firing (rocket launches)
-            // 200 to 800: Empty (pod fired, gone)
-            // 800+: Reloading (pod rises from silo)
-
             const isFuseGlowing = salvoActive && podTimeSinceFire > -100 && podTimeSinceFire <= 0;
             const isFiring = podTimeSinceFire > 0 && podTimeSinceFire < 200;
             const isEmpty = podTimeSinceFire >= 200 && timeSinceFire < 800;
             const isReloading = timeSinceFire >= 800;
 
-            // Calculate pod position (rises from silo during reload)
-            let podHeight = 28; // Full height above platform
+            let podHeight = 28;
             let podVisible = true;
-
             if (isEmpty) {
-                // Pod is gone (fired away)
                 podVisible = false;
             } else if (isReloading) {
-                // Pod rises from silo over reload period
-                // Pods reload in reverse order (last fired = first to reload visually, or same order)
-                const podReloadDelay = podIndex * 50; // Staggered reload
+                const podReloadDelay = podIndex * 50;
                 const podReloadTime = (timeSinceFire - 800) - podReloadDelay;
                 const reloadDuration = 1500;
-
                 if (podReloadTime < 0) {
                     podVisible = false;
                 } else if (podReloadTime < reloadDuration) {
-                    // Rising animation
-                    const riseProgress = podReloadTime / reloadDuration;
-                    podHeight = riseProgress * 28;
-                    podVisible = true;
+                    podHeight = (podReloadTime / reloadDuration) * 28;
                 } else {
                     podHeight = 28;
-                    podVisible = true;
                 }
             } else if (isFiring) {
-                // Slight upward recoil during firing
-                const fireProgress = podTimeSinceFire / 200;
-                podHeight = 28 + Math.sin(fireProgress * Math.PI) * 4;
+                // The projectile object takes over at ignition — the standing
+                // rocket vanishes into it, so nothing is drawn here.
+                podVisible = false;
             }
+            void fireRate;
 
-            if (podVisible) {
-                const baseY = tileCenter.y + 2;
-                const topY = baseY - podHeight;
-
-                // === LARGE FIRECRACKER ROCKET ===
-                const rocketWidth = 10;
-                const rocketHeight = podHeight - 4;
-
-                // Rocket body — L2: white/gold, L1: red/gold
-                graphics.fillStyle(isLevel2 ? 0xeeeedd : 0xcc2222, alpha);
-                graphics.fillRect(tileCenter.x - rocketWidth / 2, topY, rocketWidth, rocketHeight);
-
-                // Texture lines
-                graphics.lineStyle(1, isLevel2 ? 0xccccbb : 0xaa1111, alpha * 0.5);
-                for (let i = 1; i < 4; i++) {
-                    const lineY = topY + (rocketHeight * i / 4);
-                    graphics.lineBetween(tileCenter.x - rocketWidth / 2, lineY, tileCenter.x + rocketWidth / 2, lineY);
-                }
-
-                // Gold decorative bands
-                graphics.fillStyle(0xffd700, alpha);
-                graphics.fillRect(tileCenter.x - rocketWidth / 2 - 1, topY, rocketWidth + 2, 4);
-                graphics.fillRect(tileCenter.x - rocketWidth / 2 - 1, topY + rocketHeight - 4, rocketWidth + 2, 4);
-
-                // Middle gold band with dragon motif
-                const midY = topY + rocketHeight / 2;
-                graphics.fillStyle(isLevel2 ? 0xdaa520 : 0xb8860b, alpha);
-                graphics.fillRect(tileCenter.x - rocketWidth / 2, midY - 2, rocketWidth, 4);
-
-                // Tiny dragon/swirl symbol
-                graphics.fillStyle(isLevel2 ? 0xb8860b : 0x880000, alpha);
-                graphics.fillCircle(tileCenter.x, midY, 2);
-
-                // Rocket tip (conical - gold)
-                graphics.fillStyle(isLevel2 ? 0xdaa520 : 0xb8860b, alpha);
-                graphics.beginPath();
-                graphics.moveTo(tileCenter.x, topY - 6);
-                graphics.lineTo(tileCenter.x - rocketWidth / 2, topY);
-                graphics.lineTo(tileCenter.x + rocketWidth / 2, topY);
-                graphics.closePath();
-                graphics.fillPath();
-
-                // Tip highlight
-                graphics.fillStyle(0xffd700, alpha * 0.6);
-                graphics.beginPath();
-                graphics.moveTo(tileCenter.x, topY - 6);
-                graphics.lineTo(tileCenter.x - 2, topY);
-                graphics.lineTo(tileCenter.x, topY - 2);
-                graphics.closePath();
-                graphics.fillPath();
-
-                // Fuse at top
-                const fuseColor = isFuseGlowing ? 0xff6600 : 0x3a3a3a;
-                graphics.fillStyle(fuseColor, alpha);
-                graphics.fillRect(tileCenter.x - 1, topY - 10, 2, 5);
-
-                // Fuse spark/glow
-                if (isFuseGlowing) {
-                    const sparkIntensity = 0.5 + Math.sin(time / 30 + podIndex) * 0.5;
-                    graphics.fillStyle(0xffff00, alpha * sparkIntensity);
-                    graphics.fillCircle(tileCenter.x, topY - 10, 3);
-                    graphics.fillStyle(0xffffff, alpha * sparkIntensity * 0.5);
-                    graphics.fillCircle(tileCenter.x, topY - 10, 1.5);
-                }
-
-                // === LAUNCH SMOKE FROM SILO ===
-                if (isFiring) {
-                    const fireProgress = podTimeSinceFire / 200;
-                    const smokeIntensity = Math.sin(fireProgress * Math.PI);
-
-                    // Smoke billowing from silo hole
-                    for (let s = 0; s < 5; s++) {
-                        const smokeAge = (fireProgress * 5 + s * 0.2) % 1;
-                        const smokeX = tileCenter.x + Math.sin(time / 50 + s * 2 + podIndex) * (6 + smokeAge * 10);
-                        const smokeY = baseY - smokeAge * 20;
-                        const smokeSize = 4 + smokeAge * 8;
-                        const smokeAlpha = (1 - smokeAge) * smokeIntensity * 0.6;
-
-                        graphics.fillStyle(0x888888, alpha * smokeAlpha);
-                        graphics.fillCircle(smokeX, smokeY, smokeSize);
-                    }
-
-                    // Muzzle flash at silo
-                    graphics.fillStyle(0xff6600, alpha * smokeIntensity * 0.5);
-                    graphics.fillEllipse(tileCenter.x, baseY, 12 + smokeIntensity * 6, 6 + smokeIntensity * 3);
-                    graphics.fillStyle(0xffff00, alpha * smokeIntensity * 0.3);
-                    graphics.fillEllipse(tileCenter.x, baseY, 8, 4);
+            // Launch smoke column lingering over a freshly fired silo
+            if (BuildingRenderer.AMBIENT_VAPOR && podTimeSinceFire > 0 && podTimeSinceFire < 620) {
+                for (let k = 0; k < 3; k++) {
+                    const pt = podTimeSinceFire / 620 - k * 0.16;
+                    if (pt <= 0 || pt >= 1) continue;
+                    graphics.fillStyle(0xd8d2c8, alpha * (1 - pt) * 0.55);
+                    graphics.fillCircle(
+                        tileCenter.x + Math.sin(pt * 9 + podIndex + k * 2) * 3,
+                        tileCenter.y - pt * 26,
+                        2.2 + pt * 4.5
+                    );
                 }
             }
 
-            // === LOADING SMOKE (during reload phase) ===
-            if (isReloading) {
-                const podReloadDelay = podIndex * 50;
-                const podReloadTime = (timeSinceFire - 800) - podReloadDelay;
+            // Ignition flash at the silo mouth
+            if (podTimeSinceFire > 0 && podTimeSinceFire < 90) {
+                graphics.fillStyle(0xffe9a0, alpha * 0.9);
+                graphics.fillEllipse(tileCenter.x, tileCenter.y + 2, 13, 6);
+                graphics.fillStyle(0xffffff, alpha * 0.9);
+                graphics.fillEllipse(tileCenter.x, tileCenter.y + 2, 7, 3.4);
+            }
 
-                if (podReloadTime > 0 && podReloadTime < 500) {
-                    const steamProgress = podReloadTime / 500;
-                    const steamAlpha = (1 - steamProgress) * 0.3;
-                    const steamOffset = Math.sin(time / 100 + podIndex) * 3;
+            if (!podVisible) return;
+            const baseY = tileCenter.y + 2;
+            const topY = baseY - podHeight;
+            const w = 5;
 
-                    graphics.fillStyle(0xaaaaaa, alpha * steamAlpha);
-                    graphics.fillCircle(tileCenter.x + steamOffset, tileCenter.y - 5 - steamProgress * 15, 3 + steamProgress * 4);
+            // Rocket body: imperial red with a lit flank
+            graphics.fillStyle(isLevel2 ? 0x9c1f1f : 0xa03028, alpha);
+            graphics.fillRect(tileCenter.x - w, topY + 4, w * 2, Math.max(0, podHeight - 6));
+            graphics.fillStyle(isLevel2 ? 0xc22e2e : 0xb84438, alpha);
+            graphics.fillRect(tileCenter.x - w, topY + 4, w * 0.8, Math.max(0, podHeight - 6));
+            // Rune band (max level) or paper band
+            if (podHeight > 14) {
+                graphics.lineStyle(1.3, isLevel2 ? 0xe6dcc2 : 0xd8c49a, alpha);
+                graphics.lineBetween(tileCenter.x - w, baseY - 8, tileCenter.x + w, baseY - 8);
+                if (isLevel2) {
+                    graphics.fillStyle(0xffd700, alpha * 0.9);
+                    graphics.fillCircle(tileCenter.x, baseY - 8, 1.4);
                 }
+            }
+            // Nose cone
+            quad(graphics, [
+                [tileCenter.x - w, topY + 4.5], [tileCenter.x + w, topY + 4.5],
+                [tileCenter.x, topY - 4]
+            ], isLevel2 ? 0xdaa520 : 0x8a6a2a, alpha);
+            if (isLevel2) {
+                // Fin tails at the silo mouth
+                quad(graphics, [
+                    [tileCenter.x - w, baseY - 3], [tileCenter.x - w - 3, baseY + 1], [tileCenter.x - w, baseY + 0.5]
+                ], 0xb8860b, alpha);
+                quad(graphics, [
+                    [tileCenter.x + w, baseY - 3], [tileCenter.x + w + 3, baseY + 1], [tileCenter.x + w, baseY + 0.5]
+                ], 0xb8860b, alpha);
+            }
+            // Fuse
+            if (isFuseGlowing || (!isReloading && !salvoActive)) {
+                const spark = isFuseGlowing ? 1 : 0.4 + Math.sin(time / 200 + podIndex * 1.3) * 0.2;
+                graphics.lineStyle(1.2, 0x8a6a2a, alpha);
+                graphics.lineBetween(tileCenter.x, topY - 4, tileCenter.x + 2.4, topY - 7.5);
+                graphics.fillStyle(0xffd25e, alpha * spark);
+                graphics.fillCircle(tileCenter.x + 2.4, topY - 7.5, isFuseGlowing ? 2.2 : 1.4);
+            }
+
+        };
+
+        // ===== THE DRAGON HEAD (max level centrepiece) =====
+        const drawDragonHead = () => {
+            const hx = center.x;
+            const hy = center.y + 4;
+            const rage = salvoActive ? 1 : 0.35 + Math.sin(time / 520) * 0.15;
+
+            // Heat aura under the head
+            graphics.fillStyle(0xff5a1e, alpha * 0.16 * rage);
+            graphics.fillEllipse(hx, hy, 44, 20);
+
+            // Serpentine trunk: four lacquered scale rings rising and narrowing
+            for (let i = 0; i < 4; i++) {
+                const ry = hy - i * 9;
+                const rw = 32 - i * 5;
+                graphics.fillStyle(i % 2 === 0 ? 0x8a1c1c : 0xa32424, alpha);
+                graphics.fillEllipse(hx, ry - 5, rw, rw * 0.46);
+                graphics.lineStyle(1.4, 0xdaa520, alpha * 0.8);
+                graphics.strokeEllipse(hx, ry - 5, rw, rw * 0.46);
+            }
+
+            // Skull, towering over the battery
+            const sy = hy - 44;
+            graphics.fillStyle(0xdaa520, alpha);
+            graphics.fillCircle(hx, sy, 12.5);
+            graphics.fillStyle(0xf0c24a, alpha);
+            graphics.fillCircle(hx - 3.6, sy - 3.6, 6.4);
+
+            // Golden mane frill behind the skull
+            for (const [fx, fy, fr] of [[-10, -8, 0], [0, -12, 0], [10, -8, 0]]) {
+                void fr;
+                quad(graphics, [
+                    [hx + fx * 0.55, sy + fy * 0.55],
+                    [hx + fx * 1.55, sy + fy * 1.55],
+                    [hx + fx * 0.95 + (fx === 0 ? 4 : 0), sy + fy * 0.8 + 3]
+                ], 0xb8860b, alpha);
+            }
+
+            // Horns swept back, grand
+            graphics.lineStyle(4, 0xb8860b, alpha);
+            graphics.lineBetween(hx - 7.5, sy - 8, hx - 16.5, sy - 19);
+            graphics.lineBetween(hx + 7.5, sy - 8, hx + 16.5, sy - 19);
+            graphics.lineStyle(2.2, 0xffd700, alpha);
+            graphics.lineBetween(hx - 16.5, sy - 19, hx - 21.5, sy - 22.5);
+            graphics.lineBetween(hx + 16.5, sy - 19, hx + 21.5, sy - 22.5);
+
+            // Snout dropping toward the viewer, jaw open
+            quad(graphics, [
+                [hx - 9.5, sy + 3], [hx + 9.5, sy + 3],
+                [hx + 7.4, sy + 16], [hx - 7.4, sy + 16]
+            ], 0xdaa520, alpha);
+            quad(graphics, [
+                [hx - 7.4, sy + 16], [hx + 7.4, sy + 16],
+                [hx + 5.4, sy + 21], [hx - 5.4, sy + 21]
+            ], 0xb8860b, alpha);
+            // Maw: molten glow between upper snout and lower jaw
+            const mawGlow = salvoActive ? 0.95 : 0.45 + Math.sin(time / 300) * 0.2;
+            quad(graphics, [
+                [hx - 5.4, sy + 21], [hx + 5.4, sy + 21],
+                [hx + 3.8, sy + 27.5], [hx - 3.8, sy + 27.5]
+            ], 0x2a0d08, alpha);
+            quad(graphics, [
+                [hx - 4.2, sy + 21.8], [hx + 4.2, sy + 21.8],
+                [hx + 3, sy + 26.4], [hx - 3, sy + 26.4]
+            ], salvoActive ? 0xffe9a0 : 0xff5a1e, alpha * mawGlow);
+            // Lower jaw
+            quad(graphics, [
+                [hx - 5, sy + 27.5], [hx + 5, sy + 27.5],
+                [hx + 3.5, sy + 32.5], [hx - 3.5, sy + 32.5]
+            ], 0xb8860b, alpha);
+            // Fangs
+            graphics.fillStyle(0xf8f4e8, alpha);
+            quad(graphics, [[hx - 4.4, sy + 21], [hx - 2.4, sy + 21], [hx - 3.4, sy + 24.5]], 0xf8f4e8, alpha);
+            quad(graphics, [[hx + 2.4, sy + 21], [hx + 4.4, sy + 21], [hx + 3.4, sy + 24.5]], 0xf8f4e8, alpha);
+
+            // Jade eyes, smouldering
+            const eyeGlow = salvoActive ? 1 : 0.55 + Math.sin(time / 260) * 0.25;
+            graphics.fillStyle(0x123a24, alpha);
+            graphics.fillEllipse(hx - 6.4, sy + 5.4, 5.2, 3.8);
+            graphics.fillEllipse(hx + 6.4, sy + 5.4, 5.2, 3.8);
+            graphics.fillStyle(0x58e88a, alpha * eyeGlow);
+            graphics.fillEllipse(hx - 6.4, sy + 5.4, 3, 2.1);
+            graphics.fillEllipse(hx + 6.4, sy + 5.4, 3, 2.1);
+
+            // Whiskers
+            graphics.lineStyle(1.4, 0xffd700, alpha * 0.85);
+            graphics.lineBetween(hx - 7.5, sy + 13, hx - 17, sy + 10);
+            graphics.lineBetween(hx - 17, sy + 10, hx - 21.5, sy + 14.5);
+            graphics.lineBetween(hx + 7.5, sy + 13, hx + 17, sy + 10);
+            graphics.lineBetween(hx + 17, sy + 10, hx + 21.5, sy + 14.5);
+
+            // Breath embers rising from the maw
+            for (let i = 0; i < (salvoActive ? 5 : 3); i++) {
+                const t = ((time / (salvoActive ? 420 : 900)) + i * 0.37) % 1;
+                const ex = hx + (i % 2 === 0 ? -3 : 3) + Math.sin(t * 7 + i * 2) * 3.4;
+                const ey = sy + 19 - t * 24;
+                graphics.fillStyle(t < 0.45 ? 0xffd25e : 0xff5a1e, alpha * (1 - t) * 0.9 * rage);
+                graphics.fillCircle(ex, ey, 1.8 + (1 - t) * 1.3);
+            }
+        };
+
+        // Rows are painted north to south; the head rises between the middle
+        // rows so the rear pods peek behind it and the front pods overlap it.
+        for (let row = 0; row < 4; row++) {
+            if (isLevel2 && row === 2) drawDragonHead();
+            for (let col = 0; col < 4; col++) drawPodTile(row, col);
+        }
+    }
+
+    /**
+     * JUKEBOX — a carved music cabinet with a brass horn. The front panel
+     * glows and pulses to the beat while a chosen track is playing.
+     */
+    /**
+     * JUKEBOX — a bard's music cabinet: a proper little iso box (SE dark,
+     * SW lit) with a rounded crown, a violet glass panel on the SW face and
+     * a brass horn blooming from the top. Gold stays a trim.
+     */
+    static drawJukebox(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, _building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0, playing: boolean = false) {
+        const g = baseGraphics || graphics;
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.8);
+        }
+        if (onlyBase) return;
+
+        const quad = (pts: number[][], color: number, a2: number) => {
+            graphics.fillStyle(color, a2);
+            graphics.beginPath();
+            graphics.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) graphics.lineTo(pts[i][0], pts[i][1]);
+            graphics.closePath();
+            graphics.fillPath();
+        };
+        const lerp = (a2: Phaser.Math.Vector2, t: number): number[] => [
+            center.x + (a2.x - center.x) * t,
+            center.y + (a2.y - center.y) * t
+        ];
+        const up = (pt: number[], h: number): number[] => [pt[0], pt[1] - h];
+
+        const pulse = playing ? 0.62 + Math.sin(time / 180) * 0.34 : 0.26 + Math.sin(time / 900) * 0.07;
+        const woodLit = tint ?? 0x8a5c38;
+        const woodDark = 0x6b4226;
+        const woodTop = 0x9c6c42;
+
+        // ===== CABINET (compact box, lawn breathes around it) =====
+        const s = 0.58;
+        const wallH = 17;
+        const p1 = lerp(c1, s);
+        const p2 = lerp(c2, s);
+        const p3 = lerp(c3, s);
+        const p4 = lerp(c4, s);
+        quad([p2, p3, up(p3, wallH), up(p2, wallH)], woodDark, alpha); // SE dark
+        quad([p3, p4, up(p4, wallH), up(p3, wallH)], woodLit, alpha); // SW lit
+        quad([up(p1, wallH), up(p2, wallH), up(p3, wallH), up(p4, wallH)], woodTop, alpha);
+        // Gold trim ringing the top edge
+        graphics.lineStyle(1.4, 0xc9a227, alpha);
+        graphics.beginPath();
+        graphics.moveTo(p4[0], p4[1] - wallH);
+        graphics.lineTo(p3[0], p3[1] - wallH);
+        graphics.lineTo(p2[0], p2[1] - wallH);
+        graphics.strokePath();
+
+        // ===== ARCHED GLASS on the SW face (the classic jukebox arch,
+        // built entirely in the wall plane with the door-skew helper) =====
+        const dX = (p3[0] + p4[0]) / 2;
+        const dY = (p3[1] + p4[1]) / 2;
+        const sk = (p3[1] - p4[1]) / (p3[0] - p4[0]);
+        const dp = (ox: number, h: number): number[] => [dX + ox, dY + ox * sk - h];
+        const archPts = (halfW: number, hBase: number, hTop: number, rise: number): number[][] => {
+            const pts: number[][] = [dp(-halfW, hBase), dp(halfW, hBase), dp(halfW, hTop)];
+            for (let i = 0; i <= 10; i++) {
+                const a3 = (i / 10) * Math.PI;
+                pts.push(dp(halfW * Math.cos(a3), hTop + Math.sin(a3) * rise));
+            }
+            pts.push(dp(-halfW, hTop));
+            return pts;
+        };
+        // Dark casing, then the glowing violet glass inside it
+        quad(archPts(6.2, 2.5, 11, 4.6), 0x1a0f1e, alpha);
+        quad(archPts(5, 3.2, 10.8, 3.6), 0xc98aff, alpha * pulse);
+        // Speaker slats across the lower glass, in the same plane
+        graphics.lineStyle(0.9, 0x1a0f1e, alpha * 0.8);
+        for (let i = 0; i <= 2; i++) {
+            const hh = 4.2 + i * 2;
+            graphics.lineBetween(dp(-4, hh)[0], dp(-4, hh)[1], dp(4, hh)[0], dp(4, hh)[1]);
+        }
+        // Gold beading over the arch
+        graphics.lineStyle(1.1, 0xc9a227, alpha);
+        graphics.beginPath();
+        for (let i = 0; i <= 12; i++) {
+            const a3 = (i / 12) * Math.PI;
+            const pt = dp(6.2 * Math.cos(a3), 11 + Math.sin(a3) * 4.6);
+            if (i === 0) graphics.moveTo(pt[0], pt[1]); else graphics.lineTo(pt[0], pt[1]);
+        }
+        graphics.strokePath();
+
+        // ===== BRASS GRAMOPHONE HORN rising from the top face =====
+        // Axis points up-and-east; the rim disc is spanned by the axis
+        // perpendicular + the vertical, so it faces along the horn.
+        const topY = center.y - wallH;
+        const bx = center.x + 3.5;
+        const by = topY + 1.5;
+        const dirX = 0.76, dirY = -0.65;
+        const perpX = -dirY, perpY = dirX; // screen-space normal of the axis
+        const hornLen = 15;
+        const rimX = bx + dirX * hornLen;
+        const rimY = by + dirY * hornLen;
+        const rimR = 6.2;
+        const rim = (t: number, r: number): number[] => [
+            rimX + perpX * Math.cos(t) * r,
+            rimY + perpY * Math.cos(t) * r + Math.sin(t) * r * 0.6
+        ];
+        // Tapered cone from a narrow throat to the rim
+        quad([
+            [bx + perpX * 1.6, by + perpY * 1.6],
+            rim(0, rimR * 0.92),
+            rim(Math.PI, rimR * 0.92),
+            [bx - perpX * 1.6, by - perpY * 1.6]
+        ], 0xd8b13a, alpha);
+        // Throat elbow anchoring it to the cabinet
+        graphics.fillStyle(0xb8922e, alpha);
+        graphics.fillCircle(bx, by + 0.5, 2.4);
+        // Rim: bright brass ring with a dark bore
+        const ring: number[][] = [];
+        for (let i = 0; i <= 14; i++) ring.push(rim((i / 14) * Math.PI * 2, rimR));
+        quad(ring, 0xf2d268, alpha);
+        const bore: number[][] = [];
+        for (let i = 0; i <= 12; i++) bore.push(rim((i / 12) * Math.PI * 2, rimR * 0.55));
+        quad(bore, 0x4a3410, alpha);
+
+        // ===== CRANK on the SE face =====
+        const eX = (p2[0] + p3[0]) / 2;
+        const eY = (p2[1] + p3[1]) / 2;
+        graphics.lineStyle(1.5, 0x8a6a1e, alpha);
+        graphics.lineBetween(eX, eY - 7, eX + 3.5, eY - 9.5);
+        graphics.fillStyle(0xc9a227, alpha);
+        graphics.fillCircle(eX + 3.5, eY - 9.5, 1.5);
+
+        // ===== MUSIC NOTES drifting out of the horn while a track plays =====
+        // Three quavers on staggered clocks: each pops from the bore, rises
+        // on a lazy sway, and melts away — brass and violet by turns, so the
+        // song visibly belongs to this cabinet. Pure function of time.
+        if (playing) {
+            const note = (nx: number, ny: number, col: number, a2: number, sc: number, twin: boolean) => {
+                graphics.fillStyle(col, a2);
+                graphics.fillEllipse(nx, ny, 3.4 * sc, 2.4 * sc);
+                graphics.lineStyle(1.1 * sc, col, a2);
+                graphics.lineBetween(nx + 1.5 * sc, ny - 0.5 * sc, nx + 1.5 * sc, ny - 6.5 * sc);
+                if (twin) {
+                    graphics.fillEllipse(nx + 4.8 * sc, ny - 1 * sc, 3.4 * sc, 2.4 * sc);
+                    graphics.lineBetween(nx + 6.3 * sc, ny - 1.5 * sc, nx + 6.3 * sc, ny - 7.3 * sc);
+                    graphics.lineStyle(1.6 * sc, col, a2);
+                    graphics.lineBetween(nx + 1.5 * sc, ny - 6.5 * sc, nx + 6.3 * sc, ny - 7.3 * sc);
+                } else {
+                    graphics.lineBetween(nx + 1.5 * sc, ny - 6.5 * sc, nx + 3.4 * sc, ny - 5.2 * sc);
+                }
+            };
+            const sx0 = rimX + dirX * 2;
+            const sy0 = rimY + dirY * 2;
+            for (let i = 0; i < 3; i++) {
+                const period = 2000 + i * 260;
+                const t = ((time + i * 733) % period) / period;
+                const fade = Math.min(1, t / 0.15) * Math.max(0, 1 - Math.max(0, (t - 0.68) / 0.32));
+                if (fade <= 0.01) continue;
+                const sway = Math.sin(t * Math.PI * 2 + i * 2.1) * (2.4 + i * 0.5);
+                const nx = sx0 + dirX * 7 * t + sway;
+                const ny = sy0 + dirY * 7 * t - 19 * t;
+                note(nx, ny, i % 2 === 0 ? 0xf2d268 : 0xc98aff, alpha * fade * 0.95, 0.8 + t * 0.3, i === 1);
             }
         }
     }
 
-    // === SUBTLE AMBIENT EFFECTS ===
-    // Small wisps of incense/steam (idle state only)
-    if (!salvoActive && reloadPhase >= 1) {
-        for (let i = 0; i < 2; i++) {
-            const wispsTime = (time / 4000 + i * 0.5) % 1;
-            const wispX = center.x + Math.sin(time / 800 + i * 3) * 15;
-            const wispY = center.y - 20 - wispsTime * 25;
-            const wispAlpha = (1 - wispsTime) * 0.15;
+    /**
+     * ORE MINE — a rocky dig with a timber head-frame, rope-and-bucket winch
+     * and freshly mined ore glinting by the rim.
+     */
+    static drawMine(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        const g = baseGraphics || graphics;
+        const level = Math.max(1, Number(building?.level) || 1);
 
-            graphics.fillStyle(0xcccccc, alpha * wispAlpha);
-            graphics.fillCircle(wispX, wispY, 2 + wispsTime * 3);
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.7, 0.68);
+            // Compact trampled patch just under the works — the lawn keeps the rest
+            const inset = (a: Phaser.Math.Vector2, f: number) => new Phaser.Math.Vector2(center.x + (a.x - center.x) * f, center.y + (a.y - center.y) * f);
+            g.fillStyle(tint ?? 0x8a8272, alpha);
+            g.fillPoints([inset(c1, 0.64), inset(c2, 0.64), inset(c3, 0.64), inset(c4, 0.64)], true);
+            g.fillStyle(0x7a7264, alpha);
+            g.fillPoints([inset(c1, 0.5), inset(c2, 0.5), inset(c3, 0.5), inset(c4, 0.5)], true);
+            // A few stones kicked to the rim of the patch
+            g.fillStyle(0x6b655a, alpha);
+            for (let i = 0; i < 5; i++) {
+                const a2 = (i / 5) * Math.PI * 2 + 0.6;
+                g.fillEllipse(center.x + Math.cos(a2) * 19, center.y + 5 + Math.sin(a2) * 8, 3.2, 2);
+            }
+        }
+
+        if (onlyBase) return;
+
+        // The pit itself: a dark mouth with a stone rim
+        graphics.fillStyle(0x4c463c, alpha);
+        graphics.fillEllipse(center.x, center.y + 4, 30, 15);
+        graphics.fillStyle(0x14100c, alpha);
+        graphics.fillEllipse(center.x, center.y + 4, 24, 11);
+        graphics.fillStyle(0x000000, alpha * 0.65);
+        graphics.fillEllipse(center.x, center.y + 5, 18, 8);
+
+        // Timber head-frame straddling the pit
+        const legL = { x: center.x - 14, y: center.y + 6 };
+        const legR = { x: center.x + 14, y: center.y + 6 };
+        const apexY = center.y - 26;
+        graphics.lineStyle(3, 0x5c4326, alpha);
+        graphics.beginPath();
+        graphics.moveTo(legL.x, legL.y);
+        graphics.lineTo(center.x, apexY);
+        graphics.lineTo(legR.x, legR.y);
+        graphics.strokePath();
+        graphics.lineStyle(2, 0x6d5230, alpha);
+        graphics.lineBetween(center.x - 8, center.y - 9, center.x + 8, center.y - 9);
+        // Pulley wheel + rope + bucket, creaking up and down
+        graphics.fillStyle(0x3a2e1c, alpha);
+        graphics.fillCircle(center.x, apexY + 3, 3.2);
+        graphics.fillStyle(0x8a6a3a, alpha);
+        graphics.fillCircle(center.x, apexY + 3, 1.4);
+        const crewed = time < Number(building?.crewedUntil ?? 0);
+        const bob = Math.sin(time / (crewed ? 340 : 900)) * 4;
+        graphics.lineStyle(1, 0xb8a888, alpha);
+        graphics.lineBetween(center.x, apexY + 6, center.x, center.y - 4 + bob);
+        graphics.fillStyle(0x4a3a24, alpha);
+        graphics.fillRect(center.x - 3, center.y - 4 + bob, 6, 4.5);
+
+        // Mined ore piled by the rim — the heap grows with the production
+        // cycle and shrinks back when a miner hauls it off.
+        const fill = Math.max(0, Math.min(1, Number(building?.fillLevel ?? 1)));
+        const pileX = center.x + 18;
+        const pileY = center.y + 12;
+        const glint = 0.75 + Math.sin(time / (crewed ? 240 : 480)) * 0.25;
+        if (fill > 0.08) {
+            const pile = 0.3 + fill * 0.7; // a few scraps even when freshly emptied
+            graphics.fillStyle(0x6b6e78, alpha);
+            graphics.fillEllipse(pileX, pileY, 13 * pile, 6.5 * pile);
+            if (fill > 0.35) graphics.fillEllipse(pileX - 4, pileY - 3 * pile, 8 * pile, 4.5 * pile);
+            graphics.fillStyle(0xffd84a, alpha * glint);
+            graphics.fillCircle(pileX - 3 * pile, pileY - 3.4 * pile, 1.4);
+            if (fill > 0.45) graphics.fillCircle(pileX + 3.4 * pile, pileY - 1, 1.2);
+            if (fill > 0.75) graphics.fillCircle(pileX - 0.5, pileY + 1.4, 1);
+        }
+
+        // Higher levels: a second support brace and a bigger haul
+        if (level >= 2) {
+            graphics.lineStyle(2, 0x5c4326, alpha);
+            graphics.lineBetween(legL.x + 3, legL.y - 8, legR.x - 3, legR.y - 8);
+            if (fill > 0.55) {
+                graphics.fillStyle(0x6b6e78, alpha);
+                graphics.fillEllipse(pileX + 7, pileY + 2, 8 * fill, 4 * fill);
+                graphics.fillStyle(0xffd84a, alpha * glint);
+                graphics.fillCircle(pileX + 7, pileY + 1, 1.2);
+            }
+        }
+        if (level >= 3) {
+            // A lantern on the frame for the night shift
+            graphics.fillStyle(0x2a2a2a, alpha);
+            graphics.fillRect(center.x + 6.5, center.y - 12, 3, 4);
+            graphics.fillStyle(0xffd76a, alpha * (0.65 + Math.sin(time / 300) * 0.25));
+            graphics.fillRect(center.x + 7.2, center.y - 11.3, 1.6, 2.6);
         }
     }
-}
 
-    static drawGenericBuilding(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, _center: Phaser.Math.Vector2, info: any, alpha: number, tint: number | null, baseGraphics ?: Phaser.GameObjects.Graphics) {
+    /**
+     * FARM — tilled rows with swaying crops, a hay bale and a water trough.
+     * The crops stand taller with each level.
+     */
+    static drawFarm(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        const g = baseGraphics || graphics;
+        const level = Math.max(1, Number(building?.level) || 1);
+
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.7, 0.82);
+            const inset = (a: Phaser.Math.Vector2, f: number) => new Phaser.Math.Vector2(center.x + (a.x - center.x) * f, center.y + (a.y - center.y) * f);
+            // Tilled soil bed
+            g.fillStyle(tint ?? 0x6d4f30, alpha);
+            g.fillPoints([inset(c1, 0.95), inset(c2, 0.95), inset(c3, 0.95), inset(c4, 0.95)], true);
+            // Furrow rows following the long (c4->c2) axis
+            g.lineStyle(1.6, 0x59402a, alpha * 0.9);
+            for (let r = 1; r <= 4; r++) {
+                const f = r / 5;
+                const sx = c1.x + (c4.x - c1.x) * f;
+                const sy = c1.y + (c4.y - c1.y) * f;
+                const ex = c2.x + (c3.x - c2.x) * f;
+                const ey = c2.y + (c3.y - c2.y) * f;
+                g.lineBetween(
+                    center.x + (sx - center.x) * 0.86, center.y + (sy - center.y) * 0.86,
+                    center.x + (ex - center.x) * 0.86, center.y + (ey - center.y) * 0.86
+                );
+            }
+        }
+
+        if (onlyBase) return;
+
+        // Crops along the furrows: green sprouts push up, turn golden as they
+        // ripen, and start over after each harvest run.
+        const fill = Math.max(0, Math.min(1, Number(building?.fillLevel ?? 1)));
+        const cropHeight = 1.5 + (3.5 + level * 2) * fill;
+        // Stalks green up first, then gild: lerp green -> wheat gold.
+        const lerpChannel = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
+        const ripen = Math.max(0, (fill - 0.4) / 0.6);
+        const stalkColor = (lerpChannel(0x5f, 0xb8, ripen) << 16) | (lerpChannel(0xa8, 0x91, ripen) << 8) | lerpChannel(0x48, 0x2e, ripen);
+        const headColor = (lerpChannel(0x6f, 0xe8, ripen) << 16) | (lerpChannel(0xbf, 0xc0, ripen) << 8) | lerpChannel(0x5a, 0x4a, ripen);
+        for (let r = 1; r <= 4; r++) {
+            const f = r / 5;
+            const sx = c1.x + (c4.x - c1.x) * f;
+            const sy = c1.y + (c4.y - c1.y) * f;
+            const ex = c2.x + (c3.x - c2.x) * f;
+            const ey = c2.y + (c3.y - c2.y) * f;
+            for (let i = 1; i <= 5; i++) {
+                const ff = i / 6;
+                const px = center.x + ((sx + (ex - sx) * ff) - center.x) * 0.86;
+                const py = center.y + ((sy + (ey - sy) * ff) - center.y) * 0.86;
+                const sway = (windSwayAtScreen(px, py, time) * 1.5 + Math.sin(time / 620 + r + i) * 0.35) * (0.4 + fill);
+                graphics.lineStyle(1.4, stalkColor, alpha);
+                graphics.lineBetween(px, py, px + sway, py - cropHeight);
+                // Grain heads only once the crop is past half grown.
+                if (fill > 0.5) {
+                    const headSize = (fill - 0.5) / 0.5;
+                    graphics.fillStyle(headColor, alpha);
+                    graphics.fillEllipse(px + sway, py - cropHeight - 1.2 * headSize, 2.4 * headSize, 3.4 * headSize);
+                }
+            }
+        }
+
+        // Hay bale in the near corner
+        const hayX = center.x + (c3.x - center.x) * 0.62;
+        const hayY = center.y + (c3.y - center.y) * 0.62 - 4;
+        graphics.fillStyle(0xd0a848, alpha);
+        graphics.fillEllipse(hayX, hayY, 12, 8);
+        graphics.fillStyle(0xb8912e, alpha);
+        graphics.fillEllipse(hayX, hayY, 5, 8);
+        graphics.fillStyle(0xe0bc66, alpha);
+        graphics.fillEllipse(hayX, hayY, 2.4, 8);
+
+        // Water trough on the west corner
+        const trX = center.x + (c4.x - center.x) * 0.6;
+        const trY = center.y + (c4.y - center.y) * 0.6 - 2;
+        graphics.fillStyle(0x5c4326, alpha);
+        graphics.fillRect(trX - 7, trY - 3, 14, 6);
+        const shimmer = 0.75 + Math.sin(time / 700) * 0.15;
+        graphics.fillStyle(0x4a7a9e, alpha * shimmer);
+        graphics.fillRect(trX - 5.6, trY - 1.8, 11.2, 3.4);
+
+        if (level >= 2) {
+            // Scarecrow keeping the sparrows honest
+            const scX = center.x + (c1.x - center.x) * 0.55;
+            const scY = center.y + (c1.y - center.y) * 0.55 + 2;
+            graphics.lineStyle(2, 0x6d5230, alpha);
+            graphics.lineBetween(scX, scY + 8, scX, scY - 6);
+            graphics.lineBetween(scX - 6, scY - 2, scX + 6, scY - 2);
+            graphics.fillStyle(0xc9a86a, alpha);
+            graphics.fillCircle(scX, scY - 8, 3);
+            graphics.fillStyle(0x8a3b2e, alpha);
+            graphics.fillTriangle(scX - 3.4, scY - 9.5, scX + 3.4, scY - 9.5, scX, scY - 14);
+        }
+    }
+
+    /**
+     * STOREHOUSE — a squat timber barn under a hipped ridge roof, with grain
+     * sacks and barrels stacked by the door. Keeps both the ore and the food.
+     * No ground plate: like every other building it sits straight on the
+     * lawn under a contact shadow. Levels: rough plank -> slate + iron ->
+     * pale oak with gold trim.
+     */
+    static drawStorage(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        const g = baseGraphics || graphics;
+        const level = Math.max(1, Math.min(3, Number(building?.level) || 1));
+
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.9, 0.8);
+        }
+        if (onlyBase) return;
+
+        const quad = (pts: number[][], color: number, a2: number) => {
+            graphics.fillStyle(color, a2);
+            graphics.beginPath();
+            graphics.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) graphics.lineTo(pts[i][0], pts[i][1]);
+            graphics.closePath();
+            graphics.fillPath();
+        };
+        const lerp = (a2: Phaser.Math.Vector2, t: number): number[] => [
+            center.x + (a2.x - center.x) * t,
+            center.y + (a2.y - center.y) * t
+        ];
+        const up = (pt: number[], h: number): number[] => [pt[0], pt[1] - h];
+
+        // ===== LEVEL PALETTES =====
+        const wallLit = tint ?? (level >= 3 ? 0xbfb49a : level >= 2 ? 0xa8875a : 0x9a7448);
+        const wallDark = level >= 3 ? 0x9d9078 : level >= 2 ? 0x86653c : 0x7a5836;
+        const roofLit = level >= 3 ? 0x6a4a2a : level >= 2 ? 0x67676f : 0x8a5a30;
+        const roofDark = level >= 3 ? 0x523822 : level >= 2 ? 0x4f4f58 : 0x6b4423;
+        const trim = level >= 3 ? 0xdaa520 : level >= 2 ? 0x3f3f48 : 0x5c4326;
+        const seam = level >= 3 ? 0x8a8068 : level >= 2 ? 0x6d5230 : 0x5c4326;
+
+        // ===== WALLS (box on a shrunken footprint) =====
+        const s = 0.8;
+        const wallH = 13 + level * 1.5;
+        const p2 = lerp(c2, s);
+        const p3 = lerp(c3, s);
+        const p4 = lerp(c4, s);
+        quad([p2, p3, up(p3, wallH), up(p2, wallH)], wallDark, alpha);
+        quad([p3, p4, up(p4, wallH), up(p3, wallH)], wallLit, alpha);
+        // Plank coursing
+        graphics.lineStyle(1, seam, alpha * 0.55);
+        for (let i = 1; i <= 2; i++) {
+            const hh = (wallH * i) / 3;
+            graphics.lineBetween(p4[0], p4[1] - hh, p3[0], p3[1] - hh);
+            graphics.lineBetween(p3[0], p3[1] - hh, p2[0], p2[1] - hh);
+        }
+
+        // ===== BARN DOOR on the SW face, skewed into the wall plane =====
+        const dX = (p3[0] + p4[0]) / 2;
+        const dY = (p3[1] + p4[1]) / 2 - 0.5;
+        const sk = (p3[1] - p4[1]) / (p3[0] - p4[0]);
+        const dp = (ox: number, h: number): number[] => [dX + ox, dY + ox * sk - h];
+        quad([dp(-6, -0.5), dp(6, -0.5), dp(6, 11.5), dp(-6, 11.5)], trim === 0xdaa520 ? 0x8a6a3a : trim, alpha);
+        const doorOpen = Math.max(0, Math.min(1, Number(building?.doorOpen) || 0));
+        if (doorOpen > 0.02) {
+            quad([dp(-4.8, 0), dp(4.8, 0), dp(4.8, 10.8), dp(-4.8, 10.8)], 0x14100b, alpha);
+            // Warm stores-light spilling out
+            graphics.fillStyle(0xd8a648, alpha * 0.2 * doorOpen);
+            graphics.fillEllipse(dX, dY - 5, 7, 8);
+            const leaf = 9.6 * (1 - doorOpen * 0.85);
+            quad([dp(-4.8, 0), dp(-4.8 + leaf, 0), dp(-4.8 + leaf, 10.8), dp(-4.8, 10.8)], 0x4a3a24, alpha);
+        } else {
+            quad([dp(-4.8, 0), dp(4.8, 0), dp(4.8, 10.8), dp(-4.8, 10.8)], 0x4a3a24, alpha);
+            // Cross-brace
+            graphics.lineStyle(1.4, 0x6d5230, alpha);
+            graphics.lineBetween(dp(-4.8, 10.8)[0], dp(-4.8, 10.8)[1], dp(4.8, 0)[0], dp(4.8, 0)[1]);
+            graphics.lineBetween(dp(4.8, 10.8)[0], dp(4.8, 10.8)[1], dp(-4.8, 0)[0], dp(-4.8, 0)[1]);
+        }
+        if (level >= 3) {
+            // Small gold roundel above the door — the merchant's mark
+            graphics.fillStyle(0xdaa520, alpha);
+            graphics.fillCircle(dp(0, 14.5)[0], dp(0, 14.5)[1], 1.8);
+        }
+        // Hanging lantern beside the door — the storehouse's night light
+        const [lx, ly] = dp(9.5, 9);
+        const lamp = 0.6 + Math.sin(time / 340) * 0.25;
+        graphics.lineStyle(1, 0x2a2a2a, alpha);
+        graphics.lineBetween(lx, ly - 2.2, lx, ly - 4);
+        graphics.fillStyle(0x2a2a2a, alpha);
+        graphics.fillRect(lx - 1.5, ly - 2.4, 3, 4);
+        graphics.fillStyle(0xffc36a, alpha * lamp);
+        graphics.fillRect(lx - 0.9, ly - 1.8, 1.8, 2.8);
+
+        // ===== HIPPED RIDGE ROOF (all four faces — nothing missing) =====
+        const o = 1.16;
+        const roofH = 9 + level;
+        const r1 = up(lerp(c1, s * o), wallH);
+        const r2 = up(lerp(c2, s * o), wallH);
+        const r3 = up(lerp(c3, s * o), wallH);
+        const r4 = up(lerp(c4, s * o), wallH);
+        const q = s * 0.24;
+        const RA = [center.x - (c2.x - c1.x) * q, center.y - (c2.y - c1.y) * q - wallH - roofH];
+        const RB = [center.x + (c2.x - c1.x) * q, center.y + (c2.y - c1.y) * q - wallH - roofH];
+        const mix = (a2: number[], b2: number[], t: number): number[] => [a2[0] + (b2[0] - a2[0]) * t, a2[1] + (b2[1] - a2[1]) * t];
+        // Far slope and far hip first
+        quad([r1, r2, RB, RA], roofDark, alpha * 0.92);
+        quad([r4, r1, RA], roofLit, alpha * 0.92);
+        // Near slope and near hip
+        quad([r4, r3, RB, RA], roofLit, alpha);
+        quad([r3, r2, RB], roofDark, alpha);
+        // Plank courses on the near slope
+        graphics.lineStyle(1, roofDark, alpha * 0.6);
+        for (const t of [0.35, 0.7]) {
+            const ta = mix(r4, RA, t);
+            const tb = mix(r3, RB, t);
+            graphics.lineBetween(ta[0], ta[1], tb[0], tb[1]);
+        }
+        // Eaves, near hip edge and ridge cap
+        graphics.lineStyle(1.4, roofDark, alpha * 0.85);
+        graphics.lineBetween(r4[0], r4[1], r3[0], r3[1]);
+        graphics.lineBetween(r3[0], r3[1], r2[0], r2[1]);
+        graphics.lineBetween(r3[0], r3[1], RB[0], RB[1]);
+        graphics.lineStyle(2.2, trim, alpha);
+        graphics.lineBetween(RA[0], RA[1], RB[0], RB[1]);
+        if (level >= 3) {
+            // Gold finials at the ridge ends
+            graphics.fillStyle(0xffd700, alpha);
+            graphics.fillCircle(RA[0], RA[1] - 0.5, 1.6);
+            graphics.fillCircle(RB[0], RB[1] - 0.5, 1.6);
+        }
+
+        // ===== GOODS STACKED OUTSIDE (more with each level) =====
+        const barrel = (bx: number, by: number) => {
+            graphics.fillStyle(0x7a5230, alpha);
+            graphics.fillEllipse(bx, by, 8, 9.5);
+            graphics.fillStyle(0x8f6238, alpha);
+            graphics.fillEllipse(bx, by - 4, 8, 3.4);
+            graphics.lineStyle(1, 0x4a3a24, alpha);
+            graphics.lineBetween(bx - 4, by, bx + 4, by);
+        };
+        const propX = center.x + (c2.x - center.x) * 0.72;
+        const propY = center.y + (c2.y - center.y) * 0.72 + 6;
+        barrel(propX, propY);
+        if (level >= 2) barrel(propX + 8, propY + 4);
+        const sackX = center.x + (c3.x - center.x) * 0.85;
+        const sackY = center.y + (c3.y - center.y) * 0.85;
+        graphics.fillStyle(0xc9ae86, alpha);
+        graphics.fillEllipse(sackX, sackY, 8, 6.5);
+        graphics.fillEllipse(sackX + 5.5, sackY + 2.5, 8, 6.5);
+        graphics.fillStyle(0xb0966e, alpha);
+        graphics.fillRect(sackX - 1.2, sackY - 4.4, 2.4, 2);
+        if (level >= 3) {
+            graphics.fillStyle(0xc9ae86, alpha);
+            graphics.fillEllipse(sackX + 2.5, sackY - 3, 8, 6.5);
+        }
+    }
+
+    static drawGenericBuilding(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, _center: Phaser.Math.Vector2, info: any, alpha: number, tint: number | null, baseGraphics ?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
     const color = tint ?? info.color;
     const height = 30 * Math.max(info.width, info.height);
     const t1 = new Phaser.Math.Vector2(c1.x, c1.y - height);
@@ -5578,8 +4305,8 @@ export class BuildingRenderer {
     const t4 = new Phaser.Math.Vector2(c4.x, c4.y - height);
 
     const g = baseGraphics || graphics;
-    g.fillStyle(color, alpha);
-    g.fillPoints([c1, c2, c3, c4], true);
+    if (!skipBase) BuildingRenderer.groundShadow(g, c1, c2, c3, c4, _center, alpha, 1, 0.78);
+    if (onlyBase) return;
 
     const darkColor = Phaser.Display.Color.IntegerToColor(color).darken(20).color;
     const lightColor = Phaser.Display.Color.IntegerToColor(color).brighten(10).color;
@@ -5750,103 +4477,38 @@ export class BuildingRenderer {
     const facingOffset = Math.cos(aimAngle) * 0.15;
 
     // ===== LEVEL =====
-    const level = building?.level ?? 1;
+    const level = Number(building?.level) || 1;
     const isLevel3 = level >= 3;
     const isLevel4 = level >= 4;
 
     // ===== COLORS =====
-    const woodDark = tint ?? (isLevel4 ? 0xeeeedd : isLevel3 ? 0x3a2a20 : 0x5d4037);
-    const woodMid = isLevel4 ? 0xddddcc : isLevel3 ? 0x4a3830 : 0x795548;
-    const woodLight = isLevel4 ? 0xccccbb : isLevel3 ? 0x5a4840 : 0x8d6e63;
+    const woodDark = tint ?? (isLevel4 ? 0x5a4030 : isLevel3 ? 0x3a2a20 : 0x5d4037);
+    const woodMid = isLevel4 ? 0x74553c : isLevel3 ? 0x4a3830 : 0x795548;
+    const woodLight = isLevel4 ? 0x8f6d4c : isLevel3 ? 0x5a4840 : 0x8d6e63;
     const metalDark = isLevel4 ? 0xb8860b : isLevel3 ? 0x2a2a2a : 0x424242;
     const metalMid = isLevel4 ? 0xdaa520 : isLevel3 ? 0x505050 : 0x616161;
     const ropeTan = isLevel4 ? 0xdaa520 : 0xb8a07a;
-    const stoneGray = isLevel4 ? 0xeeeedd : isLevel3 ? 0x606060 : 0x757575;
-    const stoneDark = isLevel4 ? 0xddddcc : isLevel3 ? 0x3a3a3a : 0x5a5a5a;
+    const stoneGray = isLevel4 ? 0xcfc5ae : isLevel3 ? 0x606060 : 0x757575;
+    const stoneDark = isLevel4 ? 0xafa58c : isLevel3 ? 0x3a3a3a : 0x5a5a5a;
     const ironPlate = isLevel4 ? 0xdaa520 : 0x555555;
 
     // ===== BASE PLATFORM (ground layer) =====
     if (!skipBase) {
-        if (isLevel4) {
-            // Marble & gold foundation
-            g.fillStyle(0xeeeedd, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.fillStyle(0xddddcc, alpha * 0.4);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.lineStyle(3, 0xdaa520, alpha * 0.9);
-            g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-            g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            g.lineStyle(3, 0xb8860b, alpha * 0.9);
-            g.lineBetween(c2.x, c2.y, c3.x, c3.y);
-            g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-            g.fillStyle(0xffd700, alpha * 0.9);
-            g.fillCircle(c1.x, c1.y, 4);
-            g.fillCircle(c2.x, c2.y, 4);
-            g.fillCircle(c3.x, c3.y, 4);
-            g.fillCircle(c4.x, c4.y, 4);
-            g.fillStyle(0xdaa520, alpha * 0.7);
-            g.fillCircle(c1.x, c1.y, 2);
-            g.fillCircle(c2.x, c2.y, 2);
-            g.fillCircle(c3.x, c3.y, 2);
-            g.fillCircle(c4.x, c4.y, 2);
-            g.lineStyle(1, 0xccccbb, alpha * 0.3);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-        } else if (isLevel3) {
-            // Iron-plated stone foundation
-            g.fillStyle(0x3a3a3a, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.fillStyle(ironPlate, alpha * 0.5);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.lineStyle(2, 0x666666, alpha * 0.9);
-            g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-            g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            g.lineStyle(2, 0x333333, alpha * 0.9);
-            g.lineBetween(c2.x, c2.y, c3.x, c3.y);
-            g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-            g.fillStyle(0x777777, alpha * 0.8);
-            g.fillCircle(c1.x, c1.y, 3.5);
-            g.fillCircle(c2.x, c2.y, 3.5);
-            g.fillCircle(c3.x, c3.y, 3.5);
-            g.fillCircle(c4.x, c4.y, 3.5);
-            g.lineStyle(1, 0x4a4a4a, alpha * 0.4);
-            g.lineBetween(c1.x, c1.y, c3.x, c3.y);
-            g.lineBetween(c2.x, c2.y, c4.x, c4.y);
-        } else {
-            g.fillStyle(stoneDark, alpha);
-            g.fillPoints([c1, c2, c3, c4], true);
-            g.lineStyle(2, stoneGray, alpha * 0.8);
-            g.lineBetween(c1.x, c1.y, c2.x, c2.y);
-            g.lineBetween(c1.x, c1.y, c4.x, c4.y);
-            g.lineStyle(2, 0x4a4a4a, alpha * 0.8);
-            g.lineBetween(c2.x, c2.y, c3.x, c3.y);
-            g.lineBetween(c3.x, c3.y, c4.x, c4.y);
-
-            g.fillStyle(woodDark, alpha * 0.7);
-            const inset = 6;
-            const m1 = new Phaser.Math.Vector2(c1.x, c1.y + inset);
-            const m2 = new Phaser.Math.Vector2(c2.x + inset * 1.5, c2.y);
-            const m3 = new Phaser.Math.Vector2(c3.x, c3.y - inset);
-            const m4 = new Phaser.Math.Vector2(c4.x - inset * 1.5, c4.y);
-            g.fillPoints([m1, m2, m3, m4], true);
-
-            g.lineStyle(1, 0x4a3020, alpha * 0.5);
-            for (let i = 1; i < 4; i++) {
-                const t = i / 4;
-                const startX = m1.x + (m2.x - m1.x) * t;
-                const startY = m1.y + (m2.y - m1.y) * t;
-                const endX = m4.x + (m3.x - m4.x) * t;
-                const endY = m4.y + (m3.y - m4.y) * t;
-                g.lineBetween(startX, startY, endX, endY);
-            }
-
-            g.fillStyle(metalDark, alpha);
-            g.fillCircle(c1.x, c1.y, 3);
-            g.fillCircle(c2.x, c2.y, 3);
-            g.fillCircle(c3.x, c3.y, 3);
-            g.fillCircle(c4.x, c4.y, 3);
+        BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 1, 0.72);
+        const px = (t: number, a: Phaser.Math.Vector2) => center.x + (a.x - center.x) * t;
+        const py = (t: number, a: Phaser.Math.Vector2) => center.y + (a.y - center.y) * t;
+        const m1 = new Phaser.Math.Vector2(px(0.52, c1), py(0.52, c1) + 2);
+        const m2 = new Phaser.Math.Vector2(px(0.52, c2), py(0.52, c2));
+        const m3 = new Phaser.Math.Vector2(px(0.52, c3), py(0.52, c3) - 2);
+        const m4 = new Phaser.Math.Vector2(px(0.52, c4), py(0.52, c4));
+        g.fillStyle(woodDark, alpha * 0.85);
+        g.fillPoints([m1, m2, m3, m4], true);
+        g.lineStyle(1, isLevel4 ? 0xdaa520 : 0x4a3020, alpha * 0.5);
+        for (let i = 1; i < 4; i++) {
+            const t = i / 4;
+            g.lineBetween(m1.x + (m2.x - m1.x) * t, m1.y + (m2.y - m1.y) * t, m4.x + (m3.x - m4.x) * t, m4.y + (m3.y - m4.y) * t);
         }
-    }
+        }
 
     if (onlyBase) return;
 

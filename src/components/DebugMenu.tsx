@@ -32,6 +32,10 @@ export function DebugMenu({ isOpen }: DebugMenuProps) {
   const fpsSumRef = useRef(0);
 
   useEffect(() => {
+    // Only sample while the overlay is visible — otherwise this rAF loop (and its
+    // 1Hz state updates) would run for the entire session for a hidden panel.
+    if (!isOpen) return;
+
     let rafId = 0;
     let lastTime = performance.now();
     let lastSampleTime = lastTime;
@@ -68,7 +72,7 @@ export function DebugMenu({ isOpen }: DebugMenuProps) {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, []);
+  }, [isOpen]);
 
   const peak = history.length > 0 ? Math.max(...history) : 60;
   const maxFps = Math.max(60, Math.ceil(peak / 10) * 10);
@@ -88,7 +92,7 @@ export function DebugMenu({ isOpen }: DebugMenuProps) {
     <div className={`debug-menu ${isOpen ? 'open' : ''}`}>
       <div className="debug-header">
         <div className="debug-title">DEBUG</div>
-        <div className="debug-hint">Press D to toggle</div>
+        <div className="debug-hint">Press P to toggle</div>
       </div>
       <div className="debug-stats">
         <div className="debug-stat">FPS {Math.round(stats.current)}</div>

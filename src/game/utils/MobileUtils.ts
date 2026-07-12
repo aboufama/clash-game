@@ -52,10 +52,12 @@ export class MobileUtils {
     }
 
     /**
-     * Get minimum zoom for pinch gesture
+     * Absolute zoom floor. Gestures normally stop earlier, at the scene's
+     * dynamic village-and-clouds fit (MainScene.minGestureZoom); this is the
+     * safety bound that fit is clamped against.
      */
     static getMinZoom(): number {
-        return this.isMobile() ? 0.4 : 0.5;
+        return this.isMobile() ? 0.12 : 0.15;
     }
 
     /**
@@ -79,9 +81,14 @@ export class MobileUtils {
      */
     static getTouchCenter(touch1: Touch, touch2: Touch, canvas: HTMLCanvasElement): { x: number; y: number } {
         const rect = canvas.getBoundingClientRect();
+        // Native TouchEvent coordinates are CSS pixels. Phaser Pointer and
+        // camera viewport coordinates live in drawing-buffer pixels on a
+        // high-DPI canvas, so cross the boundary exactly once here.
+        const scaleX = canvas.width / Math.max(1, rect.width);
+        const scaleY = canvas.height / Math.max(1, rect.height);
         return {
-            x: ((touch1.clientX + touch2.clientX) / 2) - rect.left,
-            y: ((touch1.clientY + touch2.clientY) / 2) - rect.top
+            x: (((touch1.clientX + touch2.clientX) / 2) - rect.left) * scaleX,
+            y: (((touch1.clientY + touch2.clientY) / 2) - rect.top) * scaleY
         };
     }
 

@@ -1,0 +1,45 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "mortar_L1_wreck_body.png",
+        "texelW": 34,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5424836601307184,
+        "originY": 0.37710437710437666
+      }
+    },
+    "2": {
+      "body": {
+        "file": "mortar_L2_wreck_body.png",
+        "texelW": 34,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5424836601307184,
+        "originY": 0.37710437710437666
+      }
+    },
+    "3": {
+      "body": {
+        "file": "mortar_L3_wreck_body.png",
+        "texelW": 34,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5424836601307184,
+        "originY": 0.37710437710437666
+      }
+    },
+    "4": {
+      "body": {
+        "file": "mortar_L4_wreck_body.png",
+        "texelW": 34,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5424836601307184,
+        "originY": 0.37710437710437666
+      }
+    }
+  }
+}

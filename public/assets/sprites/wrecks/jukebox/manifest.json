@@ -1,0 +1,15 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "jukebox_L1_wreck_body.png",
+        "texelW": 23,
+        "texelH": 17,
+        "cellWorldPx": 1.35,
+        "originX": 0.4106280193236715,
+        "originY": 0.5054466230936816
+      }
+    }
+  }
+}

@@ -1,0 +1,404 @@
+{
+  "cellWorldPx": 1.35,
+  "units": [
+    {
+      "kind": "buildings",
+      "unit": "army_camp",
+      "atlas": "buildings/army_camp/atlas.png",
+      "frames": "buildings/army_camp/atlas.json",
+      "manifest": "buildings/army_camp/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "ballista",
+      "atlas": "buildings/ballista/atlas.png",
+      "frames": "buildings/ballista/atlas.json",
+      "manifest": "buildings/ballista/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "barracks",
+      "atlas": "buildings/barracks/atlas.png",
+      "frames": "buildings/barracks/atlas.json",
+      "manifest": "buildings/barracks/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "cannon",
+      "atlas": "buildings/cannon/atlas.png",
+      "frames": "buildings/cannon/atlas.json",
+      "manifest": "buildings/cannon/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "dragons_breath",
+      "atlas": "buildings/dragons_breath/atlas.png",
+      "frames": "buildings/dragons_breath/atlas.json",
+      "manifest": "buildings/dragons_breath/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "farm",
+      "atlas": "buildings/farm/atlas.png",
+      "frames": "buildings/farm/atlas.json",
+      "manifest": "buildings/farm/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "frostfall",
+      "atlas": "buildings/frostfall/atlas.png",
+      "frames": "buildings/frostfall/atlas.json",
+      "manifest": "buildings/frostfall/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "jukebox",
+      "atlas": "buildings/jukebox/atlas.png",
+      "frames": "buildings/jukebox/atlas.json",
+      "manifest": "buildings/jukebox/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "lab",
+      "atlas": "buildings/lab/atlas.png",
+      "frames": "buildings/lab/atlas.json",
+      "manifest": "buildings/lab/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "mine",
+      "atlas": "buildings/mine/atlas.png",
+      "frames": "buildings/mine/atlas.json",
+      "manifest": "buildings/mine/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "mortar",
+      "atlas": "buildings/mortar/atlas.png",
+      "frames": "buildings/mortar/atlas.json",
+      "manifest": "buildings/mortar/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "prism",
+      "atlas": "buildings/prism/atlas.png",
+      "frames": "buildings/prism/atlas.json",
+      "manifest": "buildings/prism/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "spike_launcher",
+      "atlas": "buildings/spike_launcher/atlas.png",
+      "frames": "buildings/spike_launcher/atlas.json",
+      "manifest": "buildings/spike_launcher/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "storage",
+      "atlas": "buildings/storage/atlas.png",
+      "frames": "buildings/storage/atlas.json",
+      "manifest": "buildings/storage/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "tesla",
+      "atlas": "buildings/tesla/atlas.png",
+      "frames": "buildings/tesla/atlas.json",
+      "manifest": "buildings/tesla/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "town_hall",
+      "atlas": "buildings/town_hall/atlas.png",
+      "frames": "buildings/town_hall/atlas.json",
+      "manifest": "buildings/town_hall/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "wall",
+      "atlas": "buildings/wall/atlas.png",
+      "frames": "buildings/wall/atlas.json",
+      "manifest": "buildings/wall/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "watchtower",
+      "atlas": "buildings/watchtower/atlas.png",
+      "frames": "buildings/watchtower/atlas.json",
+      "manifest": "buildings/watchtower/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "xbow",
+      "atlas": "buildings/xbow/atlas.png",
+      "frames": "buildings/xbow/atlas.json",
+      "manifest": "buildings/xbow/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "archer",
+      "atlas": "troops/archer/atlas.png",
+      "frames": "troops/archer/atlas.json",
+      "manifest": "troops/archer/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "davincitank",
+      "atlas": "troops/davincitank/atlas.png",
+      "frames": "troops/davincitank/atlas.json",
+      "manifest": "troops/davincitank/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "giant",
+      "atlas": "troops/giant/atlas.png",
+      "frames": "troops/giant/atlas.json",
+      "manifest": "troops/giant/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "golem",
+      "atlas": "troops/golem/atlas.png",
+      "frames": "troops/golem/atlas.json",
+      "manifest": "troops/golem/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "mobilemortar",
+      "atlas": "troops/mobilemortar/atlas.png",
+      "frames": "troops/mobilemortar/atlas.json",
+      "manifest": "troops/mobilemortar/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "phalanx",
+      "atlas": "troops/phalanx/atlas.png",
+      "frames": "troops/phalanx/atlas.json",
+      "manifest": "troops/phalanx/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "ram",
+      "atlas": "troops/ram/atlas.png",
+      "frames": "troops/ram/atlas.json",
+      "manifest": "troops/ram/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "recursion",
+      "atlas": "troops/recursion/atlas.png",
+      "frames": "troops/recursion/atlas.json",
+      "manifest": "troops/recursion/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "romanwarrior",
+      "atlas": "troops/romanwarrior/atlas.png",
+      "frames": "troops/romanwarrior/atlas.json",
+      "manifest": "troops/romanwarrior/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "sharpshooter",
+      "atlas": "troops/sharpshooter/atlas.png",
+      "frames": "troops/sharpshooter/atlas.json",
+      "manifest": "troops/sharpshooter/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "stormmage",
+      "atlas": "troops/stormmage/atlas.png",
+      "frames": "troops/stormmage/atlas.json",
+      "manifest": "troops/stormmage/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "wallbreaker",
+      "atlas": "troops/wallbreaker/atlas.png",
+      "frames": "troops/wallbreaker/atlas.json",
+      "manifest": "troops/wallbreaker/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "ward",
+      "atlas": "troops/ward/atlas.png",
+      "frames": "troops/ward/atlas.json",
+      "manifest": "troops/ward/manifest.json"
+    },
+    {
+      "kind": "troops",
+      "unit": "warrior",
+      "atlas": "troops/warrior/atlas.png",
+      "frames": "troops/warrior/atlas.json",
+      "manifest": "troops/warrior/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "army_camp",
+      "atlas": "wrecks/army_camp/atlas.png",
+      "frames": "wrecks/army_camp/atlas.json",
+      "manifest": "wrecks/army_camp/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "ballista",
+      "atlas": "wrecks/ballista/atlas.png",
+      "frames": "wrecks/ballista/atlas.json",
+      "manifest": "wrecks/ballista/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "barracks",
+      "atlas": "wrecks/barracks/atlas.png",
+      "frames": "wrecks/barracks/atlas.json",
+      "manifest": "wrecks/barracks/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "cannon",
+      "atlas": "wrecks/cannon/atlas.png",
+      "frames": "wrecks/cannon/atlas.json",
+      "manifest": "wrecks/cannon/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "dragons_breath",
+      "atlas": "wrecks/dragons_breath/atlas.png",
+      "frames": "wrecks/dragons_breath/atlas.json",
+      "manifest": "wrecks/dragons_breath/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "farm",
+      "atlas": "wrecks/farm/atlas.png",
+      "frames": "wrecks/farm/atlas.json",
+      "manifest": "wrecks/farm/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "frostfall",
+      "atlas": "wrecks/frostfall/atlas.png",
+      "frames": "wrecks/frostfall/atlas.json",
+      "manifest": "wrecks/frostfall/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "jukebox",
+      "atlas": "wrecks/jukebox/atlas.png",
+      "frames": "wrecks/jukebox/atlas.json",
+      "manifest": "wrecks/jukebox/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "lab",
+      "atlas": "wrecks/lab/atlas.png",
+      "frames": "wrecks/lab/atlas.json",
+      "manifest": "wrecks/lab/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "mine",
+      "atlas": "wrecks/mine/atlas.png",
+      "frames": "wrecks/mine/atlas.json",
+      "manifest": "wrecks/mine/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "mortar",
+      "atlas": "wrecks/mortar/atlas.png",
+      "frames": "wrecks/mortar/atlas.json",
+      "manifest": "wrecks/mortar/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "prism",
+      "atlas": "wrecks/prism/atlas.png",
+      "frames": "wrecks/prism/atlas.json",
+      "manifest": "wrecks/prism/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "spike_launcher",
+      "atlas": "wrecks/spike_launcher/atlas.png",
+      "frames": "wrecks/spike_launcher/atlas.json",
+      "manifest": "wrecks/spike_launcher/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "storage",
+      "atlas": "wrecks/storage/atlas.png",
+      "frames": "wrecks/storage/atlas.json",
+      "manifest": "wrecks/storage/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "tesla",
+      "atlas": "wrecks/tesla/atlas.png",
+      "frames": "wrecks/tesla/atlas.json",
+      "manifest": "wrecks/tesla/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "town_hall",
+      "atlas": "wrecks/town_hall/atlas.png",
+      "frames": "wrecks/town_hall/atlas.json",
+      "manifest": "wrecks/town_hall/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "wall",
+      "atlas": "wrecks/wall/atlas.png",
+      "frames": "wrecks/wall/atlas.json",
+      "manifest": "wrecks/wall/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "watchtower",
+      "atlas": "wrecks/watchtower/atlas.png",
+      "frames": "wrecks/watchtower/atlas.json",
+      "manifest": "wrecks/watchtower/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "xbow",
+      "atlas": "wrecks/xbow/atlas.png",
+      "frames": "wrecks/xbow/atlas.json",
+      "manifest": "wrecks/xbow/manifest.json"
+    },
+    {
+      "kind": "obstacles",
+      "unit": "grass_patch",
+      "atlas": "obstacles/grass_patch/atlas.png",
+      "frames": "obstacles/grass_patch/atlas.json",
+      "manifest": "obstacles/grass_patch/manifest.json"
+    },
+    {
+      "kind": "obstacles",
+      "unit": "rock_large",
+      "atlas": "obstacles/rock_large/atlas.png",
+      "frames": "obstacles/rock_large/atlas.json",
+      "manifest": "obstacles/rock_large/manifest.json"
+    },
+    {
+      "kind": "obstacles",
+      "unit": "rock_small",
+      "atlas": "obstacles/rock_small/atlas.png",
+      "frames": "obstacles/rock_small/atlas.json",
+      "manifest": "obstacles/rock_small/manifest.json"
+    },
+    {
+      "kind": "obstacles",
+      "unit": "tree_oak",
+      "atlas": "obstacles/tree_oak/atlas.png",
+      "frames": "obstacles/tree_oak/atlas.json",
+      "manifest": "obstacles/tree_oak/manifest.json"
+    },
+    {
+      "kind": "obstacles",
+      "unit": "tree_pine",
+      "atlas": "obstacles/tree_pine/atlas.png",
+      "frames": "obstacles/tree_pine/atlas.json",
+      "manifest": "obstacles/tree_pine/manifest.json"
+    }
+  ]
+}

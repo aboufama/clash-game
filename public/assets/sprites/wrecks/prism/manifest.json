@@ -1,0 +1,45 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "prism_L1_wreck_body.png",
+        "texelW": 20,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": 0.4722222222222222,
+        "originY": 0.5071225071225058
+      }
+    },
+    "2": {
+      "body": {
+        "file": "prism_L2_wreck_body.png",
+        "texelW": 20,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": 0.4722222222222222,
+        "originY": 0.5071225071225058
+      }
+    },
+    "3": {
+      "body": {
+        "file": "prism_L3_wreck_body.png",
+        "texelW": 20,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": 0.4722222222222222,
+        "originY": 0.5071225071225058
+      }
+    },
+    "4": {
+      "body": {
+        "file": "prism_L4_wreck_body.png",
+        "texelW": 20,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": 0.4722222222222222,
+        "originY": 0.5071225071225058
+      }
+    }
+  }
+}

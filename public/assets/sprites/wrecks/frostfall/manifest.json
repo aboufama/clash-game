@@ -1,0 +1,45 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "frostfall_L1_wreck_body.png",
+        "texelW": 34,
+        "texelH": 15,
+        "cellWorldPx": 1.35,
+        "originX": 0.5130718954248361,
+        "originY": 0.4864197530864195
+      }
+    },
+    "2": {
+      "body": {
+        "file": "frostfall_L2_wreck_body.png",
+        "texelW": 34,
+        "texelH": 15,
+        "cellWorldPx": 1.35,
+        "originX": 0.5130718954248361,
+        "originY": 0.4864197530864195
+      }
+    },
+    "3": {
+      "body": {
+        "file": "frostfall_L3_wreck_body.png",
+        "texelW": 34,
+        "texelH": 15,
+        "cellWorldPx": 1.35,
+        "originX": 0.5130718954248361,
+        "originY": 0.4864197530864195
+      }
+    },
+    "4": {
+      "body": {
+        "file": "frostfall_L4_wreck_body.png",
+        "texelW": 34,
+        "texelH": 15,
+        "cellWorldPx": 1.35,
+        "originX": 0.5130718954248361,
+        "originY": 0.4864197530864195
+      }
+    }
+  }
+}

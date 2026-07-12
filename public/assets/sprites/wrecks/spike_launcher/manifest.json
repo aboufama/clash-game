@@ -1,0 +1,45 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "spike_launcher_L1_wreck_body.png",
+        "texelW": 60,
+        "texelH": 32,
+        "cellWorldPx": 1.35,
+        "originX": 0.5240740740740739,
+        "originY": 0.3842592592592591
+      }
+    },
+    "2": {
+      "body": {
+        "file": "spike_launcher_L2_wreck_body.png",
+        "texelW": 60,
+        "texelH": 32,
+        "cellWorldPx": 1.35,
+        "originX": 0.5240740740740739,
+        "originY": 0.3842592592592591
+      }
+    },
+    "3": {
+      "body": {
+        "file": "spike_launcher_L3_wreck_body.png",
+        "texelW": 60,
+        "texelH": 32,
+        "cellWorldPx": 1.35,
+        "originX": 0.5240740740740739,
+        "originY": 0.3842592592592591
+      }
+    },
+    "4": {
+      "body": {
+        "file": "spike_launcher_L4_wreck_body.png",
+        "texelW": 60,
+        "texelH": 32,
+        "cellWorldPx": 1.35,
+        "originX": 0.5240740740740739,
+        "originY": 0.3842592592592591
+      }
+    }
+  }
+}

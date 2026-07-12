@@ -1,0 +1,1095 @@
+{
+  "cellWorldPx": 1.35,
+  "buckets": 16,
+  "loopMs": 3000,
+  "variants": [
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b00_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b00_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b00_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b00_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b00_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b00_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b00_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b00_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b01_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b01_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b01_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b01_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b01_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b01_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b01_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b01_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b02_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b02_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b02_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b02_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b02_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b02_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b02_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b02_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b03_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b03_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b03_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b03_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b03_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b03_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b03_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b03_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b04_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b04_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b04_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b04_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b04_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b04_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b04_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b04_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b05_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b05_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b05_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b05_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b05_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b05_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b05_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b05_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b06_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b06_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b06_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b06_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b06_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b06_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b06_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b06_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b07_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b07_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b07_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b07_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b07_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b07_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b07_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b07_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b08_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b08_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b08_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b08_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b08_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b08_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b08_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b08_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b09_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b09_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b09_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b09_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b09_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b09_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b09_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b09_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b10_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b10_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b10_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b10_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b10_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b10_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b10_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b10_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b11_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b11_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b11_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b11_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b11_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b11_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b11_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b11_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b12_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b12_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b12_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b12_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b12_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b12_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b12_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b12_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b13_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b13_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b13_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b13_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b13_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b13_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b13_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b13_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b14_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b14_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b14_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b14_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b14_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b14_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b14_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b14_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "tree_pine_b15_0.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b15_1.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b15_2.png",
+          "texelW": 12,
+          "texelH": 38,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8148148148148147
+        },
+        {
+          "file": "tree_pine_b15_3.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b15_4.png",
+          "texelW": 12,
+          "texelH": 39,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.819563152896486
+        },
+        {
+          "file": "tree_pine_b15_5.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b15_6.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        },
+        {
+          "file": "tree_pine_b15_7.png",
+          "texelW": 12,
+          "texelH": 37,
+          "cellWorldPx": 1.35,
+          "originX": 0.5061728395061721,
+          "originY": 0.8098098098098095
+        }
+      ]
+    }
+  ]
+}

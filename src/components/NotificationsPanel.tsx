@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Backend } from '../game/backend/GameBackend';
-import { formatSol } from '../game/solana/Currency';
+import { formatGold } from '../game/economy/Currency';
 
 interface Notification {
   id: string;
   attackId?: string;
+  attackerId?: string;
   attackerName: string;
-  solLost?: number;
   goldLost?: number;
-  elixirLost?: number;
+  oreLost?: number;
+  foodLost?: number;
   destruction: number;
   timestamp: number;
   read: boolean;
@@ -20,9 +21,11 @@ interface NotificationsPanelProps {
   isOnline: boolean;
   incomingAttack?: { attackId: string; attackerName: string } | null;
   onWatchLive?: (attackId: string, attackerName: string) => void;
+  onWatchReplay?: (attackId: string, attackerName: string) => void;
+  onRevenge?: (attackerId: string, attackerName: string) => void;
 }
 
-export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLive }: NotificationsPanelProps) {
+export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLive, onWatchReplay, onRevenge }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -31,8 +34,13 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
     if (!isOnline) return;
 
     const loadNotifications = async () => {
-      const count = await Backend.getUnreadNotificationCount(userId);
-      setUnreadCount(count);
+      if (document.hidden) return;
+      try {
+        const count = await Backend.getUnreadNotificationCount(userId);
+        setUnreadCount(count);
+      } catch {
+        // Keep the last good badge through an outage.
+      }
     };
 
     loadNotifications();
@@ -43,10 +51,14 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
 
   const handleOpen = async () => {
     if (!isOnline) return;
-
-    const notifs = await Backend.getNotifications(userId);
-    setNotifications(notifs);
-    setIsOpen(true);
+    try {
+      const notifs = await Backend.getNotifications(userId);
+      setNotifications(notifs);
+    } catch {
+      // Network blip: open with whatever we already have.
+    } finally {
+      setIsOpen(true);
+    }
   };
 
   const handleClose = () => {
@@ -54,7 +66,11 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
   };
 
   const handleMarkAllRead = async () => {
-    await Backend.markNotificationsRead(userId);
+    try {
+      await Backend.markNotificationsRead(userId);
+    } catch {
+      return; // keep the badge honest if the server never heard it
+    }
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
   };
@@ -113,20 +129,47 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
               </div>
             ) : (
               notifications.map(notif => {
-                const solLost = typeof notif.solLost === 'number'
-                  ? notif.solLost
-                  : (notif.goldLost || 0) + (notif.elixirLost || 0);
+                const goldLost = notif.goldLost ?? 0;
                 return (
                 <div key={notif.id} className={`notification-item ${!notif.read ? 'unread' : ''}`}>
                   <div className="attacker">{notif.attackerName} raided you!</div>
                   <div className="loot-info">
                     <span className="loot-amount">
-                      <span className="icon sol-icon"></span>
-                      -{formatSol(solLost, false, false)}
+                      <span className="icon gold-icon"></span>
+                      -{formatGold(goldLost, false, false)}
                     </span>
+                    {(notif.oreLost ?? 0) > 0 && (
+                      <span className="loot-amount"><span className="icon ore-icon"></span>-{notif.oreLost}</span>
+                    )}
+                    {(notif.foodLost ?? 0) > 0 && (
+                      <span className="loot-amount"><span className="icon food-icon"></span>-{notif.foodLost}</span>
+                    )}
                     <span>{notif.destruction}% destroyed</span>
                   </div>
                   <div className="timestamp">{formatTimeAgo(notif.timestamp)}</div>
+                  {notif.replayAvailable && notif.attackId && onWatchReplay && (
+                    <button
+                      className="watch-live-btn"
+                      onClick={() => {
+                        onWatchReplay(notif.attackId!, notif.attackerName);
+                        handleClose();
+                      }}
+                    >
+                      WATCH REPLAY
+                    </button>
+                  )}
+                  {notif.attackerId && onRevenge && (
+                    <button
+                      className="watch-live-btn revenge-btn"
+                      onClick={() => {
+                        // App owns the same army gate as every other rewarding attack.
+                        onRevenge(notif.attackerId!, notif.attackerName);
+                        handleClose();
+                      }}
+                    >
+                      <span className="sym sym-swords small" /> REVENGE
+                    </button>
+                  )}
                 </div>
               );
             })

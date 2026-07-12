@@ -1,103 +1,107 @@
-# MainScene.ts Organization & Extension Guide
+# MainScene organization and extension guide
 
-This document outlines the structure of `src/game/scenes/MainScene.ts` and provides a standard pipeline for adding new content (buildings, troops, defenses, levels) to the game.
+`MainScene.ts` is the Phaser application orchestrator. It owns live scene
+objects, transitions, camera/input integration, and combat presentation. It is
+not the source of truth for durable layout pricing, economy, population,
+target versions, attack results, or settlement.
 
-## 1. File Structure Overview
+## What stays in MainScene
 
-`MainScene.ts` is the core game scene handling the isometric view, logic, input, and rendering. It is organized into the following rough sections:
+- Phaser lifecycle (`create`, `update`, shutdown) and scene-owned object state.
+- Applying serialized home/enemy worlds to Phaser objects.
+- Ground baking and the live entry point into `BuildingVisualDispatcher`.
+- Coordinating placement UI with `GameBackend` mutations.
+- Local combat animation, troop special effects, projectiles, particles, and
+  health bars.
+- World-map focus/caravan/cloud transitions and one-frame home/battlefield
+  swaps.
+- Capturing presentation frames and playing live/finished replays.
+- Wiring focused systems to scene callbacks.
 
-### A. Imports & Definitions
-- **Imports**: Phaser, Backend, Models, LootSystem.
-- **Local Interfaces**: `PlacedBuilding`, `Troop`, `PlacedObstacle`.
-- **Global Constants**: `TROOP_STATS` (legacy), `PixelatePipeline` (shader).
+## Focused collaborators
 
-### B. Class State Properties
-- **Scene Config**: `tileWidth`, `tileHeight`, `mapSize`.
-- **Game State**: `buildings`, `troops`, `obstacles`, `rubble`.
-- **Input State**: `selectedBuildingType`, `selectedInWorld`, `isDragging`, `dragStartCam`.
-- **Combat State**: `mode` ('HOME' | 'ATTACK'), `initialEnemyBuildings`, `destroyedBuildings`.
+- `controllers/SceneInputController.ts` — pointer/keyboard interpretation.
+- `systems/DefenseSystem.ts` — defense targeting, locks, cooldowns, and shot
+  scheduling.
+- `systems/DefenseBehaviorCatalog.ts` — exhaustive active-defense policies.
+- `systems/CombatNavigationSystem.ts` — combat objectives, breach plans,
+  legal attack positions, and collision-aware movement.
+- `systems/TargetingSystem.ts` — target-priority helpers.
+- `systems/WorldMapSystem.ts` — neighborhood plots, cached postcards, world
+  roads/wilderness, focus state, and caravans.
+- `systems/VillageLifeSystem.ts` and `NeighborLifeSim.ts` — local residents and
+  authoritative neighboring resident presentation.
+- `systems/DayNightSystem.ts`, `WeatherSystem.ts`, `DepthSystem.ts`,
+  `LootSystem.ts`, and `ParticleManager.ts` — focused presentation concerns.
+- `renderers/BuildingRenderer.ts` and `TroopRenderer.ts` — vector art.
+- `renderers/BuildingVisualCatalog.ts` and `BuildingVisualDispatcher.ts` —
+  exhaustive shared building-art routing for live and postcard contexts.
+- `backend/GameBackend.ts` — serialized HTTP mutations, retries, revisions,
+  caches, and attack-command publication.
 
-### C. Lifecycle Methods
-1.  **`create()`**: Initializes camera, shaders, input listeners (`onPointerDown/Move/Up`), grid, and UI. Loads the base (`loadSavedBase`).
-2.  **`update(time, delta)`**: The main game loop. Calls sub-systems:
-    *   `handleCameraMovement`
-    *   `updateCombat` & `updateManualFire`
-    *   `updateTroops` & `updateResources`
-    *   `updateBuildingAnimations` (Idle animations)
+If a rule can be expressed without Phaser, it probably belongs in a focused
+system, the shared definition/economy catalog, or a server domain instead of
+another `MainScene` branch.
 
-### D. Sub-Systems (Logic)
-- **Input Handling**: `onPointerDown`, `onPointerMove`, `onPointerUp`. Handles dragging (pan) and clicking (select/place).
-- **Placement Logic**: `placeBuilding`, `isPositionValid`, `cancelPlacement`.
-- **Combat Logic**: `spawnTroop`, `startAttack`, `checkBattleEnd`.
-- **Visual Effects**: `playUpgradeEffect`, `createSmokeEffect`, `createExplosion`.
+## Major flows
 
-### E. Drawing & Rendering (The "Visuals" Section)
-- **`drawBuildingVisuals`**: The master dispatcher that calls specific draw methods based on building type.
-- **Specific Draw Methods**: `drawTownHall`, `drawCannon`, `drawWall`, `drawBarracks`, etc.
-    *   These methods use explicit `Phaser.GameObjects.Graphics` commands to draw isometric shapes.
-    *   They handle **Level Variations** (e.g., `if (level >= 2) ...`).
+### Home hydration and edits
 
----
+`loadSavedBase`/`reloadHomeBase` hydrate from the primed client cache and then
+refresh server authority. `applyWorldToScene` and `instantiateBuilding` create
+the local Phaser representation. Placement/move/upgrade actions update the
+client proposal through `GameBackend`; the server returns the authoritative
+revision and balances.
 
-## 2. Pipeline: How to Add New Content
+### Building rendering
 
-### A. Adding a New Building/Defense
+`drawBuildingVisuals` supplies live time, sound, door/weapon state, and wall
+topology to `BuildingVisualDispatcher`. `WorldMapSystem.drawWorldStatic`
+supplies pinned postcard time and its own wall topology to that same routing
+table. The dispatcher preserves the `skipBase`/`onlyBase` ground-bake contract.
 
-1.  **Define Stats**:
-    *   Open `src/game/config/GameDefinitions.ts`.
-    *   Add your new ID to `BuildingType` type definition.
-    *   Add a new entry in `BUILDING_DEFINITIONS` with properties (size, cost, health, `category: 'defense'`).
+### Combat
 
-2.  **Implement Drawing**:
-    *   In `MainScene.ts`, create a new private method: `drawMyNewBuilding(graphics, c1, c2, c3, c4, center, alpha, tint, building)`.
-    *   Use the standard isometric coordinates (`c1`..`c4` are the 4 corners of the footprint) to draw walls/roofs.
-    *   **Standardization**: Use `0x5a4a3a` range for stone/wood foundations to match the art style.
+`spawnTroop` creates the local presentation and publishes a compact deploy
+command for first-generation player troops. `updateCombat` delegates defense
+scheduling to `DefenseSystem`, then drives troop movement/special effects using
+`CombatNavigationSystem` and `TargetingSystem`. Projectile callbacks stay here
+because they create Phaser objects; reusable targeting/cadence policy does not.
 
-3.  **Register Drawing**:
-    *   In `MainScene.ts`, find the `drawBuildingVisuals` method.
-    *   Add a `case 'my_new_building':` to the switch statement and call your new draw method.
+The server re-simulates the compact command log for the result. Scene damage,
+loot counters, and uploaded frames are presentation data.
 
-4.  **Add Interaction (If Defense)**:
-    *   If it shoots, add logic to `updateManualFire` in `MainScene.ts`.
-    *   Create a shooting method (e.g., `shootMyDefenseAt(building, target)`).
-    *   Add projectile logic/animation using `tweens`.
+### World attack transitions
 
-### B. Adding a New Level to an Existing Building
+All reward-bearing player and bot attacks receive a canonical plot. The scene
+calls `WorldMapSystem.prepareFocus`, prepares the destination lawn, and enters
+through `arriveAndFight`. Nearby attacks show the road march; direct/matchmade
+attacks may hide travel with clouds, but they use the same local target-plot
+swap. `goHome` reverses the focus swap.
 
-1.  **Update Stats**:
-    *   Open `src/game/config/GameDefinitions.ts`.
-    *   Find the building in `BUILDING_DEFINITIONS`.
-    *   Add a new entry to the `levels` array with the new HP, damage, cost, etc.
+### Replay
 
-2.  **Update Visuals**:
-    *   In `MainScene.ts`, go to the specific draw method (e.g., `drawCannon`).
-    *   Retrieve the level: `const level = building?.level ?? 1;`.
-    *   Add conditional logic for visual upgrades (e.g., `if (level >= 3) { // draw golden rim }`).
-    *   **Goal**: Ensure the upgrade looks visually distinct (gold/gem accents, darker stone, extra spikes).
+Capture frames are bounded and uploaded for spectator interpolation. Replay
+viewing uses `REPLAY` mode and never applies economy mutations. Compact attack
+commands and the server simulator remain outcome authority.
 
-### C. Adding a New Troop
+## Extension routes
 
-1.  **Define Stats**:
-    *   **Main**: Open `src/game/config/GameDefinitions.ts` and add the new ID to `TroopType` and definition to `TROOP_DEFINITIONS`.
-    *   **Legacy Sync**: Currently, `MainScene.ts` (lines ~90) has a local `TROOP_STATS` constant. **You must also add the stats here** until the file is fully refactored to use the config import.
+- Buildings: follow `docs/ADDING_BUILDINGS.md`. Definitions now live under
+  `config/definitions/`; active defense policy belongs in
+  `DefenseBehaviorCatalog`, not a new manual-fire loop.
+- Troops: follow `docs/ADDING_TROOPS.md` and read
+  `docs/COMBAT_NAVIGATION.md` before changing movement or breaches.
+- Art: read `docs/BUILDING_ART_GUIDE.md` and verify with screenshots.
+- Layering: read `docs/RENDERING_AND_DEPTH.md`; do not bypass the ground-bake
+  split or depth helpers.
 
-2.  **Drawing Logic**:
-    *   Troops are currently drawn using simple shapes/colors in `spawnTroop`.
-    *   Ensure the `TROOP_STATS` definition includes a distinct `color`.
+## Remaining modularization seams
 
-3.  **AI & Behavior**:
-    *   In `MainScene.ts` inside `updateTroops`:
-        *   Default behavior is "move to closest defense/building and attack".
-        *   If your troop has special AI (e.g., jumps walls, targets only defenses), add a condition:
-            ```typescript
-            if (troop.type === 'my_new_troop') {
-                // Custom logic
-            }
-            ```
+- `MainScene` still holds many troop-specific Phaser effects. Extract a system
+  when behavior is shared/testable, but keep scene-object creation behind
+  callbacks.
 
-## 3. Best Practices
-
-*   **Modularity**: Keep the `drawX` methods self-contained. Do not mix logic updates inside draw methods.
-*   **Coordinates**: Always use `cartToIso` for converting logical grid (x,y) to screen drawing positions.
-*   **Colors**: Reuse the existing palette (Dark Navy Background `#141824`, Stone `#7a6a5a`, Wood `#5d4e37`) to maintain visual consistency.
-*   **Effects**: Use `playUpgradeEffect` for level-ups. Use `createExplosion` for destruction.
+Do not add a second durable attack/economy path to solve a presentation need.
+Extend the existing backend command/domain boundary and keep the scene as its
+renderer/controller.

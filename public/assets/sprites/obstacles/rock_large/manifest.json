@@ -1,0 +1,199 @@
+{
+  "cellWorldPx": 1.35,
+  "buckets": 16,
+  "loopMs": null,
+  "variants": [
+    {
+      "frames": [
+        {
+          "file": "rock_large_b00_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b01_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b02_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b03_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b04_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b05_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b06_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b07_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b08_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b09_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b10_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b11_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b12_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b13_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b14_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    },
+    {
+      "frames": [
+        {
+          "file": "rock_large_b15_0.png",
+          "texelW": 26,
+          "texelH": 18,
+          "cellWorldPx": 1.35,
+          "originX": 0.5028490028490021,
+          "originY": -0.057613168724280066
+        }
+      ]
+    }
+  ]
+}

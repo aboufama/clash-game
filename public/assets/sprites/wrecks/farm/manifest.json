@@ -1,0 +1,59 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "ground": {
+        "file": "farm_L1_wreck_ground.png",
+        "texelW": 92,
+        "texelH": 46,
+        "cellWorldPx": 1.35,
+        "originX": 0.49557165861513675,
+        "originY": 0.5016103059581317
+      },
+      "body": {
+        "file": "farm_L1_wreck_body.png",
+        "texelW": 88,
+        "texelH": 44,
+        "cellWorldPx": 1.35,
+        "originX": 0.5862794612794611,
+        "originY": 0.524410774410774
+      }
+    },
+    "2": {
+      "ground": {
+        "file": "farm_L2_wreck_ground.png",
+        "texelW": 92,
+        "texelH": 46,
+        "cellWorldPx": 1.35,
+        "originX": 0.49557165861513675,
+        "originY": 0.5016103059581317
+      },
+      "body": {
+        "file": "farm_L2_wreck_body.png",
+        "texelW": 88,
+        "texelH": 44,
+        "cellWorldPx": 1.35,
+        "originX": 0.5862794612794611,
+        "originY": 0.524410774410774
+      }
+    },
+    "3": {
+      "ground": {
+        "file": "farm_L3_wreck_ground.png",
+        "texelW": 92,
+        "texelH": 46,
+        "cellWorldPx": 1.35,
+        "originX": 0.49557165861513675,
+        "originY": 0.5016103059581317
+      },
+      "body": {
+        "file": "farm_L3_wreck_body.png",
+        "texelW": 88,
+        "texelH": 44,
+        "cellWorldPx": 1.35,
+        "originX": 0.5862794612794611,
+        "originY": 0.524410774410774
+      }
+    }
+  }
+}

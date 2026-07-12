@@ -140,8 +140,6 @@
         -18px -2px #C9A66B, -16px -2px #DEB887;
 }
 
-
-
 /* WALL BREAKER - Small guy with barrel of explosives overhead */
 .wallbreaker-icon::before {
     content: '';
@@ -579,70 +577,107 @@
 
 
 /* ROMAN WARRIOR - Individual soldier with Scutum shield */
-.romanwarrior-icon::before {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #D4A574;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow:
-        /* Red Helmet crest */
-        -2px -20px #CC2222, 0 -20px #CC2222, 2px -20px #CC2222,
-        /* Helmet (silver) */
-        -4px -18px #888899, -2px -18px #AAAAAA, 0 -18px #AAAAAA, 2px -18px #AAAAAA, 4px -18px #888899,
-        -4px -16px #888899, -2px -16px #D4A574, 0 -16px #D4A574, 2px -16px #D4A574, 4px -16px #888899,
-        /* Neck */
-        -2px -14px #D4A574, 0 -14px #D4A574, 2px -14px #D4A574,
-        /* Red Tunic & Armor */
-        -6px -12px #BB2222, -4px -12px #888899, -2px -12px #AAAAAA, 0 -12px #AAAAAA, 2px -12px #AAAAAA, 4px -12px #888899, 6px -12px #BB2222,
-        -6px -10px #BB2222, -4px -10px #BB2222, -2px -10px #BB2222, 0 -10px #BB2222, 2px -10px #BB2222, 4px -10px #BB2222, 6px -10px #BB2222,
-        /* Scutum Shield (front) */
-        -8px -8px #CC3333, -6px -8px #D4A84B, -4px -8px #CC3333, -2px -8px #CC3333, 0 -8px #CC3333, 2px -8px #CC3333, 4px -8px #CC3333, 6px -8px #D4A84B, 8px -8px #CC3333,
-        -8px -6px #CC3333, -6px -6px #D4A84B, -4px -6px #CC3333, -2px -6px #FFD700, 0 -6px #FFD700, 2px -6px #FFD700, 4px -6px #CC3333, 6px -6px #D4A84B, 8px -6px #CC3333,
-        -8px -4px #CC3333, -6px -4px #D4A84B, -4px -4px #CC3333, -2px -4px #FFD700, 0 -4px #FFD700, 2px -4px #FFD700, 4px -4px #CC3333, 6px -4px #D4A84B, 8px -4px #CC3333,
-        -8px -2px #CC3333, -6px -2px #D4A84B, -4px -2px #CC3333, -2px -2px #CC3333, 0 -2px #CC3333, 2px -2px #CC3333, 4px -2px #CC3333, 6px -2px #D4A84B, 8px -2px #CC3333,
-        -8px 0 #CC3333, -6px 0 #D4A84B, -4px 0 #CC3333, -2px 0 #CC3333, 0 0 #CC3333, 2px 0 #CC3333, 4px 0 #CC3333, 6px 0 #D4A84B, 8px 0 #CC3333,
-        /* Gold Shield Boss (center) */
-        -2px -6px #FFD700, 0 -6px #FFD700, 2px -6px #FFD700,
-        -2px -4px #FFD700, 0 -4px #FFD700, 2px -4px #FFD700,
-        /* Legs and sandals */
-        -4px 4px #BB2222, 4px 4px #BB2222,
-        -6px 6px #4A3A2A, 6px 6px #4A3A2A;
-}
 
 /* RESOURCE ICON - Green juice vial */
-.sol-icon {
+
+
+/* ORE - Unmistakable: dark-outlined boulder studded with big glowing gold nuggets */
+.ore-icon {
     position: relative !important;
     overflow: hidden;
 }
 
-.sol-icon::before {
+.ore-icon::before {
     content: '';
     position: absolute;
     width: 2px;
     height: 2px;
-    background: #33cc66;
+    background: #6b6e78;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     box-shadow:
-        /* cork cap */
-        -2px -10px #8a6038, 0 -10px #b78654, 2px -10px #8a6038,
-        -2px -8px #b78654, 0 -8px #d6a273, 2px -8px #b78654,
-        /* neck */
-        -2px -6px #8de4a2, 0 -6px #aef4be, 2px -6px #8de4a2,
-        -2px -4px #63c67f, 0 -4px #7de095, 2px -4px #63c67f,
-        /* bottle body */
-        -6px -2px #1f6e38, -4px -2px #2d9950, -2px -2px #33cc66, 0 -2px #8af3ac, 2px -2px #33cc66, 4px -2px #2d9950, 6px -2px #1f6e38,
-        -8px 0 #194f2b, -6px 0 #1f6e38, -4px 0 #2d9950, -2px 0 #4fda81, 0 0 #bcffd2, 2px 0 #4fda81, 4px 0 #2d9950, 6px 0 #1f6e38, 8px 0 #194f2b,
-        -8px 2px #194f2b, -6px 2px #1f6e38, -4px 2px #2d9950, -2px 2px #42c972, 0 2px #8af3ac, 2px 2px #42c972, 4px 2px #2d9950, 6px 2px #1f6e38, 8px 2px #194f2b,
-        -8px 4px #143f23, -6px 4px #194f2b, -4px 4px #1f6e38, -2px 4px #2d9950, 0 4px #63c67f, 2px 4px #2d9950, 4px 4px #1f6e38, 6px 4px #194f2b, 8px 4px #143f23,
-        /* base shine and shadow */
-        -4px 6px #194f2b, -2px 6px #1f6e38, 0 6px #2d9950, 2px 6px #1f6e38, 4px 6px #194f2b,
-        -2px 8px #143f23, 0 8px #194f2b, 2px 8px #143f23;
+        /* dark outline: top */
+        -4px -10px #1a1c20, -2px -10px #1a1c20, 0 -10px #1a1c20, 2px -10px #1a1c20, 4px -10px #1a1c20,
+        -6px -8px #1a1c20, 6px -8px #1a1c20,
+        /* top facet (light) */
+        -4px -8px #9aa0ac, -2px -8px #b6bcc8, 0 -8px #b6bcc8, 2px -8px #a8aeba, 4px -8px #9aa0ac,
+        /* upper body: big left nugget */
+        -8px -6px #1a1c20, -6px -6px #848a96, -4px -6px #ffd84a, -2px -6px #ffed9a, 0 -6px #8f95a1, 2px -6px #848a96, 4px -6px #79808c, 6px -6px #6b6e78, 8px -6px #1a1c20,
+        -10px -4px #1a1c20, -8px -4px #79808c, -6px -4px #e8b62e, -4px -4px #ffd84a, -2px -4px #ffd84a, 0 -4px #79808c, 2px -4px #6b6e78, 4px -4px #6b6e78, 6px -4px #5e616b, 8px -4px #5e616b, 10px -4px #1a1c20,
+        /* mid body: big right nugget */
+        -10px -2px #1a1c20, -8px -2px #6b6e78, -6px -2px #c9992a, -4px -2px #6b6e78, -2px -2px #6b6e78, 0 -2px #6b6e78, 2px -2px #ffd84a, 4px -2px #ffed9a, 6px -2px #5e616b, 8px -2px #52555e, 10px -2px #1a1c20,
+        -10px 0 #1a1c20, -8px 0 #5e616b, -6px 0 #5e616b, -4px 0 #5e616b, -2px 0 #5e616b, 0 0 #e8b62e, 2px 0 #ffd84a, 4px 0 #e8b62e, 6px 0 #52555e, 8px 0 #52555e, 10px 0 #1a1c20,
+        /* lower body: small center-bottom nugget */
+        -10px 2px #1a1c20, -8px 2px #52555e, -6px 2px #52555e, -4px 2px #52555e, -2px 2px #ffd84a, 0 2px #c9992a, 2px 2px #52555e, 4px 2px #484b53, 6px 2px #484b53, 8px 2px #484b53, 10px 2px #1a1c20,
+        /* base */
+        -8px 4px #1a1c20, -6px 4px #484b53, -4px 4px #484b53, -2px 4px #3e4148, 0 4px #3e4148, 2px 4px #3e4148, 4px 4px #3e4148, 6px 4px #484b53, 8px 4px #1a1c20,
+        -6px 6px #1a1c20, -4px 6px #1a1c20, -2px 6px #1a1c20, 0 6px #1a1c20, 2px 6px #1a1c20, 4px 6px #1a1c20, 6px 6px #1a1c20,
+        /* ground shadow */
+        -4px 8px #14161a, -2px 8px #14161a, 0 8px #14161a, 2px 8px #14161a, 4px 8px #14161a;
+}
+
+/* POPULATION - Little villager: skin face, brown hair, tunic shoulders */
+.pop-icon {
+    position: relative !important;
+    overflow: hidden;
+}
+
+.pop-icon::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #deb887;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        /* hair cap */
+        -4px -10px #3b2a1a, -2px -10px #4e3823, 0 -10px #4e3823, 2px -10px #4e3823, 4px -10px #3b2a1a,
+        -6px -8px #3b2a1a, -4px -8px #4e3823, -2px -8px #5c422a, 0 -8px #5c422a, 2px -8px #5c422a, 4px -8px #4e3823, 6px -8px #3b2a1a,
+        /* face */
+        -6px -6px #3b2a1a, -4px -6px #deb887, -2px -6px #ecd0a4, 0 -6px #ecd0a4, 2px -6px #deb887, 4px -6px #deb887, 6px -6px #3b2a1a,
+        -6px -4px #3b2a1a, -4px -4px #deb887, -2px -4px #2a2018, 0 -4px #deb887, 2px -4px #2a2018, 4px -4px #deb887, 6px -4px #3b2a1a,
+        -6px -2px #3b2a1a, -4px -2px #deb887, -2px -2px #deb887, 0 -2px #c9975e, 2px -2px #deb887, 4px -2px #deb887, 6px -2px #3b2a1a,
+        -4px 0 #cfa06a, -2px 0 #b8683c, 0 0 #b8683c, 2px 0 #b8683c, 4px 0 #cfa06a,
+        /* tunic shoulders */
+        -6px 2px #6b5138, -4px 2px #8d6e4a, -2px 2px #8d6e4a, 0 2px #8d6e4a, 2px 2px #8d6e4a, 4px 2px #8d6e4a, 6px 2px #6b5138,
+        -8px 4px #6b5138, -6px 4px #8d6e4a, -4px 4px #9d7e56, -2px 4px #9d7e56, 0 4px #9d7e56, 2px 4px #9d7e56, 4px 4px #9d7e56, 6px 4px #8d6e4a, 8px 4px #6b5138,
+        -8px 6px #5c4530, -6px 6px #6b5138, -4px 6px #6b5138, -2px 6px #6b5138, 0 6px #6b5138, 2px 6px #6b5138, 4px 6px #6b5138, 6px 6px #6b5138, 8px 6px #5c4530;
+}
+
+/* FOOD - Golden wheat sheaf tied with a red band */
+.food-icon {
+    position: relative !important;
+    overflow: hidden;
+}
+
+.food-icon::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #d8a83e;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        /* grain heads (three ears) */
+        -4px -10px #f2d268, 0 -10px #f8e08c, 4px -10px #f2d268,
+        -6px -8px #d8a83e, -4px -8px #f2d268, -2px -8px #b8882e, 0 -8px #f8e08c, 2px -8px #b8882e, 4px -8px #f2d268, 6px -8px #d8a83e,
+        -6px -6px #b8882e, -4px -6px #f2d268, -2px -6px #d8a83e, 0 -6px #f2d268, 2px -6px #d8a83e, 4px -6px #f2d268, 6px -6px #b8882e,
+        -4px -4px #d8a83e, -2px -4px #f2d268, 0 -4px #d8a83e, 2px -4px #f2d268, 4px -4px #d8a83e,
+        /* stalks converging */
+        -4px -2px #c09232, -2px -2px #d8a83e, 0 -2px #c09232, 2px -2px #d8a83e, 4px -2px #c09232,
+        /* red tie band */
+        -4px 0 #b8392e, -2px 0 #d84a3c, 0 0 #e8695a, 2px 0 #d84a3c, 4px 0 #b8392e,
+        /* stalks splaying at the base */
+        -4px 2px #c09232, -2px 2px #a87c28, 0 2px #d8a83e, 2px 2px #a87c28, 4px 2px #c09232,
+        -6px 4px #a87c28, -4px 4px #c09232, -2px 4px #a87c28, 0 4px #c09232, 2px 4px #a87c28, 4px 4px #c09232, 6px 4px #a87c28,
+        -6px 6px #8a6620, -4px 6px #a87c28, 0 6px #a87c28, 4px 6px #a87c28, 6px 6px #8a6620,
+        /* ground shadow */
+        -4px 8px #2e3034, -2px 8px #2e3034, 0 8px #2e3034, 2px 8px #2e3034, 4px 8px #2e3034;
 }
 
 /* GOLD COIN - Detailed shiny coin with $ symbol */
@@ -680,40 +715,7 @@
 }
 
 /* ELIXIR BOTTLE - Detailed potion bottle with cork */
-.elixir-icon {
-    position: relative !important;
-    overflow: hidden;
-}
 
-.elixir-icon::before {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #9370DB;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow:
-        /* Cork */
-        -2px -12px #8B4513, 0 -12px #A0522D, 2px -12px #8B4513,
-        -2px -10px #654321, 0 -10px #8B4513, 2px -10px #654321,
-        /* Bottle neck */
-        -2px -8px #696969, 0 -8px #808080, 2px -8px #696969,
-        -2px -6px #505050, 0 -6px #9370DB, 2px -6px #505050,
-        /* Bottle body widens */
-        -4px -4px #505050, -2px -4px #9370DB, 0 -4px #BA55D3, 2px -4px #9370DB, 4px -4px #505050,
-        -6px -2px #505050, -4px -2px #8B008B, -2px -2px #9370DB, 0 -2px #DDA0DD, 2px -2px #9370DB, 4px -2px #8B008B, 6px -2px #505050,
-        /* Main body with glow */
-        -8px 0 #404040, -6px 0 #505050, -4px 0 #8B008B, -2px 0 #BA55D3, 0 0 #FF00FF, 2px 0 #BA55D3, 4px 0 #8B008B, 6px 0 #505050, 8px 0 #404040,
-        -8px 2px #404040, -6px 2px #696969, -4px 2px #9370DB, -2px 2px #DDA0DD, 0 2px #FF00FF, 2px 2px #DDA0DD, 4px 2px #9370DB, 6px 2px #696969, 8px 2px #404040,
-        -8px 4px #505050, -6px 4px #696969, -4px 4px #8B008B, -2px 4px #9370DB, 0 4px #BA55D3, 2px 4px #9370DB, 4px 4px #8B008B, 6px 4px #696969, 8px 4px #505050,
-        /* Bottom of bottle */
-        -6px 6px #404040, -4px 6px #505050, -2px 6px #8B008B, 0 6px #9370DB, 2px 6px #8B008B, 4px 6px #505050, 6px 6px #404040,
-        -4px 8px #303030, -2px 8px #404040, 0 8px #505050, 2px 8px #404040, 4px 8px #303030,
-        /* Base */
-        -2px 10px #303030, 0 10px #404040, 2px 10px #303030;
-}
 
 /* ====================================
    RESOURCE COLLECTION ANIMATIONS
@@ -811,14 +813,6 @@
     animation: gold-collect 0.5s ease-out;
 }
 
-.elixir-icon.collecting::before {
-    animation: elixir-collect 0.5s ease-out;
-}
-
-.sol-icon.collecting::before {
-    animation: sol-collect 0.5s ease-out;
-}
-
 /* TOWN HALL - Grand building with gold dome, red roof, stone walls */
 .town_hall-icon::before {
     content: '';
@@ -891,6 +885,186 @@
         10px 0 #3A2A1A, 12px 0 #8B4513, 14px 0 #A0522D, 16px 0 #8B4513, 18px 0 #3A2A1A,
         10px 2px #3A2A1A, 12px 2px #654321, 14px 2px #8B4513, 16px 2px #654321, 18px 2px #3A2A1A,
         12px 4px #3A2A1A, 14px 4px #5C3317, 16px 4px #3A2A1A;
+}
+
+/* JUKEBOX - Carved music cabinet with a brass horn */
+.jukebox-icon::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #6d4230;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        /* Brass horn */
+        8px -14px #d8b13a, 10px -14px #f2d268, 12px -14px #f2d268, 14px -14px #d8b13a,
+        8px -12px #f2d268, 10px -12px #8a6a1e, 12px -12px #8a6a1e, 14px -12px #f2d268,
+        6px -10px #d8b13a, 8px -10px #f2d268, 10px -10px #8a6a1e, 12px -10px #f2d268, 14px -10px #d8b13a,
+        4px -8px #b8912e, 6px -8px #d8b13a,
+        /* Arched crown */
+        -6px -12px #7e5138, -4px -12px #8a5c40, -2px -12px #8a5c40, 0 -12px #8a5c40, 2px -12px #7e5138,
+        -8px -10px #6d4230, -6px -10px #7e5138, -4px -10px #8a5c40, -2px -10px #8a5c40, 0 -10px #8a5c40, 2px -10px #7e5138, 4px -10px #6d4230,
+        /* Gold trim */
+        -8px -8px #c9a227, -6px -8px #c9a227, -4px -8px #c9a227, -2px -8px #c9a227, 0 -8px #c9a227, 2px -8px #c9a227, 4px -8px #c9a227,
+        /* Cabinet with glowing panel */
+        -8px -6px #6d4230, -6px -6px #2a1a30, -4px -6px #c98aff, -2px -6px #d8a8ff, 0 -6px #c98aff, 2px -6px #2a1a30, 4px -6px #6d4230,
+        -8px -4px #6d4230, -6px -4px #2a1a30, -4px -4px #9a5abe, -2px -4px #c98aff, 0 -4px #9a5abe, 2px -4px #2a1a30, 4px -4px #6d4230,
+        -8px -2px #6d4230, -6px -2px #2a1a30, -4px -2px #c98aff, -2px -2px #d8a8ff, 0 -2px #c98aff, 2px -2px #2a1a30, 4px -2px #6d4230,
+        -8px 0 #6d4230, -6px 0 #2a1a30, -4px 0 #9a5abe, -2px 0 #c98aff, 0 0 #9a5abe, 2px 0 #2a1a30, 4px 0 #6d4230,
+        /* Crank */
+        -10px -4px #c9a227, -12px -5px #8a6a1e,
+        /* Base */
+        -8px 2px #5c3826, -6px 2px #6d4230, -4px 2px #6d4230, -2px 2px #6d4230, 0 2px #6d4230, 2px 2px #6d4230, 4px 2px #5c3826,
+        -10px 4px #4a2c1e, -8px 4px #5c3826, -6px 4px #5c3826, -4px 4px #5c3826, -2px 4px #5c3826, 0 4px #5c3826, 2px 4px #5c3826, 4px 4px #5c3826, 6px 4px #4a2c1e,
+        /* Ground shadow */
+        -6px 6px #2e3034, -4px 6px #2e3034, -2px 6px #2e3034, 0 6px #2e3034, 2px 6px #2e3034,
+        /* Floating note */
+        -12px -14px #d8a8ff, -12px -12px #d8a8ff, -10px -11px #d8a8ff;
+}
+
+/* FROSTFALL MONOLITH - Towering ice crystal on a frosted stone base */
+.frostfall-icon::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #9fd8f2;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        /* Crystal tip */
+        0 -16px #e8f6ff,
+        -2px -14px #bfe6f8, 0 -14px #e8f6ff, 2px -14px #bfe6f8,
+        /* Upper shaft */
+        -2px -12px #9fd8f2, 0 -12px #d4eefc, 2px -12px #9fd8f2,
+        -4px -10px #7fc4e8, -2px -10px #bfe6f8, 0 -10px #e8f6ff, 2px -10px #9fd8f2, 4px -10px #7fc4e8,
+        -4px -8px #7fc4e8, -2px -8px #9fd8f2, 0 -8px #d4eefc, 2px -8px #9fd8f2, 4px -8px #6ab0d8,
+        /* Mid shaft with inner glow */
+        -6px -6px #5a9cc8, -4px -6px #7fc4e8, -2px -6px #bfe6f8, 0 -6px #e8f6ff, 2px -6px #9fd8f2, 4px -6px #7fc4e8, 6px -6px #5a9cc8,
+        -6px -4px #5a9cc8, -4px -4px #7fc4e8, -2px -4px #9fd8f2, 0 -4px #d4eefc, 2px -4px #7fc4e8, 4px -4px #6ab0d8, 6px -4px #4a88b4,
+        -6px -2px #4a88b4, -4px -2px #6ab0d8, -2px -2px #9fd8f2, 0 -2px #bfe6f8, 2px -2px #7fc4e8, 4px -2px #5a9cc8, 6px -2px #4a88b4,
+        /* Base of the crystal */
+        -4px 0 #4a88b4, -2px 0 #6ab0d8, 0 0 #7fc4e8, 2px 0 #5a9cc8, 4px 0 #4a88b4,
+        /* Frosted stone plinth */
+        -8px 2px #8a97a4, -6px 2px #a8b4c0, -4px 2px #c4ccd6, -2px 2px #c4ccd6, 0 2px #c4ccd6, 2px 2px #a8b4c0, 4px 2px #a8b4c0, 6px 2px #8a97a4, 8px 2px #8a97a4,
+        -10px 4px #6d7884, -8px 4px #8a97a4, -6px 4px #a8b4c0, -4px 4px #a8b4c0, -2px 4px #a8b4c0, 0 4px #a8b4c0, 2px 4px #8a97a4, 4px 4px #8a97a4, 6px 4px #8a97a4, 8px 4px #6d7884, 10px 4px #6d7884,
+        -8px 6px #545e68, -6px 6px #6d7884, -4px 6px #6d7884, -2px 6px #6d7884, 0 6px #6d7884, 2px 6px #6d7884, 4px 6px #6d7884, 6px 6px #545e68, 8px 6px #545e68,
+        /* Ice shards + sparkle */
+        -8px 0 #bfe6f8, -10px 2px #9fd8f2, 8px 0 #bfe6f8, 10px 2px #9fd8f2,
+        6px -12px #ffffff, -6px -9px #ffffff;
+}
+
+/* ORE MINE - Rock face with a timbered entrance and glinting ore */
+.mine-icon::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #6b6e78;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        /* Rock hill crown */
+        -4px -14px #7a7d88, -2px -14px #8a8d98, 0 -14px #8a8d98, 2px -14px #7a7d88,
+        -8px -12px #6b6e78, -6px -12px #8a8d98, -4px -12px #9aa0ac, -2px -12px #9aa0ac, 0 -12px #9aa0ac, 2px -12px #8a8d98, 4px -12px #8a8d98, 6px -12px #6b6e78,
+        -12px -10px #5c5f68, -10px -10px #7a7d88, -8px -10px #8a8d98, -6px -10px #9aa0ac, -4px -10px #8a8d98, -2px -10px #8a8d98, 0 -10px #8a8d98, 2px -10px #9aa0ac, 4px -10px #8a8d98, 6px -10px #7a7d88, 8px -10px #7a7d88, 10px -10px #5c5f68,
+        /* Face with ore glints */
+        -14px -8px #52555e, -12px -8px #6b6e78, -10px -8px #ffd84a, -8px -8px #7a7d88, -6px -8px #7a7d88, -4px -8px #6b6e78, -2px -8px #6b6e78, 0 -8px #6b6e78, 2px -8px #7a7d88, 4px -8px #7a7d88, 6px -8px #ffd84a, 8px -8px #6b6e78, 10px -8px #6b6e78, 12px -8px #52555e,
+        -14px -6px #52555e, -12px -6px #6b6e78, -10px -6px #6b6e78, -8px -6px #6b6e78, 8px -6px #7a7d88, 10px -6px #e8b62e, 12px -6px #52555e,
+        -14px -4px #4a4c54, -12px -4px #5c5f68, -10px -4px #6b6e78, -8px -4px #6b6e78, 8px -4px #6b6e78, 10px -4px #6b6e78, 12px -4px #4a4c54,
+        -14px -2px #4a4c54, -12px -2px #5c5f68, -10px -2px #5c5f68, -8px -2px #6b6e78, 8px -2px #5c5f68, 10px -2px #5c5f68, 12px -2px #4a4c54,
+        -14px 0 #42444c, -12px 0 #52555e, -10px 0 #5c5f68, -8px 0 #5c5f68, 8px 0 #5c5f68, 10px 0 #52555e, 12px 0 #42444c,
+        -14px 2px #42444c, -12px 2px #52555e, -10px 2px #52555e, -8px 2px #52555e, 8px 2px #52555e, 10px 2px #4a4c54, 12px 2px #42444c,
+        /* Timber frame */
+        -6px -6px #8a6438, -4px -6px #a07444, -2px -6px #a07444, 0 -6px #a07444, 2px -6px #a07444, 4px -6px #8a6438, 6px -6px #8a6438,
+        -6px -4px #8a6438, 6px -4px #8a6438,
+        -6px -2px #8a6438, 6px -2px #8a6438,
+        -6px 0 #8a6438, 6px 0 #8a6438,
+        -6px 2px #8a6438, 6px 2px #8a6438,
+        /* Dark entrance */
+        -4px -4px #14100c, -2px -4px #1a140e, 0 -4px #14100c, 2px -4px #1a140e, 4px -4px #14100c,
+        -4px -2px #0e0a08, -2px -2px #14100c, 0 -2px #0e0a08, 2px -2px #14100c, 4px -2px #0e0a08,
+        -4px 0 #0a0806, -2px 0 #0e0a08, 0 0 #0a0806, 2px 0 #0e0a08, 4px 0 #0a0806,
+        -4px 2px #0a0806, -2px 2px #0a0806, 0 2px #0a0806, 2px 2px #0a0806, 4px 2px #0a0806,
+        /* Rails running out of the mouth */
+        -3px 4px #5c4326, 3px 4px #5c4326,
+        -3px 6px #5c4326, 3px 6px #5c4326, -1px 5px #6d5230, 1px 5px #6d5230,
+        /* Ground */
+        -12px 4px #4a4c54, -10px 4px #52555e, -8px 4px #52555e, 6px 4px #52555e, 8px 4px #52555e, 10px 4px #4a4c54,
+        -10px 6px #3e4046, -8px 6px #42444c, 8px 6px #42444c, 10px 6px #3e4046;
+}
+
+/* FARM - Tilled rows with sprouting crops and a wheat corner */
+.farm-icon::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #6d4f30;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        /* Field bed */
+        -12px -8px #59402a, -10px -8px #6d4f30, -8px -8px #6d4f30, -6px -8px #6d4f30, -4px -8px #6d4f30, -2px -8px #6d4f30, 0 -8px #6d4f30, 2px -8px #6d4f30, 4px -8px #6d4f30, 6px -8px #6d4f30, 8px -8px #6d4f30, 10px -8px #6d4f30, 12px -8px #59402a,
+        -12px -4px #59402a, -10px -4px #7a5a38, -8px -4px #7a5a38, -6px -4px #7a5a38, -4px -4px #7a5a38, -2px -4px #7a5a38, 0 -4px #7a5a38, 2px -4px #7a5a38, 4px -4px #7a5a38, 6px -4px #7a5a38, 8px -4px #7a5a38, 10px -4px #7a5a38, 12px -4px #59402a,
+        -12px 0 #59402a, -10px 0 #6d4f30, -8px 0 #6d4f30, -6px 0 #6d4f30, -4px 0 #6d4f30, -2px 0 #6d4f30, 0 0 #6d4f30, 2px 0 #6d4f30, 4px 0 #6d4f30, 6px 0 #6d4f30, 8px 0 #6d4f30, 10px 0 #6d4f30, 12px 0 #59402a,
+        -12px 4px #59402a, -10px 4px #7a5a38, -8px 4px #7a5a38, -6px 4px #7a5a38, -4px 4px #7a5a38, -2px 4px #7a5a38, 0 4px #7a5a38, 2px 4px #7a5a38, 4px 4px #7a5a38, 6px 4px #7a5a38, 8px 4px #7a5a38, 10px 4px #7a5a38, 12px 4px #59402a,
+        -12px 8px #4a3422, -10px 8px #59402a, -8px 8px #59402a, -6px 8px #59402a, -4px 8px #59402a, -2px 8px #59402a, 0 8px #59402a, 2px 8px #59402a, 4px 8px #59402a, 6px 8px #59402a, 8px 8px #59402a, 10px 8px #59402a, 12px 8px #4a3422,
+        /* Sprout rows */
+        -10px -10px #4f8a3c, -6px -10px #5fa848, -2px -10px #4f8a3c, 2px -10px #5fa848, 6px -10px #4f8a3c, 10px -10px #5fa848,
+        -10px -6px #5fa848, -6px -6px #4f8a3c, -2px -6px #5fa848, 2px -6px #4f8a3c, 6px -6px #5fa848, 10px -6px #4f8a3c,
+        -10px -2px #4f8a3c, -6px -2px #5fa848, -2px -2px #4f8a3c, 2px -2px #5fa848, 6px -2px #4f8a3c, 10px -2px #5fa848,
+        -10px 2px #5fa848, -6px 2px #4f8a3c, -2px 2px #5fa848, 2px 2px #4f8a3c, 6px 2px #5fa848, 10px 2px #4f8a3c,
+        -10px 6px #4f8a3c, -6px 6px #5fa848, -2px 6px #4f8a3c, 2px 6px #5fa848, 6px 6px #4f8a3c, 10px 6px #5fa848,
+        /* Ripe wheat corner */
+        8px -12px #e8c04a, 10px -12px #f2d268, 12px -12px #e8c04a,
+        10px -14px #f2d268, 12px -14px #e8c04a;
+}
+
+/* STOREHOUSE - Timber barn with cross-braced doors and a barrel */
+.storage-icon::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #8a6438;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        /* Roof ridge */
+        -2px -14px #a25b31, 0 -14px #b4703c, 2px -14px #a25b31,
+        -6px -12px #a25b31, -4px -12px #b4703c, -2px -12px #c07a44, 0 -12px #c07a44, 2px -12px #b4703c, 4px -12px #b4703c, 6px -12px #a25b31,
+        -10px -10px #8a4a28, -8px -10px #a25b31, -6px -10px #b4703c, -4px -10px #c07a44, -2px -10px #c07a44, 0 -10px #c07a44, 2px -10px #b4703c, 4px -10px #b4703c, 6px -10px #a25b31, 8px -10px #a25b31, 10px -10px #8a4a28,
+        -12px -8px #7e4423, -10px -8px #8a4a28, 10px -8px #8a4a28, 12px -8px #7e4423,
+        /* Walls */
+        -10px -6px #8a6438, -8px -6px #9a7040, -6px -6px #9a7040, -4px -6px #9a7040, -2px -6px #9a7040, 0 -6px #9a7040, 2px -6px #9a7040, 4px -6px #9a7040, 6px -6px #9a7040, 8px -6px #9a7040, 10px -6px #8a6438,
+        -10px -4px #8a6438, -8px -4px #9a7040, -6px -4px #9a7040, 6px -4px #9a7040, 8px -4px #9a7040, 10px -4px #8a6438,
+        -10px -2px #7a5830, -8px -2px #8a6438, -6px -2px #8a6438, 6px -2px #8a6438, 8px -2px #8a6438, 10px -2px #7a5830,
+        -10px 0 #7a5830, -8px 0 #8a6438, -6px 0 #8a6438, 6px 0 #8a6438, 8px 0 #8a6438, 10px 0 #7a5830,
+        -10px 2px #6d4c28, -8px 2px #7a5830, -6px 2px #7a5830, 6px 2px #7a5830, 8px 2px #7a5830, 10px 2px #6d4c28,
+        -10px 4px #6d4c28, -8px 4px #6d4c28, -6px 4px #6d4c28, 6px 4px #6d4c28, 8px 4px #6d4c28, 10px 4px #6d4c28,
+        /* Cross-braced barn door */
+        -4px -4px #5c4326, -2px -4px #4a3a24, 0 -4px #4a3a24, 2px -4px #4a3a24, 4px -4px #5c4326,
+        -4px -2px #4a3a24, -2px -2px #6d5230, 0 -2px #4a3a24, 2px -2px #6d5230, 4px -2px #4a3a24,
+        -4px 0 #4a3a24, -2px 0 #4a3a24, 0 0 #6d5230, 2px 0 #4a3a24, 4px 0 #4a3a24,
+        -4px 2px #4a3a24, -2px 2px #6d5230, 0 2px #4a3a24, 2px 2px #6d5230, 4px 2px #4a3a24,
+        -4px 4px #5c4326, -2px 4px #4a3a24, 0 4px #4a3a24, 2px 4px #4a3a24, 4px 4px #5c4326,
+        /* Barrel by the door */
+        12px -2px #7a5230, 14px -2px #8f6238,
+        12px 0 #8f6238, 14px 0 #7a5230,
+        12px 2px #7a5230, 14px 2px #8f6238,
+        12px 4px #5e3f24, 14px 4px #5e3f24,
+        /* Grain sacks on the left */
+        -14px 2px #c9ae86, -12px 2px #d8bd94,
+        -14px 4px #c9ae86, -12px 4px #b0966e,
+        /* Ground shadow */
+        -8px 6px #2e3034, -6px 6px #2e3034, -4px 6px #2e3034, -2px 6px #2e3034, 0 6px #2e3034, 2px 6px #2e3034, 4px 6px #2e3034, 6px 6px #2e3034, 8px 6px #2e3034;
 }
 
 /* MORTAR - Wide stumpy barrel on rotating stone base */
@@ -1060,32 +1234,6 @@
 }
 
 /* MAGMA VENT - Volcanic crater with bubbling lava and smoke */
-.magmavent-icon::before {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #FF4500;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow:
-        /* Rising flames/smoke */
-        -4px -18px #808080, 0 -18px #606060, 4px -18px #808080,
-        -6px -16px #FFFF00, -2px -16px #FF8C00, 2px -16px #FFFF00, 6px -16px #FF8C00,
-        -4px -14px #FF4500, 0 -14px #FFFF00, 4px -14px #FF4500,
-        /* Crater rim */
-        -10px -12px #5C3317, -8px -12px #654321, -6px -12px #8B0000, -4px -12px #DC143C, -2px -12px #FF4500, 0 -12px #FF6347, 2px -12px #FF4500, 4px -12px #DC143C, 6px -12px #8B0000, 8px -12px #654321, 10px -12px #5C3317,
-        /* Lava pool inside */
-        -8px -10px #654321, -6px -10px #8B0000, -4px -10px #FF4500, -2px -10px #FF8C00, 0 -10px #FFFF00, 2px -10px #FF8C00, 4px -10px #FF4500, 6px -10px #8B0000, 8px -10px #654321,
-        -8px -8px #5C3317, -6px -8px #DC143C, -4px -8px #FF6347, -2px -8px #FF8C00, 0 -8px #FFFF00, 2px -8px #FF8C00, 4px -8px #FF6347, 6px -8px #DC143C, 8px -8px #5C3317,
-        /* Rocky outer ring */
-        -12px -6px #3C2415, -10px -6px #5C3317, -8px -6px #654321, -6px -6px #8B0000, -4px -6px #DC143C, -2px -6px #FF4500, 0 -6px #FF6347, 2px -6px #FF4500, 4px -6px #DC143C, 6px -6px #8B0000, 8px -6px #654321, 10px -6px #5C3317, 12px -6px #3C2415,
-        /* Base rocks */
-        -14px -4px #2A1A0A, -12px -4px #3C2415, -10px -4px #5C3317, -8px -4px #654321, -6px -4px #5C3317, -4px -4px #654321, -2px -4px #5C3317, 0 -4px #654321, 2px -4px #5C3317, 4px -4px #654321, 6px -4px #5C3317, 8px -4px #654321, 10px -4px #5C3317, 12px -4px #3C2415, 14px -4px #2A1A0A,
-        -12px -2px #1A0A00, -10px -2px #2A1A0A, -8px -2px #3C2415, -6px -2px #2A1A0A, -4px -2px #3C2415, -2px -2px #2A1A0A, 0 -2px #3C2415, 2px -2px #2A1A0A, 4px -2px #3C2415, 6px -2px #2A1A0A, 8px -2px #3C2415, 10px -2px #2A1A0A, 12px -2px #1A0A00,
-        -10px 0 #0A0000, -8px 0 #1A0A00, -6px 0 #2A1A0A, -4px 0 #1A0A00, -2px 0 #2A1A0A, 0 0 #1A0A00, 2px 0 #2A1A0A, 4px 0 #1A0A00, 6px 0 #2A1A0A, 8px 0 #1A0A00, 10px 0 #0A0000;
-}
 
 /* DRAGON'S BREATH - Fearsome dragon head statue breathing fire */
 .dragons_breath-icon::before {
@@ -1193,98 +1341,8 @@
         -6px 4px #334433, -4px 4px #445544, 4px 4px #334433;
 }
 
-/* GOLD MINE - Mineshaft entrance with tracks, cart, and gold pile */
-.mine-icon::before {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #FFD700;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow:
-        /* Pickaxe at top */
-        -10px -16px #696969, -8px -16px #808080, -6px -14px #696969,
-        -8px -14px #8B4513, -6px -12px #8B4513, -4px -10px #654321,
-        /* Mine shaft wooden frame */
-        -8px -12px #654321, -6px -12px #8B4513, -4px -12px #654321,
-        8px -12px #654321, 6px -12px #8B4513, 4px -12px #654321,
-        -8px -10px #5C3317, 8px -10px #5C3317,
-        -8px -8px #654321, 8px -8px #654321,
-        /* Dark mine entrance */
-        -6px -10px #1A1A1A, -4px -10px #0A0A0A, -2px -10px #0A0A0A, 0 -10px #0A0A0A, 2px -10px #0A0A0A, 4px -10px #0A0A0A, 6px -10px #1A1A1A,
-        -6px -8px #1A1A1A, -4px -8px #0A0A0A, -2px -8px #1A1A1A, 0 -8px #0A0A0A, 2px -8px #1A1A1A, 4px -8px #0A0A0A, 6px -8px #1A1A1A,
-        /* Rails/tracks */
-        -10px -6px #404040, -8px -6px #505050, -6px -6px #404040, -4px -6px #505050, -2px -6px #404040, 0 -6px #505050, 2px -6px #404040, 4px -6px #505050, 6px -6px #404040, 8px -6px #505050, 10px -6px #404040,
-        /* Gold pile */
-        -4px -4px #B8860B, -2px -4px #FFD700, 0 -4px #FFFACD, 2px -4px #FFD700, 4px -4px #B8860B,
-        -6px -2px #8B6914, -4px -2px #DAA520, -2px -2px #FFD700, 0 -2px #FFFACD, 2px -2px #FFD700, 4px -2px #DAA520, 6px -2px #8B6914,
-        -8px 0 #6B5610, -6px 0 #8B6914, -4px 0 #B8860B, -2px 0 #DAA520, 0 0 #FFD700, 2px 0 #DAA520, 4px 0 #B8860B, 6px 0 #8B6914, 8px 0 #6B5610,
-        -6px 2px #5C4C0A, -4px 2px #6B5610, -2px 2px #8B6914, 0 2px #B8860B, 2px 2px #8B6914, 4px 2px #6B5610, 6px 2px #5C4C0A;
-}
-
-/* ELIXIR COLLECTOR - Glass tank with bubbling purple elixir and pump machinery */
-.elixir_collector-icon::before {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #9370DB;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow:
-        /* Pump mechanism at top */
-        -2px -16px #505050, 0 -16px #606060, 2px -16px #505050,
-        -4px -14px #404040, -2px -14px #505050, 0 -14px #696969, 2px -14px #505050, 4px -14px #404040,
-        /* Glass tank frame */
-        -6px -12px #696969, -4px -12px #808080, 4px -12px #808080, 6px -12px #696969,
-        /* Elixir bubbles in tank */
-        -4px -12px #9370DB, -2px -12px #BA55D3, 0 -12px #DDA0DD, 2px -12px #BA55D3, 4px -12px #9370DB,
-        -6px -10px #505050, -4px -10px #8B008B, -2px -10px #9370DB, 0 -10px #FF00FF, 2px -10px #9370DB, 4px -10px #8B008B, 6px -10px #505050,
-        -6px -8px #505050, -4px -8px #9370DB, -2px -8px #DDA0DD, 0 -8px #FF00FF, 2px -8px #DDA0DD, 4px -8px #9370DB, 6px -8px #505050,
-        -6px -6px #505050, -4px -6px #8B008B, -2px -6px #BA55D3, 0 -6px #DDA0DD, 2px -6px #BA55D3, 4px -6px #8B008B, 6px -6px #505050,
-        -6px -4px #696969, -4px -4px #808080, -2px -4px #9370DB, 0 -4px #BA55D3, 2px -4px #9370DB, 4px -4px #808080, 6px -4px #696969,
-        /* Tank base */
-        -8px -2px #404040, -6px -2px #505050, -4px -2px #606060, -2px -2px #505050, 0 -2px #606060, 2px -2px #505050, 4px -2px #606060, 6px -2px #505050, 8px -2px #404040,
-        /* Pipe and base */
-        -10px 0 #303030, -8px 0 #404040, -6px 0 #505050, -4px 0 #404040, -2px 0 #505050, 0 0 #404040, 2px 0 #505050, 4px 0 #404040, 6px 0 #505050, 8px 0 #404040, 10px 0 #303030,
-        -8px 2px #202020, -6px 2px #303030, -4px 2px #404040, -2px 2px #303030, 0 2px #404040, 2px 2px #303030, 4px 2px #404040, 6px 2px #303030, 8px 2px #202020;
-}
-
-/* SOLANA COLLECTOR - neon SOL coin with a compact base */
-.solana_collector-icon::before {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #14f195;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow:
-        /* Top highlight */
-        -2px -8px #0b2b2f, 0 -8px #00f7ff, 2px -8px #0b2b2f,
-        /* Upper ring */
-        -6px -6px #0b2b2f, -4px -6px #0fa97a, -2px -6px #14f195, 0 -6px #00f7ff, 2px -6px #14f195, 4px -6px #0fa97a, 6px -6px #0b2b2f,
-        /* Outer rim */
-        -8px -4px #0b2b2f, -6px -4px #0fa97a, -4px -4px #14f195, -2px -4px #9945ff, 0 -4px #14f195, 2px -4px #9945ff, 4px -4px #14f195, 6px -4px #0fa97a, 8px -4px #0b2b2f,
-        -8px -2px #0b2b2f, -6px -2px #0fa97a, -4px -2px #14f195, -2px -2px #14f195, 0 -2px #00f7ff, 2px -2px #14f195, 4px -2px #14f195, 6px -2px #0fa97a, 8px -2px #0b2b2f,
-        -8px 0 #0b2b2f, -6px 0 #0fa97a, -4px 0 #14f195, -2px 0 #9945ff, 0 0 #14f195, 2px 0 #9945ff, 4px 0 #14f195, 6px 0 #0fa97a, 8px 0 #0b2b2f,
-        -8px 2px #0b2b2f, -6px 2px #0fa97a, -4px 2px #14f195, -2px 2px #14f195, 0 2px #00f7ff, 2px 2px #14f195, 4px 2px #14f195, 6px 2px #0fa97a, 8px 2px #0b2b2f,
-        -8px 4px #0b2b2f, -6px 4px #0fa97a, -4px 4px #14f195, -2px 4px #9945ff, 0 4px #14f195, 2px 4px #9945ff, 4px 4px #14f195, 6px 4px #0fa97a, 8px 4px #0b2b2f,
-        /* Lower ring */
-        -6px 6px #0b2b2f, -4px 6px #0fa97a, -2px 6px #14f195, 0 6px #00f7ff, 2px 6px #14f195, 4px 6px #0fa97a, 6px 6px #0b2b2f,
-        -2px 8px #0b2b2f, 0 8px #00f7ff, 2px 8px #0b2b2f,
-        /* Compact base */
-        -6px 10px #404040, -4px 10px #505050, -2px 10px #404040, 0 10px #505050, 2px 10px #404040, 4px 10px #505050, 6px 10px #404040,
-        -4px 12px #303030, -2px 12px #404040, 0 12px #505050, 2px 12px #404040, 4px 12px #303030;
-}
-
 /* ARMY CAMP - Military tent with campfire and weapons rack */
-.army_camp-icon::before,
-.training_camp-icon::before {
+.army_camp-icon::before {
     content: '';
     position: absolute;
     width: 2px;

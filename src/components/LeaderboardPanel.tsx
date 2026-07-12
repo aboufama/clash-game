@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Backend } from '../game/backend/GameBackend';
 
 interface LeaderboardUser {
   id: string;
   username: string;
   buildingCount: number;
+  trophies: number;
+  plotX: number;
+  plotY: number;
+  inScoutRange: boolean;
 }
 
 interface LeaderboardPanelProps {
@@ -19,7 +24,6 @@ interface LeaderboardCacheRecord {
 
 const CACHE_KEY = 'clash.leaderboard.cache.v1';
 const REFRESH_INTERVAL_MS = 15000;
-const REQUEST_TIMEOUT_MS = 4500;
 const REQUEST_RETRIES = 3;
 const RETRY_BACKOFF_MS = 180;
 
@@ -37,26 +41,19 @@ function isLeaderboardUser(value: unknown): value is LeaderboardUser {
 
 function normalizeUsers(input: unknown): LeaderboardUser[] {
   if (!Array.isArray(input)) return [];
-  const deduped = new Map<string, LeaderboardUser>();
-  input
+  return input
     .filter(isLeaderboardUser)
     .map(user => ({
       id: user.id,
       username: user.username,
-      buildingCount: Math.max(0, Math.floor(Number(user.buildingCount)))
-    }))
-    .forEach(user => {
-      const key = user.username.trim().toLowerCase() || `id:${user.id}`;
-      const existing = deduped.get(key);
-      if (!existing) {
-        deduped.set(key, user);
-        return;
-      }
-      if (user.buildingCount > existing.buildingCount) {
-        deduped.set(key, user);
-      }
-    });
-  return Array.from(deduped.values());
+      buildingCount: Math.max(0, Math.floor(Number(user.buildingCount))),
+      trophies: Math.max(0, Math.floor(Number(user.trophies ?? 0))),
+      plotX: Number.isFinite(Number(user.plotX)) ? Math.floor(Number(user.plotX)) : 0,
+      plotY: Number.isFinite(Number(user.plotY)) ? Math.floor(Number(user.plotY)) : 0,
+      // Old cached rows lack this field. Treat unknown as out of range so a
+      // stale cache can never launch a scout request the server must reject.
+      inScoutRange: user.inScoutRange === true
+    }));
 }
 
 function readCache(): LeaderboardCacheRecord | null {
@@ -89,7 +86,9 @@ function writeCache(users: LeaderboardUser[]) {
   };
   memoryCache = cache;
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    } catch { /* storage blocked — memory cache still works */ }
   }
 }
 
@@ -116,39 +115,13 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
     let lastError: unknown = null;
 
     for (let attempt = 1; attempt <= REQUEST_RETRIES; attempt++) {
-      abortRef.current?.abort();
-      const timeoutController = new AbortController();
-      abortRef.current = timeoutController;
-      const timeoutId = window.setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
-
       try {
-        const response = await fetch('/api/users/list', {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'same-origin',
-          signal: timeoutController.signal
-        });
-
-        if (!response.ok) {
-          throw new Error(`Leaderboard request failed (${response.status})`);
-        }
-
-        const data = await response.json() as { users?: unknown };
-        return normalizeUsers(data.users);
+        const players = await Backend.getLeaderboard();
+        return normalizeUsers(players);
       } catch (loadError) {
-        if (timeoutController.signal.aborted) {
-          lastError = new Error('Leaderboard request timed out');
-        } else {
-          lastError = loadError;
-        }
-
+        lastError = loadError;
         if (attempt < REQUEST_RETRIES) {
           await wait(RETRY_BACKOFF_MS * attempt);
-        }
-      } finally {
-        window.clearTimeout(timeoutId);
-        if (abortRef.current === timeoutController) {
-          abortRef.current = null;
         }
       }
     }
@@ -232,6 +205,9 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
 
     void loadUsers(usersRef.current.length === 0);
 
+    // Only keep polling while the dropdown is actually visible; opening it
+    // triggers a fresh fetch anyway (effect below).
+    if (!isOpen) return;
     const refreshHandle = window.setInterval(() => {
       void loadUsers(false);
     }, REFRESH_INTERVAL_MS);
@@ -239,7 +215,7 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
     return () => {
       window.clearInterval(refreshHandle);
     };
-  }, [isOnline, loadUsers]);
+  }, [isOnline, isOpen, loadUsers]);
 
   useEffect(() => {
     if (!isOpen || !isOnline) return;
@@ -294,16 +270,18 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
                     <div className="rank">#{index + 1}</div>
                     <div className="user-info">
                       <span className="username">{user.username}</span>
-                      <span className="buildings">{user.buildingCount} buildings</span>
+                      <span className="buildings"><span className="sym sym-trophy small" /> {user.trophies} · {user.buildingCount} buildings</span>
                     </div>
                     {user.id !== currentUserId && (
                       <button
                         className="scout-btn"
+                        disabled={!user.inScoutRange}
                         onClick={() => {
+                          if (!user.inScoutRange) return;
                           handleClose();
                           onScoutUser(user.id, user.username);
                         }}
-                        title="View base"
+                        title={user.inScoutRange ? 'View base' : 'Beyond watchtower sight'}
                       >
                         <div className="btn-icon eye-icon"></div>
                       </button>

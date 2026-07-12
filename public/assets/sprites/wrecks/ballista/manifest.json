@@ -1,0 +1,35 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "ballista_L1_wreck_body.png",
+        "texelW": 53,
+        "texelH": 27,
+        "cellWorldPx": 1.35,
+        "originX": 0.44234800838574384,
+        "originY": 0.45541838134430707
+      }
+    },
+    "2": {
+      "body": {
+        "file": "ballista_L2_wreck_body.png",
+        "texelW": 53,
+        "texelH": 27,
+        "cellWorldPx": 1.35,
+        "originX": 0.44234800838574384,
+        "originY": 0.45541838134430707
+      }
+    },
+    "3": {
+      "body": {
+        "file": "ballista_L3_wreck_body.png",
+        "texelW": 53,
+        "texelH": 27,
+        "cellWorldPx": 1.35,
+        "originX": 0.44234800838574384,
+        "originY": 0.45541838134430707
+      }
+    }
+  }
+}

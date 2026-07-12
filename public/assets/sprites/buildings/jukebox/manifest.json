@@ -1,0 +1,326 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "jukebox_L1_idle0.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "jukebox_L1_idle1.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "jukebox_L1_idle2.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "jukebox_L1_idle3.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "jukebox_L1_idle4.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "jukebox_L1_idle5.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "jukebox_L1_idle6.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "jukebox_L1_idle7.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "jukebox_L1_idle8.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "jukebox_L1_idle9.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "jukebox_L1_idle10.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "jukebox_L1_idle11.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "jukebox_L1_idle12.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "jukebox_L1_idle13.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "jukebox_L1_idle14.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "jukebox_L1_idle15.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "jukebox_L1_idle16.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "jukebox_L1_idle17.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "jukebox_L1_idle18.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "jukebox_L1_idle19.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "jukebox_L1_idle20.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "jukebox_L1_idle21.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "jukebox_L1_idle22.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "jukebox_L1_idle23.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "playing": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "jukebox_L1_playing0.png",
+                "texelW": 36,
+                "texelH": 45,
+                "cellWorldPx": 1.35,
+                "originX": 0.3950617283950615,
+                "originY": 0.8617283950617282,
+                "ov": {
+                  "jukeboxPlaying": true,
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "jukebox_L1_playing1.png",
+                "texelW": 30,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4740740740740738,
+                "originY": 0.8552971576227386,
+                "ov": {
+                  "jukeboxPlaying": true,
+                  "timeAt": 1400
+                }
+              },
+              {
+                "file": "jukebox_L1_playing2.png",
+                "texelW": 31,
+                "texelH": 35,
+                "cellWorldPx": 1.35,
+                "originX": 0.4587813620071682,
+                "originY": 0.8222222222222221,
+                "ov": {
+                  "jukeboxPlaying": true,
+                  "timeAt": 1800
+                }
+              }
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

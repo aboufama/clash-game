@@ -1,0 +1,4574 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 16,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L1_idle0_a00.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a01.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a02.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a03.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a04.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a05.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a06.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a07.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a08.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a09.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a10.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a11.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a12.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a13.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a14.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_idle0_a15.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L1_fire0_a00.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a00.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a00.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a00.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a00.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a01.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a01.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a01.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a01.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a01.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a02.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a02.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a02.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a02.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a02.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a03.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a03.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a03.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a03.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a03.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a04.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a04.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a04.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a04.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a04.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a05.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a05.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a05.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a05.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a05.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a06.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a06.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a06.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a06.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a06.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a07.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a07.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a07.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a07.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a07.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a08.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a08.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a08.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a08.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a08.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a09.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a09.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a09.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a09.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a09.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a10.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a10.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a10.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a10.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a10.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a11.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a11.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a11.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a11.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a11.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a12.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a12.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a12.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a12.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a12.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a13.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a13.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a13.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a13.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a13.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a14.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a14.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a14.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a14.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a14.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L1_fire0_a15.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L1_fire1_a15.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L1_fire2_a15.png",
+                "texelW": 36,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.5407407407407395,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L1_fire3_a15.png",
+                "texelW": 36,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.582491582491581,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L1_fire4_a15.png",
+                "texelW": 36,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.6172839506172838,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "mortar_L1_ground.png",
+        "texelW": 50,
+        "texelH": 28,
+        "cellWorldPx": 1.35,
+        "originX": 0.5037037037037037,
+        "originY": 0.4576719576719564
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L2_idle0_a00.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a01.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a02.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a03.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a04.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a05.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a06.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a07.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a08.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a09.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a10.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a11.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a12.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a13.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a14.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_idle0_a15.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L2_fire0_a00.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a00.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a00.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a00.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a00.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a01.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a01.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a01.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a01.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a01.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a02.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a02.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a02.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a02.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a02.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a03.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a03.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a03.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a03.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a03.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a04.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a04.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a04.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a04.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a04.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a05.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a05.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a05.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a05.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a05.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a06.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a06.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a06.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a06.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a06.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a07.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a07.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a07.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a07.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a07.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a08.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a08.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a08.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a08.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a08.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a09.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a09.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a09.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a09.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a09.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a10.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a10.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a10.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a10.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a10.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a11.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a11.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a11.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a11.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a11.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a12.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a12.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a12.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a12.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a12.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a13.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a13.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a13.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a13.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a13.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a14.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a14.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a14.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a14.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a14.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L2_fire0_a15.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L2_fire1_a15.png",
+                "texelW": 40,
+                "texelH": 24,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5756172839506165,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L2_fire2_a15.png",
+                "texelW": 40,
+                "texelH": 22,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5370370370370366,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L2_fire3_a15.png",
+                "texelW": 40,
+                "texelH": 25,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.5925925925925926,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L2_fire4_a15.png",
+                "texelW": 40,
+                "texelH": 26,
+                "cellWorldPx": 1.35,
+                "originX": 0.5046296296296297,
+                "originY": 0.6082621082621072,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "mortar_L2_ground.png",
+        "texelW": 50,
+        "texelH": 28,
+        "cellWorldPx": 1.35,
+        "originX": 0.5037037037037037,
+        "originY": 0.4576719576719564
+      }
+    },
+    "3": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L3_idle0_a00.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a01.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a02.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a03.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a04.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a05.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a06.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a07.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a08.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a09.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a10.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a11.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a12.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a13.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a14.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_idle0_a15.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L3_fire0_a00.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a00.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a00.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a00.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a00.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a01.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a01.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a01.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a01.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a01.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a02.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a02.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a02.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a02.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a02.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a03.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a03.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a03.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a03.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a03.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a04.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a04.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a04.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a04.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a04.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a05.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a05.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a05.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a05.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a05.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a06.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a06.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a06.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a06.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a06.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a07.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a07.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a07.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a07.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a07.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a08.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a08.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a08.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a08.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a08.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a09.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a09.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a09.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a09.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a09.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a10.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a10.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a10.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a10.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a10.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a11.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a11.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a11.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a11.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a11.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a12.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a12.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a12.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a12.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a12.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a13.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a13.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a13.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a13.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a13.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a14.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a14.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a14.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a14.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a14.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L3_fire0_a15.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L3_fire1_a15.png",
+                "texelW": 43,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6005291005291001,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L3_fire2_a15.png",
+                "texelW": 43,
+                "texelH": 27,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.5857338820301774,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L3_fire3_a15.png",
+                "texelW": 43,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6143039591315441,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L3_fire4_a15.png",
+                "texelW": 43,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.4926787252368646,
+                "originY": 0.6391875746714456,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "mortar_L3_ground.png",
+        "texelW": 50,
+        "texelH": 28,
+        "cellWorldPx": 1.35,
+        "originX": 0.5037037037037037,
+        "originY": 0.4576719576719564
+      }
+    },
+    "4": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L4_idle0_a00.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a01.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a02.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a03.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a04.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a05.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a06.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a07.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a08.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a09.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a10.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a11.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a12.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a13.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a14.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_idle0_a15.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "mortar_L4_fire0_a00.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a00.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a00.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a00.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a00.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a01.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a01.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a01.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a01.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a01.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a02.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a02.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a02.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a02.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a02.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a03.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a03.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a03.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a03.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a03.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a04.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a04.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a04.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a04.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a04.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a05.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a05.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a05.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a05.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a05.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a06.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a06.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a06.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a06.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a06.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a07.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a07.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a07.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a07.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a07.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a08.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a08.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a08.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a08.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a08.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a09.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a09.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a09.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a09.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a09.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a10.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a10.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a10.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a10.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a10.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a11.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a11.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a11.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a11.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a11.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a12.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a12.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a12.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a12.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a12.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a13.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a13.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a13.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a13.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a13.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a14.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a14.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a14.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a14.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a14.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ],
+            [
+              {
+                "file": "mortar_L4_fire0_a15.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "mortar_L4_fire1_a15.png",
+                "texelW": 44,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.593827160493826,
+                "ov": {
+                  "fireAge": 80
+                }
+              },
+              {
+                "file": "mortar_L4_fire2_a15.png",
+                "texelW": 44,
+                "texelH": 28,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.5648148148148139,
+                "ov": {
+                  "fireAge": 180
+                }
+              },
+              {
+                "file": "mortar_L4_fire3_a15.png",
+                "texelW": 44,
+                "texelH": 31,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.606929510155316,
+                "ov": {
+                  "fireAge": 340
+                }
+              },
+              {
+                "file": "mortar_L4_fire4_a15.png",
+                "texelW": 44,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.504208754208754,
+                "originY": 0.6307519640852965,
+                "ov": {
+                  "fireAge": 520
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "mortar_L4_ground.png",
+        "texelW": 52,
+        "texelH": 29,
+        "cellWorldPx": 1.35,
+        "originX": 0.5035612535612535,
+        "originY": 0.47637292464878606
+      }
+    }
+  }
+}

@@ -79,7 +79,7 @@ export class RubbleRenderer {
 
             // Stone colors vary
             const stoneColors = [0x8a8a8a, 0x6a6a6a, 0x5a5a5a, 0x7a6a5a, 0x9a8a7a];
-            const colorIdx = Math.floor(rand1 * stoneColors.length);
+            const colorIdx = Math.min(stoneColors.length - 1, Math.floor(rand1 * stoneColors.length));
 
             graphics.fillStyle(stoneColors[colorIdx], 0.9);
             // Draw irregular stone shapes
@@ -202,75 +202,4 @@ export class RubbleRenderer {
         }
     }
 
-    static drawLavaPool(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, width: number, height: number, time: number, intensity: number) {
-        const center = IsoUtils.cartToIso(gridX + width / 2, gridY + height / 2);
-        const seed = gridX * 1000 + gridY;
-
-        const poolW = width * 44;
-        const poolH = height * 22;
-
-        // Faint orange glow halo around edges
-        graphics.fillStyle(0xff5500, 0.15 * intensity);
-        graphics.fillEllipse(center.x, center.y + 2, poolW + 12, poolH + 6);
-
-        // Main lava surface
-        graphics.fillStyle(0xff5500, 0.85 * intensity);
-        graphics.fillEllipse(center.x, center.y, poolW, poolH);
-
-        // Drifting yellow-hot spots
-        for (let i = 0; i < 5; i++) {
-            const rand1 = Math.sin(seed + i * 7.77) * 0.5 + 0.5;
-            const rand2 = Math.cos(seed + i * 8.88) * 0.5 + 0.5;
-            const drift = Math.sin(time / 800 + i * 1.5) * 8;
-            const hx = center.x + (rand1 - 0.5) * poolW * 0.6 + drift;
-            const hy = center.y + (rand2 - 0.5) * poolH * 0.6 + Math.cos(time / 1000 + i) * 3;
-            const hotSize = 6 + Math.sin(time / 400 + i * 2) * 3;
-
-            graphics.fillStyle(0xffaa00, 0.7 * intensity);
-            graphics.fillEllipse(hx, hy, hotSize, hotSize * 0.5);
-        }
-
-        // White-hot center
-        const coreFlicker = 0.7 + Math.sin(time / 200) * 0.3;
-        graphics.fillStyle(0xffdd66, 0.6 * intensity * coreFlicker);
-        graphics.fillEllipse(center.x, center.y - 1, poolW * 0.3, poolH * 0.3);
-
-        // Bubbling: small circles that appear and pop
-        for (let i = 0; i < 8; i++) {
-            const rand1 = Math.sin(seed + i * 13.13) * 0.5 + 0.5;
-            const rand2 = Math.cos(seed + i * 14.14) * 0.5 + 0.5;
-            const bubbleCycle = ((time / 1200) + rand1 * 3) % 1;
-            const bubbleSize = Math.sin(bubbleCycle * Math.PI) * (3 + rand2 * 3);
-
-            if (bubbleSize > 0.5) {
-                const bx = center.x + (rand1 - 0.5) * poolW * 0.7;
-                const by = center.y + (rand2 - 0.5) * poolH * 0.7;
-
-                // Bubble body
-                graphics.fillStyle(0xffaa00, 0.6 * intensity * Math.sin(bubbleCycle * Math.PI));
-                graphics.fillCircle(bx, by, bubbleSize);
-
-                // Bright highlight on bubble
-                if (bubbleCycle > 0.3 && bubbleCycle < 0.7) {
-                    graphics.fillStyle(0xffdd66, 0.5 * intensity);
-                    graphics.fillCircle(bx, by - 1, bubbleSize * 0.4);
-                }
-            }
-        }
-
-        // Smoke wisps rising from surface
-        for (let i = 0; i < 4; i++) {
-            const rand1 = Math.sin(seed + i * 22.22) * 0.5 + 0.5;
-            const rand2 = Math.cos(seed + i * 23.23) * 0.5 + 0.5;
-            const smokeCycle = ((time / 2500) + rand1) % 1;
-
-            const sx = center.x + (rand1 - 0.5) * poolW * 0.5 + Math.sin(time / 600 + i) * 5;
-            const sy = center.y + (rand2 - 0.5) * poolH * 0.3 - smokeCycle * 35;
-            const smokeAlpha = (1 - smokeCycle) * 0.25 * intensity;
-            const smokeSize = Math.floor(3 + smokeCycle * 8);
-
-            graphics.fillStyle(0x444444, smokeAlpha);
-            graphics.fillRect(sx - smokeSize / 2, sy - smokeSize / 2, smokeSize, smokeSize);
-        }
-    }
 }

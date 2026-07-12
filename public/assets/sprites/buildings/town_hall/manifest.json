@@ -1,0 +1,320 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "town_hall_L1_idle0.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "town_hall_L1_idle1.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 1219
+                }
+              },
+              {
+                "file": "town_hall_L1_idle2.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 1438
+                }
+              },
+              {
+                "file": "town_hall_L1_idle3.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 1656
+                }
+              },
+              {
+                "file": "town_hall_L1_idle4.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 1875
+                }
+              },
+              {
+                "file": "town_hall_L1_idle5.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 2094
+                }
+              },
+              {
+                "file": "town_hall_L1_idle6.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 2313
+                }
+              },
+              {
+                "file": "town_hall_L1_idle7.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 2531
+                }
+              },
+              {
+                "file": "town_hall_L1_idle8.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 2750
+                }
+              },
+              {
+                "file": "town_hall_L1_idle9.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 2969
+                }
+              },
+              {
+                "file": "town_hall_L1_idle10.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 3188
+                }
+              },
+              {
+                "file": "town_hall_L1_idle11.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 3406
+                }
+              },
+              {
+                "file": "town_hall_L1_idle12.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 3625
+                }
+              },
+              {
+                "file": "town_hall_L1_idle13.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 3844
+                }
+              },
+              {
+                "file": "town_hall_L1_idle14.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 4063
+                }
+              },
+              {
+                "file": "town_hall_L1_idle15.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 4281
+                }
+              },
+              {
+                "file": "town_hall_L1_idle16.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 4500
+                }
+              },
+              {
+                "file": "town_hall_L1_idle17.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 4719
+                }
+              },
+              {
+                "file": "town_hall_L1_idle18.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 4938
+                }
+              },
+              {
+                "file": "town_hall_L1_idle19.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 5156
+                }
+              },
+              {
+                "file": "town_hall_L1_idle20.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 5375
+                }
+              },
+              {
+                "file": "town_hall_L1_idle21.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 5594
+                }
+              },
+              {
+                "file": "town_hall_L1_idle22.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "town_hall_L1_idle23.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "timeAt": 6031
+                }
+              }
+            ]
+          ],
+          "loopMs": 5250,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "town_hall_L1_door0.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "town_hall_L1_door1.png",
+                "texelW": 95,
+                "texelH": 76,
+                "cellWorldPx": 1.35,
+                "originX": 0.4962962962962961,
+                "originY": 0.7085769980506821,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "town_hall_L1_ground.png",
+        "texelW": 108,
+        "texelH": 54,
+        "cellWorldPx": 1.35,
+        "originX": 0.5013717421124828,
+        "originY": 0.49725651577503427
+      }
+    }
+  }
+}

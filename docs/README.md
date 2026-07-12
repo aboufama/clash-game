@@ -1,39 +1,35 @@
 # Documentation
 
-Use this page as the entry point.
+Entry point for the docs. Start here, then open the specific guide.
 
-## Fast Path: Make a Building from an Image
+## The important one
 
-1. Run `npm run dev:studio`.
-2. Drag on the green grid to create the building footprint.
-3. Load one or more images as states (default, damaged, etc).
-4. Add POIs (named points) if artists/animators need anchor positions.
-5. Click **Copy JSON (External Assets)** for compact JSON. In local dev it also auto-saves JSON + state images into `public/assets/buildings/<building-id>/`.
-6. Click **Export Footprint PNG** if you want a gray isometric guide image.
+- **[BUILDING_ART_GUIDE.md](./BUILDING_ART_GUIDE.md)** — how building art is
+  actually made in this game (layered vector graphics in
+  `BuildingRenderer.ts`): iso math, the renderer contract, lighting/palette
+  rules, roofs, doors, turret math, walls, day/night light rigs, and the
+  screenshot-verification workflow in `tools/art-preview/`. Required reading
+  before any visual work.
 
-Full wizard guide:
-- `/Users/andreboufama/Documents/PersonalStuff/ clash/docs/FOOTPRINT_ASSET_WIZARD.md`
+## Task guides
 
-## What Is Included in JSON Export
+- [ADDING_BUILDINGS.md](./ADDING_BUILDINGS.md) — end-to-end wiring checklist
+  for a new building type.
+- [ADDING_TROOPS.md](./ADDING_TROOPS.md) — same for troops.
+- [RENDERING_AND_DEPTH.md](./RENDERING_AND_DEPTH.md) — depth sorting and the
+  base/elevated (ground-bake) contract. Read when something layers wrong.
+- [COMBAT_NAVIGATION.md](./COMBAT_NAVIGATION.md) — strategic targets, wall
+  breaches, legal attack positions, collision, and regression requirements.
 
-- Building info (`id`, `name`, `category`, `cost`, `maxCount`)
-- Footprint geometry (`width`, `height`, `footprintTiles`)
-- Image states (`states[]`, transforms, active state)
-- External asset references (`sourceAsset`)
-- Ground plane config
-- POIs with local + normalized coordinates
+## Reference
 
-Copy JSON keeps JSON small and writes image files in local dev; fallback is manual image download.
-
-## What Is Not Automatic
-
-The wizard does not modify game code by itself.
-You still need to wire the building into the game:
-- `/Users/andreboufama/Documents/PersonalStuff/ clash/docs/ADDING_BUILDINGS.md`
-
-## Other Docs
-
-- `/Users/andreboufama/Documents/PersonalStuff/ clash/docs/ADDING_BUILDINGS.md`
-- `/Users/andreboufama/Documents/PersonalStuff/ clash/docs/RENDERING_AND_DEPTH.md`
-- `/Users/andreboufama/Documents/PersonalStuff/ clash/docs/ADDING_TROOPS.md`
-- `/Users/andreboufama/Documents/PersonalStuff/ clash/docs/ARCHITECTURE.md`
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — where everything lives (client,
+  scene, `server/`).
+- [MainScene_Organization.md](../src/game/scenes/MainScene_Organization.md) —
+  scene responsibilities, focused collaborators, and extension seams.
+- [attack-domain/README.md](../server/attack-domain/README.md) — unified
+  attack state machine, transaction contract, and replay authority.
+- [persistence/README.md](../server/persistence/README.md) — normalized schema,
+  production runtime selection, bounded MMO queries, and cutover runbook.
+- [REWRITE_REVIEW.md](./REWRITE_REVIEW.md) — historical: findings from the
+  2026-07 backend rewrite review.

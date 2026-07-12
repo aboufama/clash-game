@@ -9,7 +9,9 @@ const GROUND_PLANE_DEPTH = 0;
 const BUILDING_BIAS_SCALE = 2;
 const TROOP_BIAS_SCALE = 1;
 const OBSTACLE_BIAS_SCALE = 1;
-const BARRACKS_DEPTH_OFFSET = DEPTH_STEP + 12;
+// Keep the tall roof lifted without crossing an entire isometric row: a wall
+// one row in front must still win the painter's-order comparison.
+const BARRACKS_DEPTH_OFFSET = DEPTH_STEP - 1;
 
 const LAYER_OFFSETS = {
     obstacle: 2,
@@ -50,6 +52,7 @@ export const depthForGroundPlane = () => GROUND_PLANE_DEPTH;
 
 const buildingBias = (type: BuildingType) => {
     const def = BUILDING_DEFINITIONS[type];
+    if (!def) return 0; // unknown type: neutral bias, never a crash
     // Larger buildings get positive bias to push them slightly forward
     // This helps their front edges not get clipped by things behind
     return clampBias(Math.max(def.width, def.height) * BUILDING_BIAS_SCALE);
@@ -57,6 +60,7 @@ const buildingBias = (type: BuildingType) => {
 
 const troopBias = (type: TroopType) => {
     const def = TROOP_DEFINITIONS[type];
+    if (!def) return 0;
     return clampBias(Math.max(1, def.space) * TROOP_BIAS_SCALE);
 };
 
@@ -66,6 +70,7 @@ const obstacleBias = (width: number, height: number) =>
 export const depthForBuilding = (gridX: number, gridY: number, type: BuildingType) => {
     const def = BUILDING_DEFINITIONS[type];
     const layerOffset = type === 'wall' ? LAYER_OFFSETS.wall : LAYER_OFFSETS.building;
+    if (!def) return baseDepth(gridX, gridY) + layerOffset; // unknown type: sane depth, no crash
     const depth = depthForFootprint(gridX, gridY, def.width, def.height, layerOffset, buildingBias(type));
     // Barracks roofs are tall and can be incorrectly occluded by top-right walls without extra lift.
     if (type === 'barracks') return depth + BARRACKS_DEPTH_OFFSET;

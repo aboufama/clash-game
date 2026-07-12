@@ -1,0 +1,981 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "mine_L1_idle0.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "mine_L1_idle1.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 1240
+                }
+              },
+              {
+                "file": "mine_L1_idle2.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 1479
+                }
+              },
+              {
+                "file": "mine_L1_idle3.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 1719
+                }
+              },
+              {
+                "file": "mine_L1_idle4.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 1958
+                }
+              },
+              {
+                "file": "mine_L1_idle5.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 2198
+                }
+              },
+              {
+                "file": "mine_L1_idle6.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 2438
+                }
+              },
+              {
+                "file": "mine_L1_idle7.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 2677
+                }
+              },
+              {
+                "file": "mine_L1_idle8.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 2917
+                }
+              },
+              {
+                "file": "mine_L1_idle9.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 3156
+                }
+              },
+              {
+                "file": "mine_L1_idle10.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 3396
+                }
+              },
+              {
+                "file": "mine_L1_idle11.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 3635
+                }
+              },
+              {
+                "file": "mine_L1_idle12.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 3875
+                }
+              },
+              {
+                "file": "mine_L1_idle13.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 4115
+                }
+              },
+              {
+                "file": "mine_L1_idle14.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 4354
+                }
+              },
+              {
+                "file": "mine_L1_idle15.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 4594
+                }
+              },
+              {
+                "file": "mine_L1_idle16.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 4833
+                }
+              },
+              {
+                "file": "mine_L1_idle17.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 5073
+                }
+              },
+              {
+                "file": "mine_L1_idle18.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 5313
+                }
+              },
+              {
+                "file": "mine_L1_idle19.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 5552
+                }
+              },
+              {
+                "file": "mine_L1_idle20.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 5792
+                }
+              },
+              {
+                "file": "mine_L1_idle21.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 6031
+                }
+              },
+              {
+                "file": "mine_L1_idle22.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 6271
+                }
+              },
+              {
+                "file": "mine_L1_idle23.png",
+                "texelW": 29,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.38569604086845444,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "timeAt": 6510
+                }
+              }
+            ]
+          ],
+          "loopMs": 5750,
+          "loopExact": false
+        },
+        "fill": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "mine_L1_fill0.png",
+                "texelW": 22,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.7271604938271602,
+                "ov": {
+                  "fillLevel": 0
+                }
+              },
+              {
+                "file": "mine_L1_fill1.png",
+                "texelW": 27,
+                "texelH": 32,
+                "cellWorldPx": 1.35,
+                "originX": 0.4142661179698215,
+                "originY": 0.6817129629629627,
+                "ov": {
+                  "fillLevel": 0.34
+                }
+              },
+              {
+                "file": "mine_L1_fill2.png",
+                "texelW": 28,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.39947089947089925,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "fillLevel": 0.67
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "mine_L1_ground.png",
+        "texelW": 59,
+        "texelH": 30,
+        "cellWorldPx": 1.35,
+        "originX": 0.4946641556811045,
+        "originY": 0.49382716049382713
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "mine_L2_idle0.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "mine_L2_idle1.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1240
+                }
+              },
+              {
+                "file": "mine_L2_idle2.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1479
+                }
+              },
+              {
+                "file": "mine_L2_idle3.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1719
+                }
+              },
+              {
+                "file": "mine_L2_idle4.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1958
+                }
+              },
+              {
+                "file": "mine_L2_idle5.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2198
+                }
+              },
+              {
+                "file": "mine_L2_idle6.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2438
+                }
+              },
+              {
+                "file": "mine_L2_idle7.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2677
+                }
+              },
+              {
+                "file": "mine_L2_idle8.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2917
+                }
+              },
+              {
+                "file": "mine_L2_idle9.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3156
+                }
+              },
+              {
+                "file": "mine_L2_idle10.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3396
+                }
+              },
+              {
+                "file": "mine_L2_idle11.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3635
+                }
+              },
+              {
+                "file": "mine_L2_idle12.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3875
+                }
+              },
+              {
+                "file": "mine_L2_idle13.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4115
+                }
+              },
+              {
+                "file": "mine_L2_idle14.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4354
+                }
+              },
+              {
+                "file": "mine_L2_idle15.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4594
+                }
+              },
+              {
+                "file": "mine_L2_idle16.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4833
+                }
+              },
+              {
+                "file": "mine_L2_idle17.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5073
+                }
+              },
+              {
+                "file": "mine_L2_idle18.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5313
+                }
+              },
+              {
+                "file": "mine_L2_idle19.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5552
+                }
+              },
+              {
+                "file": "mine_L2_idle20.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5792
+                }
+              },
+              {
+                "file": "mine_L2_idle21.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 6031
+                }
+              },
+              {
+                "file": "mine_L2_idle22.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 6271
+                }
+              },
+              {
+                "file": "mine_L2_idle23.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 6510
+                }
+              }
+            ]
+          ],
+          "loopMs": 5750,
+          "loopExact": false
+        },
+        "fill": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "mine_L2_fill0.png",
+                "texelW": 22,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.7271604938271602,
+                "ov": {
+                  "fillLevel": 0
+                }
+              },
+              {
+                "file": "mine_L2_fill1.png",
+                "texelW": 27,
+                "texelH": 32,
+                "cellWorldPx": 1.35,
+                "originX": 0.4142661179698215,
+                "originY": 0.6817129629629627,
+                "ov": {
+                  "fillLevel": 0.34
+                }
+              },
+              {
+                "file": "mine_L2_fill2.png",
+                "texelW": 31,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.36081242532855423,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "fillLevel": 0.67
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "mine_L2_ground.png",
+        "texelW": 59,
+        "texelH": 30,
+        "cellWorldPx": 1.35,
+        "originX": 0.4946641556811045,
+        "originY": 0.49382716049382713
+      }
+    },
+    "3": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "mine_L3_idle0.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "mine_L3_idle1.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1240
+                }
+              },
+              {
+                "file": "mine_L3_idle2.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1479
+                }
+              },
+              {
+                "file": "mine_L3_idle3.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1719
+                }
+              },
+              {
+                "file": "mine_L3_idle4.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 1958
+                }
+              },
+              {
+                "file": "mine_L3_idle5.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2198
+                }
+              },
+              {
+                "file": "mine_L3_idle6.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2438
+                }
+              },
+              {
+                "file": "mine_L3_idle7.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2677
+                }
+              },
+              {
+                "file": "mine_L3_idle8.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 2917
+                }
+              },
+              {
+                "file": "mine_L3_idle9.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3156
+                }
+              },
+              {
+                "file": "mine_L3_idle10.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3396
+                }
+              },
+              {
+                "file": "mine_L3_idle11.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3635
+                }
+              },
+              {
+                "file": "mine_L3_idle12.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 3875
+                }
+              },
+              {
+                "file": "mine_L3_idle13.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4115
+                }
+              },
+              {
+                "file": "mine_L3_idle14.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4354
+                }
+              },
+              {
+                "file": "mine_L3_idle15.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4594
+                }
+              },
+              {
+                "file": "mine_L3_idle16.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 4833
+                }
+              },
+              {
+                "file": "mine_L3_idle17.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5073
+                }
+              },
+              {
+                "file": "mine_L3_idle18.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5313
+                }
+              },
+              {
+                "file": "mine_L3_idle19.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5552
+                }
+              },
+              {
+                "file": "mine_L3_idle20.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 5792
+                }
+              },
+              {
+                "file": "mine_L3_idle21.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 6031
+                }
+              },
+              {
+                "file": "mine_L3_idle22.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 6271
+                }
+              },
+              {
+                "file": "mine_L3_idle23.png",
+                "texelW": 33,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.3389450056116721,
+                "originY": 0.6416122004357295,
+                "ov": {
+                  "timeAt": 6510
+                }
+              }
+            ]
+          ],
+          "loopMs": 5750,
+          "loopExact": false
+        },
+        "fill": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "mine_L3_fill0.png",
+                "texelW": 22,
+                "texelH": 30,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.7271604938271602,
+                "ov": {
+                  "fillLevel": 0
+                }
+              },
+              {
+                "file": "mine_L3_fill1.png",
+                "texelW": 27,
+                "texelH": 32,
+                "cellWorldPx": 1.35,
+                "originX": 0.4142661179698215,
+                "originY": 0.6817129629629627,
+                "ov": {
+                  "fillLevel": 0.34
+                }
+              },
+              {
+                "file": "mine_L3_fill2.png",
+                "texelW": 31,
+                "texelH": 33,
+                "cellWorldPx": 1.35,
+                "originX": 0.36081242532855423,
+                "originY": 0.6610549943883274,
+                "ov": {
+                  "fillLevel": 0.67
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "mine_L3_ground.png",
+        "texelW": 59,
+        "texelH": 30,
+        "cellWorldPx": 1.35,
+        "originX": 0.4946641556811045,
+        "originY": 0.49382716049382713
+      }
+    }
+  }
+}

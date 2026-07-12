@@ -44,7 +44,7 @@ export class TargetingSystem {
 
         // 2. Fallback to General Targets (Non-Walls for non-wall-targeting, all for wall-targeting)
         if (candidates.length === 0) {
-            candidates = def.targetPriority === 'wall' ? nonWalls : nonWalls;
+            candidates = nonWalls;
         }
 
         // 3. Fallback: If only walls remain, return null (battle over) — unless troop targets walls.

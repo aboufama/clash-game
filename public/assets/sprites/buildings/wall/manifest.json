@@ -1,0 +1,1606 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "variants": {
+        "m0": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_m0_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mN": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mN_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mS_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.749206349206349,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNS_idle0.png",
+                    "texelW": 29,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5299145299145297,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mW_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNW_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mEW_idle0.png",
+                    "texelW": 29,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5299145299145297,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNEW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mSW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.749206349206349,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNSW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.749206349206349,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mNS_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5299145299145297,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L1_mEW_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5299145299145297,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        }
+      }
+    },
+    "2": {
+      "variants": {
+        "m0": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_m0_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mN": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mN_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mS_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.749206349206349,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNS_idle0.png",
+                    "texelW": 29,
+                    "texelH": 25,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5111111111111103,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mW_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNW_idle0.png",
+                    "texelW": 18,
+                    "texelH": 23,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5123456790123452,
+                    "originY": 0.8164251207729467,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mEW_idle0.png",
+                    "texelW": 29,
+                    "texelH": 25,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5111111111111103,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNEW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mSW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.749206349206349,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNSW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.749206349206349,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 31,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6057347670250894,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mNS_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 25,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5111111111111103,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L2_mEW_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 25,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5111111111111103,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        }
+      }
+    },
+    "3": {
+      "variants": {
+        "m0": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_m0_idle0.png",
+                    "texelW": 19,
+                    "texelH": 27,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.8436213991769547,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mN": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mN_idle0.png",
+                    "texelW": 19,
+                    "texelH": 27,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.8436213991769547,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mS_idle0.png",
+                    "texelW": 36,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.7283950617283949,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNS_idle0.png",
+                    "texelW": 29,
+                    "texelH": 29,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5440613026819918,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mW_idle0.png",
+                    "texelW": 19,
+                    "texelH": 27,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.8436213991769547,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNW_idle0.png",
+                    "texelW": 19,
+                    "texelH": 27,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.8436213991769547,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mEW_idle0.png",
+                    "texelW": 29,
+                    "texelH": 29,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5440613026819918,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNEW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mSW_idle0.png",
+                    "texelW": 36,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.7283950617283949,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNSW_idle0.png",
+                    "texelW": 36,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.7283950617283949,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 36,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6327160493827161,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mNS_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 29,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5440613026819918,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L3_mEW_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 29,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5440613026819918,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        }
+      }
+    },
+    "4": {
+      "variants": {
+        "m0": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_m0_idle0.png",
+                    "texelW": 19,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.837606837606837,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mN": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mN_idle0.png",
+                    "texelW": 19,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.837606837606837,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNE": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNE_idle0.png",
+                    "texelW": 35,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mS_idle0.png",
+                    "texelW": 36,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.7283950617283949,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNS_idle0.png",
+                    "texelW": 29,
+                    "texelH": 30,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5592592592592587,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNES": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNES_idle0.png",
+                    "texelW": 52,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mW_idle0.png",
+                    "texelW": 19,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.837606837606837,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNW_idle0.png",
+                    "texelW": 19,
+                    "texelH": 26,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.48538011695906386,
+                    "originY": 0.837606837606837,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mEW_idle0.png",
+                    "texelW": 29,
+                    "texelH": 30,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5592592592592587,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNEW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNEW_idle0.png",
+                    "texelW": 35,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.2634920634920633,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mSW_idle0.png",
+                    "texelW": 36,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.7283950617283949,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNSW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNSW_idle0.png",
+                    "texelW": 36,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.7283950617283949,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNESW": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNESW_idle0.png",
+                    "texelW": 52,
+                    "texelH": 35,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.5042735042735041,
+                    "originY": 0.6222222222222218,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mNS_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mNS_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 30,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.9042145593869728,
+                    "originY": 0.5592592592592587,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "mEW_gate": {
+          "states": {
+            "idle": {
+              "angles": 1,
+              "frames": [
+                [
+                  {
+                    "file": "wall_L4_mEW_gate_idle0.png",
+                    "texelW": 29,
+                    "texelH": 30,
+                    "cellWorldPx": 1.35,
+                    "originX": 0.11111111111111095,
+                    "originY": 0.5592592592592587,
+                    "ov": {
+                      "timeAt": 1000
+                    }
+                  }
+                ]
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

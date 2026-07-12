@@ -1,0 +1,442 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "army_camp_L1_idle0.png",
+                "texelW": 21,
+                "texelH": 21,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.42151675485008777,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "army_camp_L1_idle1.png",
+                "texelW": 21,
+                "texelH": 21,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.42151675485008777,
+                "ov": {
+                  "timeAt": 1063
+                }
+              },
+              {
+                "file": "army_camp_L1_idle2.png",
+                "texelW": 21,
+                "texelH": 21,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.42151675485008777,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "army_camp_L1_idle3.png",
+                "texelW": 21,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.3925925925925913,
+                "ov": {
+                  "timeAt": 1188
+                }
+              },
+              {
+                "file": "army_camp_L1_idle4.png",
+                "texelW": 21,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.3925925925925913,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "army_camp_L1_idle5.png",
+                "texelW": 21,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.3925925925925913,
+                "ov": {
+                  "timeAt": 1313
+                }
+              },
+              {
+                "file": "army_camp_L1_idle6.png",
+                "texelW": 21,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.3925925925925913,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "army_camp_L1_idle7.png",
+                "texelW": 21,
+                "texelH": 20,
+                "cellWorldPx": 1.35,
+                "originX": 0.48324514991181616,
+                "originY": 0.3925925925925913,
+                "ov": {
+                  "timeAt": 1438
+                }
+              }
+            ]
+          ],
+          "loopMs": 500,
+          "loopExact": false
+        }
+      },
+      "ground": {
+        "file": "army_camp_L1_ground.png",
+        "texelW": 111,
+        "texelH": 55,
+        "cellWorldPx": 1.35,
+        "originX": 0.49683016349683,
+        "originY": 0.506397306397306
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "army_camp_L2_idle0.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "army_camp_L2_idle1.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1063
+                }
+              },
+              {
+                "file": "army_camp_L2_idle2.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "army_camp_L2_idle3.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1188
+                }
+              },
+              {
+                "file": "army_camp_L2_idle4.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "army_camp_L2_idle5.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1313
+                }
+              },
+              {
+                "file": "army_camp_L2_idle6.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "army_camp_L2_idle7.png",
+                "texelW": 44,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.23063973063973042,
+                "originY": 0.6625514403292179,
+                "ov": {
+                  "timeAt": 1438
+                }
+              }
+            ]
+          ],
+          "loopMs": 500,
+          "loopExact": false
+        }
+      },
+      "ground": {
+        "file": "army_camp_L2_ground.png",
+        "texelW": 111,
+        "texelH": 55,
+        "cellWorldPx": 1.35,
+        "originX": 0.49683016349683,
+        "originY": 0.506397306397306
+      }
+    },
+    "3": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "army_camp_L3_idle0.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "army_camp_L3_idle1.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1063
+                }
+              },
+              {
+                "file": "army_camp_L3_idle2.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "army_camp_L3_idle3.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1188
+                }
+              },
+              {
+                "file": "army_camp_L3_idle4.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "army_camp_L3_idle5.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1313
+                }
+              },
+              {
+                "file": "army_camp_L3_idle6.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "army_camp_L3_idle7.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1438
+                }
+              }
+            ]
+          ],
+          "loopMs": 500,
+          "loopExact": false
+        }
+      },
+      "ground": {
+        "file": "army_camp_L3_ground.png",
+        "texelW": 111,
+        "texelH": 55,
+        "cellWorldPx": 1.35,
+        "originX": 0.49683016349683,
+        "originY": 0.506397306397306
+      }
+    },
+    "4": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "army_camp_L4_idle0.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "army_camp_L4_idle1.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1063
+                }
+              },
+              {
+                "file": "army_camp_L4_idle2.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "army_camp_L4_idle3.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1188
+                }
+              },
+              {
+                "file": "army_camp_L4_idle4.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "army_camp_L4_idle5.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1313
+                }
+              },
+              {
+                "file": "army_camp_L4_idle6.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "army_camp_L4_idle7.png",
+                "texelW": 67,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49474847982310666,
+                "originY": 0.7239057239057238,
+                "ov": {
+                  "timeAt": 1438
+                }
+              }
+            ]
+          ],
+          "loopMs": 500,
+          "loopExact": false
+        }
+      },
+      "ground": {
+        "file": "army_camp_L4_ground.png",
+        "texelW": 111,
+        "texelH": 55,
+        "cellWorldPx": 1.35,
+        "originX": 0.49683016349683,
+        "originY": 0.506397306397306
+      }
+    }
+  }
+}

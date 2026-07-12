@@ -1,5 +1,11 @@
 import Phaser from 'phaser';
 import { MobileUtils } from '../utils/MobileUtils';
+import { applyPixelSnap } from '../render/PixelSnap';
+
+const TRACKER_DEPTH_BAND = 64;
+const MIN_TRACKER_DEPTH = 0;
+const MAX_TRACKER_DEPTH = 30000;
+const DEFAULT_SMOKE_TINTS = [0x444444, 0x666666, 0x333333];
 
 export class ParticleManager {
     private static instance: ParticleManager;
@@ -10,6 +16,8 @@ export class ParticleManager {
     private smokeEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
     private fireEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
     private sparkEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+    private trackerSmokeEmitters = new Map<number, Phaser.GameObjects.Particles.ParticleEmitter>();
+    private trackerSparkEmitters = new Map<number, Phaser.GameObjects.Particles.ParticleEmitter>();
     private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
     private debrisEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
     
@@ -29,6 +37,7 @@ export class ParticleManager {
     }
 
     public init(scene: Phaser.Scene) {
+        this.destroyTrackerEmitters();
         this.scene = scene;
         this.trackers.clear();
         
@@ -133,6 +142,13 @@ export class ParticleManager {
             blendMode: 'NORMAL'
         });
         this.debrisEmitter.setDepth(20000);
+
+        // Every particle system is per-frame dynamic FX — the pixel-snap
+        // layer pass keeps smoke, fire, sparks, dust and debris in the
+        // baked pixel world (one pass per emitter, five total).
+        for (const emitter of [this.smokeEmitter, this.fireEmitter, this.sparkEmitter, this.dustEmitter, this.debrisEmitter]) {
+            if (emitter) applyPixelSnap(this.scene, emitter);
+        }
     }
 
     // =========================================================================
@@ -152,34 +168,68 @@ export class ParticleManager {
         return false;
     }
 
-    public emitSmokeTracker(id: string, x: number, y: number, time: number, depth: number, count: number = 1, intervalMs: number = 150, tint?: number) {
-        if (this.isMobile && count > 1) count = 1;
-        if (this.canEmit(id + '_smoke', time, intervalMs)) {
-            this.smokeEmitter.setDepth(depth);
-            if (tint !== undefined) {
-               // Temporary override for this burst
-               this.smokeEmitter.particleTint = tint; 
-            } else {
-               // Default
-               this.smokeEmitter.particleTint = [ 0x444444, 0x666666, 0x333333 ] as any;
-            }
-            this.smokeEmitter.emitParticleAt(x, y, count);
-        }
+    private depthBandOf(depth: number): number {
+        const safeDepth = Number.isFinite(depth) ? depth : 20000;
+        const bounded = Math.max(MIN_TRACKER_DEPTH, Math.min(MAX_TRACKER_DEPTH, safeDepth));
+        return Math.round(bounded / TRACKER_DEPTH_BAND) * TRACKER_DEPTH_BAND;
     }
 
-    public emitFireTracker(id: string, x: number, y: number, time: number, depth: number, count: number = 1, intervalMs: number = 100) {
+    private smokeTrackerEmitterAt(depth: number): Phaser.GameObjects.Particles.ParticleEmitter {
+        const band = this.depthBandOf(depth);
+        const existing = this.trackerSmokeEmitters.get(band);
+        if (existing) return existing;
+
+        const emitter = this.scene.add.particles(0, 0, 'particle_circle', {
+            emitting: false,
+            lifespan: { min: 600, max: 1200 },
+            speed: { min: 5, max: 20 },
+            angle: { min: 250, max: 290 },
+            scale: { start: 0.2, end: 1.5 },
+            alpha: { start: 0.6, end: 0 },
+            tint: DEFAULT_SMOKE_TINTS,
+            blendMode: 'NORMAL'
+        });
+        emitter.setDepth(band);
+        applyPixelSnap(this.scene, emitter);
+        this.trackerSmokeEmitters.set(band, emitter);
+        return emitter;
+    }
+
+    private sparkTrackerEmitterAt(depth: number): Phaser.GameObjects.Particles.ParticleEmitter {
+        const band = this.depthBandOf(depth);
+        const existing = this.trackerSparkEmitters.get(band);
+        if (existing) return existing;
+
+        const emitter = this.scene.add.particles(0, 0, 'particle_circle', {
+            emitting: false,
+            lifespan: { min: 200, max: 500 },
+            speed: { min: 30, max: 100 },
+            gravityY: 200,
+            scale: { start: 0.2, end: 0 },
+            alpha: { start: 1, end: 0 },
+            tint: 0xffff00,
+            blendMode: 'ADD'
+        });
+        emitter.setDepth(band);
+        this.trackerSparkEmitters.set(band, emitter);
+        return emitter;
+    }
+
+    public emitSmokeTracker(id: string, x: number, y: number, time: number, depth: number, count: number = 1, intervalMs: number = 150, tint?: number) {
+        if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) return;
         if (this.isMobile && count > 1) count = 1;
-        if (this.canEmit(id + '_fire', time, intervalMs)) {
-            this.fireEmitter.setDepth(depth);
-            this.fireEmitter.emitParticleAt(x, y, count);
+        if (this.canEmit(id + '_smoke', time, intervalMs)) {
+            const emitter = this.smokeTrackerEmitterAt(depth);
+            emitter.particleTint = tint ?? DEFAULT_SMOKE_TINTS;
+            emitter.emitParticleAt(x, y, count);
         }
     }
 
     public emitSparkTracker(id: string, x: number, y: number, time: number, depth: number, count: number = 1, intervalMs: number = 300) {
+        if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) return;
         if (this.isMobile && count > 1) count = 1;
         if (this.canEmit(id + '_spark', time, intervalMs)) {
-            this.sparkEmitter.setDepth(depth);
-            this.sparkEmitter.emitParticleAt(x, y, count);
+            this.sparkTrackerEmitterAt(depth).emitParticleAt(x, y, count);
         }
     }
 
@@ -188,11 +238,12 @@ export class ParticleManager {
     // =========================================================================
 
     public emitExplosion(x: number, y: number, depth: number) {
+        if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) return;
         this.fireEmitter.setDepth(depth);
         this.fireEmitter.emitParticleAt(x, y, this.isMobile ? 5 : 12);
         
         this.smokeEmitter.setDepth(depth + 1);
-        this.smokeEmitter.particleTint = [ 0x444444, 0x666666, 0x333333 ] as any;
+        this.smokeEmitter.particleTint = DEFAULT_SMOKE_TINTS;
         this.smokeEmitter.emitParticleAt(x, y, this.isMobile ? 3 : 8);
         
         this.debrisEmitter.setDepth(depth + 2);
@@ -200,24 +251,27 @@ export class ParticleManager {
     }
     
     public emitHitFlash(x: number, y: number, depth: number) {
+        if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) return;
         this.sparkEmitter.setDepth(depth);
         this.sparkEmitter.emitParticleAt(x, y, this.isMobile ? 3 : 6);
     }
 
     public emitDustBurst(x: number, y: number, depth: number) {
+        if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) return;
         this.dustEmitter.setDepth(depth);
         this.dustEmitter.emitParticleAt(x, y, this.isMobile ? 5 : 10);
     }
     
-    public emitTrail(x: number, y: number, depth: number, color: number = 0xffffff) {
-        this.smokeEmitter.setDepth(depth);
-        this.smokeEmitter.particleTint = color;
-        this.smokeEmitter.emitParticleAt(x, y, 1);
-    }
-
     public clearAll() {
         this.trackers.clear();
-        // Emitters are bound to scene, they'll clear when scene restarts
+        this.destroyTrackerEmitters();
+    }
+
+    private destroyTrackerEmitters() {
+        for (const emitter of this.trackerSmokeEmitters.values()) emitter.destroy();
+        for (const emitter of this.trackerSparkEmitters.values()) emitter.destroy();
+        this.trackerSmokeEmitters.clear();
+        this.trackerSparkEmitters.clear();
     }
 }
 

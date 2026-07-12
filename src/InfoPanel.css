@@ -1,181 +1,335 @@
-/* ============================================
-   INFO PANEL - Building details sidebar
-   Complete redesign with fantasy theme
-   ============================================ */
+/* The building speech bubble — pixel parchment pinned above the tapped
+   building (positioned per-frame by useWorldAnchor; the transform is set
+   inline, so no static position here). */
+.building-bubble {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 120;
+    /* Locked width: expanding the [i] stat sheet only grows the bubble
+       vertically (down, or up when flipped), never sideways. */
+    width: 288px;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-bubble) 5 fill / calc(var(--px) * 5) stretch;
+    image-rendering: pixelated;
+    color: #241a11;
+    font-family: var(--ui-font);
+    padding: calc(var(--px) * 2) calc(var(--px) * 3) calc(var(--px) * 3);
+    pointer-events: auto;
+    animation: bb-pop 0.07s steps(2, end);
+}
 
-.info-panel {
+.building-bubble.unanchored {
     position: fixed;
+    left: auto;
     right: 16px;
     top: 50%;
-    transform: translateY(-50%) translateX(120%);
-    width: 280px;
-    background: var(--panel-bg, #3d2914);
-    border: 4px solid var(--panel-border, #5a3d22);
-    padding: 0;
-    z-index: 1000;
-    font-family: 'Press Start 2P', monospace;
-    box-shadow:
-        6px 6px 0 rgba(0, 0, 0, 0.5),
-        inset 3px 3px 0 rgba(255, 255, 255, 0.1);
-    transition: transform 0.3s ease-out;
-    pointer-events: auto;
+    transform: translateY(-50%);
 }
 
-.info-panel.open {
-    transform: translateY(-50%) translateX(0);
+.building-bubble.exiting {
+    opacity: 0;
+    transition: opacity 0.15s steps(3, end);
 }
 
-.info-panel.exiting {
-    transform: translateY(-50%) translateX(120%);
+@keyframes bb-pop {
+    from {
+        opacity: 0;
+        margin-top: calc(var(--px) * 3);
+    }
+
+    to {
+        opacity: 1;
+        margin-top: 0;
+    }
 }
 
-/* Header */
-.info-header {
-    background: linear-gradient(180deg, #5a3d22 0%, #3d2914 100%);
-    padding: 12px;
-    border-bottom: 3px solid #2a1a0a;
-}
-
-.info-title-row {
+.bb-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    gap: 8px;
+    border-bottom: var(--px) solid #b9a271;
+    padding-bottom: calc(var(--px) * 2);
+    margin-bottom: calc(var(--px) * 2);
 }
 
-.info-title-row h2 {
+.bb-icon {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    /* Anchor the icon's pixel art to this slot — without this the absolute
+       ::before escapes to the bubble and floats mid-card. */
+    position: relative;
+}
+
+/* Building icons are drawn on a ~28px shop grid with the bulk above their
+   centre; shrink into the 22px header slot and nudge down to centre. */
+.bb-header .bb-icon::before {
+    transform: translate(-50%, -50%) scale(0.6);
+    top: calc(50% + 4px);
+}
+
+.bb-name {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bb-level {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b5327;
+    flex: 0 0 auto;
+}
+
+.bb-info-toggle {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    font-family: var(--ui-font);
     font-size: 10px;
-    color: #FFD700;
-    margin: 0;
-    text-shadow: 2px 2px 0 #000;
-}
-
-.info-level {
-    background: #FFD700;
-    color: #000;
-    padding: 4px 8px;
-    font-size: 8px;
-    font-weight: bold;
-    border: 2px solid #B8860B;
-}
-
-.info-flavor {
-    font-size: 7px;
-    color: #aaa;
-    font-style: italic;
-    line-height: 1.4;
-}
-
-/* Body */
-.info-body {
-    padding: 12px;
-}
-
-.info-stats {
-    margin-bottom: 12px;
-}
-
-.stat-row {
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    cursor: pointer;
     display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    font-size: 8px;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
-.stat-label {
-    color: #aaa;
+.bb-info-toggle .icon {
+    width: 14px;
+    height: 14px;
+    position: relative;
 }
 
-.stat-value {
-    color: #fff;
-    font-weight: bold;
+.bb-info-toggle:hover {
+    filter: brightness(1.15);
 }
 
-.info-details {
-    font-size: 7px;
-    color: #888;
-    margin-top: 8px;
-    padding: 8px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    line-height: 1.4;
+.bb-info-toggle.pxf-pressed {
+    border-image-source: var(--pxf-gold);
+    color: var(--ui-gold);
+    filter: none;
 }
 
-/* Action Buttons - Fixed layout */
-.info-actions {
+/* Key attributes strip (storage fill, army muster) — visible the moment the
+   bubble opens, no [i] needed. */
+.bb-keystats {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-top: 12px;
+    gap: calc(var(--px) * 2);
+    margin-bottom: calc(var(--px) * 2);
 }
 
-.action-btn-small {
+.bb-keystat {
     display: flex;
     align-items: center;
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
-    font-size: 9px;
-    font-family: 'Press Start 2P', monospace;
-    color: white;
-    background: #4A4A4A;
-    border: 3px solid #6A6A6A;
-    cursor: pointer;
-    pointer-events: auto;
-    box-shadow:
-        3px 3px 0 #2A2A2A,
-        inset 2px 2px 0 #7A7A7A;
-    transition: transform 0.05s, box-shadow 0.05s;
-    text-align: left;
+    gap: 8px;
+}
+
+.bb-keystat .icon {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    position: relative;
+}
+
+.bb-keybar {
+    flex: 1 1 auto;
+    height: calc(var(--px) * 5);
+    background: #4a3826;
+    border: var(--px) solid #241a11;
+    image-rendering: pixelated;
+}
+
+.bb-keybar > i {
+    display: block;
+    height: 100%;
+    background: #f39c12;
+    box-shadow: inset 0 var(--px) 0 #f7dc6f;
+}
+
+.bb-keyvalue {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: #241a11;
     white-space: nowrap;
 }
 
-.action-btn-small:hover:not(.disabled) {
-    transform: translate(1px, 1px);
-    box-shadow:
-        2px 2px 0 #2A2A2A,
-        inset 1px 1px 0 #8A8A8A;
-    background: #5A5A5A;
+.bb-actions {
+    display: flex;
+    gap: calc(var(--px) * 2);
+    align-items: stretch;
 }
 
-.action-btn-small:active:not(.disabled) {
-    transform: translate(2px, 2px);
-    box-shadow:
-        1px 1px 0 #2A2A2A;
+.bb-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--ui-font);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    cursor: pointer;
+    padding: calc(var(--px) * 1) calc(var(--px) * 2);
+    min-height: 38px;
 }
 
-.action-btn-small.delete {
-    background: #8B0000;
-    border-color: #B22222;
+.bb-btn.upgrade {
+    flex: 1 1 auto;
+    border-image-source: var(--pxf-gold);
+    color: var(--ui-gold);
+    flex-direction: column;
+    gap: 3px;
 }
 
-.action-btn-small.delete:hover:not(.disabled) {
-    background: #A52A2A;
-}
-
-.action-btn-small.upgrade {
-    background: #2E7D32;
-    border-color: #4CAF50;
-    flex-wrap: wrap;
-}
-
-.action-btn-small.upgrade:hover:not(.disabled) {
-    background: #388E3C;
-}
-
-.action-btn-small.disabled {
-    opacity: 0.5;
-    filter: grayscale(0.5);
+.bb-btn.upgrade.disabled {
+    filter: grayscale(0.9) brightness(0.75);
     cursor: not-allowed;
-    pointer-events: none;
 }
 
-/* Action button icons - contained */
-.action-btn-small .icon {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
+/* Max level: no more upgrades isn't a failure state — gold, with a slow
+   shine sweeping across the label. */
+.bb-btn.upgrade.maxed {
+    filter: none;
+    cursor: default;
+}
+
+.bb-max {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    background: linear-gradient(100deg, #b8860b 25%, #ffd700 42%, #fff6c8 50%, #ffd700 58%, #b8860b 75%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: bb-max-shine 2.6s linear infinite;
+}
+
+@keyframes bb-max-shine {
+    from { background-position: 125% 0; }
+    to { background-position: -125% 0; }
+}
+
+.bb-btn:not(.disabled):hover {
+    filter: brightness(1.15);
+}
+
+.bb-btn:not(.disabled):active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+.bb-btn.danger {
+    border-image-source: var(--pxf-danger);
+    color: #ffb3a7;
+}
+
+.bb-btn .icon {
+    width: 18px;
+    height: 18px;
+}
+
+.bb-cost {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+}
+
+.bb-cost .icon {
+    width: 13px;
+    height: 13px;
+}
+
+.bb-cost.ok {
+    color: #9fe3b0;
+}
+
+.bb-cost.short {
+    color: #ff8a7a;
+}
+
+/* Estimated work time shown beside the price (before the upgrade starts). */
+.bb-duration {
+    color: #cdbd93;
+    margin-left: 4px;
+}
+
+/* Live countdown while the work runs: brighter, and the button stays
+   readable rather than fully grayed. */
+.bb-btn.upgrade.working {
+    filter: grayscale(0.35) brightness(0.95);
+    cursor: default;
+}
+
+.bb-timer {
+    color: #f4e6bd;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.bb-details {
+    margin-top: calc(var(--px) * 2);
+    border-top: var(--px) solid #b9a271;
+    padding-top: calc(var(--px) * 2);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.bb-flavor {
+    font-size: 12px;
+    color: #6b5327;
+    line-height: 1.45;
+}
+
+.building-bubble .stat-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+}
+
+.building-bubble .stat-label {
+    color: #6b5327;
+}
+
+.building-bubble .stat-value {
+    color: #241a11;
+}
+
+.building-bubble .stat-value.next {
+    color: #8a6a1e;
+}
+
+.building-bubble .stat-gain {
+    color: #2c7a3f;
+    font-size: 11px;
+    margin-left: 4px;
+}
+
+.bb-more {
+    font-size: 12px;
+    color: #6b5327;
+    line-height: 1.45;
 }

@@ -1,0 +1,35 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "xbow_L1_wreck_body.png",
+        "texelW": 39,
+        "texelH": 30,
+        "cellWorldPx": 1.35,
+        "originX": 0.44729344729344694,
+        "originY": 0.4432098765432096
+      }
+    },
+    "2": {
+      "body": {
+        "file": "xbow_L2_wreck_body.png",
+        "texelW": 39,
+        "texelH": 30,
+        "cellWorldPx": 1.35,
+        "originX": 0.44729344729344694,
+        "originY": 0.4432098765432096
+      }
+    },
+    "3": {
+      "body": {
+        "file": "xbow_L3_wreck_body.png",
+        "texelW": 39,
+        "texelH": 30,
+        "cellWorldPx": 1.35,
+        "originX": 0.44729344729344694,
+        "originY": 0.4432098765432096
+      }
+    }
+  }
+}

@@ -1,0 +1,4574 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 16,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a00.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a01.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a02.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a03.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a04.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6700960219478737,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a05.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a06.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a07.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a08.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a09.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a10.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a11.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a12.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a13.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a14.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_idle0_a15.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a00.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a00.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a00.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a00.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a00.png",
+                "texelW": 54,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a01.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a01.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a01.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a01.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a01.png",
+                "texelW": 54,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a02.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a02.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a02.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a02.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a02.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a03.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a03.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a03.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a03.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a03.png",
+                "texelW": 52,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a04.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6700960219478737,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a04.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6700960219478737,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a04.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a04.png",
+                "texelW": 49,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.37112622826908515,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a04.png",
+                "texelW": 50,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.3637037037037035,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a05.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a05.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a05.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a05.png",
+                "texelW": 50,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6437037037037036,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a05.png",
+                "texelW": 51,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.650689905591866,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a06.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a06.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a06.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a06.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6574074074074071,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a06.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a07.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a07.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a07.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a07.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a07.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a08.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a08.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a08.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a08.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a08.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a09.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a09.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a09.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a09.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a09.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a10.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a10.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a10.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a10.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6574074074074071,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a10.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a11.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a11.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a11.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a11.png",
+                "texelW": 50,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6437037037037036,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a11.png",
+                "texelW": 51,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.650689905591866,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a12.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a12.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a12.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a12.png",
+                "texelW": 49,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6364323507180648,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a12.png",
+                "texelW": 50,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6437037037037036,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a13.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a13.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a13.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a13.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a13.png",
+                "texelW": 52,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a14.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a14.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a14.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a14.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a14.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L1_fire0_a15.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire1_a15.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire2_a15.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire3_a15.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L1_fire4_a15.png",
+                "texelW": 54,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "spike_launcher_L1_ground.png",
+        "texelW": 48,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5038580246913575,
+        "originY": 0.4915824915824904
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a00.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a01.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a02.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a03.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a04.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6700960219478737,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a05.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a06.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a07.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a08.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a09.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a10.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a11.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a12.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a13.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a14.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_idle0_a15.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a00.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a00.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a00.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a00.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a00.png",
+                "texelW": 54,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a01.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a01.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a01.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a01.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a01.png",
+                "texelW": 54,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a02.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a02.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a02.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a02.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a02.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a03.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a03.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a03.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a03.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a03.png",
+                "texelW": 52,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a04.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6700960219478737,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a04.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6700960219478737,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a04.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a04.png",
+                "texelW": 49,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.37112622826908515,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a04.png",
+                "texelW": 50,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.3637037037037035,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a05.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a05.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a05.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a05.png",
+                "texelW": 50,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6437037037037036,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a05.png",
+                "texelW": 51,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.650689905591866,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a06.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a06.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a06.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a06.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6574074074074071,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a06.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a07.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a07.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a07.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a07.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a07.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a08.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a08.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a08.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a08.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a08.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a09.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a09.png",
+                "texelW": 55,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.38518518518518513,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a09.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a09.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a09.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a10.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a10.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3737997256515775,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a10.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a10.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6574074074074071,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a10.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6638714185883996,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a11.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a11.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a11.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a11.png",
+                "texelW": 50,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6437037037037036,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a11.png",
+                "texelW": 51,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.650689905591866,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a12.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a12.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a12.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a12.png",
+                "texelW": 49,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6364323507180648,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a12.png",
+                "texelW": 50,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.6437037037037036,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a13.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a13.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a13.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a13.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a13.png",
+                "texelW": 52,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a14.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a14.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6330589849108365,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a14.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a14.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a14.png",
+                "texelW": 53,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L2_fire0_a15.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire1_a15.png",
+                "texelW": 54,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.614540466392318,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire2_a15.png",
+                "texelW": 36,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.5051440329218103,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire3_a15.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L2_fire4_a15.png",
+                "texelW": 54,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6784101174345073,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "spike_launcher_L2_ground.png",
+        "texelW": 48,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5038580246913575,
+        "originY": 0.4915824915824904
+      }
+    },
+    "3": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a00.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6283068783068783,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a01.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6348278102664067,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a02.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.646164021164021,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a03.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6699155295646522,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a04.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a05.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3247354497354495,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a06.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3604497354497354,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a07.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a08.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a09.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a10.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3604497354497354,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a11.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3247354497354495,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a12.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a13.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6699155295646522,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a14.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.646164021164021,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_idle0_a15.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6348278102664067,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a00.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6283068783068783,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a00.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6283068783068783,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a00.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a00.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a00.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a01.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6348278102664067,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a01.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6348278102664067,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a01.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a01.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a01.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a02.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.646164021164021,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a02.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.646164021164021,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a02.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a02.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a02.png",
+                "texelW": 53,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a03.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6699155295646522,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a03.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6699155295646522,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a03.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a03.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a03.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a04.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a04.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a04.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a04.png",
+                "texelW": 49,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.37112622826908515,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a04.png",
+                "texelW": 50,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.3637037037037035,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a05.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3247354497354495,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a05.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3247354497354495,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a05.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a05.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6310820624546112,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a05.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.638176638176638,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a06.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3604497354497354,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a06.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3604497354497354,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a06.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a06.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6450034940600974,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a06.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a07.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a07.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a07.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a07.png",
+                "texelW": 54,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a07.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a08.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a08.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a08.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a08.png",
+                "texelW": 54,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a08.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a09.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a09.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3716699155295646,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a09.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a09.png",
+                "texelW": 54,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a09.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a10.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3604497354497354,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a10.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3604497354497354,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a10.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a10.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6450034940600974,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a10.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a11.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3247354497354495,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a11.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3247354497354495,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a11.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a11.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6310820624546112,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a11.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.638176638176638,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a12.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a12.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a12.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a12.png",
+                "texelW": 50,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6237037037037036,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a12.png",
+                "texelW": 51,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6310820624546112,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a13.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6699155295646522,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a13.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6699155295646522,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a13.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a13.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a13.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a14.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.646164021164021,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a14.png",
+                "texelW": 56,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.646164021164021,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a14.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a14.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a14.png",
+                "texelW": 53,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L3_fire0_a15.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6348278102664067,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire1_a15.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6348278102664067,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire2_a15.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire3_a15.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L3_fire4_a15.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "spike_launcher_L3_ground.png",
+        "texelW": 48,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5038580246913575,
+        "originY": 0.4915824915824904
+      }
+    },
+    "4": {
+      "states": {
+        "idle": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a00.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6411238825031926,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a01.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6472065285624605,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a02.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6583652618135374,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a03.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a04.png",
+                "texelW": 60,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6864197530864197,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a05.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a06.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.34212178279974886,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a07.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3590709353421217,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a08.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3652618135376755,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a09.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3590709353421217,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a10.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.34212178279974886,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a11.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a12.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3082234777150029,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a13.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a14.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6583652618135374,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_idle0_a15.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6472065285624605,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "timeAt": 1000
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 16,
+          "frames": [
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a00.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6411238825031926,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a00.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6411238825031926,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a00.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a00.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a00.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a01.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6472065285624605,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a01.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6472065285624605,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a01.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a01.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a01.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a02.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6583652618135374,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a02.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6583652618135374,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a02.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a02.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a02.png",
+                "texelW": 53,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a03.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a03.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a03.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a03.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a03.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a04.png",
+                "texelW": 60,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6864197530864197,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a04.png",
+                "texelW": 60,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6864197530864197,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a04.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a04.png",
+                "texelW": 49,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.37112622826908515,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a04.png",
+                "texelW": 50,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.3637037037037035,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a05.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a05.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a05.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a05.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6310820624546112,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a05.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.638176638176638,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a06.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.34212178279974886,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a06.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.34212178279974886,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a06.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a06.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6450034940600974,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a06.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a07.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3590709353421217,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a07.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3590709353421217,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a07.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a07.png",
+                "texelW": 54,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a07.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a08.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3652618135376755,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a08.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3652618135376755,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a08.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a08.png",
+                "texelW": 54,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a08.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a09.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3590709353421217,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a09.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3590709353421217,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a09.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a09.png",
+                "texelW": 54,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a09.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a10.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.34212178279974886,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a10.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.34212178279974886,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a10.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a10.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6450034940600974,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a10.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6515775034293553,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a11.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a11.png",
+                "texelW": 57,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.319038336582196,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a11.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a11.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6310820624546112,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a11.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.638176638176638,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a12.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3082234777150029,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a12.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.3082234777150029,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a12.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a12.png",
+                "texelW": 50,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.6237037037037036,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a12.png",
+                "texelW": 51,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.6310820624546112,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a13.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a13.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6756066411238821,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a13.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a13.png",
+                "texelW": 51,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.35657225853304253,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a13.png",
+                "texelW": 52,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a14.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6583652618135374,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a14.png",
+                "texelW": 58,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6583652618135374,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a14.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a14.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34971509971509945,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a14.png",
+                "texelW": 53,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ],
+            [
+              {
+                "file": "spike_launcher_L4_fire0_a15.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6472065285624605,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire1_a15.png",
+                "texelW": 59,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.6472065285624605,
+                "originY": 0.7003367003367001,
+                "ov": {
+                  "fireAge": 90
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire2_a15.png",
+                "texelW": 37,
+                "texelH": 64,
+                "cellWorldPx": 1.35,
+                "originX": 0.49149149149149113,
+                "originY": 0.7939814814814814,
+                "ov": {
+                  "fireAge": 200
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire3_a15.png",
+                "texelW": 53,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.34311670160726737,
+                "originY": 0.7133655394524957,
+                "ov": {
+                  "fireAge": 380
+                }
+              },
+              {
+                "file": "spike_launcher_L4_fire4_a15.png",
+                "texelW": 54,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.33676268861454023,
+                "originY": 0.6860670194003523,
+                "ov": {
+                  "fireAge": 600
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "spike_launcher_L4_ground.png",
+        "texelW": 48,
+        "texelH": 22,
+        "cellWorldPx": 1.35,
+        "originX": 0.5038580246913575,
+        "originY": 0.4915824915824904
+      }
+    }
+  }
+}

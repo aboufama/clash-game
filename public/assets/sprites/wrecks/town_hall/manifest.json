@@ -1,0 +1,15 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "town_hall_L1_wreck_body.png",
+        "texelW": 101,
+        "texelH": 53,
+        "cellWorldPx": 1.35,
+        "originX": 0.4499449944994498,
+        "originY": 0.5283018867924525
+      }
+    }
+  }
+}

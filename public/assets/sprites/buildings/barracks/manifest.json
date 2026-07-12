@@ -1,0 +1,4008 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L1_idle0.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L1_idle1.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L1_idle2.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L1_idle3.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L1_idle4.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L1_idle5.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L1_idle6.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L1_idle7.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L1_idle8.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L1_idle9.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L1_idle10.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L1_idle11.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L1_idle12.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L1_idle13.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L1_idle14.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L1_idle15.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L1_idle16.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L1_idle17.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L1_idle18.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L1_idle19.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L1_idle20.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L1_idle21.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L1_idle22.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L1_idle23.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L1_door0.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L1_door1.png",
+                "texelW": 70,
+                "texelH": 41,
+                "cellWorldPx": 1.35,
+                "originX": 0.35978835978835977,
+                "originY": 0.7515808491418247,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "barracks_L1_ground.png",
+        "texelW": 37,
+        "texelH": 17,
+        "cellWorldPx": 1.35,
+        "originX": 0.4104104104104104,
+        "originY": 0.28322440087145967
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L2_idle0.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L2_idle1.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L2_idle2.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L2_idle3.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L2_idle4.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L2_idle5.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L2_idle6.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L2_idle7.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L2_idle8.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L2_idle9.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L2_idle10.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L2_idle11.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L2_idle12.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L2_idle13.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L2_idle14.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L2_idle15.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L2_idle16.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L2_idle17.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L2_idle18.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L2_idle19.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L2_idle20.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L2_idle21.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L2_idle22.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L2_idle23.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L2_door0.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L2_door1.png",
+                "texelW": 73,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.7166236003445304,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "barracks_L2_ground.png",
+        "texelW": 37,
+        "texelH": 17,
+        "cellWorldPx": 1.35,
+        "originX": 0.4104104104104104,
+        "originY": 0.28322440087145967
+      }
+    },
+    "3": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L3_idle0.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L3_idle1.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L3_idle2.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L3_idle3.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L3_idle4.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L3_idle5.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L3_idle6.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L3_idle7.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L3_idle8.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L3_idle9.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L3_idle10.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L3_idle11.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L3_idle12.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L3_idle13.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L3_idle14.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L3_idle15.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L3_idle16.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L3_idle17.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L3_idle18.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L3_idle19.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L3_idle20.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L3_idle21.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L3_idle22.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L3_idle23.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L3_door0.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L3_door1.png",
+                "texelW": 73,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.38609842719431736,
+                "originY": 0.6288737717309144,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "barracks_L3_ground.png",
+        "texelW": 37,
+        "texelH": 17,
+        "cellWorldPx": 1.35,
+        "originX": 0.4104104104104104,
+        "originY": 0.28322440087145967
+      }
+    },
+    "4": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L4_idle0.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L4_idle1.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L4_idle2.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L4_idle3.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L4_idle4.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L4_idle5.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L4_idle6.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L4_idle7.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L4_idle8.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L4_idle9.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L4_idle10.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L4_idle11.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L4_idle12.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L4_idle13.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L4_idle14.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L4_idle15.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L4_idle16.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L4_idle17.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L4_idle18.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L4_idle19.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L4_idle20.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L4_idle21.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L4_idle22.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L4_idle23.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L4_door0.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L4_door1.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "5": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L5_idle0.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L5_idle1.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L5_idle2.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L5_idle3.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L5_idle4.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L5_idle5.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L5_idle6.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L5_idle7.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L5_idle8.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L5_idle9.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L5_idle10.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L5_idle11.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L5_idle12.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L5_idle13.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L5_idle14.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L5_idle15.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L5_idle16.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L5_idle17.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L5_idle18.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L5_idle19.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L5_idle20.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L5_idle21.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L5_idle22.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L5_idle23.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L5_door0.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L5_door1.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "6": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L6_idle0.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L6_idle1.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L6_idle2.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L6_idle3.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L6_idle4.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L6_idle5.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L6_idle6.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L6_idle7.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L6_idle8.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L6_idle9.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L6_idle10.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L6_idle11.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L6_idle12.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L6_idle13.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L6_idle14.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L6_idle15.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L6_idle16.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L6_idle17.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L6_idle18.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L6_idle19.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L6_idle20.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L6_idle21.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L6_idle22.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L6_idle23.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L6_door0.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L6_door1.png",
+                "texelW": 66,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.457351290684624,
+                "originY": 0.5770887166236003,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "7": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L7_idle0.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L7_idle1.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L7_idle2.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L7_idle3.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L7_idle4.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L7_idle5.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L7_idle6.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L7_idle7.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L7_idle8.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L7_idle9.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L7_idle10.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L7_idle11.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L7_idle12.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L7_idle13.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L7_idle14.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L7_idle15.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L7_idle16.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L7_idle17.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L7_idle18.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L7_idle19.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L7_idle20.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L7_idle21.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L7_idle22.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L7_idle23.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L7_door0.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L7_door1.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "8": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L8_idle0.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L8_idle1.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L8_idle2.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L8_idle3.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L8_idle4.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L8_idle5.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L8_idle6.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L8_idle7.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L8_idle8.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L8_idle9.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L8_idle10.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L8_idle11.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L8_idle12.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L8_idle13.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L8_idle14.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L8_idle15.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L8_idle16.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L8_idle17.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L8_idle18.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L8_idle19.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L8_idle20.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L8_idle21.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L8_idle22.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L8_idle23.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L8_door0.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L8_door1.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "9": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L9_idle0.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L9_idle1.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L9_idle2.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L9_idle3.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L9_idle4.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L9_idle5.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L9_idle6.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L9_idle7.png",
+                "texelW": 82,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L9_idle8.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L9_idle9.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L9_idle10.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L9_idle11.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L9_idle12.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L9_idle13.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L9_idle14.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L9_idle15.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L9_idle16.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L9_idle17.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L9_idle18.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L9_idle19.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L9_idle20.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L9_idle21.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L9_idle22.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L9_idle23.png",
+                "texelW": 83,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L9_door0.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L9_door1.png",
+                "texelW": 84,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6502849002848999,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "10": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L10_idle0.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L10_idle1.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L10_idle2.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L10_idle3.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L10_idle4.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L10_idle5.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L10_idle6.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L10_idle7.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L10_idle8.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L10_idle9.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L10_idle10.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L10_idle11.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L10_idle12.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L10_idle13.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L10_idle14.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L10_idle15.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L10_idle16.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L10_idle17.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L10_idle18.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L10_idle19.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L10_idle20.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L10_idle21.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L10_idle22.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L10_idle23.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L10_door0.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L10_door1.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "11": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L11_idle0.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L11_idle1.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L11_idle2.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L11_idle3.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L11_idle4.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L11_idle5.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L11_idle6.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L11_idle7.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L11_idle8.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L11_idle9.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L11_idle10.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L11_idle11.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L11_idle12.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L11_idle13.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L11_idle14.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L11_idle15.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L11_idle16.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L11_idle17.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L11_idle18.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L11_idle19.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L11_idle20.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L11_idle21.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L11_idle22.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L11_idle23.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L11_door0.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L11_door1.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "12": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L12_idle0.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L12_idle1.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L12_idle2.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L12_idle3.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L12_idle4.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L12_idle5.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L12_idle6.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L12_idle7.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L12_idle8.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L12_idle9.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L12_idle10.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L12_idle11.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L12_idle12.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L12_idle13.png",
+                "texelW": 84,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L12_idle14.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L12_idle15.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L12_idle16.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L12_idle17.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L12_idle18.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L12_idle19.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L12_idle20.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L12_idle21.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L12_idle22.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L12_idle23.png",
+                "texelW": 82,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L12_door0.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L12_door1.png",
+                "texelW": 83,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.6568832983927319,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "13": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L13_idle0.png",
+                "texelW": 84,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "barracks_L13_idle1.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 1229
+                }
+              },
+              {
+                "file": "barracks_L13_idle2.png",
+                "texelW": 84,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 1458
+                }
+              },
+              {
+                "file": "barracks_L13_idle3.png",
+                "texelW": 82,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 1688
+                }
+              },
+              {
+                "file": "barracks_L13_idle4.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 1917
+                }
+              },
+              {
+                "file": "barracks_L13_idle5.png",
+                "texelW": 82,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 2146
+                }
+              },
+              {
+                "file": "barracks_L13_idle6.png",
+                "texelW": 82,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "barracks_L13_idle7.png",
+                "texelW": 82,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.4778681120144533,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 2604
+                }
+              },
+              {
+                "file": "barracks_L13_idle8.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "barracks_L13_idle9.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 3063
+                }
+              },
+              {
+                "file": "barracks_L13_idle10.png",
+                "texelW": 84,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 3292
+                }
+              },
+              {
+                "file": "barracks_L13_idle11.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 3521
+                }
+              },
+              {
+                "file": "barracks_L13_idle12.png",
+                "texelW": 84,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "barracks_L13_idle13.png",
+                "texelW": 84,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 3979
+                }
+              },
+              {
+                "file": "barracks_L13_idle14.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 4208
+                }
+              },
+              {
+                "file": "barracks_L13_idle15.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 4438
+                }
+              },
+              {
+                "file": "barracks_L13_idle16.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 4667
+                }
+              },
+              {
+                "file": "barracks_L13_idle17.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 4896
+                }
+              },
+              {
+                "file": "barracks_L13_idle18.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 5125
+                }
+              },
+              {
+                "file": "barracks_L13_idle19.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 5354
+                }
+              },
+              {
+                "file": "barracks_L13_idle20.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 5583
+                }
+              },
+              {
+                "file": "barracks_L13_idle21.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "barracks_L13_idle22.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 6042
+                }
+              },
+              {
+                "file": "barracks_L13_idle23.png",
+                "texelW": 83,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.47211066488174896,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "timeAt": 6271
+                }
+              }
+            ]
+          ],
+          "loopMs": 5500,
+          "loopExact": false
+        },
+        "door": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "barracks_L13_door0.png",
+                "texelW": 84,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "doorOpen": 0.5
+                }
+              },
+              {
+                "file": "barracks_L13_door1.png",
+                "texelW": 84,
+                "texelH": 70,
+                "cellWorldPx": 1.35,
+                "originX": 0.46649029982363294,
+                "originY": 0.7402116402116401,
+                "ov": {
+                  "doorOpen": 1
+                }
+              }
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

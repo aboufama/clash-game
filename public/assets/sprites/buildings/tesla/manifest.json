@@ -1,0 +1,660 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L1_idle0.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "tesla_L1_idle1.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1083
+                }
+              },
+              {
+                "file": "tesla_L1_idle2.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1167
+                }
+              },
+              {
+                "file": "tesla_L1_idle3.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "tesla_L1_idle4.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1333
+                }
+              },
+              {
+                "file": "tesla_L1_idle5.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1417
+                }
+              },
+              {
+                "file": "tesla_L1_idle6.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "tesla_L1_idle7.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1583
+                }
+              },
+              {
+                "file": "tesla_L1_idle8.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1667
+                }
+              }
+            ]
+          ],
+          "loopMs": 750,
+          "loopExact": false
+        },
+        "charge": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L1_charge0.png",
+                "texelW": 10,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "chargeAge": 80
+                }
+              },
+              {
+                "file": "tesla_L1_charge1.png",
+                "texelW": 10,
+                "texelH": 35,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9365079365079365,
+                "ov": {
+                  "chargeAge": 300
+                }
+              },
+              {
+                "file": "tesla_L1_charge2.png",
+                "texelW": 10,
+                "texelH": 35,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.965079365079365,
+                "ov": {
+                  "chargeAge": 620
+                }
+              }
+            ]
+          ]
+        },
+        "charged": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L1_charged0.png",
+                "texelW": 15,
+                "texelH": 37,
+                "cellWorldPx": 1.35,
+                "originX": 0.48148148148148145,
+                "originY": 0.9939939939939935,
+                "ov": {
+                  "charged": true
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L1_fire0.png",
+                "texelW": 10,
+                "texelH": 35,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9936507936507935,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "tesla_L1_fire1.png",
+                "texelW": 10,
+                "texelH": 35,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.965079365079365,
+                "ov": {
+                  "fireAge": 120
+                }
+              },
+              {
+                "file": "tesla_L1_fire2.png",
+                "texelW": 10,
+                "texelH": 35,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9365079365079365,
+                "ov": {
+                  "fireAge": 320
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "tesla_L1_ground.png",
+        "texelW": 25,
+        "texelH": 14,
+        "cellWorldPx": 1.35,
+        "originX": 0.4888888888888885,
+        "originY": 0.41269841269841173
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L2_idle0.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "tesla_L2_idle1.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1083
+                }
+              },
+              {
+                "file": "tesla_L2_idle2.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1167
+                }
+              },
+              {
+                "file": "tesla_L2_idle3.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "tesla_L2_idle4.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1333
+                }
+              },
+              {
+                "file": "tesla_L2_idle5.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1417
+                }
+              },
+              {
+                "file": "tesla_L2_idle6.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "tesla_L2_idle7.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1583
+                }
+              },
+              {
+                "file": "tesla_L2_idle8.png",
+                "texelW": 11,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1667
+                }
+              }
+            ]
+          ],
+          "loopMs": 750,
+          "loopExact": false
+        },
+        "charge": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L2_charge0.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "chargeAge": 80
+                }
+              },
+              {
+                "file": "tesla_L2_charge1.png",
+                "texelW": 10,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9104938271604938,
+                "ov": {
+                  "chargeAge": 300
+                }
+              },
+              {
+                "file": "tesla_L2_charge2.png",
+                "texelW": 12,
+                "texelH": 37,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9129129129129128,
+                "ov": {
+                  "chargeAge": 620
+                }
+              }
+            ]
+          ]
+        },
+        "charged": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L2_charged0.png",
+                "texelW": 15,
+                "texelH": 40,
+                "cellWorldPx": 1.35,
+                "originX": 0.48148148148148145,
+                "originY": 0.9194444444444441,
+                "ov": {
+                  "charged": true
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L2_fire0.png",
+                "texelW": 10,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9152046783625728,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "tesla_L2_fire1.png",
+                "texelW": 10,
+                "texelH": 37,
+                "cellWorldPx": 1.35,
+                "originX": 0.5222222222222209,
+                "originY": 0.9129129129129128,
+                "ov": {
+                  "fireAge": 120
+                }
+              },
+              {
+                "file": "tesla_L2_fire2.png",
+                "texelW": 11,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.5656565656565641,
+                "originY": 0.9104938271604938,
+                "ov": {
+                  "fireAge": 320
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "tesla_L2_ground.png",
+        "texelW": 25,
+        "texelH": 14,
+        "cellWorldPx": 1.35,
+        "originX": 0.4888888888888885,
+        "originY": 0.41269841269841173
+      }
+    },
+    "3": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L3_idle0.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "tesla_L3_idle1.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1083
+                }
+              },
+              {
+                "file": "tesla_L3_idle2.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1167
+                }
+              },
+              {
+                "file": "tesla_L3_idle3.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "tesla_L3_idle4.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1333
+                }
+              },
+              {
+                "file": "tesla_L3_idle5.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1417
+                }
+              },
+              {
+                "file": "tesla_L3_idle6.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "tesla_L3_idle7.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1583
+                }
+              },
+              {
+                "file": "tesla_L3_idle8.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "timeAt": 1667
+                }
+              }
+            ]
+          ],
+          "loopMs": 750,
+          "loopExact": false
+        },
+        "charge": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L3_charge0.png",
+                "texelW": 12,
+                "texelH": 34,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9052287581699342,
+                "ov": {
+                  "chargeAge": 80
+                }
+              },
+              {
+                "file": "tesla_L3_charge1.png",
+                "texelW": 12,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9104938271604938,
+                "ov": {
+                  "chargeAge": 300
+                }
+              },
+              {
+                "file": "tesla_L3_charge2.png",
+                "texelW": 12,
+                "texelH": 37,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9129129129129128,
+                "ov": {
+                  "chargeAge": 620
+                }
+              }
+            ]
+          ]
+        },
+        "charged": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L3_charged0.png",
+                "texelW": 15,
+                "texelH": 40,
+                "cellWorldPx": 1.35,
+                "originX": 0.48148148148148145,
+                "originY": 0.9194444444444441,
+                "ov": {
+                  "charged": true
+                }
+              }
+            ]
+          ]
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "tesla_L3_fire0.png",
+                "texelW": 12,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9152046783625728,
+                "ov": {
+                  "fireAge": 0
+                }
+              },
+              {
+                "file": "tesla_L3_fire1.png",
+                "texelW": 12,
+                "texelH": 37,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9129129129129128,
+                "ov": {
+                  "fireAge": 120
+                }
+              },
+              {
+                "file": "tesla_L3_fire2.png",
+                "texelW": 12,
+                "texelH": 36,
+                "cellWorldPx": 1.35,
+                "originX": 0.518518518518517,
+                "originY": 0.9104938271604938,
+                "ov": {
+                  "fireAge": 320
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "tesla_L3_ground.png",
+        "texelW": 25,
+        "texelH": 15,
+        "cellWorldPx": 1.35,
+        "originX": 0.4888888888888885,
+        "originY": 0.4518518518518507
+      }
+    }
+  }
+}

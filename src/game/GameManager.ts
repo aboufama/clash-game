@@ -1,24 +1,55 @@
 import type { BuildingType } from './config/GameDefinitions';
 import type { GameMode } from './types/GameMode';
+import type { MerchantOffer } from './systems/VillageLifeSystem';
 
-export type BuildingSelection = { id: string; type: BuildingType; level: number } | null;
+export type BuildingSelection = { id: string; type: BuildingType; level: number; gridX?: number; gridY?: number; upgradeEndsAt?: number } | null;
+
+/** One row on the world-map neighbour sheet. `kind` lets the UI gate attacks. */
+export interface PlotPanelAction {
+    label: string;
+    kind: 'attack' | 'scout' | 'watch' | 'settle' | 'info';
+    run: () => void;
+}
+export interface PlotPanelInfo {
+    title: string;
+    /** Shown as a trophy pixel icon + count under the title. */
+    trophies?: number;
+    /** World-space point the bubble hangs above (the plot's centre). */
+    anchor?: { x: number; y: number };
+    /** World-space point the bubble flips below when it can't fit above. */
+    anchorBelow?: { x: number; y: number };
+    actions: PlotPanelAction[];
+}
 
 type UIHandlers = {
     showCloudOverlay: () => void;
     hideCloudOverlay: () => void;
-    addSol: (amount: number) => void;
     setGameMode: (mode: GameMode) => void;
-    updateBattleStats: (destruction: number, sol: number) => void;
+    updateBattleStats: (destruction: number, gold: number, ore?: number, food?: number) => void;
     onBuildingSelected: (data: BuildingSelection) => void;
     onPlacementCancelled: () => void;
-    onRaidEnded: (solLooted: number) => void | Promise<void>;
+    onRaidEnded: (goldLooted: number) => void | Promise<void>;
     getArmy: () => Record<string, number>;
+    getResources: () => { gold: number; ore: number; food: number };
     getSelectedTroopType: () => string | null;
     deployTroop: (type: string) => void;
     refreshCampCapacity: (campLevels: number[]) => void;
     onBuildingPlaced: (type: string, isFree?: boolean) => void;
     closeMenus: () => void;
-    setDummyActive: (active: boolean) => void;
+    /** Baseline economy: eggs and hauled rocks turn into food/ore. */
+    collectResource: (kind: 'ore' | 'food', amount: number) => void;
+    /** Open the jukebox track list (jukebox building selected). */
+    openJukebox: () => void;
+    /** Open the traveling merchant's trade sheet. */
+    openMerchant: (offers: MerchantOffer[]) => void;
+    /** Open/close the world-map neighbour action sheet. */
+    openPlotPanel: (info: PlotPanelInfo) => void;
+    closePlotPanel: () => void;
+    /** Route world-map actions through React so its mode-specific UI state stays in sync. */
+    requestScoutOnUser: (userId: string, username: string) => void;
+    requestWatchLiveAttack: (attackId: string, attackerName: string) => void;
+    /** Transient banner (track unlocks, merchant arrivals...). */
+    showToast: (message: string) => void;
 };
 
 type SceneCommands = {
@@ -31,13 +62,21 @@ type SceneCommands = {
     watchLiveAttack: (attackId: string) => void;
     watchReplay: (attackId: string) => void;
     findNewMap: () => void;
-    deleteSelectedBuilding: () => void;
+    deleteSelectedBuilding: () => boolean;
     moveSelectedBuilding: () => void;
     upgradeSelectedBuilding: () => number | null;
-    setPixelation: (size: number) => void;
-    setSensitivity: (val: number) => void;
     loadBase: () => Promise<boolean>;
-    toggleDummyTroop: () => void;
+    /** Live raid against the player's own base started/ended: villagers hide in / come out of the town hall. */
+    setUnderAttack: (underAttack: boolean, attackId?: string | null) => void;
+    dismissSiegeBanner: () => void;
+    /** Debug: jump the day/night cycle to its next milestone (N key). */
+    advanceDayNight: () => void;
+    /** Send the dragon's shadow sweeping over the village (D key). */
+    summonDragon: () => void;
+    /** Toggle between the live village and its rendered world-map neighbourhood. */
+    showNeighborhood: () => void;
+    /** Server population changed: births arrive as children at the town hall. */
+    syncPopulation: (count: number) => void;
 };
 
 class GameManager {
@@ -78,16 +117,13 @@ class GameManager {
         this.uiHandlers.hideCloudOverlay?.();
     }
 
-    addSol(amount: number) {
-        this.uiHandlers.addSol?.(amount);
-    }
 
     setGameMode(mode: GameMode) {
         this.uiHandlers.setGameMode?.(mode);
     }
 
-    updateBattleStats(destruction: number, sol: number) {
-        this.uiHandlers.updateBattleStats?.(destruction, sol);
+    updateBattleStats(destruction: number, gold: number, ore = 0, food = 0) {
+        this.uiHandlers.updateBattleStats?.(destruction, gold, ore, food);
     }
 
     onBuildingSelected(data: BuildingSelection) {
@@ -98,9 +134,9 @@ class GameManager {
         this.uiHandlers.onPlacementCancelled?.();
     }
 
-    onRaidEnded(solLooted: number) {
+    onRaidEnded(goldLooted: number) {
         if (this.uiHandlers.onRaidEnded) {
-            this.uiHandlers.onRaidEnded(solLooted);
+            this.uiHandlers.onRaidEnded(goldLooted);
             return true;
         }
         return false;
@@ -108,6 +144,10 @@ class GameManager {
 
     getArmy() {
         return this.uiHandlers.getArmy?.() ?? {};
+    }
+
+    getResources() {
+        return this.uiHandlers.getResources?.() ?? null;
     }
 
     getSelectedTroopType() {
@@ -163,7 +203,7 @@ class GameManager {
     }
 
     deleteSelectedBuilding() {
-        this.sceneCommands.deleteSelectedBuilding?.();
+        return this.sceneCommands.deleteSelectedBuilding?.() ?? false;
     }
 
     moveSelectedBuilding() {
@@ -174,24 +214,64 @@ class GameManager {
         return this.sceneCommands.upgradeSelectedBuilding?.() ?? null;
     }
 
-    setPixelation(size: number) {
-        this.sceneCommands.setPixelation?.(size);
+    setUnderAttack(underAttack: boolean, attackId?: string | null) {
+        this.sceneCommands.setUnderAttack?.(underAttack, attackId ?? null);
     }
 
-    setSensitivity(val: number) {
-        this.sceneCommands.setSensitivity?.(val);
+    dismissSiegeBanner() {
+        this.sceneCommands.dismissSiegeBanner?.();
     }
 
-    toggleDummyTroop() {
-        this.sceneCommands.toggleDummyTroop?.();
+    advanceDayNight() {
+        this.sceneCommands.advanceDayNight?.();
+    }
+
+    summonDragon() {
+        this.sceneCommands.summonDragon?.();
+    }
+
+    showNeighborhood() {
+        this.sceneCommands.showNeighborhood?.();
+    }
+
+    syncPopulation(count: number) {
+        this.sceneCommands.syncPopulation?.(count);
     }
 
     closeMenus() {
         this.uiHandlers.closeMenus?.();
     }
 
-    setDummyActive(active: boolean) {
-        this.uiHandlers.setDummyActive?.(active);
+    collectResource(kind: 'ore' | 'food', amount: number) {
+        this.uiHandlers.collectResource?.(kind, amount);
+    }
+
+    openJukebox() {
+        this.uiHandlers.openJukebox?.();
+    }
+
+    openMerchant(offers: MerchantOffer[]) {
+        this.uiHandlers.openMerchant?.(offers);
+    }
+
+    openPlotPanel(info: PlotPanelInfo) {
+        this.uiHandlers.openPlotPanel?.(info);
+    }
+
+    closePlotPanel() {
+        this.uiHandlers.closePlotPanel?.();
+    }
+
+    requestScoutOnUser(userId: string, username: string) {
+        this.uiHandlers.requestScoutOnUser?.(userId, username);
+    }
+
+    requestWatchLiveAttack(attackId: string, attackerName: string) {
+        this.uiHandlers.requestWatchLiveAttack?.(attackId, attackerName);
+    }
+
+    showToast(message: string) {
+        this.uiHandlers.showToast?.(message);
     }
 
     async loadBase() {

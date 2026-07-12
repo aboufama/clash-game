@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { Backend } from '../../backend/GameBackend';
 import { BUILDING_DEFINITIONS, type BuildingType, type TroopType } from '../../config/GameDefinitions';
 import { gameManager } from '../../GameManager';
+import { soundSystem } from '../../systems/SoundSystem';
 import { depthForBuilding, depthForGroundPlane } from '../../systems/DepthSystem';
+import { cssPixelsToBacking, toBackingZoom, toLogicalZoom } from '../../utils/DisplayResolution';
 import { IsoUtils } from '../../utils/IsoUtils';
 import { MobileUtils } from '../../utils/MobileUtils';
 import type { MainScene } from '../MainScene';
@@ -52,7 +54,7 @@ export class SceneInputController {
             this.isPinching = true;
             this.isTouchDragging = false;
             this.pinchStartDistance = MobileUtils.getTouchDistance(e.touches[0], e.touches[1]);
-            this.pinchStartZoom = this.scene.cameras.main.zoom;
+            this.pinchStartZoom = toLogicalZoom(this.scene.cameras.main.zoom);
             // Store initial pinch center for pan tracking
             const canvas = this.scene.game.canvas;
             this.lastPinchCenter = MobileUtils.getTouchCenter(e.touches[0], e.touches[1], canvas);
@@ -88,29 +90,31 @@ export class SceneInputController {
             const scale = currentDistance / this.pinchStartDistance;
             let newZoom = this.pinchStartZoom * scale;
 
-            // Clamp zoom
-            const minZoom = MobileUtils.getMinZoom();
+            // Clamp zoom. The floor is the village-and-clouds fit; a pinch that
+            // began below it (world view) may zoom in but never further out.
+            const minZoom = Math.min(this.scene.minGestureZoom(), this.pinchStartZoom);
             const maxZoom = MobileUtils.getMaxZoom();
             newZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
 
-            const oldZoom = camera.zoom;
+            const oldBackingZoom = camera.zoom;
+            const newBackingZoom = toBackingZoom(newZoom);
 
-            if (newZoom !== oldZoom) {
+            if (newBackingZoom !== oldBackingZoom) {
                 this.scene.hasUserMovedCamera = true;
                 // In Phaser, camera.scrollX/Y is where the CENTER of the camera view is in world space
                 const viewportCenterX = camera.width / 2;
                 const viewportCenterY = camera.height / 2;
 
                 // Calculate the world point under the pinch center with current zoom
-                const worldX = camera.scrollX + (pinchCenter.x - viewportCenterX) / oldZoom;
-                const worldY = camera.scrollY + (pinchCenter.y - viewportCenterY) / oldZoom;
+                const worldX = camera.scrollX + (pinchCenter.x - viewportCenterX) / oldBackingZoom;
+                const worldY = camera.scrollY + (pinchCenter.y - viewportCenterY) / oldBackingZoom;
 
                 // Apply new zoom
-                camera.setZoom(newZoom);
+                camera.setZoom(newBackingZoom);
 
                 // Calculate new scroll so the same world point stays under the pinch center
-                camera.scrollX = worldX - (pinchCenter.x - viewportCenterX) / newZoom;
-                camera.scrollY = worldY - (pinchCenter.y - viewportCenterY) / newZoom;
+                camera.scrollX = worldX - (pinchCenter.x - viewportCenterX) / newBackingZoom;
+                camera.scrollY = worldY - (pinchCenter.y - viewportCenterY) / newBackingZoom;
             }
 
             // Store current center for next frame
@@ -135,10 +139,10 @@ export class SceneInputController {
                 // Double tap - toggle zoom
                 const camera = this.scene.cameras.main;
                 const defaultZoom = MobileUtils.getDefaultZoom();
-                if (camera.zoom > defaultZoom + 0.3) {
-                    camera.setZoom(defaultZoom);
+                if (toLogicalZoom(camera.zoom) > defaultZoom + 0.3) {
+                    camera.setZoom(toBackingZoom(defaultZoom));
                 } else {
-                    camera.setZoom(Math.min(MobileUtils.getMaxZoom(), defaultZoom + 0.6));
+                    camera.setZoom(toBackingZoom(Math.min(MobileUtils.getMaxZoom(), defaultZoom + 0.6)));
                 }
                 this.lastTapTime = 0; // Reset to prevent triple tap
             } else {
@@ -239,6 +243,7 @@ export class SceneInputController {
     private handleWallDragPaint(pointer: Phaser.Input.Pointer) {
         const scene = this.scene;
         if (!pointer.isDown || scene.selectedBuildingType !== 'wall') return;
+        if (scene.worldMap.inBattleFrame()) return; // retreat window: read-only
         const target = this.getWallPlacementTile(pointer);
         const start = this.lastWallDragTile ?? target;
         this.paintWallPath(scene, start, target);
@@ -249,7 +254,7 @@ export class SceneInputController {
         if (this.isPinching) return;
 
         const scene = this.scene;
-        if (pointer.button === 0 && scene.selectedBuildingType === 'wall') {
+        if (pointer.button === 0 && scene.selectedBuildingType === 'wall' && !scene.worldMap.inBattleFrame()) {
             this.lastWallDragTile = this.getWallPlacementTile(pointer);
             if (this.lastWallDragTile) {
                 const startStatus = this.getWallOccupantAt(scene, this.lastWallDragTile.x, this.lastWallDragTile.y);
@@ -306,7 +311,7 @@ export class SceneInputController {
         const dist = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.upX, pointer.upY);
 
         // If moved significantly, treat as drag and do nothing else
-        if (dist > 10) {
+        if (dist > cssPixelsToBacking(10)) {
             scene.isDragging = false;
             scene.isLockingDragForTroops = false;
             if (scene.selectedInWorld && (scene.selectedInWorld as any).type === 'prism') {
@@ -320,6 +325,13 @@ export class SceneInputController {
             const worldPoint = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
             const gridPosFloat = IsoUtils.isoToCart(worldPoint.x, worldPoint.y);
             const gridPosSnap = new Phaser.Math.Vector2(Math.floor(gridPosFloat.x), Math.floor(gridPosFloat.y));
+
+            // Purely additive: a tap near a villager/dog/chicken delights it,
+            // and a tapped rock gets hauled off to the storehouse for ore.
+            scene.pokeVillageLife(gridPosFloat.x, gridPosFloat.y);
+            if (scene.tryOpenMerchant(gridPosSnap.x, gridPosSnap.y)) return;
+            scene.tryStartRockHaul(gridPosSnap.x, gridPosSnap.y);
+            scene.tryPickMushrooms(gridPosSnap.x, gridPosSnap.y);
 
             if (scene.mode === 'ATTACK') {
                 // Check if clicking on an enemy building to show its range
@@ -345,6 +357,11 @@ export class SceneInputController {
                 scene.clearBuildingRangeIndicator();
                 return;
             }
+
+            // The retreat window: mode is already HOME but the local grid
+            // still shows the battlefield until the caravan swap lands.
+            // Look, don't touch — no selecting or building on their village.
+            if (scene.worldMap.inBattleFrame()) return;
 
             if (scene.isMoving && scene.selectedInWorld) {
                 // Calculate centered position for the building being moved
@@ -401,6 +418,17 @@ export class SceneInputController {
 
                     scene.isMoving = false;
                     scene.ghostBuilding.setVisible(false);
+                    scene.villageLife.onBuildingPlaced(scene.selectedInWorld);
+                    // The popup was hidden for the carry — bring it back at
+                    // the building's new spot.
+                    gameManager.onBuildingSelected({
+                        id: scene.selectedInWorld.id,
+                        type: scene.selectedInWorld.type as BuildingType,
+                        level: scene.selectedInWorld.level || 1,
+                        gridX: targetX,
+                        gridY: targetY,
+                        upgradeEndsAt: scene.selectedInWorld.upgradeEndsAt
+                    });
                     if (scene.selectedInWorld.owner === 'PLAYER') {
                         await Backend.moveBuilding(scene.userId, scene.selectedInWorld.id, targetX, targetY);
                     }
@@ -463,7 +491,9 @@ export class SceneInputController {
                         scene.clearBuildingRangeIndicator();
                     }
                     scene.selectedInWorld = clicked;
-                    gameManager.onBuildingSelected({ id: clicked.id, type: clicked.type as BuildingType, level: clicked.level || 1 });
+                    soundSystem.play('click');
+                    gameManager.onBuildingSelected({ id: clicked.id, type: clicked.type as BuildingType, level: clicked.level || 1, gridX: clicked.gridX, gridY: clicked.gridY, upgradeEndsAt: clicked.upgradeEndsAt });
+                    if (clicked.type === 'jukebox') gameManager.openJukebox();
                     scene.showBuildingRangeIndicator(clicked);
                 }
                 return;
@@ -498,9 +528,9 @@ export class SceneInputController {
 
         scene.hoverGrid.set(gridPosSnap.x, gridPosSnap.y);
 
-        // Remove dummy if dragged back to HUD area
-        if (scene.dummyTroop && pointer.y > scene.cameras.main.height - 80) {
-            scene.removeDummyTroop();
+        // Critters notice a cursor gliding past them (not while dragging the camera).
+        if (!pointer.isDown) {
+            scene.hoverVillageLife(cartFloat.x, cartFloat.y);
         }
 
         // Drag detection threshold
@@ -508,7 +538,7 @@ export class SceneInputController {
             if (!scene.isDragging) {
                 // Check if moved enough to start drag
                 const dist = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.x, pointer.y);
-                if (dist > 10) {
+                if (dist > cssPixelsToBacking(10)) {
                     scene.isDragging = true;
                     // Optional: Reset anchor here to avoid 'jump', but keeping it means we SNAP to the cursor, which feels tighter.
                     // To avoid snap, we would do:

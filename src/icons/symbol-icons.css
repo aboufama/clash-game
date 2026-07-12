@@ -1,0 +1,304 @@
+/* Small UI symbol icons — box-shadow pixel art on a 2px cell grid, same
+   technique as accurate-icons.css. Default box 20x20 (use font-size-relative
+   wrappers to scale). These replace every emoji in the game. */
+
+.sym {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    position: relative;
+    image-rendering: pixelated;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+.sym.small {
+    transform: scale(0.7);
+    transform-origin: center;
+}
+
+/* TROPHY — gold cup with handles on a plinth */
+.sym-trophy::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -4px -8px #ffd700, -2px -8px #ffe066, 0 -8px #ffe066, 2px -8px #ffe066, 4px -8px #ffd700,
+        -6px -6px #e6b800, -4px -6px #ffd700, -2px -6px #ffe066, 0 -6px #fff2a8, 2px -6px #ffe066, 4px -6px #ffd700, 6px -6px #e6b800,
+        -6px -4px #b38f00, -4px -4px #ffd700, -2px -4px #ffd700, 0 -4px #ffe066, 2px -4px #ffd700, 4px -4px #ffd700, 6px -4px #b38f00,
+        -4px -2px #e6b800, -2px -2px #ffd700, 0 -2px #ffd700, 2px -2px #ffd700, 4px -2px #e6b800,
+        -2px 0 #b38f00, 0 0 #e6b800, 2px 0 #b38f00,
+        0 2px #b38f00,
+        -2px 4px #8a6d00, 0 4px #b38f00, 2px 4px #8a6d00,
+        -4px 6px #6e5600, -2px 6px #8a6d00, 0 6px #8a6d00, 2px 6px #8a6d00, 4px 6px #6e5600;
+}
+
+/* SHIELD — steel kite shield with a gold boss */
+.sym-shield::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -4px -8px #8fa8c8, -2px -8px #b8cbe4, 0 -8px #b8cbe4, 2px -8px #b8cbe4, 4px -8px #8fa8c8,
+        -6px -6px #6d87a8, -4px -6px #9fb6d4, -2px -6px #b8cbe4, 0 -6px #d3e2f4, 2px -6px #b8cbe4, 4px -6px #9fb6d4, 6px -6px #6d87a8,
+        -6px -4px #6d87a8, -4px -4px #9fb6d4, -2px -4px #b8cbe4, 0 -4px #ffd700, 2px -4px #b8cbe4, 4px -4px #9fb6d4, 6px -4px #6d87a8,
+        -6px -2px #5a7392, -4px -2px #8fa8c8, -2px -2px #ffd700, 0 -2px #ffe066, 2px -2px #ffd700, 4px -2px #8fa8c8, 6px -2px #5a7392,
+        -6px 0 #5a7392, -4px 0 #8fa8c8, -2px 0 #9fb6d4, 0 0 #ffd700, 2px 0 #9fb6d4, 4px 0 #8fa8c8, 6px 0 #5a7392,
+        -4px 2px #4a6280, -2px 2px #8fa8c8, 0 2px #9fb6d4, 2px 2px #8fa8c8, 4px 2px #4a6280,
+        -2px 4px #4a6280, 0 4px #8fa8c8, 2px 4px #4a6280,
+        0 6px #3c5068;
+}
+
+/* CROSSED SWORDS — two steel blades, gold hilts */
+.sym-swords::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -6px -8px #e8eef6, 6px -8px #e8eef6,
+        -4px -6px #c8d4e4, 4px -6px #c8d4e4,
+        -2px -4px #c8d4e4, 2px -4px #c8d4e4,
+        0 -2px #e8eef6,
+        0 0 #aab8cc,
+        -2px 2px #c8d4e4, 2px 2px #c8d4e4,
+        -4px 4px #ffd700, 4px 4px #ffd700,
+        -6px 4px #b38f00, 6px 4px #b38f00,
+        -2px 4px #b38f00, 2px 4px #b38f00,
+        -6px 6px #8a5a2a, 6px 6px #8a5a2a;
+}
+
+/* KEEP — grey stone tower, red banner */
+.sym-castle::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        0 -10px #d8563c, 2px -10px #d8563c,
+        0 -8px #8a6a42,
+        -6px -6px #9aa2ae, -2px -6px #9aa2ae, 0 -6px #b8bfca, 2px -6px #9aa2ae, 6px -6px #9aa2ae,
+        -6px -4px #b8bfca, -4px -4px #9aa2ae, -2px -4px #b8bfca, 0 -4px #9aa2ae, 2px -4px #b8bfca, 4px -4px #9aa2ae, 6px -4px #b8bfca,
+        -6px -2px #848c98, -4px -2px #b8bfca, -2px -2px #9aa2ae, 0 -2px #b8bfca, 2px -2px #9aa2ae, 4px -2px #b8bfca, 6px -2px #848c98,
+        -6px 0 #9aa2ae, -4px 0 #848c98, -2px 0 #9aa2ae, 0 0 #4a3828, 2px 0 #9aa2ae, 4px 0 #848c98, 6px 0 #9aa2ae,
+        -6px 2px #848c98, -4px 2px #9aa2ae, -2px 2px #848c98, 0 2px #4a3828, 2px 2px #848c98, 4px 2px #9aa2ae, 6px 2px #848c98,
+        -8px 4px #6c7480, -6px 4px #848c98, -4px 4px #848c98, -2px 4px #6c7480, 0 4px #38291c, 2px 4px #6c7480, 4px 4px #848c98, 6px 4px #848c98, 8px 4px #6c7480,
+        -8px 6px #5a616c, -6px 6px #6c7480, -4px 6px #6c7480, -2px 6px #5a616c, 0 6px #6c7480, 2px 6px #5a616c, 4px 6px #6c7480, 6px 6px #6c7480, 8px 6px #5a616c;
+}
+
+/* TENT — canvas wedge with a pole (unclaimed camps) */
+.sym-tent::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        0 -8px #d8563c,
+        0 -6px #c9b593,
+        -2px -4px #b9a27c, 0 -4px #d9c7a4, 2px -4px #b9a27c,
+        -4px -2px #b9a27c, -2px -2px #d9c7a4, 0 -2px #c9b593, 2px -2px #d9c7a4, 4px -2px #b9a27c,
+        -6px 0 #a08a64, -4px 0 #c9b593, -2px 0 #d9c7a4, 0 0 #4a3828, 2px 0 #d9c7a4, 4px 0 #c9b593, 6px 0 #a08a64,
+        -8px 2px #a08a64, -6px 2px #b9a27c, -4px 2px #c9b593, -2px 2px #b9a27c, 0 2px #4a3828, 2px 2px #b9a27c, 4px 2px #c9b593, 6px 2px #b9a27c, 8px 2px #a08a64,
+        -8px 4px #8a744e, -6px 4px #a08a64, -4px 4px #a08a64, -2px 4px #8a744e, 0 4px #38291c, 2px 4px #8a744e, 4px 4px #a08a64, 6px 4px #a08a64, 8px 4px #8a744e;
+}
+
+/* EYE — scout's watchful eye */
+.sym-eye::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -4px -4px #e8e4d8, -2px -4px #f4f0e4, 0 -4px #f4f0e4, 2px -4px #f4f0e4, 4px -4px #e8e4d8,
+        -6px -2px #c8c4b8, -4px -2px #f4f0e4, -2px -2px #f4f0e4, 0 -2px #3a76b8, 2px -2px #f4f0e4, 4px -2px #f4f0e4, 6px -2px #c8c4b8,
+        -8px 0 #a8a498, -6px 0 #e8e4d8, -4px 0 #f4f0e4, -2px 0 #3a76b8, 0 0 #1c2838, 2px 0 #3a76b8, 4px 0 #f4f0e4, 6px 0 #e8e4d8, 8px 0 #a8a498,
+        -6px 2px #c8c4b8, -4px 2px #f4f0e4, -2px 2px #f4f0e4, 0 2px #3a76b8, 2px 2px #f4f0e4, 4px 2px #f4f0e4, 6px 2px #c8c4b8,
+        -4px 4px #a8a498, -2px 4px #c8c4b8, 0 4px #c8c4b8, 2px 4px #c8c4b8, 4px 4px #a8a498;
+}
+
+/* WATCH — a play triangle in a screen frame (spectate) */
+.sym-watch::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -8px -6px #5a616c, -6px -6px #5a616c, -4px -6px #5a616c, -2px -6px #5a616c, 0 -6px #5a616c, 2px -6px #5a616c, 4px -6px #5a616c, 6px -6px #5a616c, 8px -6px #5a616c,
+        -8px -4px #5a616c, -6px -4px #1c2838, -4px -4px #1c2838, -2px -4px #ffe066, 0 -4px #1c2838, 2px -4px #1c2838, 4px -4px #1c2838, 6px -4px #1c2838, 8px -4px #5a616c,
+        -8px -2px #5a616c, -6px -2px #1c2838, -4px -2px #1c2838, -2px -2px #ffe066, 0 -2px #ffe066, 2px -2px #1c2838, 4px -2px #1c2838, 6px -2px #1c2838, 8px -2px #5a616c,
+        -8px 0 #5a616c, -6px 0 #1c2838, -4px 0 #1c2838, -2px 0 #ffe066, 0 0 #ffe066, 2px 0 #ffe066, 4px 0 #1c2838, 6px 0 #1c2838, 8px 0 #5a616c,
+        -8px 2px #5a616c, -6px 2px #1c2838, -4px 2px #1c2838, -2px 2px #ffe066, 0 2px #ffe066, 2px 2px #1c2838, 4px 2px #1c2838, 6px 2px #1c2838, 8px 2px #5a616c,
+        -8px 4px #5a616c, -6px 4px #1c2838, -4px 4px #1c2838, -2px 4px #ffe066, 0 4px #1c2838, 2px 4px #1c2838, 4px 4px #1c2838, 6px 4px #1c2838, 8px 4px #5a616c,
+        -8px 6px #5a616c, -6px 6px #5a616c, -4px 6px #5a616c, -2px 6px #5a616c, 0 6px #5a616c, 2px 6px #5a616c, 4px 6px #5a616c, 6px 6px #5a616c, 8px 6px #5a616c;
+}
+
+/* HOME — little cottage, red roof (settle / go home) */
+.sym-home::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        0 -8px #d8563c,
+        -2px -6px #d8563c, 0 -6px #e87a5c, 2px -6px #d8563c,
+        -4px -4px #d8563c, -2px -4px #e87a5c, 0 -4px #d8563c, 2px -4px #e87a5c, 4px -4px #d8563c,
+        -6px -2px #b03a24, -4px -2px #d8563c, -2px -2px #d8563c, 0 -2px #e87a5c, 2px -2px #d8563c, 4px -2px #d8563c, 6px -2px #b03a24,
+        -4px 0 #e8ddc4, -2px 0 #f4ecd8, 0 0 #e8ddc4, 2px 0 #f4ecd8, 4px 0 #e8ddc4,
+        -4px 2px #f4ecd8, -2px 2px #e8ddc4, 0 2px #6a4a2a, 2px 2px #e8ddc4, 4px 2px #f4ecd8,
+        -4px 4px #e8ddc4, -2px 4px #f4ecd8, 0 4px #4a3828, 2px 4px #f4ecd8, 4px 4px #e8ddc4,
+        -4px 6px #c8bda4, -2px 6px #c8bda4, 0 6px #38291c, 2px 6px #c8bda4, 4px 6px #c8bda4;
+}
+
+/* LOCK — locked jukebox tracks */
+.sym-lock::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -2px -6px #b8bfca, 0 -6px #b8bfca, 2px -6px #b8bfca,
+        -4px -4px #b8bfca, 4px -4px #b8bfca,
+        -4px -2px #b8bfca, 4px -2px #b8bfca,
+        -6px 0 #ffd700, -4px 0 #ffe066, -2px 0 #ffe066, 0 0 #ffe066, 2px 0 #ffe066, 4px 0 #ffe066, 6px 0 #ffd700,
+        -6px 2px #e6b800, -4px 2px #ffd700, -2px 2px #ffd700, 0 2px #6a4a2a, 2px 2px #ffd700, 4px 2px #ffd700, 6px 2px #e6b800,
+        -6px 4px #e6b800, -4px 4px #ffd700, -2px 4px #ffd700, 0 4px #6a4a2a, 2px 4px #ffd700, 4px 4px #ffd700, 6px 4px #e6b800,
+        -6px 6px #b38f00, -4px 6px #e6b800, -2px 6px #e6b800, 0 6px #e6b800, 2px 6px #e6b800, 4px 6px #e6b800, 6px 6px #b38f00;
+}
+
+/* SPEAKER — sound on (cone + waves) */
+.sym-speaker::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -2px -6px #e8e4d8,
+        -4px -4px #c8c4b8, -2px -4px #e8e4d8, 4px -4px #ffe066,
+        -8px -2px #8a744e, -6px -2px #a08a64, -4px -2px #e8e4d8, -2px -2px #f4f0e4, 2px -2px #ffe066, 6px -2px #ffe066,
+        -8px 0 #8a744e, -6px 0 #a08a64, -4px 0 #f4f0e4, -2px 0 #f4f0e4, 2px 0 #ffe066, 4px 0 #ffe066, 8px 0 #ffe066,
+        -8px 2px #8a744e, -6px 2px #a08a64, -4px 2px #e8e4d8, -2px 2px #f4f0e4, 2px 2px #ffe066, 6px 2px #ffe066,
+        -4px 4px #c8c4b8, -2px 4px #e8e4d8, 4px 4px #ffe066,
+        -2px 6px #c8c4b8;
+}
+
+/* SPEAKER OFF — cone + red cross */
+.sym-speaker-off::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -2px -6px #a8a498,
+        -4px -4px #8a877c, -2px -4px #a8a498,
+        -8px -2px #6a5a44, -6px -2px #8a744e, -4px -2px #a8a498, -2px -2px #c8c4b8, 2px -2px #d84a3c, 6px -2px #d84a3c,
+        -8px 0 #6a5a44, -6px 0 #8a744e, -4px 0 #c8c4b8, -2px 0 #c8c4b8, 4px 0 #d84a3c,
+        -8px 2px #6a5a44, -6px 2px #8a744e, -4px 2px #a8a498, -2px 2px #c8c4b8, 2px 2px #d84a3c, 6px 2px #d84a3c,
+        -4px 4px #8a877c, -2px 4px #a8a498,
+        -2px 6px #8a877c;
+}
+
+/* HEART — troop health stat */
+.sym-heart::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -4px -4px #d84a3c, -2px -4px #f47a6c, 2px -4px #f47a6c, 4px -4px #d84a3c,
+        -6px -2px #d84a3c, -4px -2px #f47a6c, -2px -2px #d84a3c, 0 -2px #d84a3c, 2px -2px #f47a6c, 4px -2px #d84a3c, 6px -2px #d84a3c,
+        -6px 0 #b03a2c, -4px 0 #d84a3c, -2px 0 #d84a3c, 0 0 #d84a3c, 2px 0 #d84a3c, 4px 0 #d84a3c, 6px 0 #b03a2c,
+        -4px 2px #b03a2c, -2px 2px #d84a3c, 0 2px #d84a3c, 2px 2px #d84a3c, 4px 2px #b03a2c,
+        -2px 4px #b03a2c, 0 4px #d84a3c, 2px 4px #b03a2c,
+        0 6px #8a2a20;
+}
+
+/* SLOT — army housing space (crate) */
+.sym-slot::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -4px -4px #a08a64, -2px -4px #c9b593, 0 -4px #c9b593, 2px -4px #c9b593, 4px -4px #a08a64,
+        -4px -2px #c9b593, -2px -2px #8a744e, 0 -2px #c9b593, 2px -2px #8a744e, 4px -2px #c9b593,
+        -4px 0 #c9b593, -2px 0 #c9b593, 0 0 #8a744e, 2px 0 #c9b593, 4px 0 #c9b593,
+        -4px 2px #c9b593, -2px 2px #8a744e, 0 2px #c9b593, 2px 2px #8a744e, 4px 2px #c9b593,
+        -4px 4px #8a744e, -2px 4px #a08a64, 0 4px #a08a64, 2px 4px #a08a64, 4px 4px #8a744e;
+}
+
+/* ARROW — trade direction */
+.sym-arrow::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        2px -4px #ffe066,
+        -6px -2px #ffd700, -4px -2px #ffd700, -2px -2px #ffd700, 0 -2px #ffd700, 2px -2px #ffe066, 4px -2px #ffe066,
+        -6px 0 #ffd700, -4px 0 #ffd700, -2px 0 #ffd700, 0 0 #ffd700, 2px 0 #ffd700, 4px 0 #ffe066, 6px 0 #ffe066,
+        -6px 2px #ffd700, -4px 2px #ffd700, -2px 2px #ffd700, 0 2px #ffd700, 2px 2px #ffe066, 4px 2px #ffe066,
+        2px 4px #ffe066;
+}
+
+/* CLOSE — chunky terracotta X, lit from the NW like everything else */
+.sym-close::before {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow:
+        -6px -6px #e8836a, -4px -6px #d95f46, 4px -6px #d95f46, 6px -6px #e8836a,
+        -6px -4px #d95f46, -4px -4px #d95f46, -2px -4px #d95f46, 2px -4px #d95f46, 4px -4px #d95f46, 6px -4px #d95f46,
+        -4px -2px #d95f46, -2px -2px #d95f46, 0 -2px #d95f46, 2px -2px #d95f46, 4px -2px #d95f46,
+        -2px 0 #d95f46, 0 0 #d95f46, 2px 0 #d95f46,
+        -4px 2px #c14f38, -2px 2px #c14f38, 0 2px #c14f38, 2px 2px #c14f38, 4px 2px #c14f38,
+        -6px 4px #b04833, -4px 4px #b04833, -2px 4px #b04833, 2px 4px #b04833, 4px 4px #b04833, 6px 4px #b04833,
+        -6px 6px #9c3d2c, -4px 6px #b04833, 4px 6px #b04833, 6px 6px #9c3d2c;
+}

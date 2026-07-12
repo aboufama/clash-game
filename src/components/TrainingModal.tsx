@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import type { TroopDef, TroopType } from '../game/config/GameDefinitions';
 import { getTroopStats, getTroopUnlockLevel } from '../game/config/GameDefinitions';
-import { formatSol } from '../game/solana/Currency';
+import { formatGold } from '../game/economy/Currency';
+import { soundSystem } from '../game/systems/SoundSystem';
+import { troopFoodCostOf } from '../game/config/GameDefinitions';
 
 const TROOP_FLAVOR: Record<string, string> = {
     warrior: 'Fast melee fighter. Cheap to train and great in numbers.',
@@ -23,7 +25,7 @@ interface TrainingModalProps {
   isOpen: boolean;
   showCloudOverlay: boolean;
   capacity: { current: number; max: number };
-  resources: { sol: number };
+  resources: { gold: number; food: number };
   army: Record<string, number>;
   troops: TroopDef[];
   troopLevel: number;
@@ -123,15 +125,17 @@ export function TrainingModal({
             {troops.map(t => {
               const unlockLevel = getTroopUnlockLevel(t.id as TroopType);
               const isLocked = unlockLevel > barracksLevel;
-              const canAfford = resources.sol >= t.cost;
+              const foodCost = troopFoodCostOf(t.id as TroopType);
+              const canAfford = resources.gold >= t.cost;
+              const hasFood = resources.food >= foodCost;
               const hasSpace = capacity.current + t.space <= capacity.max;
-              const isAvailable = !isLocked && canAfford && hasSpace;
+              const isAvailable = !isLocked && canAfford && hasFood && hasSpace;
 
               return (
                 <div
                   key={t.id}
                   className={`troop-grid-item ${isLocked ? 'locked' : ''} ${!isAvailable && !isLocked ? 'disabled' : ''}`}
-                  onClick={() => isAvailable && onTrainTroop(t.id)}
+                  onClick={() => { if (isAvailable) { soundSystem.play('click'); void onTrainTroop(t.id); } }}
                   onMouseEnter={(e) => !isLocked && handleMouseEnter(t.id, e)}
                   onMouseLeave={handleMouseLeave}
                 >
@@ -144,8 +148,10 @@ export function TrainingModal({
                   <span className="name" style={{ fontSize: '0.7rem', fontWeight: 900 }}>{t.name}</span>
                   {!isLocked && (
                     <div className="cost-badge">
-                      <span className="icon sol-icon"></span>
-                      {formatSol(t.cost, false, false)}
+                      <span className="icon gold-icon"></span>
+                      {formatGold(t.cost, false, false)}
+                      <span className={`icon food-icon`} style={{ marginLeft: 6 }}></span>
+                      <span style={{ color: hasFood ? undefined : '#ff4444' }}>{foodCost}</span>
                     </div>
                   )}
                   {!isLocked && !hasSpace && <div style={{ fontSize: '8px', color: '#ff4444', position: 'absolute', bottom: '2px' }}>NO SPACE</div>}
@@ -170,9 +176,9 @@ export function TrainingModal({
         >
           <div className="tooltip-flavor">{tooltipFlavor}</div>
           <div className="tooltip-stats">
-            <span>♥ {tooltipScaled.health}</span>
-            <span>{'\u2694\uFE0E'} {tooltipScaled.damage}</span>
-            <span>◎ {tooltipTroop.space}</span>
+            <span><span className="sym sym-heart small" /> {tooltipScaled.health}</span>
+            <span><span className="sym sym-swords small" /> {tooltipScaled.damage}</span>
+            <span><span className="sym sym-slot small" /> {tooltipTroop.space}</span>
           </div>
         </div>
       )}

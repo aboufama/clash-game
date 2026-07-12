@@ -1,643 +1,1962 @@
 import Phaser from 'phaser';
+import type { TroopType } from '../config/GameDefinitions';
+
+type G = Phaser.GameObjects.Graphics;
+
+/**
+ * TroopRenderer — every troop is hand-drawn layered vector art (no sprites).
+ *
+ * THE SCALE CONTRACT (the villager rule): humanoid troops are the same
+ * species as the VillageLifeSystem villagers. Villagers draw ~23px tall and
+ * render at 0.8 scale (~18.5px on screen); battle troops render at scale 1,
+ * so every humanoid here is drawn ~19-21px head-to-toe (ground at y≈+9.5,
+ * head top ≈ -11). Weapons/hats may poke a few px higher — bodies must not.
+ * Machines and monsters (golem, da vinci tank, ram trunk) keep their bulk,
+ * but any human crew on them uses this same villager scale. The giant is
+ * deliberately ~2x a villager — big, but the same world.
+ *
+ * THE ANIMATION CONTRACT: all motion is a deterministic function of the
+ * `time` parameter — sines and phases, never Math.random() per frame.
+ * Attack animation keys off `attackAge` = ms since this troop's last damage
+ * tick (MainScene passes `time - troop.lastAttackTime`):
+ *   - the WIND-UP plays in the last `windupMs` BEFORE the next tick
+ *     (remaining = attackDelay - attackAge), so anticipation peaks exactly
+ *     when damage fires;
+ *   - the STRIKE/impact plays in the first `strikeMs` AFTER the tick.
+ * Stale ages (> delay + 600ms — replay troops never update lastAttackTime)
+ * free-run on `time % attackDelay` so replays stay alive. attackAge < 0
+ * means "not in combat" (army-camp figures): pure idle, no weapon poses.
+ */
+
+/** Attack-cycle animation state — see the contract above. */
+interface AttackAnim {
+    /** 0→1 anticipation ramp during the last `windupMs` before the tick. */
+    windup: number;
+    /** 1→0 impact decay during the first `strikeMs` after the tick. */
+    strike: number;
+    /** ms since the damage tick (Infinity when not in combat). */
+    age: number;
+    inCombat: boolean;
+}
+
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
+const easeIn = (t: number): number => t * t;
 
 export class TroopRenderer {
-    static drawTroopVisual(graphics: Phaser.GameObjects.Graphics, type: 'warrior' | 'archer' | 'giant' | 'ward' | 'recursion' | 'ram' | 'stormmage' | 'golem' | 'sharpshooter' | 'mobilemortar' | 'davincitank' | 'phalanx' | 'romanwarrior' | 'wallbreaker', owner: 'PLAYER' | 'ENEMY', facingAngle: number = 0, isMoving: boolean = true, slamOffset: number = 0, bowDrawProgress: number = 0, mortarRecoil: number = 0, isDeactivated: boolean = false, phalanxSpearOffset: number = 0, troopLevel: number = 1) {
+    /** ms after the damage tick at which the sharpshooter's ball leaves the
+     *  muzzle — MainScene's projectile delay and the renderer's flash/recoil
+     *  keyframes both read this so they can never drift apart. */
+    static readonly MUSKET_FIRE_MS = 330;
+
+    static drawTroopVisual(
+        graphics: G,
+        type: TroopType,
+        owner: 'PLAYER' | 'ENEMY',
+        facingAngle: number = 0,
+        isMoving: boolean = true,
+        slamOffset: number = 0,
+        bowDrawProgress: number = 0,
+        mortarRecoil: number = 0,
+        isDeactivated: boolean = false,
+        phalanxSpearOffset: number = 0,
+        troopLevel: number = 1,
+        time: number = Date.now(),
+        attackAge: number = -1,
+        attackDelay: number = 0
+    ) {
+        void bowDrawProgress; // legacy sharpshooter tween driver — pose now keys off attackAge
         const isPlayer = owner === 'PLAYER';
 
         switch (type) {
             case 'warrior':
-                TroopRenderer.drawWarrior(graphics, isPlayer, isMoving, troopLevel);
+                TroopRenderer.drawWarrior(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'archer':
-                TroopRenderer.drawArcher(graphics, isPlayer, isMoving, facingAngle, troopLevel);
+                TroopRenderer.drawArcher(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'giant':
-                TroopRenderer.drawGiant(graphics, isPlayer, isMoving, troopLevel);
+                TroopRenderer.drawGiant(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'golem':
-                TroopRenderer.drawGolem(graphics, isPlayer, isMoving, slamOffset, troopLevel);
+                TroopRenderer.drawGolem(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
                 break;
             case 'sharpshooter':
-                TroopRenderer.drawSharpshooter(graphics, isPlayer, isMoving, facingAngle, bowDrawProgress, troopLevel);
+                TroopRenderer.drawSharpshooter(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'mobilemortar':
-                TroopRenderer.drawMobileMortar(graphics, isPlayer, isMoving, facingAngle, mortarRecoil, troopLevel);
+                TroopRenderer.drawMobileMortar(graphics, isPlayer, isMoving, facingAngle, mortarRecoil, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'ward':
-                TroopRenderer.drawWard(graphics, isPlayer, isMoving, troopLevel);
+                TroopRenderer.drawWard(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'recursion':
-                TroopRenderer.drawRecursion(graphics, isPlayer, isMoving, troopLevel);
+                TroopRenderer.drawRecursion(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'ram':
-                TroopRenderer.drawRam(graphics, isPlayer, isMoving, facingAngle, troopLevel);
+                TroopRenderer.drawRam(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'stormmage':
-                TroopRenderer.drawStormMage(graphics, isPlayer, isMoving, troopLevel);
+                TroopRenderer.drawStormMage(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'davincitank':
-                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, isDeactivated, facingAngle, troopLevel);
+                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, isDeactivated, facingAngle, troopLevel, time);
                 break;
             case 'phalanx':
-                TroopRenderer.drawPhalanx(graphics, isPlayer, isMoving, facingAngle, phalanxSpearOffset, troopLevel);
+                TroopRenderer.drawPhalanx(graphics, isPlayer, isMoving, facingAngle, phalanxSpearOffset, troopLevel, time);
                 break;
             case 'romanwarrior':
-                TroopRenderer.drawRomanSoldier(graphics, isPlayer, isMoving, facingAngle, false, 0, 0, 0, 0, troopLevel);
+                TroopRenderer.drawRomanSoldier(graphics, isPlayer, isMoving, facingAngle, false, 0, 0, 0, 0, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'wallbreaker':
-                TroopRenderer.drawWallBreaker(graphics, isPlayer, isMoving, troopLevel);
+                TroopRenderer.drawWallBreaker(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
         }
-
-        // Outline (skip for troops with detailed custom shapes)
-        if (type !== 'warrior' && type !== 'archer' && type !== 'giant' && type !== 'ram' && type !== 'golem' && type !== 'sharpshooter' && type !== 'mobilemortar' && type !== 'davincitank' && type !== 'phalanx' && type !== 'romanwarrior' && type !== 'ward' && type !== 'stormmage' && type !== 'recursion' && type !== 'wallbreaker') {
-            graphics.lineStyle(1, 0x000000, 0.5);
-            graphics.strokeCircle(0, -1, 8);
-        }
-
     }
 
-    private static drawWarrior(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, troopLevel: number = 1) {
-        // WARRIOR - Armored swordsman with shield
-        const now = Date.now();
-        const runPhase = isMoving ? (now % 300) / 300 : 0;
-        const runBob = isMoving ? Math.sin(runPhase * Math.PI * 2) * 3 : 0;
-        const legKick = isMoving ? Math.sin(runPhase * Math.PI * 2) * 3 : 0;
+    // ================= villager-scale humanoid toolkit =================
 
-        // When attacking (not moving), hold sword in a forward/down slash pose
-        const swordAngle = !isMoving ? 1.2 : 0;
-        const bodyLean = 0;
+    /** Soft contact shadow under a humanoid. */
+    private static hShadow(g: G, w: number = 9.5, y: number = 9.6): void {
+        g.fillStyle(0x000000, 0.22);
+        g.fillEllipse(0, y, w, w * 0.38);
+    }
 
-        const skinColor = isPlayer ? 0xdeb887 : 0xc9a66b;
-        const armorColor = isPlayer ? 0x8b4513 : 0x654321;
-        const armorDark = isPlayer ? 0x5c3317 : 0x4a2f1a;
+    /**
+     * The shared gait/idle rig. Walking: legs/arms swing ±strideLen with a
+     * little hop; standing: a slow breath (use `lift` for the chest rise and
+     * `breathe` (-1..1) for anything that should sway with it).
+     */
+    private static hRig(time: number, isMoving: boolean, stride: number, strideLen: number, seed: number = 0): { swing: number; lift: number; breathe: number; ph: number } {
+        if (isMoving) {
+            const ph = ((time + seed * 137) % stride) / stride;
+            const s = Math.sin(ph * Math.PI * 2);
+            return { swing: s * strideLen, lift: Math.abs(s) * 1.2, breathe: 0, ph };
+        }
+        const b = Math.sin((time + seed * 251) / 640);
+        return { swing: 0, lift: Math.max(0, b) * 0.4, breathe: b, ph: 0 };
+    }
 
-        // Shadow
-        graphics.fillStyle(0x000000, 0.25);
-        graphics.fillEllipse(0, 12, 10, 5);
+    /** Trouser legs + planted feet (the villager leg grammar). */
+    private static hLegs(g: G, trouser: number, swing: number, lift: number, spread: number = 1.6, boot: number = 0x2a211a): void {
+        g.fillStyle(trouser, 1);
+        g.fillRect(-spread - 1 - swing, 3.5 - lift, 2, 5.5 + lift);
+        g.fillRect(spread - 1 + swing, 3.5 - lift, 2, 5.5 + lift);
+        g.fillStyle(boot, 1);
+        g.fillEllipse(-spread - swing, 9.2, 3, 1.6);
+        g.fillEllipse(spread + swing, 9.2, 3, 1.6);
+    }
 
-        // Running legs
-        graphics.fillStyle(armorDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-2, 4 + runBob);
-        graphics.lineTo(-3 - legKick, 10);
-        graphics.lineTo(-1 - legKick, 10);
-        graphics.lineTo(0, 4 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.beginPath();
-        graphics.moveTo(2, 4 + runBob);
-        graphics.lineTo(3 + legKick, 10);
-        graphics.lineTo(5 + legKick, 10);
-        graphics.lineTo(4, 4 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
+    /** Round tunic torso + belt line, optionally leaned by `ox`. */
+    private static hTorso(g: G, tunic: number, dark: number, lift: number, r: number = 4.3, ox: number = 0): void {
+        g.fillStyle(tunic, 1);
+        g.fillCircle(ox, -1 - lift, r);
+        g.fillStyle(dark, 1);
+        g.fillRect(ox - r + 0.4, 1 - lift, (r - 0.4) * 2, 1.8);
+    }
 
-        // Feet
-        graphics.fillStyle(0x3a2a1a, 1);
-        graphics.fillEllipse(-2 - legKick, 11, 3, 2);
-        graphics.fillEllipse(4 + legKick, 11, 3, 2);
+    /** Head at villager proportions (+ optional hair arc). */
+    private static hHead(g: G, skin: number, lift: number, hair?: number, ox: number = 0): void {
+        g.fillStyle(skin, 1);
+        g.fillCircle(ox, -7 - lift, 3);
+        if (hair !== undefined) {
+            g.fillStyle(hair, 1);
+            g.beginPath();
+            g.arc(ox, -7.6 - lift, 3, Math.PI, 0, false);
+            g.closePath();
+            g.fillPath();
+        }
+    }
 
-        // Body (leather armor) — leans into attack
-        graphics.fillStyle(armorColor, 1);
-        graphics.fillCircle(bodyLean, runBob, 6);
-        graphics.fillStyle(armorDark, 1);
-        graphics.fillCircle(1 + bodyLean, runBob + 1, 5);
+    /** One limb segment drawn as a thick quad from (x0,y0) to (x1,y1). */
+    private static hLimb(g: G, color: number, x0: number, y0: number, x1: number, y1: number, w: number = 1.9): void {
+        const dx = x1 - x0, dy = y1 - y0;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / len) * (w / 2), ny = (dx / len) * (w / 2);
+        g.fillStyle(color, 1);
+        g.beginPath();
+        g.moveTo(x0 + nx, y0 + ny);
+        g.lineTo(x1 + nx, y1 + ny);
+        g.lineTo(x1 - nx, y1 - ny);
+        g.lineTo(x0 - nx, y0 - ny);
+        g.closePath();
+        g.fillPath();
+    }
 
-        // Left arm (holding shield)
-        graphics.fillStyle(skinColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-4 + bodyLean, runBob - 2);
-        graphics.lineTo(-8 + bodyLean, runBob + 2);
-        graphics.lineTo(-6 + bodyLean, runBob + 3);
-        graphics.lineTo(-2 + bodyLean, runBob - 1);
-        graphics.closePath();
-        graphics.fillPath();
+    /** Attack-cycle state locked to the damage tick — see the file header. */
+    private static attackAnim(time: number, attackAge: number, attackDelay: number, windupMs: number, strikeMs: number): AttackAnim {
+        if (attackAge < 0 || attackDelay <= 0) return { windup: 0, strike: 0, age: Infinity, inCombat: false };
+        let age = attackAge;
+        if (age > attackDelay + 600) {
+            // Stale tick (replay playback): free-run the cycle off the clock.
+            age = time % attackDelay;
+        }
+        const remaining = attackDelay - age;
+        let windup = 0;
+        if (remaining <= 0) windup = 1;
+        else if (remaining <= windupMs) windup = 1 - remaining / windupMs;
+        const strike = strikeMs > 0 && age <= strikeMs ? 1 - age / strikeMs : 0;
+        return { windup, strike, age, inCombat: true };
+    }
 
-        // Shield
-        graphics.fillStyle(armorDark, 1);
-        graphics.fillCircle(-9 + bodyLean, runBob + 2, 5);
-        graphics.fillStyle(armorColor, 1);
-        graphics.fillCircle(-9 + bodyLean, runBob + 1, 4);
-        graphics.fillStyle(0x555555, 1);
-        graphics.fillCircle(-9 + bodyLean, runBob + 1, 1.5);
+    // ============================ WARRIOR ============================
+    // Villager-scale swordsman: round shield left, arming sword right.
+    // Attack: coil the blade behind the shoulder as the cooldown ends, cut
+    // through a fast arc exactly on the damage tick, ease back to guard.
+    private static drawWarrior(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const rig = TroopRenderer.hRig(time, isMoving, 420, 2.2, 0);
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 800, 280, 170);
+        const lift = rig.lift;
 
-        // Right arm + sword (swings during attack)
-        const armBaseX = 4 + bodyLean;
-        const armBaseY = runBob - 2;
-        const swordLen = 12;
-        const swordTipX = armBaseX + Math.sin(swordAngle) * swordLen;
-        const swordTipY = armBaseY - Math.cos(swordAngle) * swordLen;
-        const swordMidX = armBaseX + Math.sin(swordAngle) * 4;
-        const swordMidY = armBaseY - Math.cos(swordAngle) * 4;
+        const skin = isPlayer ? 0xdeb887 : 0xc9a66b;
+        const tunic = isPlayer ? 0x8b5a2b : 0x6b4a30;
+        const tunicDark = isPlayer ? 0x5c3a1c : 0x47311d;
+        const steel = troopLevel >= 3 ? 0xe2e6ee : 0xbfc5cf;
+        const shieldWood = isPlayer ? 0x9c6a30 : 0x7a5528;
+        const shieldRim = isPlayer ? 0x6a4520 : 0x4f371b;
 
-        // Arm
-        graphics.fillStyle(skinColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(armBaseX, armBaseY);
-        graphics.lineTo(swordMidX + 1, swordMidY);
-        graphics.lineTo(swordMidX - 1, swordMidY);
-        graphics.lineTo(armBaseX - 2, armBaseY);
-        graphics.closePath();
-        graphics.fillPath();
+        // ---- sword pose. Angle convention: 0 = blade straight up from the
+        // hand, positive = swung forward (screen right). Guard rest ≈ -0.5.
+        let swordA = -0.5;
+        let lean = 0;       // body lean into the blow
+        let arcAlpha = 0;   // motion-arc wedge during the cut
+        let arcSweep = 0;
+        if (!isMoving && atk.inCombat) {
+            if (atk.strike > 0) {
+                const sweep = clamp01(atk.age / 70);
+                swordA = -1.35 + 2.65 * easeOut(sweep);
+                lean = 1.6 * sweep;
+                arcSweep = sweep;
+                arcAlpha = sweep < 1 ? 0.45 : 0.45 * clamp01(1 - (atk.age - 70) / 100);
+            } else if (atk.windup > 0) {
+                swordA = -0.5 - 0.85 * easeOut(atk.windup);
+                lean = -1.1 * atk.windup;
+            } else if (atk.age <= 470) {
+                // Recovery: ease from the follow-through back to guard.
+                const t = clamp01((atk.age - 170) / 300);
+                swordA = 1.3 - 1.8 * easeOut(t);
+                lean = 1.6 * (1 - t);
+            }
+        } else if (isMoving) {
+            swordA = -0.5 + rig.swing * 0.06;
+        } else {
+            // Ambient idle: breathe + a slow roll of the wrist.
+            swordA = -0.5 + Math.sin(time / 1900) * 0.12;
+        }
 
-        // Sword blade
-        graphics.fillStyle(0xaaaaaa, 1);
-        const bladePerp = 1;
-        const bladePerpX = Math.cos(swordAngle) * bladePerp;
-        const bladePerpY = Math.sin(swordAngle) * bladePerp;
-        graphics.beginPath();
-        graphics.moveTo(swordMidX - bladePerpX, swordMidY - bladePerpY);
-        graphics.lineTo(swordTipX, swordTipY);
-        graphics.lineTo(swordMidX + bladePerpX, swordMidY + bladePerpY);
-        graphics.closePath();
-        graphics.fillPath();
-        // Guard
-        graphics.fillStyle(0x666666, 1);
-        graphics.fillCircle(swordMidX, swordMidY, 2);
-        // Grip
-        graphics.fillStyle(0x5c3317, 1);
-        const gripX = armBaseX + Math.sin(swordAngle) * 2;
-        const gripY = armBaseY - Math.cos(swordAngle) * 2;
-        graphics.fillCircle(gripX, gripY, 1.5);
+        TroopRenderer.hShadow(g);
+        TroopRenderer.hLegs(g, tunicDark, rig.swing, lift);
+        TroopRenderer.hTorso(g, tunic, tunicDark, lift, 4.3, lean * 0.5);
 
-        // Head
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(bodyLean, runBob - 6, 4);
-        // Helmet
-        graphics.fillStyle(0x555555, 1);
-        graphics.beginPath();
-        graphics.arc(bodyLean, runBob - 7, 4, Math.PI, 0, false);
-        graphics.closePath();
-        graphics.fillPath();
-        // Helmet spike
-        graphics.fillStyle(0x666666, 1);
-        graphics.beginPath();
-        graphics.moveTo(-1 + bodyLean, runBob - 11);
-        graphics.lineTo(bodyLean, runBob - 14);
-        graphics.lineTo(1 + bodyLean, runBob - 11);
-        graphics.closePath();
-        graphics.fillPath();
+        // Chest strap
+        g.lineStyle(1.1, tunicDark, 0.9);
+        g.lineBetween(-2.6 + lean * 0.5, -3.6 - lift, 2.2 + lean * 0.5, 0.4 - lift);
 
-        // L2: Gold band on helmet + shield boss upgrade
+        // ---- shield arm (left): a slight brace on the wind-up (kept wide
+        // so it never muddles the torso silhouette).
+        const shX = -4.4 + (atk.windup > 0 ? 0.5 * atk.windup : 0) + lean * 0.3;
+        const shY = -0.8 - lift - (atk.windup > 0 ? 0.7 * atk.windup : 0);
+        TroopRenderer.hLimb(g, skin, -2.6 + lean * 0.4, -2.6 - lift, shX, shY, 1.8);
+        g.fillStyle(shieldRim, 1);
+        g.fillCircle(shX - 0.6, shY, 3.1);
+        g.fillStyle(shieldWood, 1);
+        g.fillCircle(shX - 0.6, shY, 2.4);
+        g.fillStyle(troopLevel >= 2 ? 0xdaa520 : 0x565b64, 1);
+        g.fillCircle(shX - 0.6, shY, 0.9);
+
+        // ---- head (after torso, under the sword arm)
+        TroopRenderer.hHead(g, skin, lift, troopLevel >= 2 ? undefined : 0x4a341f, lean * 0.7);
         if (troopLevel >= 2) {
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillRect(-4 + bodyLean, runBob - 8, 8, 1.5);
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillCircle(-9 + bodyLean, runBob + 1, 2);
+            // Steel half-helm with a nose bar.
+            const hx = lean * 0.7;
+            g.fillStyle(0x565b64, 1);
+            g.beginPath();
+            g.arc(hx, -7.4 - lift, 3.3, Math.PI, 0, false);
+            g.closePath();
+            g.fillPath();
+            g.fillStyle(0x8a8f99, 1);
+            g.beginPath();
+            g.arc(hx, -7.6 - lift, 2.7, Math.PI, 0, false);
+            g.closePath();
+            g.fillPath();
+            g.fillStyle(0x565b64, 1);
+            g.fillRect(hx - 0.7, -8 - lift, 1.4, 2.6);
+            if (troopLevel >= 3) {
+                // Gold band + a short crimson plume — accents, not masses.
+                g.fillStyle(0xdaa520, 1);
+                g.fillRect(hx - 3.2, -7.8 - lift, 6.4, 1);
+                g.fillStyle(0xa8322a, 1);
+                g.fillRect(hx - 0.6, -12.2 - lift, 1.2, 2.6);
+            }
         }
-        // L3: Brighter blade + gold guard + faint glow on shield
-        if (troopLevel >= 3) {
-            graphics.fillStyle(0xcccccc, 0.4);
-            graphics.fillCircle(-9 + bodyLean, runBob + 1, 5.5);
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillCircle(swordMidX, swordMidY, 2.5);
+
+        // ---- sword arm (right): hand orbits the shoulder, blade beyond it.
+        const sx = 2.8 + lean * 0.5;
+        const sy = -2.8 - lift;
+        const handA = 0.45 + (swordA + 0.5) * 0.75; // 0 = hanging straight down
+        const hx = sx + Math.sin(handA) * 3.6;
+        const hy = sy + Math.cos(handA) * 3.6;
+        TroopRenderer.hLimb(g, skin, sx, sy, hx, hy, 1.8);
+
+        const bs = Math.sin(swordA), bc = Math.cos(swordA);
+        // Grip (behind the hand)
+        g.fillStyle(0x3a2a15, 1);
+        g.fillRect(hx - bs * 1.3 - 0.7, hy + bc * 1.3 - 0.7, 1.4, 1.4);
+        // Crossguard
+        TroopRenderer.hLimb(g, troopLevel >= 3 ? 0xdaa520 : 0x6a6f78, hx - bc * 1.5, hy - bs * 1.5, hx + bc * 1.5, hy + bs * 1.5, 1.1);
+        // Blade: a tapering quad with a bright edge.
+        const tipX = hx + bs * 8.2;
+        const tipY = hy - bc * 8.2;
+        g.fillStyle(steel, 1);
+        g.beginPath();
+        g.moveTo(hx - bc * 1.05, hy - bs * 1.05);
+        g.lineTo(tipX, tipY);
+        g.lineTo(hx + bc * 1.05, hy + bs * 1.05);
+        g.closePath();
+        g.fillPath();
+        g.lineStyle(0.7, 0xf2f5f9, troopLevel >= 3 ? 0.9 : 0.75);
+        g.lineBetween(hx + bc * 0.3, hy + bs * 0.3, tipX, tipY);
+        // Fist over the grip
+        g.fillStyle(skin, 1);
+        g.fillCircle(hx, hy, 1.4);
+
+        // Motion arc while the cut sweeps through.
+        if (arcAlpha > 0) {
+            const a0 = -1.35 - Math.PI / 2;
+            const a1 = a0 + 2.65 * easeOut(arcSweep);
+            g.lineStyle(2.2, 0xf5f2e8, arcAlpha);
+            g.beginPath();
+            g.arc(hx, hy, 8.2, a0, a1, false);
+            g.strokePath();
         }
     }
 
-    private static drawArcher(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, facingAngle: number, troopLevel: number = 1) {
-        // HOODED ARCHER - Agile ranger with bow
-        const now = Date.now();
-        const runPhase = isMoving ? (now % 350) / 350 : 0;
-        const runBob = isMoving ? Math.sin(runPhase * Math.PI * 2) * 1.5 : 0;
-        const legKick = isMoving ? Math.sin(runPhase * Math.PI * 2) * 3 : 0;
+    // ============================ ARCHER ============================
+    // Hooded villager-scale ranger. Attack: nock + draw as the cooldown
+    // ends, loose exactly on the tick (string snaps home, arrow leaves).
+    private static drawArcher(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const rig = TroopRenderer.hRig(time, isMoving, 380, 2.4, 1);
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 900, 380, 150);
+        const lift = rig.lift;
 
-        const cloakColor = isPlayer ? 0x2e7d32 : 0xc62828;
-        const cloakDark = isPlayer ? 0x1b5e20 : 0x8e0000;
-        const skinColor = 0xdeb887;
-        const bowColor = 0x8b4513;
+        const cloak = isPlayer ? 0x2e7d32 : 0xa03028;
+        const cloakDark = isPlayer ? 0x1b5e20 : 0x6e211c;
+        const skin = 0xdeb887;
+        const fa = facingAngle || 0;
+        const ax = Math.cos(fa), ay = Math.sin(fa);
 
-        // Shadow
-        graphics.fillStyle(0x000000, 0.3);
-        graphics.fillEllipse(0, 7, 10, 5);
+        TroopRenderer.hShadow(g, 8.5);
+        TroopRenderer.hLegs(g, cloakDark, rig.swing, lift, 1.4);
 
-        // Legs (skinnier)
-        graphics.fillStyle(cloakDark, 1);
-        // Back leg
-        graphics.beginPath();
-        graphics.moveTo(-1, 1 + runBob);
-        graphics.lineTo(-2 - legKick, 7);
-        graphics.lineTo(-1 - legKick, 7);
-        graphics.lineTo(0, 1 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Front leg
-        graphics.beginPath();
-        graphics.moveTo(1, 1 + runBob);
-        graphics.lineTo(2 + legKick, 7);
-        graphics.lineTo(3 + legKick, 7);
-        graphics.lineTo(2, 1 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Feet
-        graphics.fillStyle(0x3a2a1a, 1);
-        graphics.fillEllipse(-1 - legKick, 8, 2, 1.5);
-        graphics.fillEllipse(2 + legKick, 8, 2, 1.5);
-
-        // Cloak body (skinnier)
-        graphics.fillStyle(cloakDark, 1);
-        graphics.fillCircle(0, -2 + runBob, 6);
-        graphics.fillStyle(cloakColor, 1);
-        graphics.fillCircle(0, -3 + runBob, 5);
-
-        // Bow - rotates based on facing angle
-        const bowAngle = facingAngle || 0;
-        const bowDist = 7;
-        const bowX = Math.cos(bowAngle) * bowDist;
-        const bowY = Math.sin(bowAngle) * bowDist * 0.5 - 5 + runBob;
-
-        // Bow arm
-        graphics.fillStyle(skinColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(0, -5 + runBob);
-        graphics.lineTo(bowX * 0.7, bowY + 3);
-        graphics.lineTo(bowX * 0.7 + 2, bowY + 3);
-        graphics.lineTo(2, -5 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Bow
-        graphics.lineStyle(3, bowColor, 1);
-        graphics.beginPath();
-        graphics.arc(bowX, bowY, 10, bowAngle - Math.PI / 2.5, bowAngle + Math.PI / 2.5);
-        graphics.strokePath();
-
-        // Bow string
-        graphics.lineStyle(1, 0xcccccc, 1);
-        const stringStart = { x: bowX + Math.cos(bowAngle - Math.PI / 2.5) * 10, y: bowY + Math.sin(bowAngle - Math.PI / 2.5) * 10 };
-        const stringEnd = { x: bowX + Math.cos(bowAngle + Math.PI / 2.5) * 10, y: bowY + Math.sin(bowAngle + Math.PI / 2.5) * 10 };
-        graphics.lineBetween(stringStart.x, stringStart.y, stringEnd.x, stringEnd.y);
-
-        // Quiver on back
-        graphics.fillStyle(0x5d4037, 1);
-        graphics.fillRect(-7, -8 + runBob, 4, 10);
-        // Arrows in quiver
-        graphics.fillStyle(0x8b7355, 1);
-        graphics.fillRect(-6, -12 + runBob, 1, 6);
-        graphics.fillRect(-5, -11 + runBob, 1, 5);
-
-        // Hood/Head (skinnier)
-        graphics.fillStyle(cloakDark, 1);
-        graphics.fillCircle(0, -9 + runBob, 4);
-        graphics.fillStyle(cloakColor, 1);
-        graphics.beginPath();
-        graphics.arc(0, -9 + runBob, 4, Math.PI * 0.8, Math.PI * 0.2, false);
-        graphics.closePath();
-        graphics.fillPath();
-        // Face shadow
-        graphics.fillStyle(0x000000, 0.4);
-        graphics.fillCircle(0, -8 + runBob, 2.5);
-        // Eyes
-        graphics.fillStyle(0xffffff, 0.8);
-        graphics.fillCircle(-1, -9 + runBob, 0.8);
-        graphics.fillCircle(1, -9 + runBob, 0.8);
-
-        // L2: Gold-tipped arrows in quiver + gold clasp on cloak
+        // Quiver rides the hip opposite the aim.
+        const qs = ax >= 0 ? -1 : 1;
+        TroopRenderer.hLimb(g, 0x5d4037, qs * 2.2, -2.6 - lift, qs * 4, -8.2 - lift, 2.4);
+        g.fillStyle(0x8b7355, 1);
+        g.fillRect(qs * 3.3 - 0.4, -10 - lift, 0.9, 2.2);
+        g.fillRect(qs * 4.1 - 0.4, -9.4 - lift, 0.9, 1.8);
         if (troopLevel >= 2) {
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillTriangle(-6, -12 + runBob, -6.5, -13.5 + runBob, -5.5, -13.5 + runBob);
-            graphics.fillTriangle(-5, -11 + runBob, -5.5, -12.5 + runBob, -4.5, -12.5 + runBob);
-            // Gold clasp at collar
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillCircle(0, -4 + runBob, 1.5);
+            g.fillStyle(0xdaa520, 1);
+            g.fillTriangle(qs * 2.9, -10.6 - lift, qs * 3.7, -10.6 - lift, qs * 3.3, -11.6 - lift);
+            g.fillTriangle(qs * 3.7, -10 - lift, qs * 4.5, -10 - lift, qs * 4.1, -11 - lift);
         }
-        // L3: Third gold arrow tip + glowing eyes (sharper vision)
+
+        TroopRenderer.hTorso(g, cloak, cloakDark, lift, 4);
+        if (troopLevel >= 2) {
+            g.fillStyle(0xdaa520, 1);
+            g.fillCircle(0, -3.4 - lift, 0.9); // cloak clasp
+        }
+
+        // Hooded head: dark cowl, shadowed face, two bright eyes.
+        g.fillStyle(cloakDark, 1);
+        g.fillCircle(0, -7 - lift, 3.2);
+        g.fillStyle(cloak, 1);
+        g.beginPath();
+        g.arc(0, -7.4 - lift, 3.2, Math.PI * 0.9, Math.PI * 0.1, false);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(0x140e08, 1);
+        g.fillCircle(ax * 0.6, -6.8 - lift, 2);
+        const eyeColor = troopLevel >= 3 ? 0x7dff9a : 0xffe9c4;
+        g.fillStyle(eyeColor, troopLevel >= 3 ? 0.95 : 0.85);
+        g.fillCircle(ax * 0.6 - 0.9, -7 - lift, 0.55);
+        g.fillCircle(ax * 0.6 + 0.9, -7 - lift, 0.55);
+
+        // ---- bow at arm's reach toward the aim.
+        const idleDrop = (!atk.inCombat && !isMoving) ? 1.6 : 0; // bow rests low out of combat
+        const bx = ax * (5.2 - idleDrop * 0.8);
+        const by = -4 - lift + ay * 2.6 + idleDrop;
+
+        // String pull: nocked at rest, drawn to the cheek on wind-up, snaps
+        // home (tiny overshoot) on the tick.
+        let pull = 1.1;
+        if (!isMoving && atk.inCombat) {
+            if (atk.windup > 0) pull = 1.1 + 3.9 * easeOut(atk.windup);
+            else if (atk.strike > 0) pull = 0.25 + 0.85 * (1 - atk.strike);
+        }
+
+        // Bow arm (front) — from the chest to the grip.
+        TroopRenderer.hLimb(g, skin, ax * 1.4, -3.4 - lift, bx, by, 1.7);
+
+        // Bow: simple circular limbs read cleanly at any aim.
+        const R = 5.2;
+        g.lineStyle(1.6, troopLevel >= 3 ? 0x8a5a28 : 0x7a4a26, 1);
+        g.beginPath();
+        g.arc(bx, by, R, fa - 1.22, fa + 1.22, false);
+        g.strokePath();
+        const t1x = bx + Math.cos(fa - 1.22) * R, t1y = by + Math.sin(fa - 1.22) * R;
+        const t2x = bx + Math.cos(fa + 1.22) * R, t2y = by + Math.sin(fa + 1.22) * R;
         if (troopLevel >= 3) {
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillTriangle(-7, -10 + runBob, -7.5, -11.5 + runBob, -6.5, -11.5 + runBob);
-            graphics.fillStyle(0x44ff44, 0.6);
-            graphics.fillCircle(-1, -9 + runBob, 1);
-            graphics.fillCircle(1, -9 + runBob, 1);
+            g.fillStyle(0xdaa520, 1);
+            g.fillCircle(t1x, t1y, 0.8);
+            g.fillCircle(t2x, t2y, 0.8);
+        }
+
+        // String through the nock point.
+        const nx = bx - ax * pull, ny = by - ay * pull;
+        g.lineStyle(0.8, 0xd8d3c4, 0.95);
+        g.lineBetween(t1x, t1y, nx, ny);
+        g.lineBetween(nx, ny, t2x, t2y);
+
+        // Arrow only while drawing (it leaves on the tick).
+        if (!isMoving && atk.inCombat && atk.windup > 0.12) {
+            const alen = 6.8;
+            g.lineStyle(1.1, 0x4a341f, 1);
+            g.lineBetween(nx, ny, nx + ax * alen, ny + ay * alen);
+            g.fillStyle(0xaab0ba, 1);
+            const hxp = nx + ax * (alen + 1.6), hyp = ny + ay * (alen + 1.6);
+            g.fillTriangle(hxp, hyp, nx + ax * alen - ay * 1.1, ny + ay * alen + ax * 1.1, nx + ax * alen + ay * 1.1, ny + ay * alen - ax * 1.1);
+            // Draw arm reaching to the nock.
+            TroopRenderer.hLimb(g, skin, -ax * 1.2, -3.6 - lift, nx, ny, 1.6);
+            g.fillStyle(skin, 1);
+            g.fillCircle(nx, ny, 1.1);
+        }
+        // Release flash: a tiny shiver at the bow as the string slaps home.
+        if (atk.strike > 0.55) {
+            g.lineStyle(1, 0xfffbe8, (atk.strike - 0.55) * 0.9);
+            g.lineBetween(bx - ay * 2.4, by + ax * 2.4, bx + ay * 2.4, by - ax * 2.4);
         }
     }
 
-    private static drawGiant(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, troopLevel: number = 1) {
-        // GIANT - Large muscular humanoid warrior with a wooden bat
-        const now = Date.now();
+    // ========================= SHARPSHOOTER =========================
+    // Elite marksman with a long musket (was an oversized archer). Walks at
+    // port arms; shoulders the piece as the cooldown ends; on the tick the
+    // hammer falls — flash, recoil kick and a drifting powder plume, all
+    // keyed to MUSKET_FIRE_MS so the ball leaves with the flash.
+    private static drawSharpshooter(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const rig = TroopRenderer.hRig(time, isMoving, 430, 2.2, 2);
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 1400, 420, 0);
+        const lift = rig.lift;
+        const FIRE = TroopRenderer.MUSKET_FIRE_MS;
 
-        // Heavy lumbering walk — alternating legs only, no body jerk
-        const walkPhase = isMoving ? (now % 1400) / 1400 : 0;
-        const stepCycle = isMoving ? Math.sin(walkPhase * Math.PI * 2) : 0;
-        const walkBob = isMoving ? Math.abs(stepCycle) * 1 : 0;
-        const leftLeg = isMoving ? stepCycle * 3 : 0;
-        const rightLeg = isMoving ? -stepCycle * 3 : 0;
-        const shoulderLean = 0; // no shoulder jerk
+        const coat = isPlayer ? 0x33691e : 0x5d4037;
+        const coatDark = isPlayer ? 0x1f4212 : 0x3e2c23;
+        const skin = 0xe8d4b8;
+        const fa = facingAngle || 0;
+        const ax = Math.cos(fa);
+        const ays = (d: number) => Math.sin(fa) * 0.5 * d; // iso squash along aim
 
-        // Attack animation — 2x speed swing in first half, idle in second half
-        // Slam lands near phase 0.95, damage fires at phase 1.0
-        const attackCycle = 3600; // must match attackDelay in GameDefinitions
-        const attackPhase = !isMoving ? (now % attackCycle) / attackCycle : 0;
-        let batAngle = -0.3; // resting on shoulder
-        let rightArmAngle = -0.3; // arm angle tracks bat
-        let bodyLean = 0;
-        if (!isMoving) {
-            if (attackPhase < 0.06) {
-                // Hold at ground (damage just fired)
-                batAngle = 1.6;
-                rightArmAngle = 0.6;
-                bodyLean = 4 * (1 - attackPhase / 0.06);
-            } else if (attackPhase < 0.15) {
-                // Return bat to shoulder
-                const t = (attackPhase - 0.06) / 0.09;
-                batAngle = 1.6 - 1.9 * t;
-                rightArmAngle = 0.6 - 0.9 * t;
-                bodyLean = 0;
-            } else if (attackPhase < 0.5) {
-                // Idle — bat resting on shoulder
-                batAngle = -0.3;
-                rightArmAngle = -0.3;
-                bodyLean = 0;
-            } else if (attackPhase < 0.78) {
-                // Windup — raise bat overhead, lean back
-                const t = (attackPhase - 0.5) / 0.28;
-                batAngle = -0.3 - 1.2 * t;
-                rightArmAngle = -0.3 - 0.6 * t;
-                bodyLean = -2 * t;
-            } else if (attackPhase < 0.92) {
-                // Fast slam down — club sweeps to near-horizontal
-                const t = (attackPhase - 0.78) / 0.14;
-                batAngle = -1.5 + 3.1 * t;
-                rightArmAngle = -0.9 + 1.5 * t;
-                bodyLean = -2 + 6 * t;
+        // Shoulder-raise: up during the wind-up, held through the shot,
+        // lowered back to port ~600ms after the tick.
+        let raise = 0;
+        if (!isMoving && atk.inCombat) {
+            if (atk.windup > 0) raise = easeOut(atk.windup);
+            else if (atk.age <= 620) raise = 1;
+            else if (atk.age <= 900) raise = 1 - easeIn((atk.age - 620) / 280);
+        }
+        // Recoil kick right after the ball leaves.
+        const sinceFire = atk.age - FIRE;
+        const kick = (raise > 0 && sinceFire >= 0 && sinceFire < 260) ? Math.exp(-sinceFire / 70) * 1.8 : 0;
+
+        TroopRenderer.hShadow(g, 9);
+        TroopRenderer.hLegs(g, coatDark, rig.swing, lift, 1.6);
+
+        // Long coat tail (a small trapezoid behind the legs).
+        g.fillStyle(coatDark, 1);
+        g.beginPath();
+        g.moveTo(-3.4, 1.5 - lift);
+        g.lineTo(3.4, 1.5 - lift);
+        g.lineTo(2.6 - rig.swing * 0.4, 6.5);
+        g.lineTo(-2.6 - rig.swing * 0.4, 6.5);
+        g.closePath();
+        g.fillPath();
+
+        const lean = raise * ax * 0.7 - kick * ax * 0.5;
+        TroopRenderer.hTorso(g, coat, coatDark, lift, 4.1, lean);
+        // Powder horn strap
+        g.lineStyle(1, 0x4a341f, 0.9);
+        g.lineBetween(-2.4 + lean, -3.8 - lift, 2.6 + lean, 0.6 - lift);
+
+        // Head: cheek drops toward the stock when aiming.
+        const hx = lean + raise * ax * 0.6;
+        TroopRenderer.hHead(g, skin, lift + raise * 0.4, undefined, hx);
+        // Flat-brim marksman hat.
+        g.fillStyle(0x3e2c23, 1);
+        g.fillEllipse(hx, -9 - lift + raise * 0.4, 7.6, 2);
+        g.beginPath();
+        g.arc(hx, -9.2 - lift + raise * 0.4, 2.6, Math.PI, 0, false);
+        g.closePath();
+        g.fillPath();
+        if (troopLevel >= 2) {
+            g.fillStyle(0xdaa520, 1);
+            g.fillRect(hx - 2.4, -9.6 - lift + raise * 0.4, 4.8, 0.9);
+        }
+        if (troopLevel >= 3) {
+            // White feather plume — a subtle accent.
+            g.fillStyle(0xe8e4da, 0.95);
+            g.fillTriangle(hx + 1.8, -10 - lift, hx + 4.6, -13.2 - lift, hx + 2.8, -9.6 - lift);
+        }
+
+        // ---- musket: interpolate port-arms → shouldered along the aim.
+        const barrelLen = troopLevel >= 3 ? 12 : 10.8;
+        // Port pose endpoints (fixed diagonal across the body)
+        const pBx = -2.6, pBy = 1 - lift, pMx = 3.4, pMy = -7.8 - lift;
+        // Shouldered pose endpoints (along facing, butt at the shoulder)
+        const sBx = -ax * 2.2 - kick * ax, sBy = -6.4 - lift + ays(-2.2) + 0.7;
+        const sMx = ax * barrelLen - kick * ax, sMy = -7 - lift + ays(barrelLen) - kick * 0.15;
+        const bxp = pBx + (sBx - pBx) * raise, byp = pBy + (sBy - pBy) * raise;
+        const mxp = pMx + (sMx - pMx) * raise, myp = pMy + (sMy - pMy) * raise;
+
+        // Wood stock: the back 40% of the piece, thicker.
+        const stX = bxp + (mxp - bxp) * 0.38, stY = byp + (myp - byp) * 0.38;
+        TroopRenderer.hLimb(g, 0x5d4037, bxp, byp, stX, stY, 2.5);
+        // Barrel
+        TroopRenderer.hLimb(g, 0x757b85, stX, stY, mxp, myp, 1.4);
+        g.fillStyle(0x2a2d33, 1);
+        g.fillCircle(mxp, myp, 0.9);
+        if (troopLevel >= 2) {
+            g.fillStyle(0xdaa520, 1);
+            const b1x = bxp + (mxp - bxp) * 0.55, b1y = byp + (myp - byp) * 0.55;
+            g.fillCircle(b1x, b1y, 1);
+        }
+        // Hands: trigger hand at the stock, support hand up the barrel.
+        TroopRenderer.hLimb(g, skin, lean + 2.4, -2.8 - lift, stX, stY, 1.7);
+        const supX = bxp + (mxp - bxp) * 0.62, supY = byp + (myp - byp) * 0.62;
+        TroopRenderer.hLimb(g, skin, lean - 1.8, -2.6 - lift, supX, supY, 1.7);
+        g.fillStyle(skin, 1);
+        g.fillCircle(stX, stY, 1.2);
+        g.fillCircle(supX, supY, 1.2);
+
+        // ---- the shot: flash + powder smoke, keyed to MUSKET_FIRE_MS.
+        if (raise > 0.9 && sinceFire >= 0) {
+            if (sinceFire < 85) {
+                const fl = 1 - sinceFire / 85;
+                g.fillStyle(0xffd27a, 0.75 * fl);
+                g.fillCircle(mxp + ax * 1.4, myp + ays(1.4), 2.6);
+                g.fillStyle(0xfff3d0, 0.9 * fl);
+                for (let i = 0; i < 4; i++) {
+                    const sa = fa + (i - 1.5) * 0.5;
+                    g.fillTriangle(
+                        mxp + ax * 0.8, myp + ays(0.8),
+                        mxp + Math.cos(sa) * 4.4, myp + Math.sin(sa) * 0.5 * 4.4 - 0.4,
+                        mxp + Math.cos(sa + 0.16) * 2.2, myp + Math.sin(sa + 0.16) * 0.5 * 2.2
+                    );
+                }
+            }
+            // Powder plume: puffs rolling out of the muzzle, drifting up.
+            for (let i = 0; i < 4; i++) {
+                const p = clamp01((sinceFire - i * 80) / 640);
+                if (p > 0 && p < 1) {
+                    g.fillStyle(0xd9d4c8, 0.5 * (1 - p));
+                    g.fillCircle(
+                        mxp + ax * (1.6 + p * 8 + i * 1.2) - Math.sin(fa) * (i - 1.5) * 0.8,
+                        myp + ays(1.6 + p * 8) - p * (5 + i * 1.4),
+                        1.5 + p * 3.4
+                    );
+                }
+            }
+        }
+    }
+
+    // =========================== STORM MAGE ===========================
+    // Robed villager-scale caster. Attack: both hands raise the staff as
+    // the charge builds (motes spiral in), then a glyph ring flashes over
+    // the crystal exactly on the tick while the chain lightning fires.
+    private static drawStormMage(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const rig = TroopRenderer.hRig(time, isMoving, 480, 1.8, 3);
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 1700, 620, 380);
+        const lift = rig.lift;
+
+        const robe = isPlayer ? 0x3344aa : 0x8e2a26;
+        const robeDark = isPlayer ? 0x232b77 : 0x5e1a17;
+        const skin = isPlayer ? 0xdeb887 : 0xc9a66b;
+        const glow = 0x9fd8ff;
+        const wu = (!isMoving && atk.inCombat) ? atk.windup : 0;
+        const st = (!isMoving && atk.inCombat) ? atk.strike : 0;
+
+        TroopRenderer.hShadow(g, 9);
+
+        // Robe skirt (no visible legs) with a hem that sways on the march.
+        const hem = isMoving ? rig.swing * 0.5 : 0;
+        g.fillStyle(robeDark, 1);
+        g.beginPath();
+        g.moveTo(-3.6, 0.8 - lift * 0.5);
+        g.lineTo(3.6, 0.8 - lift * 0.5);
+        g.lineTo(4.4 + hem, 9.4);
+        g.lineTo(-4.4 + hem, 9.4);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(robe, 1);
+        g.beginPath();
+        g.moveTo(-3, 0.8 - lift * 0.5);
+        g.lineTo(3, 0.8 - lift * 0.5);
+        g.lineTo(3.6 + hem, 8.6);
+        g.lineTo(-3.6 + hem, 8.6);
+        g.closePath();
+        g.fillPath();
+        if (troopLevel >= 2) {
+            g.lineStyle(0.9, 0xdaa520, 0.85);
+            g.lineBetween(-3.9 + hem, 8.9, 3.9 + hem, 8.9);
+        }
+
+        TroopRenderer.hTorso(g, robe, robeDark, lift, 3.9);
+        // Gold sash
+        g.fillStyle(0xc9a227, 1);
+        g.fillRect(-3.2, 0.4 - lift, 6.4, 1.3);
+
+        // Head + pointed hat (tip sways with the stride / the breath).
+        TroopRenderer.hHead(g, skin, lift);
+        g.fillStyle(0x2a3a8a, 1);
+        g.fillCircle(-1.1, -7 - lift, 0.7);
+        g.fillCircle(1.1, -7 - lift, 0.7);
+        const tipSway = isMoving ? rig.swing * 0.5 : rig.breathe * 0.4;
+        g.fillStyle(robeDark, 1);
+        g.fillEllipse(0, -8.9 - lift, 8.6, 2.4);
+        g.fillStyle(robe, 1);
+        g.fillTriangle(-3.1, -9.1 - lift, 3.1, -9.1 - lift, tipSway, -14.6 - lift);
+        g.fillStyle(robeDark, 1);
+        g.fillTriangle(-1.1, -11.4 - lift, 1.9, -11.4 - lift, tipSway, -14.6 - lift);
+        if (troopLevel >= 2) {
+            // Small gold star on the cone.
+            g.fillStyle(0xffd700, 0.95);
+            g.fillTriangle(-0.9, -10.6 - lift, 0.9, -10.6 - lift, 0, -12.2 - lift);
+            g.fillTriangle(-0.9, -11.6 - lift, 0.9, -11.6 - lift, 0, -10 - lift);
+        }
+        if (troopLevel >= 3) {
+            g.lineStyle(0.9, 0xc9ccd4, 0.9);
+            g.lineBetween(-3.1, -9.4 - lift, 3.1, -9.4 - lift);
+        }
+
+        // ---- staff: planted at rest, raised two-handed to cast.
+        const plant = isMoving ? Math.max(0, Math.sin(rig.ph * Math.PI * 2)) * 1 : 0;
+        const stfX = 4.6 - 1.1 * wu + (isMoving ? rig.swing * 0.35 : 0);
+        const stfTop = -11.5 - lift - 3.4 * wu - plant * 0.4;
+        const stfBot = 8.2 - lift * 0.5 - 3.4 * wu - plant;
+        g.lineStyle(1.5, 0x5d4e37, 1);
+        g.lineBetween(stfX, stfTop, stfX, stfBot);
+        // Casting hand on the staff; free hand rises with the charge.
+        TroopRenderer.hLimb(g, robe, 2.6, -2.6 - lift, stfX, -3.4 - lift - 2.4 * wu, 1.8);
+        g.fillStyle(skin, 1);
+        g.fillCircle(stfX, -3.4 - lift - 2.4 * wu, 1.1);
+        const palmX = -4.4 - 1.4 * wu, palmY = -3.6 - lift - 2.6 * wu;
+        TroopRenderer.hLimb(g, robe, -2.4, -2.4 - lift, palmX, palmY, 1.8);
+        g.fillStyle(skin, 1);
+        g.fillCircle(palmX, palmY, 1.1);
+
+        // Crystal + charge glow.
+        const cX = stfX, cY = stfTop - 1.6;
+        const pulse = 0.75 + Math.sin(time / 300) * 0.15;
+        g.fillStyle(glow, (0.18 + 0.3 * wu) * pulse);
+        g.fillCircle(cX, cY, 2.6 + 2.6 * wu);
+        g.fillStyle(0x59c8ff, 0.95);
+        g.fillCircle(cX, cY, 1.7);
+        g.fillStyle(0xffffff, 0.85);
+        g.fillCircle(cX - 0.5, cY - 0.5, 0.7);
+
+        // Charge motes spiral INTO the crystal during the wind-up.
+        if (wu > 0.05) {
+            for (let i = 0; i < 2; i++) {
+                const ma = time / 130 + i * Math.PI;
+                const mr = (1 - wu) * 7 + 2.2;
+                g.fillStyle(glow, 0.35 + 0.45 * wu);
+                g.fillCircle(cX + Math.cos(ma) * mr, cY + Math.sin(ma) * mr * 0.6, 1);
+            }
+            g.fillStyle(glow, 0.5 * wu);
+            g.fillCircle(palmX, palmY - 1.2, 1.3);
+        }
+
+        // GLYPH FLASH on the tick: rune ring + orbiting dots + two jags.
+        if (st > 0) {
+            const gy = cY - 3.4;
+            g.lineStyle(1.1, glow, 0.85 * st);
+            g.strokeCircle(cX, gy, 4.2);
+            g.lineStyle(0.8, 0xffffff, 0.6 * st);
+            g.strokeCircle(cX, gy, 2.5);
+            for (let i = 0; i < 3; i++) {
+                const da = atk.age / 110 + i * 2.094;
+                g.fillStyle(0xdff2ff, 0.9 * st);
+                g.fillCircle(cX + Math.cos(da) * 3.3, gy + Math.sin(da) * 3.3, 0.7);
+            }
+            g.lineStyle(1, 0xffffff, 0.8 * st);
+            g.beginPath();
+            g.moveTo(cX, cY);
+            g.lineTo(cX + 2.4, cY - 2.6);
+            g.lineTo(cX + 1.6, cY - 4.4);
+            g.strokePath();
+            g.beginPath();
+            g.moveTo(cX, cY);
+            g.lineTo(cX - 2.6, cY - 2);
+            g.lineTo(cX - 1.8, cY - 4);
+            g.strokePath();
+            g.fillStyle(0xffffff, 0.7 * st);
+            g.fillCircle(cX, cY, 1.9);
+        }
+
+        // Ambient: one lazy mote orbiting the crystal when nothing else is on.
+        if (wu === 0 && st === 0) {
+            const ma = time / 700;
+            g.fillStyle(glow, 0.3 + Math.max(0, rig.breathe) * 0.15);
+            g.fillCircle(cX + Math.cos(ma) * 3.6, cY + Math.sin(ma) * 2.2, 0.8);
+        }
+        // L3: a thin arc crackles between hat tip and crystal at full charge.
+        if (troopLevel >= 3 && wu > 0.5) {
+            g.lineStyle(0.8, glow, 0.35 * wu);
+            g.lineBetween(tipSway, -14.6 - lift, cX, cY);
+        }
+    }
+
+    // ============================= WARD =============================
+    // The healer. Keeps its heal-radius aura (gameplay info); the figure is
+    // a villager-scale hooded acolyte with an orb staff. Heal ticks raise
+    // the free palm and send motes up; the orb flashes on the tick.
+    private static drawWard(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const rig = TroopRenderer.hRig(time, isMoving, 520, 1.6, 4);
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 1000, 420, 300);
+        const lift = rig.lift;
+
+        const glow = isPlayer ? 0x58d68d : 0x45b39d;
+        const robe = isPlayer ? 0x2ecc71 : 0x27ae60;
+        const robeDark = isPlayer ? 0x1e8449 : 0x196f3d;
+        const skin = isPlayer ? 0xdeb887 : 0xc9a66b;
+        const wu = (!isMoving && atk.inCombat) ? atk.windup : 0;
+        const st = (!isMoving && atk.inCombat) ? atk.strike : 0;
+
+        // Heal-radius aura (kept: it communicates the heal range).
+        const healRadiusPixels = 7 * 32;
+        const pulseAlpha = 0.1 + Math.sin(time / 300) * 0.05;
+        g.lineStyle(3, glow, pulseAlpha + 0.15);
+        g.beginPath();
+        const segments = 48;
+        for (let i = 0; i <= segments; i++) {
+            const theta = (i / segments) * Math.PI * 2;
+            const noise = Math.sin(time / 25 + theta * 3) * 4 +
+                Math.sin(time / 37 + theta * 7) * 2 +
+                Math.sin(time / 20 + theta * 11) * 1.5;
+            const rx = (healRadiusPixels + noise) * Math.cos(theta);
+            const ry = ((healRadiusPixels / 2) + noise * 0.5) * Math.sin(theta);
+            if (i === 0) g.moveTo(rx, 5 + ry);
+            else g.lineTo(rx, 5 + ry);
+        }
+        g.closePath();
+        g.strokePath();
+        g.fillStyle(glow, pulseAlpha * 0.25);
+        g.fillEllipse(0, 5, healRadiusPixels, healRadiusPixels / 2);
+
+        TroopRenderer.hShadow(g, 9);
+
+        // Robe skirt.
+        const hem = isMoving ? rig.swing * 0.45 : 0;
+        g.fillStyle(robeDark, 1);
+        g.beginPath();
+        g.moveTo(-3.5, 0.8 - lift * 0.5);
+        g.lineTo(3.5, 0.8 - lift * 0.5);
+        g.lineTo(4.3 + hem, 9.4);
+        g.lineTo(-4.3 + hem, 9.4);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(robe, 1);
+        g.beginPath();
+        g.moveTo(-2.9, 0.8 - lift * 0.5);
+        g.lineTo(2.9, 0.8 - lift * 0.5);
+        g.lineTo(3.5 + hem, 8.6);
+        g.lineTo(-3.5 + hem, 8.6);
+        g.closePath();
+        g.fillPath();
+        if (troopLevel >= 2) {
+            g.lineStyle(0.9, 0xdaa520, 0.8);
+            g.lineBetween(-3.8 + hem, 8.9, 3.8 + hem, 8.9);
+        }
+
+        TroopRenderer.hTorso(g, robe, robeDark, lift, 3.9);
+
+        // Hooded head with an open face.
+        g.fillStyle(robeDark, 1);
+        g.fillCircle(0, -7.2 - lift, 3.2);
+        g.fillStyle(skin, 1);
+        g.fillCircle(0, -6.8 - lift, 2.3);
+        g.fillStyle(robe, 1);
+        g.beginPath();
+        g.arc(0, -7.6 - lift, 3, Math.PI * 0.85, Math.PI * 0.15, false);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(0x2a5a1a, 1);
+        g.fillCircle(-1, -6.8 - lift, 0.65);
+        g.fillCircle(1, -6.8 - lift, 0.65);
+
+        // Staff with the healing orb.
+        const stfX = 4.6 + (isMoving ? rig.swing * 0.3 : 0);
+        g.lineStyle(1.5, 0x5d4e37, 1);
+        g.lineBetween(stfX, -10.5 - lift, stfX, 8.2 - lift * 0.5);
+        TroopRenderer.hLimb(g, robe, 2.6, -2.6 - lift, stfX, -3 - lift, 1.8);
+        g.fillStyle(skin, 1);
+        g.fillCircle(stfX, -3 - lift, 1.1);
+
+        const orbY = -12.2 - lift;
+        const orbPulse = 0.75 + Math.sin(time / 260) * 0.15;
+        g.fillStyle(0x88ffcc, orbPulse * (0.75 + 0.25 * st));
+        g.fillCircle(stfX, orbY, 2.1 + 0.6 * st);
+        g.fillStyle(0xffffff, 0.55 + 0.35 * st);
+        g.fillCircle(stfX - 0.6, orbY - 0.6, 0.8);
+        g.lineStyle(1, 0xaaffdd, 0.35 + 0.3 * st);
+        g.strokeCircle(stfX, orbY, 3.6 + st);
+        if (troopLevel >= 2) {
+            g.lineStyle(0.8, 0xffd700, 0.45);
+            g.strokeCircle(stfX, orbY, 3);
+        }
+        if (troopLevel >= 3) {
+            g.lineStyle(0.7, glow, 0.3);
+            g.strokeCircle(stfX, orbY, 4.6 + st * 0.6);
+            g.fillStyle(0xffffff, 0.35);
+            g.fillCircle(stfX, orbY, 1.2);
+        }
+
+        // Free palm: raised while the blessing gathers, motes rise on the tick.
+        const palmX = -4.4 - wu, palmY = -4 - lift - 1.8 * wu;
+        TroopRenderer.hLimb(g, robe, -2.4, -2.4 - lift, palmX, palmY, 1.8);
+        g.fillStyle(skin, 1);
+        g.fillCircle(palmX, palmY, 1.1);
+        if (wu > 0.1) {
+            g.fillStyle(glow, 0.5 * wu);
+            g.fillCircle(palmX, palmY - 1.4, 1.2);
+        }
+        if (st > 0) {
+            for (let i = 0; i < 3; i++) {
+                const p = clamp01(atk.age / 300 + i * 0.12);
+                if (p < 1) {
+                    g.fillStyle(glow, 0.7 * (1 - p));
+                    g.fillCircle(palmX - 2 + i * 2, palmY - p * 6 - 1, 1);
+                }
+            }
+        }
+        // Ambient: two soft motes drifting around her when idle.
+        if (!isMoving && wu === 0 && st === 0) {
+            for (let i = 0; i < 2; i++) {
+                const ma = time / 480 + i * Math.PI;
+                g.fillStyle(glow, 0.28);
+                g.fillCircle(Math.cos(ma) * 5.4, -3 + Math.sin(ma) * 2.6, 0.9);
+            }
+        }
+    }
+
+    // ========================== WALL BREAKER ==========================
+    // A small, very determined person carrying a lit powder keg overhead.
+    private static drawWallBreaker(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const rig = TroopRenderer.hRig(time, isMoving, 260, 2.6, 5);
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 500, 240, 0);
+        const lift = rig.lift;
+        const lean = isMoving ? 1.1 : 0; // sprints hunched forward
+        const brace = (!isMoving && atk.inCombat) ? atk.windup : 0;
+
+        const skin = isPlayer ? 0xdeb887 : 0xc9a66b;
+        const shirt = isPlayer ? 0x885533 : 0x664422;
+        const shirtDark = isPlayer ? 0x5e3a22 : 0x47301a;
+
+        TroopRenderer.hShadow(g, 8.5);
+        TroopRenderer.hLegs(g, shirtDark, rig.swing, lift, 1.5);
+        TroopRenderer.hTorso(g, shirt, shirtDark, lift + brace * -1, 3.7, lean);
+
+        // Head tucked between the raised arms.
+        TroopRenderer.hHead(g, skin, lift - 0.4 + brace * -1, undefined, lean);
+        g.fillStyle(0x140e08, 0.85);
+        g.fillCircle(lean - 1, -6.6 - lift, 0.6);
+        g.fillCircle(lean + 1, -6.6 - lift, 0.6);
+        g.fillStyle(troopLevel >= 2 ? 0xdaa520 : 0xcc3333, 1);
+        g.fillRect(lean - 2.7, -8.6 - lift, 5.4, 1.4);
+
+        // Arms straight up, holding the keg.
+        const armBob = isMoving ? rig.swing * 0.35 : 0;
+        const kegY = -12.6 - lift + armBob * 0.4 - brace * 2;
+        TroopRenderer.hLimb(g, skin, lean - 2.4, -2.8 - lift, lean - 2.7, kegY + 3.4, 1.7);
+        TroopRenderer.hLimb(g, skin, lean + 2.4, -2.8 - lift, lean + 2.7, kegY + 3.4, 1.7);
+
+        // The keg.
+        g.fillStyle(0x4a2f16, 1);
+        g.fillEllipse(lean, kegY, 11, 7.4);
+        g.fillStyle(0x5f3d1e, 1);
+        g.fillEllipse(lean, kegY - 0.6, 9.2, 5.6);
+        g.lineStyle(1.1, troopLevel >= 2 ? 0xdaa520 : 0x565b64, 0.9);
+        g.strokeEllipse(lean, kegY, 11, 7.4);
+        g.lineStyle(0.8, 0x3a2512, 0.7);
+        g.lineBetween(lean - 2.4, kegY - 3.4, lean - 2.4, kegY + 3.4);
+        g.lineBetween(lean + 2.4, kegY - 3.4, lean + 2.4, kegY + 3.4);
+        if (troopLevel >= 3) {
+            // Pale skull stencil.
+            g.fillStyle(0xddd8cc, 0.75);
+            g.fillCircle(lean, kegY - 0.4, 1.7);
+            g.fillStyle(0x1a1208, 0.9);
+            g.fillCircle(lean - 0.6, kegY - 0.7, 0.45);
+            g.fillCircle(lean + 0.6, kegY - 0.7, 0.45);
+        }
+        // Hands gripping the rim.
+        g.fillStyle(skin, 1);
+        g.fillCircle(lean - 2.7, kegY + 3.2, 1.2);
+        g.fillCircle(lean + 2.7, kegY + 3.2, 1.2);
+
+        // The fuse — always burning, frantic when he's about to blow.
+        const fx = lean + 1.4, fy = kegY - 3.4;
+        g.lineStyle(1.1, 0x3a3a2a, 1);
+        g.lineBetween(fx, fy, fx + 1.2, fy - 2.2);
+        const rate = brace > 0 ? 45 : 90;
+        const sp = 0.6 + Math.sin(time / rate) * 0.4;
+        g.fillStyle(0xffaa00, 0.5 + sp * 0.5);
+        g.fillCircle(fx + 1.2, fy - 2.4, 1.3 + sp * 0.5 + brace);
+        g.fillStyle(0xff4400, 0.4 + sp * 0.4);
+        g.fillCircle(fx + 1.2, fy - 2.4, 0.7 + brace * 0.6);
+        if (brace > 0.3) {
+            for (let i = 0; i < 3; i++) {
+                const sa = time / 50 + i * 2.1;
+                g.fillStyle(0xffd27a, 0.6 * brace);
+                g.fillCircle(fx + 1.2 + Math.cos(sa) * 2.2, fy - 2.4 + Math.sin(sa) * 1.6, 0.5);
+            }
+        }
+    }
+
+    // ============================= GIANT =============================
+    // Redesigned from scratch. A knuckle-dragging wall of a man about twice
+    // a villager tall: barrel chest, boulder shoulders, long heavy arms,
+    // small bald head sunk low. Walk is slow and weighty; the attack is a
+    // two-fisted overhead slam — arms climb through the wind-up, hang for a
+    // beat, crash down exactly on the damage tick, dust shock rolls out,
+    // then he slowly straightens back up.
+    private static drawGiant(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 3600, 950, 550);
+
+        const skin = isPlayer ? 0xd9a36a : 0xbb8f60;
+        const skinDark = isPlayer ? 0xb9854e : 0x9f7748;
+        const pants = isPlayer ? 0x5a4632 : 0x4a3a2a;
+        const pantsDark = isPlayer ? 0x453525 : 0x382c1f;
+        const rope = 0x8a6438;
+
+        // ---- gait / breath
+        let lift = 0;        // body rise
+        let legSwing = 0;
+        let armSwing = 0;
+        let roll = 0;        // shoulder-line tilt while lumbering
+        if (isMoving) {
+            const ph = (time % 1300) / 1300;
+            const s = Math.sin(ph * Math.PI * 2);
+            lift = Math.pow(Math.abs(s), 0.7) * 1.8;
+            legSwing = s * 3.2;
+            armSwing = -s * 2.4;
+            roll = Math.sin(ph * Math.PI * 2) * 0.8;
+        } else {
+            const period = atk.inCombat ? 280 : 450; // breathes harder mid-fight
+            lift = Math.max(0, Math.sin(time / period)) * 0.7;
+        }
+
+        // ---- attack pose: armT 0 = hanging, 1 = overhead, then slammed to
+        // the ground. stretch/crunch move the torso with the arms.
+        let armT = 0;
+        let slam = 0;       // 0..1 fists driven into the ground
+        let recover = -1;   // 0..1 straightening out of the slam (-1 = not recovering)
+        let stretch = 0;    // torso reaches up during the wind-up
+        let crunch = 0;     // torso drops into the impact
+        if (!isMoving && atk.inCombat) {
+            const W = atk.windup;
+            if (W > 0) {
+                if (W < 0.8) {
+                    armT = easeOut(W / 0.8);            // arms climb overhead
+                    stretch = armT;
+                } else if (W < 0.905) {
+                    armT = 1;                            // a held beat at the top
+                    stretch = 1;
+                } else {
+                    const s = easeIn((W - 0.905) / 0.095); // the drop — fast
+                    armT = 1;
+                    slam = s;
+                    stretch = 1 - s;
+                    crunch = s;
+                }
+            } else if (atk.age <= 620) {
+                armT = 1; slam = 1; crunch = 1;          // fists in the dirt
+            } else if (atk.age <= 1400) {
+                const t = easeOut((atk.age - 620) / 780); // slow straighten
+                recover = t; armT = 1 - t; crunch = 1 - t;
+            }
+        }
+
+        const shoulderY = -13 - lift - stretch * 2.5 + crunch * 4.5;
+        const leanX = crunch * 2 - stretch * 1.2;
+
+        // ---- shadow (bigger while the fists are airborne overhead)
+        g.fillStyle(0x000000, 0.3);
+        g.fillEllipse(0, 13.5, 26 + stretch * 2, 9.5);
+
+        // ---- legs: thick trapezoids, wide stance, big flat feet.
+        const legs: Array<[number, number]> = [[-1, legSwing], [1, -legSwing]];
+        for (const [side, sw] of legs) {
+            g.fillStyle(side < 0 ? pantsDark : pants, 1);
+            g.beginPath();
+            g.moveTo(side * 7.6, 2 - lift * 0.5);
+            g.lineTo(side * 3.4, 2.5 - lift * 0.5);
+            g.lineTo(side * 4.2 + sw, 12);
+            g.lineTo(side * 8.4 + sw, 11.4);
+            g.closePath();
+            g.fillPath();
+            // knee wrap
+            g.lineStyle(1, 0x3a2c1d, 0.75);
+            g.lineBetween(side * 6.6 + sw * 0.55, 7, side * 3.9 + sw * 0.55, 7.3);
+            // foot
+            g.fillStyle(0x33261a, 1);
+            g.fillEllipse(side * 6.3 + sw, 12.6, 7, 2.8);
+        }
+
+        // ---- torso: broad trapezoid, belly, pec shading.
+        g.fillStyle(skin, 1);
+        g.beginPath();
+        g.moveTo(-10.5 + leanX * 0.6 - roll * 0.4, shoulderY - roll);
+        g.lineTo(10.5 + leanX * 0.6 + roll * 0.4, shoulderY + roll);
+        g.lineTo(6.6 + leanX * 0.2, 3.6 - lift * 0.5);
+        g.lineTo(-6.6 + leanX * 0.2, 3.6 - lift * 0.5);
+        g.closePath();
+        g.fillPath();
+        // SE shade plane (light from the NW)
+        g.fillStyle(skinDark, 0.55);
+        g.beginPath();
+        g.moveTo(10.5 + leanX * 0.6 + roll * 0.4, shoulderY + roll);
+        g.lineTo(6.6 + leanX * 0.2, 3.6 - lift * 0.5);
+        g.lineTo(2.6 + leanX * 0.2, 3.6 - lift * 0.5);
+        g.lineTo(6.2 + leanX * 0.6, shoulderY + roll * 0.6);
+        g.closePath();
+        g.fillPath();
+        // Belly + crease
+        g.fillStyle(skin, 1);
+        g.fillCircle(leanX * 0.3, 0.6 - lift * 0.4, 4.8);
+        g.lineStyle(1, skinDark, 0.6);
+        g.beginPath();
+        g.arc(leanX * 0.3, -0.2 - lift * 0.4, 4.2, 0.35, Math.PI - 0.35, false);
+        g.strokePath();
+        // Pecs
+        g.lineStyle(1, skinDark, 0.5);
+        g.beginPath();
+        g.arc(-3.6 + leanX * 0.5, shoulderY + 5.4, 3, 0.25, Math.PI * 0.75, false);
+        g.strokePath();
+        g.beginPath();
+        g.arc(3.6 + leanX * 0.5, shoulderY + 5.4, 3, Math.PI * 0.25, Math.PI * 0.75, false);
+        g.strokePath();
+
+        // Rope belt + knot.
+        g.fillStyle(rope, 1);
+        g.fillRect(-7 + leanX * 0.2, 2 - lift * 0.5, 14, 2.2);
+        g.fillCircle(leanX * 0.2 + 2.4, 3 - lift * 0.5, 1.5);
+        if (troopLevel >= 3) {
+            g.fillStyle(0xdaa520, 1);
+            g.fillRect(leanX * 0.2 - 1.6, 2.2 - lift * 0.5, 3.2, 1.8);
+        }
+
+        // ---- arms: shoulder → (bezier) fist, with an elbow bulge.
+        // Fist anchors for the three key poses:
+        const hangY = 7 - lift * 0.6;
+        for (const side of [-1, 1]) {
+            const sx = side * 9 + leanX * 0.7;
+            const sy = shoulderY + 1 + roll * side;
+            // hang → overhead (big outward arc), overhead → ground (inner fast)
+            const hx0 = side * 12.5 + (isMoving ? armSwing * side : 0);
+            const hy0 = hangY;
+            const ox = side * 4.6 + leanX;
+            const oy = shoulderY - 13.5;
+            const gx = side * 7 + leanX;
+            const gy = 9.8;
+            let fx: number, fy: number;
+            if (recover >= 0) {
+                // Straighten: knuckles drag out of the dirt and swing directly
+                // back to the hang — never retracing the overhead arc.
+                const t = recover;
+                const cx = side * 14, cy = 10.5; // low outward control — fists stay heavy
+                fx = (1 - t) * (1 - t) * gx + 2 * (1 - t) * t * cx + t * t * hx0;
+                fy = (1 - t) * (1 - t) * gy + 2 * (1 - t) * t * cy + t * t * hy0;
+            } else if (slam > 0) {
+                const t = slam;
+                const cx = side * 10 + leanX, cy = -6; // inner control point
+                fx = (1 - t) * (1 - t) * ox + 2 * (1 - t) * t * cx + t * t * gx;
+                fy = (1 - t) * (1 - t) * oy + 2 * (1 - t) * t * cy + t * t * gy;
             } else {
-                // Hold at ground — club parallel, waiting for damage
-                batAngle = 1.6;
-                rightArmAngle = 0.6;
-                bodyLean = 4;
+                const t = armT;
+                const cx = side * 16.5, cy = shoulderY - 5; // outward control point
+                fx = (1 - t) * (1 - t) * hx0 + 2 * (1 - t) * t * cx + t * t * ox;
+                fy = (1 - t) * (1 - t) * hy0 + 2 * (1 - t) * t * cy + t * t * oy;
+            }
+            // Elbow bows outward from the straight line.
+            const mx = (sx + fx) / 2 + side * 2.6 * (1 - armT * 0.55);
+            const my = (sy + fy) / 2 + (0.8 - 1.8 * armT);
+            TroopRenderer.hLimb(g, skin, sx, sy, mx, my, 4.4);
+            TroopRenderer.hLimb(g, skin, mx, my, fx, fy, 3.7);
+            // Wrist wrap
+            const wx = mx + (fx - mx) * 0.72, wy = my + (fy - my) * 0.72;
+            TroopRenderer.hLimb(g, rope, wx - 1.4, wy - 1, wx + 1.4, wy + 1, 2.6);
+            // Fist
+            g.fillStyle(skinDark, 1);
+            g.fillCircle(fx, fy, 3.8);
+            g.fillStyle(skin, 1);
+            g.fillCircle(fx - side * 0.7, fy - 0.8, 3);
+            g.fillStyle(skinDark, 0.8);
+            for (let k = -1; k <= 1; k++) g.fillCircle(fx + k * 1.6, fy - 2.2, 0.8);
+            if (troopLevel >= 3) {
+                g.fillStyle(0xdaa520, 0.95);
+                for (let k = -1; k <= 1; k++) g.fillCircle(fx + k * 1.7, fy - 2.3, 0.6);
+            }
+            // Shoulder boulder on top of the arm root.
+            g.fillStyle(skin, 1);
+            g.fillCircle(side * 8.8 + leanX * 0.7, shoulderY + 0.6 + roll * side, 4.4);
+            g.lineStyle(1, skinDark, 0.5);
+            g.beginPath();
+            g.arc(side * 8.8 + leanX * 0.7, shoulderY + 0.6 + roll * side, 3.6, Math.PI * 1.15, Math.PI * 1.85, false);
+            g.strokePath();
+            if (troopLevel >= 2 && side < 0) {
+                // Iron pauldron on the left shoulder.
+                g.fillStyle(0x565b64, 1);
+                g.beginPath();
+                g.arc(side * 8.8 + leanX * 0.7, shoulderY + 0.2 + roll * side, 4.6, Math.PI * 0.95, Math.PI * 2.05, false);
+                g.closePath();
+                g.fillPath();
+                g.fillStyle(0x8a8f99, 1);
+                g.fillCircle(side * 8.8 + leanX * 0.7, shoulderY - 2.6 + roll * side, 1);
             }
         }
 
-        const skinColor = isPlayer ? 0xdeb887 : 0xc9a66b;
-        const skinDark = isPlayer ? 0xc9a66b : 0xb8956e;
-        const vestColor = isPlayer ? 0x6b4226 : 0x4a3020;
-        const vestDark = isPlayer ? 0x4a2f1a : 0x3a2215;
-        const pantsColor = isPlayer ? 0x5a4a3a : 0x4a3a2a;
-
-        // Large shadow
-        graphics.fillStyle(0x000000, 0.3);
-        graphics.fillEllipse(0, 14, 24, 10);
-
-        // Legs (thick, pants)
-        graphics.fillStyle(pantsColor, 1);
-        // Left leg
-        graphics.beginPath();
-        graphics.moveTo(-6, 3 + walkBob);
-        graphics.lineTo(-8 + leftLeg, 12);
-        graphics.lineTo(-3 + leftLeg, 13);
-        graphics.lineTo(-2, 3 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Right leg
-        graphics.beginPath();
-        graphics.moveTo(2, 3 + walkBob);
-        graphics.lineTo(3 + rightLeg, 12);
-        graphics.lineTo(8 + rightLeg, 13);
-        graphics.lineTo(6, 3 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Boots
-        graphics.fillStyle(0x3a2a1a, 1);
-        graphics.fillEllipse(-5.5 + leftLeg, 13, 6, 2.5);
-        graphics.fillEllipse(5.5 + rightLeg, 13, 6, 2.5);
-
-        // Torso — broad, muscular (leather vest over skin)
-        graphics.fillStyle(skinDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-12 + shoulderLean + bodyLean, -6 + walkBob);
-        graphics.lineTo(12 + shoulderLean + bodyLean, -6 + walkBob);
-        graphics.lineTo(8 + bodyLean, 4 + walkBob);
-        graphics.lineTo(-8 + bodyLean, 4 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(skinColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-11 + shoulderLean + bodyLean, -5 + walkBob);
-        graphics.lineTo(11 + shoulderLean + bodyLean, -5 + walkBob);
-        graphics.lineTo(7 + bodyLean, 3 + walkBob);
-        graphics.lineTo(-7 + bodyLean, 3 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Vest
-        graphics.fillStyle(vestColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-6 + bodyLean, -5 + walkBob);
-        graphics.lineTo(6 + bodyLean, -5 + walkBob);
-        graphics.lineTo(5 + bodyLean, 3 + walkBob);
-        graphics.lineTo(-5 + bodyLean, 3 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Vest lacing
-        graphics.lineStyle(1, vestDark, 0.7);
-        graphics.lineBetween(bodyLean, -4 + walkBob, bodyLean, 2 + walkBob);
-
-        // Belt
-        graphics.fillStyle(0x4a3520, 1);
-        graphics.fillRect(-8 + bodyLean, 1 + walkBob, 16, 3);
-        graphics.fillStyle(0xc9a227, 1);
-        graphics.fillRect(-2 + bodyLean, 1 + walkBob, 4, 3);
-
-        // Left arm (free arm, swings opposite)
-        const leftArmSwing = isMoving ? -stepCycle * 2 : 0;
-        graphics.fillStyle(skinColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-12 + shoulderLean + bodyLean, -5 + walkBob);
-        graphics.lineTo(-15 + leftArmSwing + bodyLean, 5 + walkBob);
-        graphics.lineTo(-11 + leftArmSwing + bodyLean, 6 + walkBob);
-        graphics.lineTo(-9 + shoulderLean + bodyLean, -3 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Fist
-        graphics.fillStyle(skinDark, 1);
-        graphics.fillCircle(-13 + leftArmSwing + bodyLean, 6 + walkBob, 3);
-
-        // Right arm + bat — arm swings with bat
-        const shoulderX = 12 + bodyLean;
-        const shoulderY = -5 + walkBob;
-        const armLen = 12;
-        const elbowX = shoulderX + Math.sin(rightArmAngle) * armLen;
-        const elbowY = shoulderY - Math.cos(rightArmAngle) * armLen;
-        const batBaseX = elbowX;
-        const batBaseY = elbowY;
-        const batLen = 20;
-        const batTipX = batBaseX + Math.sin(batAngle) * batLen;
-        const batTipY = batBaseY - Math.cos(batAngle) * batLen;
-
-        // Arm from shoulder to grip
-        graphics.fillStyle(skinColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(shoulderX, shoulderY);
-        graphics.lineTo(elbowX + 1.5, elbowY);
-        graphics.lineTo(elbowX - 1.5, elbowY);
-        graphics.lineTo(shoulderX - 3, shoulderY + 2);
-        graphics.closePath();
-        graphics.fillPath();
-        // Fist at grip
-        graphics.fillStyle(skinDark, 1);
-        graphics.fillCircle(elbowX, elbowY, 2.5);
-
-        // Bat handle (thin)
-        const perpX = Math.cos(batAngle);
-        const perpY = Math.sin(batAngle);
-        graphics.fillStyle(0x6b4a30, 1);
-        graphics.beginPath();
-        graphics.moveTo(batBaseX - perpX * 1.5, batBaseY - perpY * 1.5);
-        graphics.lineTo(batBaseX + Math.sin(batAngle) * 14 - perpX * 1.5, batBaseY - Math.cos(batAngle) * 14 - perpY * 1.5);
-        graphics.lineTo(batBaseX + Math.sin(batAngle) * 14 + perpX * 1.5, batBaseY - Math.cos(batAngle) * 14 + perpY * 1.5);
-        graphics.lineTo(batBaseX + perpX * 1.5, batBaseY + perpY * 1.5);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Bat head (thick, tapered)
-        graphics.fillStyle(0x8b6b4a, 1);
-        const headStart = 14;
-        graphics.beginPath();
-        graphics.moveTo(batBaseX + Math.sin(batAngle) * headStart - perpX * 2.5, batBaseY - Math.cos(batAngle) * headStart - perpY * 2.5);
-        graphics.lineTo(batTipX - perpX * 3, batTipY - perpY * 3);
-        graphics.lineTo(batTipX + perpX * 3, batTipY + perpY * 3);
-        graphics.lineTo(batBaseX + Math.sin(batAngle) * headStart + perpX * 2.5, batBaseY - Math.cos(batAngle) * headStart + perpY * 2.5);
-        graphics.closePath();
-        graphics.fillPath();
-        // Bat tip (rounded)
-        graphics.fillCircle(batTipX, batTipY, 3);
-        // Grip wrap
-        graphics.fillStyle(0x3a2a15, 1);
-        const gripPos = 3;
-        graphics.fillCircle(batBaseX + Math.sin(batAngle) * gripPos, batBaseY - Math.cos(batAngle) * gripPos, 2);
-
-        // Head — large, square-jawed
-        const headY = -14 + walkBob;
-        graphics.fillStyle(skinDark, 1);
-        graphics.fillCircle(bodyLean, headY, 7);
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(bodyLean, headY - 1, 6.5);
-
-        // Jaw (wider at bottom)
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillRect(-5 + bodyLean, headY + 1, 10, 4);
-
+        // ---- head: small skull, heavy jaw, sunk between the shoulders
+        // (drops right down into them on the impact).
+        const hy = shoulderY - 4.6 + crunch * 2.2;
+        const hx = leanX;
+        g.fillStyle(skin, 1);
+        g.fillCircle(hx, hy, 4.4);
+        // Jaw slab
+        g.fillStyle(skin, 1);
+        g.fillRect(hx - 3.4, hy + 1.4, 6.8, 2.8);
+        g.fillStyle(skinDark, 0.5);
+        g.fillRect(hx - 2.6, hy + 3.4, 5.2, 0.9);
+        // Ears
+        g.fillStyle(skinDark, 1);
+        g.fillCircle(hx - 4.2, hy + 0.6, 1);
+        g.fillCircle(hx + 4.2, hy + 0.6, 1);
+        // Brow — drops lower the angrier he gets.
+        const browDrop = atk.inCombat ? 0.7 : 0;
+        g.fillStyle(skinDark, 1);
+        g.fillRect(hx - 3.5, hy - 1.8 + browDrop, 7, 1.6);
         // Eyes
-        graphics.fillStyle(0x000000, 0.8);
-        graphics.fillCircle(-2.5 + bodyLean, headY - 1, 1.5);
-        graphics.fillCircle(2.5 + bodyLean, headY - 1, 1.5);
-
-        // Angry brow
-        graphics.fillStyle(skinDark, 1);
-        graphics.fillRect(-5 + bodyLean, headY - 4, 4, 1.5);
-        graphics.fillRect(1 + bodyLean, headY - 4, 4, 1.5);
-
-        // Stubble / chin
-        graphics.fillStyle(0x000000, 0.15);
-        graphics.fillRect(-3 + bodyLean, headY + 3, 6, 2);
-
-        // Short hair
-        graphics.fillStyle(0x3a2a1a, 1);
-        graphics.beginPath();
-        graphics.arc(bodyLean, headY - 2, 7, Math.PI, 0, false);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Level 2+ iron helmet
-        if (troopLevel >= 2) {
-            const hy = headY;
-            graphics.fillStyle(0x6a6a7a, 1);
-            graphics.beginPath();
-            graphics.arc(bodyLean, hy - 3, 8, Math.PI, 0, false);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(0x7a7a8a, 1);
-            graphics.beginPath();
-            graphics.arc(bodyLean, hy - 3, 7, Math.PI, 0, false);
-            graphics.closePath();
-            graphics.fillPath();
-            // Nose guard
-            graphics.fillStyle(0x6a6a7a, 1);
-            graphics.fillRect(-1.5 + bodyLean, hy - 5, 3, 7);
-            // Rivets
-            graphics.fillStyle(0x9a9aaa, 1);
-            graphics.fillCircle(-4 + bodyLean, hy - 3, 1);
-            graphics.fillCircle(4 + bodyLean, hy - 3, 1);
-            graphics.fillCircle(bodyLean, hy - 8, 1);
-            graphics.fillStyle(0xaaaacc, 0.4);
-            graphics.fillCircle(-2 + bodyLean, hy - 7, 2);
+        g.fillStyle(0x140e08, 0.9);
+        g.fillCircle(hx - 1.9, hy + 0.3, 0.9);
+        g.fillCircle(hx + 1.9, hy + 0.3, 0.9);
+        // Grim mouth
+        g.lineStyle(1, 0x4a3018, 0.8);
+        g.lineBetween(hx - 1.6, hy + 2.9, hx + 1.6, hy + 2.9);
+        if (troopLevel < 2) {
+            // Bald with a short back-tuft.
+            g.fillStyle(0x3a2a1a, 1);
+            g.beginPath();
+            g.arc(hx, hy - 2.2, 3.4, Math.PI * 1.1, Math.PI * 1.7, false);
+            g.closePath();
+            g.fillPath();
+        } else {
+            // Iron skullcap; L3 adds horns + a gold rivet.
+            g.fillStyle(0x565b64, 1);
+            g.beginPath();
+            g.arc(hx, hy - 1.2, 4.6, Math.PI, 0, false);
+            g.closePath();
+            g.fillPath();
+            g.fillStyle(0x8a8f99, 1);
+            g.beginPath();
+            g.arc(hx, hy - 1.6, 3.7, Math.PI, 0, false);
+            g.closePath();
+            g.fillPath();
+            g.fillStyle(0x565b64, 1);
+            g.fillCircle(hx - 2.6, hy - 2.6, 0.7);
+            g.fillCircle(hx + 2.6, hy - 2.6, 0.7);
+            if (troopLevel >= 3) {
+                g.fillStyle(0xe3dcc6, 1);
+                g.fillTriangle(hx - 3.8, hy - 3.4, hx - 7.2, hy - 8.2, hx - 5.4, hy - 3.2);
+                g.fillTriangle(hx + 3.8, hy - 3.4, hx + 7.2, hy - 8.2, hx + 5.4, hy - 3.2);
+                g.fillStyle(0xcfc5a8, 1);
+                g.fillCircle(hx - 7.2, hy - 8.2, 0.9);
+                g.fillCircle(hx + 7.2, hy - 8.2, 0.9);
+                g.fillStyle(0xdaa520, 1);
+                g.fillCircle(hx, hy - 5.4, 1);
+            }
         }
-        // L3: Viking horns on helmet, chest armor plate, spiky club, gold accents
-        if (troopLevel >= 3) {
-            const hy = headY;
-            // Gold rivets on helmet
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillCircle(-4 + bodyLean, hy - 3, 1.5);
-            graphics.fillCircle(4 + bodyLean, hy - 3, 1.5);
-            graphics.fillCircle(bodyLean, hy - 8, 1.5);
 
-            // Viking horns on helmet
-            graphics.fillStyle(0xddddbb, 1);
-            // Left horn
-            graphics.beginPath();
-            graphics.moveTo(-6 + bodyLean, hy - 7);
-            graphics.lineTo(-12 + bodyLean, hy - 16);
-            graphics.lineTo(-8 + bodyLean, hy - 12);
-            graphics.closePath();
-            graphics.fillPath();
-            // Right horn
-            graphics.beginPath();
-            graphics.moveTo(6 + bodyLean, hy - 7);
-            graphics.lineTo(12 + bodyLean, hy - 16);
-            graphics.lineTo(8 + bodyLean, hy - 12);
-            graphics.closePath();
-            graphics.fillPath();
-            // Horn tips (darker)
-            graphics.fillStyle(0xcccc99, 1);
-            graphics.fillCircle(-12 + bodyLean, hy - 16, 1);
-            graphics.fillCircle(12 + bodyLean, hy - 16, 1);
-
-            // Chest armor plate (gold-trimmed iron)
-            graphics.fillStyle(0x6a6a7a, 0.8);
-            graphics.beginPath();
-            graphics.moveTo(-5 + bodyLean, -4 + walkBob);
-            graphics.lineTo(5 + bodyLean, -4 + walkBob);
-            graphics.lineTo(4 + bodyLean, 2 + walkBob);
-            graphics.lineTo(-4 + bodyLean, 2 + walkBob);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.lineStyle(1, 0xdaa520, 0.8);
-            graphics.strokeRect(-5 + bodyLean, -4 + walkBob, 10, 6);
-
-            // Gold arm bands
-            graphics.lineStyle(2, 0xdaa520, 0.9);
-            graphics.lineBetween(-12 + bodyLean, -4 + walkBob, -12 + bodyLean, -1 + walkBob);
-            graphics.lineBetween(12 + bodyLean, -4 + walkBob, 12 + bodyLean, -1 + walkBob);
-
-            // Spikes on bat head — draw iron spikes along the club head
-            const spikeCount = 4;
-            for (let i = 0; i < spikeCount; i++) {
-                const t = headStart + (batLen - headStart) * ((i + 0.5) / spikeCount);
-                const baseX = batBaseX + Math.sin(batAngle) * t;
-                const baseY = batBaseY - Math.cos(batAngle) * t;
-                const spikeLen = 5;
-                // Two spikes per position (left and right of club)
-                graphics.fillStyle(0x555566, 1);
-                graphics.beginPath();
-                graphics.moveTo(baseX - perpX * 3, baseY - perpY * 3);
-                graphics.lineTo(baseX - perpX * (3 + spikeLen), baseY - perpY * (3 + spikeLen));
-                graphics.lineTo(baseX - perpX * 2, baseY - perpY * 2);
-                graphics.closePath();
-                graphics.fillPath();
-                graphics.beginPath();
-                graphics.moveTo(baseX + perpX * 3, baseY + perpY * 3);
-                graphics.lineTo(baseX + perpX * (3 + spikeLen), baseY + perpY * (3 + spikeLen));
-                graphics.lineTo(baseX + perpX * 2, baseY + perpY * 2);
-                graphics.closePath();
-                graphics.fillPath();
+        // ---- impact: a rolling dust shockwave + arcing pebbles + low puffs.
+        if (!isMoving && atk.inCombat && atk.age <= 700 && slam > 0.95) {
+            const p = clamp01(atk.age / 650);
+            if (p < 1) {
+                g.lineStyle(2.5, 0xbfae8e, 0.55 * (1 - p));
+                g.strokeEllipse(0, 12, 18 + p * 46, (18 + p * 46) * 0.42);
+                g.lineStyle(1.5, 0xa8987a, 0.35 * (1 - p));
+                g.strokeEllipse(0, 12.5, 10 + p * 30, (10 + p * 30) * 0.4);
+            }
+            const pp = clamp01(atk.age / 560);
+            if (pp < 1) {
+                g.fillStyle(0x9a8f78, 0.9 * (1 - pp));
+                for (let k = 0; k < 6; k++) {
+                    const A = k * 1.047 + 0.35;
+                    const d = 9 + pp * 17;
+                    g.fillCircle(
+                        Math.cos(A) * d,
+                        12 + Math.sin(A) * 0.5 * d - 6 * Math.sin(pp * Math.PI),
+                        1.5
+                    );
+                }
+                // Low dust puffs rolling out along the ground line.
+                g.fillStyle(0xbfae8e, 0.32 * (1 - pp));
+                for (let k = 0; k < 3; k++) {
+                    const A = k * 2.09 + 0.9;
+                    const d = 10 + pp * 16;
+                    g.fillCircle(Math.cos(A) * d, 11.4 + Math.sin(A) * 0.5 * d, 2.2 + pp * 3);
+                }
             }
         }
     }
 
-    private static drawGolem(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, slamOffset: number, troopLevel: number = 1) {
+    // ============================== RAM ==============================
+    // The trunk stays a massive machine; its two carriers are villager-scale
+    // people. Attack: the crew drags the trunk back through the wind-up and
+    // drives it forward on the damage tick (MainScene adds the body lunge).
+    private static drawRam(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const graphics = g;
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 1100, 320, 160);
+
+        const cos = Math.cos(facingAngle);
+        const sin = Math.sin(facingAngle);
+
+        const runPhase = isMoving ? (time % 300) / 300 : 0;
+        const runBob = isMoving ? Math.sin(runPhase * Math.PI * 2) * 1.6 : 0;
+        let chargeForward = isMoving ? Math.abs(Math.sin(runPhase * Math.PI)) * 3 : 0;
+        if (!isMoving && atk.inCombat) {
+            if (atk.strike > 0) chargeForward = 4 * easeOut(1 - clamp01(atk.age / 160)) + 0.5;
+            else if (atk.windup > 0) chargeForward = -3 * easeIn(atk.windup);
+            else if (atk.age <= 500) chargeForward = 4 * (1 - clamp01((atk.age - 160) / 340));
+        }
+
+        // Trunk dimensions — lower than before so villager-scale arms reach it.
+        const ramLength = 46;
+        const ramWidth = 13;
+        const ramHeight = 13;
+
+        const backX = -cos * (ramLength / 2) - cos * chargeForward;
+        const backY = -sin * (ramLength / 2) * 0.5 + runBob - sin * chargeForward * 0.5;
+        const frontX = cos * (ramLength / 2) + cos * chargeForward;
+        const frontY = sin * (ramLength / 2) * 0.5 + runBob + sin * chargeForward * 0.5;
+
+        const perpX = -sin * (ramWidth / 2);
+        const perpY = cos * (ramWidth / 2) * 0.5;
+
+        // Ground shadow under the whole rig.
+        graphics.fillStyle(0x000000, 0.35);
+        graphics.fillEllipse(cos * 3, 10 + sin * 2, 42, 16);
+
+        // ---- the two carriers (villager scale, arms up under the trunk).
+        const skin = isPlayer ? 0xdeb887 : 0xc9a66b;
+        const tunic = isPlayer ? 0x8b5a2b : 0x6b4a30;
+        const tunicDark = isPlayer ? 0x5c3a1c : 0x47311d;
+
+        const carriers: Array<[number, number]> = [[-0.35, 0], [0.1, 0.5]];
+        for (const [wOffset, phOff] of carriers) {
+            const wx = backX + (frontX - backX) * (wOffset + 0.5);
+            const wy = backY + (frontY - backY) * (wOffset + 0.5) + 6;
+            const ph = isMoving ? ((time + phOff * 150) % 300) / 300 : 0;
+            const swing = isMoving ? Math.sin(ph * Math.PI * 2) * 2.2 : 0;
+            const lift = isMoving ? Math.abs(Math.sin(ph * Math.PI * 2)) * 1 : 0;
+
+            // small contact shadow
+            graphics.fillStyle(0x000000, 0.18);
+            graphics.fillEllipse(wx, wy + 9.4, 8, 3);
+            // legs
+            graphics.fillStyle(tunicDark, 1);
+            graphics.fillRect(wx - 2.4 - swing, wy + 3.5 - lift, 1.9, 5.3 + lift);
+            graphics.fillRect(wx + 0.5 + swing, wy + 3.5 - lift, 1.9, 5.3 + lift);
+            graphics.fillStyle(0x2a211a, 1);
+            graphics.fillEllipse(wx - 1.5 - swing, wy + 9, 2.8, 1.5);
+            graphics.fillEllipse(wx + 1.5 + swing, wy + 9, 2.8, 1.5);
+            // torso
+            graphics.fillStyle(tunic, 1);
+            graphics.fillCircle(wx, wy - 1 - lift, 4.1);
+            graphics.fillStyle(tunicDark, 1);
+            graphics.fillRect(wx - 3.6, wy + 1 - lift, 7.2, 1.6);
+            // arms straight up, hands gripping the trunk's belly
+            const gripY = wy - ramHeight + 8 - 6; // just under the trunk line
+            TroopRenderer.hLimb(graphics, skin, wx - 2.5, wy - 2.6 - lift, wx - 2.9, gripY, 1.7);
+            TroopRenderer.hLimb(graphics, skin, wx + 2.5, wy - 2.6 - lift, wx + 2.9, gripY, 1.7);
+            graphics.fillStyle(skin, 1);
+            graphics.fillCircle(wx - 2.9, gripY, 1.15);
+            graphics.fillCircle(wx + 2.9, gripY, 1.15);
+            // head + simple helm
+            graphics.fillStyle(skin, 1);
+            graphics.fillCircle(wx, wy - 7 - lift, 2.9);
+            graphics.fillStyle(0x565b64, 1);
+            graphics.beginPath();
+            graphics.arc(wx, wy - 7.6 - lift, 3, Math.PI, 0, false);
+            graphics.closePath();
+            graphics.fillPath();
+            graphics.fillStyle(0x6a6f78, 1);
+            graphics.fillRect(wx - 0.6, wy - 11.6 - lift, 1.2, 1.8);
+        }
+        // === MASSIVE TREE TRUNK ===
+        // Dark bark base layer
+        graphics.fillStyle(0x3d2817, 1);
+        graphics.beginPath();
+        graphics.moveTo(backX + perpX * 1.1, backY + perpY * 1.1 - ramHeight + 2);
+        graphics.lineTo(frontX + perpX * 0.9, frontY + perpY * 0.9 - ramHeight + 2);
+        graphics.lineTo(frontX - perpX * 0.9, frontY - perpY * 0.9 - ramHeight + 2);
+        graphics.lineTo(backX - perpX * 1.1, backY - perpY * 1.1 - ramHeight + 2);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Main trunk body - rich brown wood
+        graphics.fillStyle(0x5d3a1a, 1);
+        graphics.beginPath();
+        graphics.moveTo(backX + perpX, backY + perpY - ramHeight);
+        graphics.lineTo(frontX + perpX * 0.85, frontY + perpY * 0.85 - ramHeight);
+        graphics.lineTo(frontX - perpX * 0.85, frontY - perpY * 0.85 - ramHeight);
+        graphics.lineTo(backX - perpX, backY - perpY - ramHeight);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Wood highlight - top surface
+        graphics.fillStyle(0x7a4a2a, 1);
+        graphics.beginPath();
+        graphics.moveTo(backX + perpX * 0.8, backY + perpY * 0.8 - ramHeight - 4);
+        graphics.lineTo(frontX + perpX * 0.7, frontY + perpY * 0.7 - ramHeight - 4);
+        graphics.lineTo(frontX - perpX * 0.4, frontY - perpY * 0.4 - ramHeight - 3);
+        graphics.lineTo(backX - perpX * 0.4, backY - perpY * 0.4 - ramHeight - 3);
+        graphics.closePath();
+        graphics.fillPath();
+
+        // Bark texture - deep grooves running lengthwise
+        graphics.lineStyle(2, 0x2a1a0a, 0.7);
+        for (let i = 0; i < 5; i++) {
+            const offset = (i - 2) * 0.15;
+            const gx1 = backX + perpX * offset;
+            const gy1 = backY + perpY * offset - ramHeight - 1;
+            const gx2 = frontX + perpX * offset * 0.8;
+            const gy2 = frontY + perpY * offset * 0.8 - ramHeight - 1;
+            graphics.lineBetween(gx1, gy1, gx2, gy2);
+        }
+
+        // Knots and wood details
+        graphics.fillStyle(0x4a2a15, 1);
+        const knot1T = 0.3;
+        const knot1X = backX + (frontX - backX) * knot1T + perpX * 0.3;
+        const knot1Y = backY + (frontY - backY) * knot1T + perpY * 0.3 - ramHeight - 2;
+        graphics.fillCircle(knot1X, knot1Y, 3);
+        graphics.fillStyle(0x3a1a0a, 1);
+        graphics.fillCircle(knot1X, knot1Y, 1.5);
+
+        const knot2T = 0.65;
+        const knot2X = backX + (frontX - backX) * knot2T - perpX * 0.2;
+        const knot2Y = backY + (frontY - backY) * knot2T - perpY * 0.2 - ramHeight - 1;
+        graphics.fillStyle(0x4a2a15, 1);
+        graphics.fillCircle(knot2X, knot2Y, 2.5);
+        graphics.fillStyle(0x3a1a0a, 1);
+        graphics.fillCircle(knot2X, knot2Y, 1);
+
+        if (troopLevel >= 2) {
+            // === IRON REINFORCEMENT RINGS (L2+) ===
+            graphics.fillStyle(0x3a3a3a, 1);
+            for (let i = 0; i < 5; i++) {
+                const t = (i + 1) / 6;
+                const bx = backX + (frontX - backX) * t;
+                const by = backY + (frontY - backY) * t - ramHeight;
+                graphics.beginPath();
+                graphics.moveTo(bx + perpX * 1.15, by + perpY * 1.15 + 2);
+                graphics.lineTo(bx - perpX * 1.15, by - perpY * 1.15 + 2);
+                graphics.lineTo(bx - perpX * 1.15, by - perpY * 1.15 - 4);
+                graphics.lineTo(bx + perpX * 1.15, by + perpY * 1.15 - 4);
+                graphics.closePath();
+                graphics.fillPath();
+            }
+            graphics.fillStyle(0x5a5a5a, 0.8);
+            for (let i = 0; i < 5; i++) {
+                const t = (i + 1) / 6;
+                const bx = backX + (frontX - backX) * t;
+                const by = backY + (frontY - backY) * t - ramHeight - 3;
+                graphics.fillRect(bx - perpX * 0.3 - 3, by, 6, 1.5);
+            }
+            graphics.fillStyle(0x6a6a6a, 1);
+            for (let i = 0; i < 5; i++) {
+                const t = (i + 1) / 6;
+                const bx = backX + (frontX - backX) * t;
+                const by = backY + (frontY - backY) * t - ramHeight - 1;
+                graphics.fillCircle(bx + perpX * 0.9, by + perpY * 0.9, 1.5);
+                graphics.fillCircle(bx - perpX * 0.9, by - perpY * 0.9, 1.5);
+            }
+
+            // === MASSIVE IRON RAM HEAD (L2+) ===
+            const headLength = 18;
+            const tipX = frontX + cos * headLength + cos * chargeForward;
+            const tipY = frontY + sin * headLength * 0.5 - ramHeight + sin * chargeForward * 0.5;
+
+            graphics.fillStyle(0x2a2a2a, 1);
+            graphics.beginPath();
+            graphics.moveTo(frontX + perpX * 1.3, frontY + perpY * 1.3 - ramHeight + 3);
+            graphics.lineTo(frontX - perpX * 1.3, frontY - perpY * 1.3 - ramHeight + 3);
+            graphics.lineTo(frontX - perpX * 1.3, frontY - perpY * 1.3 - ramHeight - 6);
+            graphics.lineTo(frontX + perpX * 1.3, frontY + perpY * 1.3 - ramHeight - 6);
+            graphics.closePath();
+            graphics.fillPath();
+
+            graphics.fillStyle(0x4a4a4a, 1);
+            graphics.beginPath();
+            graphics.moveTo(tipX, tipY - 2);
+            graphics.lineTo(frontX + perpX * 1.2, frontY + perpY * 1.2 - ramHeight + 2);
+            graphics.lineTo(frontX + perpX * 1.2, frontY + perpY * 1.2 - ramHeight - 5);
+            graphics.closePath();
+            graphics.fillPath();
+
+            graphics.fillStyle(0x3a3a3a, 1);
+            graphics.beginPath();
+            graphics.moveTo(tipX, tipY - 2);
+            graphics.lineTo(frontX - perpX * 1.2, frontY - perpY * 1.2 - ramHeight + 2);
+            graphics.lineTo(frontX - perpX * 1.2, frontY - perpY * 1.2 - ramHeight - 5);
+            graphics.closePath();
+            graphics.fillPath();
+
+            graphics.fillStyle(0x6a6a6a, 1);
+            graphics.beginPath();
+            graphics.moveTo(tipX + 1, tipY - 4);
+            graphics.lineTo(frontX + perpX * 0.3, frontY + perpY * 0.3 - ramHeight - 4);
+            graphics.lineTo(frontX + perpX * 0.6, frontY + perpY * 0.6 - ramHeight - 2);
+            graphics.closePath();
+            graphics.fillPath();
+
+            // Decorative ram horns
+            graphics.fillStyle(0x555555, 1);
+            graphics.beginPath();
+            graphics.moveTo(frontX + perpX * 1.1 + cos * 4, frontY + perpY * 1.1 - ramHeight - 4);
+            graphics.lineTo(frontX + perpX * 1.8 + cos * 2, frontY + perpY * 1.8 - ramHeight - 8);
+            graphics.lineTo(frontX + perpX * 1.5 + cos * 6, frontY + perpY * 1.5 - ramHeight - 6);
+            graphics.closePath();
+            graphics.fillPath();
+            graphics.beginPath();
+            graphics.moveTo(frontX - perpX * 1.1 + cos * 4, frontY - perpY * 1.1 - ramHeight - 4);
+            graphics.lineTo(frontX - perpX * 1.8 + cos * 2, frontY - perpY * 1.8 - ramHeight - 8);
+            graphics.lineTo(frontX - perpX * 1.5 + cos * 6, frontY - perpY * 1.5 - ramHeight - 6);
+            graphics.closePath();
+            graphics.fillPath();
+
+            // Menacing eyes
+            graphics.fillStyle(0xff3300, 0.9);
+            graphics.fillCircle(frontX + perpX * 0.5 + cos * 8, frontY + perpY * 0.5 - ramHeight - 2, 2);
+            graphics.fillCircle(frontX - perpX * 0.5 + cos * 8, frontY - perpY * 0.5 - ramHeight - 2, 2);
+            graphics.fillStyle(0xffff00, 0.7);
+            graphics.fillCircle(frontX + perpX * 0.5 + cos * 8.5, frontY + perpY * 0.5 - ramHeight - 2.5, 0.8);
+            graphics.fillCircle(frontX - perpX * 0.5 + cos * 8.5, frontY - perpY * 0.5 - ramHeight - 2.5, 0.8);
+        }
+        // L3: Gold reinforcement rings + glowing eyes brighter
+        if (troopLevel >= 3) {
+            graphics.lineStyle(1.5, 0xdaa520, 0.8);
+            for (let i = 0; i < 5; i++) {
+                const t = (i + 1) / 6;
+                const bx = backX + (frontX - backX) * t;
+                const by = backY + (frontY - backY) * t - ramHeight - 1;
+                graphics.lineBetween(bx + perpX * 1.2, by + perpY * 1.2, bx - perpX * 1.2, by - perpY * 1.2);
+            }
+        }
+        if (troopLevel < 2) {
+            // === L1: SIMPLE ROPE BINDINGS ===
+            graphics.lineStyle(2, 0x8a7a5a, 1);
+            for (let i = 0; i < 3; i++) {
+                const t = (i + 1) / 4;
+                const bx = backX + (frontX - backX) * t;
+                const by = backY + (frontY - backY) * t - ramHeight - 1;
+                graphics.lineBetween(bx + perpX * 1.05, by + perpY * 1.05, bx - perpX * 1.05, by - perpY * 1.05);
+            }
+
+            // === L1: SIMPLE POINTED WOODEN TIP ===
+            const tipLen = 10;
+            const tipX = frontX + cos * tipLen + cos * chargeForward;
+            const tipY = frontY + sin * tipLen * 0.5 - ramHeight + sin * chargeForward * 0.5;
+            // Tapered wood point
+            graphics.fillStyle(0x4a2a15, 1);
+            graphics.beginPath();
+            graphics.moveTo(tipX, tipY - 2);
+            graphics.lineTo(frontX + perpX * 0.9, frontY + perpY * 0.9 - ramHeight + 1);
+            graphics.lineTo(frontX + perpX * 0.9, frontY + perpY * 0.9 - ramHeight - 4);
+            graphics.closePath();
+            graphics.fillPath();
+            graphics.fillStyle(0x3a1a0a, 1);
+            graphics.beginPath();
+            graphics.moveTo(tipX, tipY - 2);
+            graphics.lineTo(frontX - perpX * 0.9, frontY - perpY * 0.9 - ramHeight + 1);
+            graphics.lineTo(frontX - perpX * 0.9, frontY - perpY * 0.9 - ramHeight - 4);
+            graphics.closePath();
+            graphics.fillPath();
+        }
+
+        // === BACK END - Rough cut wood ===
+        graphics.fillStyle(0x6a4a2a, 1);
+        graphics.beginPath();
+        graphics.arc(backX, backY - ramHeight - 1, ramWidth * 0.45, 0, Math.PI * 2);
+        graphics.closePath();
+        graphics.fillPath();
+    }
+
+    // ========================== MOBILE MORTAR ==========================
+    // The little field mortar stays a machine; its crewman is a villager-
+    // scale soldier hauling it by a rope. The tube kicks with the existing
+    // mortarRecoil tween; the tick adds a muzzle flash + powder ring.
+    private static drawMobileMortar(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, mortarRecoil: number, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 2200, 420, 0);
+
+        const uniform = isPlayer ? 0x455a64 : 0x5d4037;
+        const uniformDark = isPlayer ? 0x37474f : 0x4e342e;
+        const skin = 0xe8d4b8;
+        const metal = troopLevel >= 3 ? 0xdaa520 : 0x565b64;
+        const metalDark = troopLevel >= 3 ? 0xb8860b : 0x373b42;
+        const wood = 0x8b4513;
+
+        // Soldier leads, mortar trails (flips with travel direction).
+        const facingLeft = Math.abs(facingAngle) > Math.PI / 2;
+        const flip = facingLeft ? -1 : 1;
+        const mortarX = -11 * flip;
+        const soldierX = 12 * flip;
+
+        const rig = TroopRenderer.hRig(time, isMoving, 400, 2.2, 6);
+        const lift = rig.lift;
+        const mortarBob = isMoving ? Math.abs(Math.sin(((time + 80) % 400) / 400 * Math.PI * 2)) * 1.2 : 0;
+        const wheelRot = isMoving ? (time % 600) / 600 * Math.PI * 2 : 0;
+        const mortarY = mortarBob * -1 + mortarRecoil;
+
+        // ---- mortar cart
+        g.fillStyle(0x000000, 0.3);
+        g.fillEllipse(mortarX, 9.6, 15, 6.5);
+        // wheels
+        g.fillStyle(metalDark, 1);
+        g.fillCircle(mortarX - 6.5, 4.5 + mortarY, 4.6);
+        g.fillCircle(mortarX + 6.5, 4.5 + mortarY, 4.6);
+        g.fillStyle(metal, 1);
+        g.fillCircle(mortarX - 6.5, 4.5 + mortarY, 3.1);
+        g.fillCircle(mortarX + 6.5, 4.5 + mortarY, 3.1);
+        g.fillStyle(wood, 1);
+        g.fillCircle(mortarX - 6.5, 4.5 + mortarY, 1.1);
+        g.fillCircle(mortarX + 6.5, 4.5 + mortarY, 1.1);
+        g.lineStyle(0.9, wood, 0.85);
+        for (let i = 0; i < 4; i++) {
+            const sa = wheelRot + (i * Math.PI / 2);
+            for (const wxc of [mortarX - 6.5, mortarX + 6.5]) {
+                g.lineBetween(
+                    wxc + Math.cos(sa) * 1.1, 4.5 + mortarY + Math.sin(sa) * 1.1,
+                    wxc + Math.cos(sa) * 3.1, 4.5 + mortarY + Math.sin(sa) * 3.1
+                );
+            }
+        }
+        // axle + base
+        g.fillStyle(wood, 1);
+        g.fillRect(mortarX - 8.5, 3 + mortarY, 17, 2.4);
+        g.fillStyle(metalDark, 1);
+        g.fillRect(mortarX - 4.5, -1.5 + mortarY, 9, 5);
+
+        // tube (angled up; widens with level)
+        const tubeW = troopLevel >= 3 ? 4.6 : 3.6;
+        const tubeTopW = troopLevel >= 3 ? 3.4 : 2.7;
+        g.fillStyle(metalDark, 1);
+        g.beginPath();
+        g.moveTo(mortarX - tubeW, -1.5 + mortarY);
+        g.lineTo(mortarX - tubeTopW, -18 + mortarY);
+        g.lineTo(mortarX + tubeTopW, -18 + mortarY);
+        g.lineTo(mortarX + tubeW, -1.5 + mortarY);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(troopLevel >= 3 ? 0xc99a18 : 0x4d525c, 1);
+        g.beginPath();
+        g.moveTo(mortarX - tubeW + 1.1, -1.5 + mortarY);
+        g.lineTo(mortarX - tubeTopW + 0.8, -16.5 + mortarY);
+        g.lineTo(mortarX + tubeTopW - 0.8, -16.5 + mortarY);
+        g.lineTo(mortarX + tubeW - 1.1, -1.5 + mortarY);
+        g.closePath();
+        g.fillPath();
+        // bore
+        g.fillStyle(0x14161a, 1);
+        g.fillEllipse(mortarX, -18 + mortarY, tubeTopW * 2 - 1, 1.6);
+        g.lineStyle(1.4, metal, 1);
+        g.strokeEllipse(mortarX, -18 + mortarY, tubeTopW * 2, 2);
+        if (troopLevel >= 2) {
+            g.lineStyle(1.3, 0xdaa520, 0.9);
+            g.strokeEllipse(mortarX, -10 + mortarY, tubeTopW * 2 + 1.4, 2.2);
+            g.strokeEllipse(mortarX, -5 + mortarY, tubeW * 2 - 1, 2.2);
+            // ammo crate on the cart
+            g.fillStyle(0x5a3a1a, 1);
+            g.fillRect(mortarX - 7.5, -1 + mortarY, 4, 3.4);
+            g.lineStyle(0.8, 0x3c3c3c, 0.6);
+            g.strokeRect(mortarX - 7.5, -1 + mortarY, 4, 3.4);
+        }
+        if (troopLevel >= 3) {
+            g.fillStyle(0x5a3a1a, 1);
+            g.fillRect(mortarX - 7.5, 2.8 + mortarY, 4, 2.6);
+            g.lineStyle(0.8, 0xdaa520, 0.6);
+            g.strokeRect(mortarX - 7.5, 2.8 + mortarY, 4, 2.6);
+        }
+
+        // ---- the shot: flash at the bore + a rolling powder ring.
+        if (!isMoving && atk.inCombat && atk.age <= 520) {
+            if (atk.age <= 90) {
+                const fl = 1 - atk.age / 90;
+                g.fillStyle(0xffd27a, 0.7 * fl);
+                g.fillEllipse(mortarX, -19.5 + mortarY, 6.5, 3.2);
+                g.fillStyle(0xfff3d0, 0.85 * fl);
+                g.fillEllipse(mortarX, -19.5 + mortarY, 3.2, 1.6);
+            }
+            const p = clamp01(atk.age / 520);
+            g.fillStyle(0xd9d4c8, 0.4 * (1 - p));
+            g.fillCircle(mortarX - 1.5, -19 + mortarY - p * 7, 1.4 + p * 2.4);
+            g.fillCircle(mortarX + 1.8, -18.5 + mortarY - p * 5.5, 1.1 + p * 2);
+        }
+
+        // ---- tow rope, sagging in the middle.
+        const handX = soldierX - 4.5 * flip;
+        const handY = -2.4 - lift;
+        const hitchX = mortarX + 4.5 * flip;
+        g.lineStyle(1.4, 0x8b7355, 1);
+        g.beginPath();
+        g.moveTo(hitchX, 1.5 + mortarY);
+        g.lineTo((hitchX + handX) / 2, 3.6);
+        g.lineTo(handX, handY);
+        g.strokePath();
+
+        // ---- the crewman (villager scale), leaning into the haul.
+        g.fillStyle(0x000000, 0.22);
+        g.fillEllipse(soldierX, 9.4, 8.5, 3.2);
+        const lean = isMoving ? 0.9 * flip : 0;
+        g.fillStyle(uniformDark, 1);
+        g.fillRect(soldierX - 2.4 - rig.swing, 3.5 - lift, 1.9, 5.3 + lift);
+        g.fillRect(soldierX + 0.5 + rig.swing, 3.5 - lift, 1.9, 5.3 + lift);
+        g.fillStyle(0x23262b, 1);
+        g.fillEllipse(soldierX - 1.5 - rig.swing, 9, 2.8, 1.5);
+        g.fillEllipse(soldierX + 1.5 + rig.swing, 9, 2.8, 1.5);
+        g.fillStyle(uniform, 1);
+        g.fillCircle(soldierX + lean, -1 - lift, 4.1);
+        g.fillStyle(uniformDark, 1);
+        g.fillRect(soldierX + lean - 3.6, 1 - lift, 7.2, 1.6);
+        // rope arm + free arm
+        TroopRenderer.hLimb(g, skin, soldierX + lean - 2.2 * flip, -2.6 - lift, handX, handY, 1.7);
+        g.fillStyle(skin, 1);
+        g.fillCircle(handX, handY, 1.15);
+        TroopRenderer.hLimb(g, uniform, soldierX + lean + 2.2 * flip, -2.6 - lift, soldierX + (3.6 + rig.swing * 0.4) * flip, 1.2 - lift, 1.8);
+        // head + kettle helmet
+        g.fillStyle(skin, 1);
+        g.fillCircle(soldierX + lean, -6.8 - lift, 2.9);
+        g.fillStyle(0x140e08, 0.85);
+        g.fillCircle(soldierX + lean - 1 * flip, -7 - lift, 0.55);
+        g.fillCircle(soldierX + lean + 0.4 * flip, -7 - lift, 0.55);
+        g.fillStyle(uniformDark, 1);
+        g.beginPath();
+        g.arc(soldierX + lean, -7.6 - lift, 3.1, Math.PI, 0, false);
+        g.closePath();
+        g.fillPath();
+        g.fillRect(soldierX + lean - 3.4, -7.9 - lift, 6.8, 1.2);
+        if (troopLevel >= 3) {
+            g.fillStyle(0xdaa520, 1);
+            g.fillCircle(soldierX + lean, -9.2 - lift, 0.9);
+        }
+    }
+
+    // ========================= ROMAN SOLDIER =========================
+    // Villager-scale legionary (also the phalanx's building block: sx/sy
+    // offset the whole figure, stagger desyncs the march, isTestudo raises
+    // the shield overhead). Standalone soldiers thrust on the damage tick;
+    // phalanx thrusts arrive via the spearOffset tween.
+    static drawRomanSoldier(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, isTestudo: boolean, spearOffset: number = 0, sx: number = 0, sy: number = 0, stagger: number = 0, troopLevel: number = 1, time: number = Date.now(), attackAge: number = -1, attackDelay: number = 0): void {
+        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 900, 260, 150);
+        const marchPhase = isMoving ? ((time % 600) / 600 + stagger) % 1 : 0;
+        const marchBob = isMoving ? Math.sin((time / 150) + stagger * 10) * 1.3 : Math.max(0, Math.sin((time + stagger * 900) / 640)) * -0.4;
+        const cy = sy + marchBob;
+
+        const shieldMain = isPlayer ? 0xcc3333 : 0x554433;
+        const shieldTrim = troopLevel >= 3 ? (isPlayer ? 0xdaa520 : 0xb8960b) : (isPlayer ? 0xd4a84b : 0x8b7355);
+        const shieldBoss = isPlayer ? 0xffd700 : 0xaa9977;
+        const tunicColor = troopLevel >= 3 ? (isPlayer ? 0x991111 : 0x443322) : (isPlayer ? 0xbb2222 : 0x443322);
+        const armorColor = troopLevel >= 3 ? (isPlayer ? 0xdaa520 : 0xb8960b) : (isPlayer ? 0x888899 : 0x777788);
+        const skin = 0xd4a574;
+
+        // Standalone thrust keyed to the tick (out fast, back over ~140ms).
+        let thrust = spearOffset;
+        if (!isTestudo && !isMoving && atk.inCombat) {
+            if (atk.strike > 0) thrust = Math.max(thrust, Math.sin(clamp01(atk.age / 150) * Math.PI));
+            else if (atk.windup > 0) thrust = Math.min(thrust, 0) - 0.25 * atk.windup; // small pull-back
+        }
+
+        // legs + sandals
+        const legSpread = isMoving ? Math.sin(marchPhase * Math.PI * 2) * 2.2 : 0;
+        g.fillStyle(tunicColor, 1);
+        g.fillRect(sx - 2.4 + legSpread, cy + 3.5, 1.8, 5);
+        g.fillRect(sx + 0.6 - legSpread, cy + 3.5, 1.8, 5);
+        g.fillStyle(0x4a3a2a, 1);
+        g.fillRect(sx - 2.9 + legSpread, cy + 8.3, 2.6, 1.4);
+        g.fillRect(sx + 0.3 - legSpread, cy + 8.3, 2.6, 1.4);
+
+        // tunic + lorica strips
+        g.fillStyle(tunicColor, 1);
+        g.fillRect(sx - 3.2, cy - 3.6, 6.4, 7.4);
+        g.fillStyle(armorColor, 1);
+        for (let strip = 0; strip < 3; strip++) {
+            g.fillRect(sx - 3.2, cy - 3 + strip * 2.2, 6.4, 1.3);
+        }
+
+        // arms
+        g.fillStyle(skin, 1);
+        g.fillRect(sx - 4.6, cy - 2.4, 1.6, 4.4);
+        g.fillRect(sx + 3, cy - 2.4, 1.6, 4.4);
+
+        // head + helmet + crest
+        g.fillStyle(skin, 1);
+        g.fillCircle(sx, cy - 6.4, 2.8);
+        g.fillStyle(armorColor, 1);
+        g.fillRect(sx - 3, cy - 9.4, 6, 2.8);
+        g.fillStyle(troopLevel >= 3 ? 0xdaa520 : 0x666677, 1);
+        g.fillRect(sx - 0.7, cy - 10.8, 1.4, 1.6);
+        g.fillStyle(0xcc2222, 1);
+        g.fillRect(sx - 0.7, cy - (troopLevel >= 2 ? 14.4 : 13), 1.4, troopLevel >= 2 ? 3.8 : 2.4);
+        if (troopLevel >= 2) {
+            g.fillStyle(0xdaa520, 0.85);
+            g.fillCircle(sx - 3.6, cy - 3.4, 1.3);
+            g.fillCircle(sx + 3.6, cy - 3.4, 1.3);
+        }
+
+        // spear
+        const spearLen = 15;
+        const th = thrust * 6;
+        const spX = sx + Math.cos(facingAngle) * th;
+        const spY = cy - 4 + Math.sin(facingAngle) * th * 0.5;
+        const seX = sx + Math.cos(facingAngle) * (spearLen + th);
+        const seY = cy - 4 + Math.sin(facingAngle) * (spearLen + th) * 0.5;
+        g.lineStyle(1.3, 0x5d4e37, 1);
+        g.lineBetween(spX, spY, seX, seY);
+        g.fillStyle(troopLevel >= 3 ? 0xffd700 : 0x555566, 1);
+        g.fillTriangle(
+            seX + Math.cos(facingAngle) * 3.4, seY + Math.sin(facingAngle) * 1.7,
+            seX + Math.cos(facingAngle + 2.5) * 1.7, seY + Math.sin(facingAngle + 2.5) * 0.9,
+            seX + Math.cos(facingAngle - 2.5) * 1.7, seY + Math.sin(facingAngle - 2.5) * 0.9
+        );
+
+        // shield
+        if (isTestudo) {
+            const ss = 8;
+            g.fillStyle(shieldMain, 1);
+            g.fillRect(sx - ss / 2, cy - 11.5 - ss / 2, ss, ss);
+            g.lineStyle(1.1, shieldTrim, 1);
+            g.strokeRect(sx - ss / 2, cy - 11.5 - ss / 2, ss, ss);
+            g.fillStyle(shieldBoss, 1);
+            g.fillCircle(sx, cy - 11.5, 2);
+            g.fillStyle(0x000000, 0.2);
+            g.fillCircle(sx, cy - 11.5, 1);
+            if (troopLevel >= 3) {
+                g.fillStyle(0xdaa520, 0.7);
+                g.fillRect(sx - 0.4, cy - 14.6, 0.8, 3.4);
+                g.fillRect(sx - 1.6, cy - 12, 3.2, 0.8);
+            }
+        } else {
+            const shX = sx + Math.cos(facingAngle) * 4.4;
+            const shY = cy - 1.6 + Math.sin(facingAngle) * 2;
+            g.fillStyle(shieldMain, 1);
+            g.fillRect(shX - 2.6, shY - 4.4, 5.2, 8.8);
+            g.lineStyle(0.9, shieldTrim, 1);
+            g.strokeRect(shX - 2.6, shY - 4.4, 5.2, 8.8);
+            g.fillStyle(shieldBoss, 1);
+            g.fillCircle(shX, shY, 1.4);
+            if (troopLevel >= 3) {
+                g.fillStyle(0xdaa520, 0.85);
+                g.fillTriangle(shX, shY - 2.6, shX - 1.6, shY - 0.6, shX + 1.6, shY - 0.6);
+            }
+        }
+    }
+
+    // ============================ PHALANX ============================
+    // Roman testudo: a 3x3 of villager-scale legionaries under one shield
+    // roof, marching in loose step behind the standard.
+    static drawPhalanx(graphics: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, spearOffset: number = 0, troopLevel: number = 1, time: number = Date.now()): void {
+        graphics.fillStyle(0x000000, 0.38);
+        graphics.fillEllipse(0, 7, 40, 19);
+
+        const soldierSpacing = 9;
+        const cos = Math.cos(facingAngle);
+        const sin = Math.sin(facingAngle);
+
+        const soldiers: Array<{ wx: number; wy: number; row: number; col: number }> = [];
+        for (const row of [-1, 0, 1]) {
+            for (const col of [-1, 0, 1]) {
+                const localX = col * soldierSpacing;
+                const localY = row * soldierSpacing;
+                const wx = localX * cos - localY * sin;
+                const wy = localX * sin * 0.5 + localY * cos * 0.5;
+                soldiers.push({ wx, wy, row, col });
+            }
+        }
+        soldiers.sort((a, b) => a.wy - b.wy);
+
+        for (const s of soldiers) {
+            const stagger = (s.row + s.col) * 0.15;
+            this.drawRomanSoldier(graphics, isPlayer, isMoving, facingAngle, true, spearOffset, s.wx, s.wy, stagger, troopLevel, time);
+        }
+
+        // Banner/Standard (center back)
+        const bannerX = -Math.cos(facingAngle) * 12;
+        const bannerY = -Math.sin(facingAngle) * 6 - 4;
+        const bannerPoleTop = troopLevel >= 3 ? bannerY - 27 : bannerY - 19;
+        graphics.lineStyle(2, troopLevel >= 3 ? 0xdaa520 : 0x5d4e37, 1);
+        graphics.lineBetween(bannerX, bannerY, bannerX, bannerPoleTop);
+
+        if (troopLevel >= 3) {
+            // L3: Grand crimson & gold imperial banner
+            const bannerColor = isPlayer ? 0xcc3333 : 0x554433;
+            const bannerDark = isPlayer ? 0x991111 : 0x3a2a1a;
+            const flagWave = isMoving ? Math.sin(time / 300) * 2 : 0;
+            const flagWave2 = isMoving ? Math.sin(time / 250 + 1) * 1.5 : 0;
+
+            // === GRAND EAGLE FINIAL (larger, more detailed) ===
+            // Eagle body
+            graphics.fillStyle(0xffd700, 1);
+            graphics.beginPath();
+            graphics.moveTo(bannerX, bannerPoleTop - 9);
+            graphics.lineTo(bannerX - 3, bannerPoleTop - 4);
+            graphics.lineTo(bannerX + 3, bannerPoleTop - 4);
+            graphics.closePath();
+            graphics.fillPath();
+            // Eagle wings spread wide with feather tips
+            graphics.lineStyle(2, 0xffd700, 1);
+            graphics.lineBetween(bannerX - 3, bannerPoleTop - 6, bannerX - 8, bannerPoleTop - 10);
+            graphics.lineBetween(bannerX + 3, bannerPoleTop - 6, bannerX + 8, bannerPoleTop - 10);
+            // Wing feather tips
+            graphics.lineStyle(1.5, 0xdaa520, 1);
+            graphics.lineBetween(bannerX - 8, bannerPoleTop - 10, bannerX - 10, bannerPoleTop - 8);
+            graphics.lineBetween(bannerX - 7, bannerPoleTop - 9, bannerX - 9, bannerPoleTop - 6);
+            graphics.lineBetween(bannerX + 8, bannerPoleTop - 10, bannerX + 10, bannerPoleTop - 8);
+            graphics.lineBetween(bannerX + 7, bannerPoleTop - 9, bannerX + 9, bannerPoleTop - 6);
+            // Eagle head
+            graphics.fillStyle(0xffd700, 1);
+            graphics.fillCircle(bannerX, bannerPoleTop - 9, 2);
+            // Eagle eye
+            graphics.fillStyle(0xb8860b, 1);
+            graphics.fillCircle(bannerX + 0.5, bannerPoleTop - 9.5, 0.5);
+
+            // === MAIN BANNER — large, crimson red ===
+            graphics.fillStyle(bannerColor, 1);
+            graphics.beginPath();
+            graphics.moveTo(bannerX - 1, bannerPoleTop);
+            graphics.lineTo(bannerX + 15 + flagWave, bannerPoleTop + 2);
+            graphics.lineTo(bannerX + 13 + flagWave * 0.5, bannerPoleTop + 18);
+            graphics.lineTo(bannerX - 1, bannerPoleTop + 16);
+            graphics.closePath();
+            graphics.fillPath();
+
+            // Darker red inner panel
+            graphics.fillStyle(bannerDark, 0.5);
+            graphics.beginPath();
+            graphics.moveTo(bannerX + 1, bannerPoleTop + 3);
+            graphics.lineTo(bannerX + 13 + flagWave * 0.8, bannerPoleTop + 4);
+            graphics.lineTo(bannerX + 11 + flagWave * 0.4, bannerPoleTop + 15);
+            graphics.lineTo(bannerX + 1, bannerPoleTop + 14);
+            graphics.closePath();
+            graphics.fillPath();
+
+            // Gold border trim (thick)
+            graphics.lineStyle(2, 0xdaa520, 1);
+            graphics.beginPath();
+            graphics.moveTo(bannerX - 1, bannerPoleTop);
+            graphics.lineTo(bannerX + 15 + flagWave, bannerPoleTop + 2);
+            graphics.lineTo(bannerX + 13 + flagWave * 0.5, bannerPoleTop + 18);
+            graphics.lineTo(bannerX - 1, bannerPoleTop + 16);
+            graphics.closePath();
+            graphics.strokePath();
+
+            // Gold eagle emblem on banner (larger)
+            const embX = bannerX + 6 + flagWave * 0.3;
+            const embY = bannerPoleTop + 9;
+            graphics.fillStyle(0xffd700, 0.9);
+            graphics.beginPath();
+            graphics.moveTo(embX, embY - 5);
+            graphics.lineTo(embX + 3, embY - 2);
+            graphics.lineTo(embX + 6, embY - 4);
+            graphics.lineTo(embX + 4, embY);
+            graphics.lineTo(embX + 3, embY + 4);
+            graphics.lineTo(embX, embY + 2);
+            graphics.lineTo(embX - 3, embY + 4);
+            graphics.lineTo(embX - 4, embY);
+            graphics.lineTo(embX - 6, embY - 4);
+            graphics.lineTo(embX - 3, embY - 2);
+            graphics.closePath();
+            graphics.fillPath();
+            // Eagle head highlight
+            graphics.fillStyle(0xffd700, 1);
+            graphics.fillCircle(embX, embY - 4, 1.5);
+
+            // Gold horizontal bar across banner (like a laurel divider)
+            graphics.lineStyle(1, 0xdaa520, 0.7);
+            graphics.lineBetween(bannerX + 1, bannerPoleTop + 4, bannerX + 13 + flagWave * 0.7, bannerPoleTop + 5);
+            graphics.lineBetween(bannerX + 1, bannerPoleTop + 14, bannerX + 11 + flagWave * 0.4, bannerPoleTop + 15);
+
+            // === THREE FLOWING TAILS (crimson with gold tips) ===
+            // Left tail
+            graphics.fillStyle(bannerColor, 0.9);
+            graphics.beginPath();
+            graphics.moveTo(bannerX + 1, bannerPoleTop + 16);
+            graphics.lineTo(bannerX + 2 + flagWave2 * 0.5, bannerPoleTop + 24);
+            graphics.lineTo(bannerX + 5, bannerPoleTop + 16);
+            graphics.closePath();
+            graphics.fillPath();
+            // Center tail
+            graphics.beginPath();
+            graphics.moveTo(bannerX + 5, bannerPoleTop + 16);
+            graphics.lineTo(bannerX + 6 + flagWave2, bannerPoleTop + 26);
+            graphics.lineTo(bannerX + 9, bannerPoleTop + 16);
+            graphics.closePath();
+            graphics.fillPath();
+            // Right tail
+            graphics.beginPath();
+            graphics.moveTo(bannerX + 9, bannerPoleTop + 16);
+            graphics.lineTo(bannerX + 10 + flagWave2 * 0.7, bannerPoleTop + 23);
+            graphics.lineTo(bannerX + 13 + flagWave * 0.5, bannerPoleTop + 17);
+            graphics.closePath();
+            graphics.fillPath();
+
+            // Gold tips on tails
+            graphics.fillStyle(0xffd700, 0.9);
+            graphics.fillCircle(bannerX + 2 + flagWave2 * 0.5, bannerPoleTop + 23, 1.5);
+            graphics.fillCircle(bannerX + 6 + flagWave2, bannerPoleTop + 25, 1.5);
+            graphics.fillCircle(bannerX + 10 + flagWave2 * 0.7, bannerPoleTop + 22, 1.5);
+
+            // Gold crossbar at top of banner
+            graphics.lineStyle(2, 0xdaa520, 1);
+            graphics.lineBetween(bannerX - 2, bannerPoleTop, bannerX + 15 + flagWave, bannerPoleTop + 2);
+            // Gold ball on crossbar end
+            graphics.fillStyle(0xffd700, 1);
+            graphics.fillCircle(bannerX + 15 + flagWave, bannerPoleTop + 2, 2);
+        } else {
+            // L1-L2 banner
+            graphics.fillStyle(isPlayer ? 0xcc3333 : 0x554433, 1);
+            graphics.fillRect(bannerX - 5, bannerPoleTop, 10, 8);
+            graphics.lineStyle(1.5, isPlayer ? 0xd4a84b : 0x8b7355, 1);
+            graphics.strokeRect(bannerX - 5, bannerPoleTop, 10, 8);
+
+            // L2: Eagle standard on banner pole + gold trim
+            if (troopLevel >= 2) {
+                // Eagle finial on banner pole
+                graphics.fillStyle(0xffd700, 1);
+                graphics.beginPath();
+                graphics.moveTo(bannerX, bannerPoleTop - 3);
+                graphics.lineTo(bannerX - 3, bannerPoleTop);
+                graphics.lineTo(bannerX + 3, bannerPoleTop);
+                graphics.closePath();
+                graphics.fillPath();
+                // Eagle wings
+                graphics.lineStyle(1, 0xffd700, 1);
+                graphics.lineBetween(bannerX - 3, bannerPoleTop - 2, bannerX - 7, bannerPoleTop - 4);
+                graphics.lineBetween(bannerX + 3, bannerPoleTop - 2, bannerX + 7, bannerPoleTop - 4);
+                // Gold emblem on banner
+                graphics.fillStyle(0xffd700, 0.8);
+                graphics.fillCircle(bannerX, bannerPoleTop + 4, 2);
+            }
+        }
+    }
+    private static drawGolem(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, slamOffset: number, troopLevel: number = 1, time: number = Date.now()) {
         // COLOSSAL STONE GOLEM - Massive animated rock titan
-        const now = Date.now();
+        const now = time;
 
         // Walking animation - heavy, lumbering steps (slow cycle for weight)
         const walkPhase = isMoving ? (now % 2400) / 2400 : 0;
@@ -1226,524 +2545,20 @@ export class TroopRenderer {
             graphics.lineBetween(12, -50 + bodySlam, 10, -44 + bodySlam);
         }
     }
-
-    private static drawSharpshooter(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, facingAngle: number, bowDrawProgress: number, troopLevel: number = 1) {
-        // SHARPSHOOTER - Elite archer with massive crossbow
-        const now = Date.now();
-        const runPhase = isMoving ? (now % 400) / 400 : 0;
-        const legKick = isMoving ? Math.sin(runPhase * Math.PI * 2) * 4 : 0;
-        const armBob = isMoving ? Math.sin(runPhase * Math.PI * 2) * 0.08 : 0;
-
-        // Colors - forest green/dark theme
-        const cloakColor = isPlayer ? 0x2e7d32 : 0x5d4037;
-        const cloakDark = isPlayer ? 0x1b5e20 : 0x4e342e;
-        const skinColor = 0xe8d4b8;
-        const bowWood = 0x5d4037;
-        const bowDark = 0x3e2723;
-        const metalColor = 0x888888;
-
-        // Shadow
-        graphics.fillStyle(0x000000, 0.3);
-        graphics.fillEllipse(0, 12, 14, 7);
-
-        // Legs with animation
-        graphics.fillStyle(cloakDark, 1);
-        graphics.fillRect(-4, 0 - legKick, 3, 10);
-        graphics.fillRect(1, 0 + legKick, 3, 10);
-
-        // Boots
-        graphics.fillStyle(0x3e2723, 1);
-        graphics.fillEllipse(-2.5, 10 - legKick, 4, 3);
-        graphics.fillEllipse(2.5, 10 + legKick, 4, 3);
-
-        // Body/Cloak
-        graphics.fillStyle(cloakColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-8, -2);
-        graphics.lineTo(-6, -18);
-        graphics.lineTo(6, -18);
-        graphics.lineTo(8, -2);
-        graphics.lineTo(4, 2);
-        graphics.lineTo(-4, 2);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Hood/collar
-        graphics.fillStyle(cloakDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-5, -16);
-        graphics.lineTo(-4, -22);
-        graphics.lineTo(4, -22);
-        graphics.lineTo(5, -16);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Head
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(0, -25, 5);
-
-        // Face details
-        graphics.fillStyle(0x000000, 1);
-        graphics.fillCircle(-2, -26, 0.8);
-        graphics.fillCircle(2, -26, 0.8);
-
-        // Eye patch/mask (sniper look)
-        graphics.fillStyle(0x1a1a1a, 1);
-        graphics.fillRect(-6, -27, 3, 2);
-
-        // Hair
-        graphics.fillStyle(0x3e2723, 1);
-        graphics.beginPath();
-        graphics.arc(0, -27, 5, Math.PI, 0, false);
-        graphics.fill();
-
-        // === MASSIVE LONGBOW ===
-        const bowAngle = facingAngle + armBob;
-
-        graphics.save();
-        graphics.translateCanvas(0, -12);
-        graphics.rotateCanvas(bowAngle);
-
-        // Bow limbs - curved wooden bow
-        graphics.lineStyle(3, bowWood, 1);
-        graphics.beginPath();
-        graphics.arc(0, 0, 18, -Math.PI * 0.4, Math.PI * 0.4, false);
-        graphics.stroke();
-
-        // Bow highlight
-        graphics.lineStyle(1.5, bowDark, 1);
-        graphics.beginPath();
-        graphics.arc(0, 0, 16, -Math.PI * 0.35, Math.PI * 0.35, false);
-        graphics.stroke();
-
-        // Bowstring - animates based on bowDrawProgress
-        // When progress = 0, string is at rest (near bow)
-        // When progress = 1, string is pulled back fully
-        const restPosition = 14; // String at rest position
-        const fullyDrawnPosition = -10; // String when fully pulled
-        const stringPullBack = restPosition - (restPosition - fullyDrawnPosition) * bowDrawProgress;
-
-        graphics.lineStyle(1, 0xaa9977, 1);
-        graphics.lineBetween(
-            18 * Math.cos(-Math.PI * 0.4), 18 * Math.sin(-Math.PI * 0.4),
-            stringPullBack, 0
-        );
-        graphics.lineBetween(
-            18 * Math.cos(Math.PI * 0.4), 18 * Math.sin(Math.PI * 0.4),
-            stringPullBack, 0
-        );
-
-        // Arrow - only visible when drawing or drawn (bowDrawProgress > 0)
-        if (bowDrawProgress > 0.1) {
-            // Arrow shaft
-            graphics.fillStyle(bowDark, 1);
-            graphics.fillRect(stringPullBack, -1.5, 26, 3);
-            // Arrow head
-            graphics.fillStyle(metalColor, 1);
-            graphics.fillTriangle(stringPullBack + 28, 0, stringPullBack + 22, -3.5, stringPullBack + 22, 3.5);
-            // Fletching
-            graphics.fillStyle(0x2e7d32, 1);
-            graphics.fillTriangle(stringPullBack + 2, 0, stringPullBack - 2, -4, stringPullBack - 2, 4);
-        }
-
-        graphics.restore();
-
-        // L2: Gold headband
-        if (troopLevel >= 2) {
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillRect(-5, -28, 10, 2);
-            // Gold band around bow grip
-            graphics.fillStyle(0xdaa520, 0.8);
-            graphics.save();
-            graphics.translateCanvas(0, -12);
-            graphics.rotateCanvas(facingAngle + armBob);
-            graphics.fillRect(16, -2, 3, 4);
-            graphics.restore();
-        }
-        // L3: Scope lens glint + silver headband upgrade
-        if (troopLevel >= 3) {
-            graphics.fillStyle(0xccccdd, 1);
-            graphics.fillRect(-5, -28, 10, 2);
-            // Scope glint on crossbow
-            graphics.fillStyle(0x88ddff, 0.5);
-            graphics.save();
-            graphics.translateCanvas(0, -12);
-            graphics.rotateCanvas(facingAngle + armBob);
-            graphics.fillCircle(20, 0, 2);
-            graphics.restore();
-        }
-    }
-
-    private static drawMobileMortar(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, facingAngle: number, mortarRecoil: number, troopLevel: number = 1) {
-        // MOBILE MORTAR - Soldier ALWAYS IN FRONT dragging the mortar BEHIND
-        const now = Date.now();
-
-        // Soldier walks independently with slight offset from mortar
-        const soldierWalkPhase = isMoving ? (now % 400) / 400 : 0;
-        const soldierLegKick = isMoving ? Math.sin(soldierWalkPhase * Math.PI * 2) * 4 : 0;
-        const soldierArmSwing = isMoving ? Math.sin(soldierWalkPhase * Math.PI * 2) * 0.15 : 0;
-        const soldierBob = isMoving ? Math.abs(Math.sin(soldierWalkPhase * Math.PI * 2)) * 2 : 0;
-
-        // Mortar bounces slightly behind
-        const mortarBob = isMoving ? Math.abs(Math.sin((soldierWalkPhase + 0.2) * Math.PI * 2)) * 1.5 : 0;
-        const wheelRotation = isMoving ? (now % 600) / 600 * Math.PI * 2 : 0;
-
-        // Colors
-        const uniformColor = isPlayer ? 0x455a64 : 0x5d4037;
-        const uniformDark = isPlayer ? 0x37474f : 0x4e342e;
-        const skinColor = 0xe8d4b8;
-        const metalColor = troopLevel >= 3 ? 0xdaa520 : 0x555555;
-        const metalDark = troopLevel >= 3 ? 0xb8860b : 0x333333;
-        const woodColor = 0x8b4513;
-
-        // DIRECTION LOGIC: Soldier is always in front (direction of travel)
-        // facingAngle: 0 = right, PI = left, PI/2 = down, -PI/2 = up
-        // If facing left (abs(angle) > PI/2), soldier should be on left, mortar on right
-        // If facing right (abs(angle) <= PI/2), soldier should be on right, mortar on left
-        const facingLeft = Math.abs(facingAngle) > Math.PI / 2;
-        const flip = facingLeft ? -1 : 1;
-
-        // Positions based on direction
-        const baseMortarX = -12 * flip; // Mortar is behind
-        const baseSoldierX = 14 * flip; // Soldier is in front
-
-        // === MORTAR CART ===
-        const mortarX = baseMortarX;
-        const mortarY = mortarBob + mortarRecoil;
-
-        // Mortar shadow
-        graphics.fillStyle(0x000000, 0.35);
-        graphics.fillEllipse(mortarX, 12 + mortarY, 16, 8);
-
-        // Wheels
-        graphics.fillStyle(metalDark, 1);
-        graphics.fillCircle(mortarX - 8, 6 + mortarY, 6);
-        graphics.fillCircle(mortarX + 8, 6 + mortarY, 6);
-        graphics.fillStyle(metalColor, 1);
-        graphics.fillCircle(mortarX - 8, 6 + mortarY, 4);
-        graphics.fillCircle(mortarX + 8, 6 + mortarY, 4);
-        graphics.fillStyle(woodColor, 1);
-        graphics.fillCircle(mortarX - 8, 6 + mortarY, 1.5);
-        graphics.fillCircle(mortarX + 8, 6 + mortarY, 1.5);
-
-        // Wheel spokes
-        graphics.lineStyle(1, woodColor, 0.8);
-        for (let i = 0; i < 4; i++) {
-            const spokeAngle = wheelRotation + (i * Math.PI / 2);
-            graphics.lineBetween(
-                mortarX - 8 + Math.cos(spokeAngle) * 1.5,
-                6 + mortarY + Math.sin(spokeAngle) * 1.5,
-                mortarX - 8 + Math.cos(spokeAngle) * 4,
-                6 + mortarY + Math.sin(spokeAngle) * 4
-            );
-            graphics.lineBetween(
-                mortarX + 8 + Math.cos(spokeAngle) * 1.5,
-                6 + mortarY + Math.sin(spokeAngle) * 1.5,
-                mortarX + 8 + Math.cos(spokeAngle) * 4,
-                6 + mortarY + Math.sin(spokeAngle) * 4
-            );
-        }
-
-        // Axle
-        graphics.fillStyle(woodColor, 1);
-        graphics.fillRect(mortarX - 10, 4 + mortarY, 20, 3);
-
-        // Mortar base
-        graphics.fillStyle(metalDark, 1);
-        graphics.fillRect(mortarX - 5, -2 + mortarY, 10, 6);
-
-        // Mortar tube (angled up) — L3 is wider
-        const tubeW = troopLevel >= 3 ? 5.5 : 4;
-        const tubeInner = troopLevel >= 3 ? 4 : 3;
-        const tubeTopW = troopLevel >= 3 ? 4 : 3;
-        const tubeTopInner = troopLevel >= 3 ? 3 : 2;
-        graphics.fillStyle(metalDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(mortarX - tubeW, -2 + mortarY);
-        graphics.lineTo(mortarX - tubeTopW, -22 + mortarY);
-        graphics.lineTo(mortarX + tubeTopW, -22 + mortarY);
-        graphics.lineTo(mortarX + tubeW, -2 + mortarY);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(metalColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(mortarX - tubeInner, -2 + mortarY);
-        graphics.lineTo(mortarX - tubeTopInner, -20 + mortarY);
-        graphics.lineTo(mortarX + tubeTopInner, -20 + mortarY);
-        graphics.lineTo(mortarX + tubeInner, -2 + mortarY);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Mortar opening
-        const openW = troopLevel >= 3 ? 4.5 : 3;
-        const openStroke = troopLevel >= 3 ? 5.5 : 4;
-        graphics.fillStyle(0x1a1a1a, 1);
-        graphics.fillEllipse(mortarX, -22 + mortarY, openW, 1.5);
-        graphics.lineStyle(2, metalColor, 1);
-        graphics.strokeEllipse(mortarX, -22 + mortarY, openStroke, 2);
-
-        // === ROPE connecting soldier to mortar ===
-        const soldierX = baseSoldierX;
-        const soldierHandY = -4 - soldierBob;
-        const ropeAttachMortarX = mortarX + (5 * flip);
-        const soldierHandX = soldierX - (6 * flip);
-        graphics.lineStyle(2, 0x8b7355, 1);
-        // Rope sags in the middle
-        const ropeMidX = (ropeAttachMortarX + soldierHandX) / 2;
-        const ropeMidY = 4; // Sag point
-        graphics.beginPath();
-        graphics.moveTo(ropeAttachMortarX, 2 + mortarY);
-        graphics.lineTo(ropeMidX, ropeMidY);
-        graphics.lineTo(soldierHandX, soldierHandY);
-        graphics.stroke();
-
-        // === SOLDIER (in front, walking independently) ===
-        const soldierY = -soldierBob;
-
-        // Soldier shadow
-        graphics.fillStyle(0x000000, 0.3);
-        graphics.fillEllipse(soldierX, 10 + soldierY, 10, 5);
-
-        // Legs with animation
-        graphics.fillStyle(uniformDark, 1);
-        graphics.fillRect(soldierX - 4, 0 + soldierY - soldierLegKick, 3, 10);
-        graphics.fillRect(soldierX + 1, 0 + soldierY + soldierLegKick, 3, 10);
-
-        // Boots
-        graphics.fillStyle(0x2d2d2d, 1);
-        graphics.fillEllipse(soldierX - 2.5, 10 + soldierY - soldierLegKick, 4, 2.5);
-        graphics.fillEllipse(soldierX + 2.5, 10 + soldierY + soldierLegKick, 4, 2.5);
-
-        // Body
-        graphics.fillStyle(uniformColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(soldierX - 6, 0 + soldierY);
-        graphics.lineTo(soldierX - 5, -14 + soldierY);
-        graphics.lineTo(soldierX + 5, -14 + soldierY);
-        graphics.lineTo(soldierX + 6, 0 + soldierY);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Collar
-        graphics.fillStyle(uniformDark, 1);
-        graphics.fillRect(soldierX - 4, -14 + soldierY, 8, 3);
-
-        // Arm holding rope (arm reaching toward mortar)
-        const armReachX = soldierX - (4 * flip);
-        const armAngle = (soldierArmSwing - 0.3) * flip;
-        graphics.fillStyle(uniformColor, 1);
-        graphics.save();
-        graphics.translateCanvas(armReachX, -8 + soldierY);
-        graphics.rotateCanvas(armAngle);
-        graphics.fillRect(-2, 0, 4, 10);
-        graphics.restore();
-        // Hand
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(soldierHandX, soldierHandY, 2.5);
-
-        // Other arm (swinging)
-        const armSwingX = soldierX + (4 * flip);
-        graphics.fillStyle(uniformColor, 1);
-        graphics.save();
-        graphics.translateCanvas(armSwingX, -8 + soldierY);
-        graphics.rotateCanvas(-soldierArmSwing * flip);
-        graphics.fillRect(-2, 0, 4, 8);
-        graphics.restore();
-
-        // Head
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(soldierX, -18 + soldierY, 4);
-
-        // Helmet
-        graphics.fillStyle(uniformDark, 1);
-        graphics.beginPath();
-        graphics.arc(soldierX, -20 + soldierY, 5, Math.PI, 0, false);
-        graphics.fill();
-        graphics.fillRect(soldierX - 5, -20 + soldierY, 10, 2);
-
-        // Face
-        graphics.fillStyle(0x000000, 1);
-        graphics.fillCircle(soldierX - 1.5, -19 + soldierY, 0.6);
-        graphics.fillCircle(soldierX + 1.5, -19 + soldierY, 0.6);
-
-        // L2: Wider mortar barrel + gold reinforcement bands + ammo box on cart
-        if (troopLevel >= 2) {
-            // Extra reinforcement band on mortar tube
-            graphics.lineStyle(2, 0xdaa520, 0.9);
-            graphics.strokeEllipse(mortarX, -12 + mortarY, 5, 2.5);
-            graphics.strokeEllipse(mortarX, -6 + mortarY, 6, 2.5);
-            // Ammo crate on cart behind mortar
-            graphics.fillStyle(0x5a3a1a, 1);
-            graphics.fillRect(mortarX - 7, -2 + mortarY, 5, 4);
-            graphics.lineStyle(1, 0x444444, 0.6);
-            graphics.strokeRect(mortarX - 7, -2 + mortarY, 5, 4);
-        }
-        // L3: Gold helmet badge + second ammo crate
-        if (troopLevel >= 3) {
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillCircle(soldierX, -22 + soldierY, 1.5);
-            graphics.fillStyle(0x5a3a1a, 1);
-            graphics.fillRect(mortarX - 7, 2 + mortarY, 5, 3);
-            graphics.lineStyle(1, 0xdaa520, 0.6);
-            graphics.strokeRect(mortarX - 7, 2 + mortarY, 5, 3);
-        }
-    }
-
-    private static drawWard(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean = false, troopLevel: number = 1) {
-        const glowColor = isPlayer ? 0x58d68d : 0x45b39d;
-        const robeColor = isPlayer ? 0x2ecc71 : 0x27ae60;
-        const robeDark = isPlayer ? 0x1e8449 : 0x196f3d;
-        const skinColor = isPlayer ? 0xdeb887 : 0xc9a66b;
-        const now = Date.now();
-
-        // Gentle walk bob and staff sway
-        const walkPhase = isMoving ? (now % 800) / 800 : 0;
-        const walkBob = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 1.5 : 0;
-        const staffSway = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 0.8 : 0;
-
-        // Heal radius aura (circle)
-        const healRadiusPixels = 7 * 32;
-        const pulseAlpha = 0.1 + Math.sin(now / 300) * 0.05;
-
-        graphics.lineStyle(3, glowColor, pulseAlpha + 0.15);
-        graphics.beginPath();
-        const segments = 48;
-        for (let i = 0; i <= segments; i++) {
-            const theta = (i / segments) * Math.PI * 2;
-            const noise = Math.sin(now / 25 + theta * 3) * 4 +
-                Math.sin(now / 37 + theta * 7) * 2 +
-                Math.sin(now / 20 + theta * 11) * 1.5;
-            const rx = (healRadiusPixels + noise) * Math.cos(theta);
-            const ry = ((healRadiusPixels / 2) + noise * 0.5) * Math.sin(theta);
-            if (i === 0) graphics.moveTo(rx, 5 + ry);
-            else graphics.lineTo(rx, 5 + ry);
-        }
-        graphics.closePath();
-        graphics.strokePath();
-
-        graphics.fillStyle(glowColor, pulseAlpha * 0.25);
-        graphics.fillEllipse(0, 5, healRadiusPixels, healRadiusPixels / 2);
-
-        // Shadow
-        graphics.fillStyle(0x000000, 0.25);
-        graphics.fillEllipse(0, 12, 12, 5);
-
-        // Robe skirt (triangular) — stays grounded
-        graphics.fillStyle(robeDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-7, 2 + walkBob * 0.3);
-        graphics.lineTo(7, 2 + walkBob * 0.3);
-        graphics.lineTo(5, 11);
-        graphics.lineTo(-5, 11);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(robeColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-6, 2 + walkBob * 0.3);
-        graphics.lineTo(6, 2 + walkBob * 0.3);
-        graphics.lineTo(4, 10);
-        graphics.lineTo(-4, 10);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Torso
-        graphics.fillStyle(robeDark, 1);
-        graphics.fillRect(-5, -5 + walkBob, 10, 8);
-        graphics.fillStyle(robeColor, 1);
-        graphics.fillRect(-4, -4 + walkBob, 8, 7);
-
-        // Hood/cowl
-        graphics.fillStyle(robeDark, 1);
-        graphics.beginPath();
-        graphics.arc(0, -8 + walkBob, 6, Math.PI, 0, false);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(robeColor, 1);
-        graphics.beginPath();
-        graphics.arc(0, -8 + walkBob, 5, Math.PI, 0, false);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Face
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(0, -8 + walkBob, 4);
-
-        // Eyes
-        graphics.fillStyle(0x2a5a1a, 1);
-        graphics.fillCircle(-1.5, -8 + walkBob, 1);
-        graphics.fillCircle(1.5, -8 + walkBob, 1);
-
-        // Staff held in right hand (sways when walking)
-        graphics.fillStyle(0x5d4e37, 1);
-        graphics.fillRect(7 + staffSway, -16 + walkBob, 3, 24);
-        graphics.fillStyle(0x4a3520, 1);
-        graphics.fillRect(8 + staffSway, -16 + walkBob, 1.5, 24);
-
-        // Crystal orb on staff
-        const orbPulse = 0.8 + Math.sin(now / 200) * 0.15;
-        graphics.fillStyle(0x88ffcc, orbPulse);
-        graphics.fillCircle(8.5 + staffSway, -18 + walkBob, 4.5);
-        graphics.fillStyle(0xffffff, 0.5);
-        graphics.fillCircle(7 + staffSway, -19.5 + walkBob, 1.5);
-
-        // Glow around orb
-        graphics.lineStyle(2, 0xaaffdd, 0.4);
-        graphics.strokeCircle(8.5 + staffSway, -18 + walkBob, 7);
-
-        // Left arm extended (casting) — gentle bob
-        graphics.fillStyle(robeColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-4, -3 + walkBob);
-        graphics.lineTo(-9, -7 + walkBob);
-        graphics.lineTo(-8, -9 + walkBob);
-        graphics.lineTo(-3, -5 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Hand
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(-9, -8 + walkBob, 2);
-
-        // Heal particles when not moving (casting)
-        if (!isMoving) {
-            for (let i = 0; i < 2; i++) {
-                const pAngle = (now / 300 + i * Math.PI) % (Math.PI * 2);
-                const pDist = 5 + Math.sin(now / 200 + i) * 3;
-                const px = -9 + Math.cos(pAngle) * pDist;
-                const py = -10 + Math.sin(pAngle) * pDist * 0.5;
-                graphics.fillStyle(glowColor, 0.3 + Math.sin(now / 100 + i) * 0.2);
-                graphics.fillCircle(px, py, 1.5);
-            }
-        }
-
-        // L2: Gold trim on robe + larger brighter orb
-        if (troopLevel >= 2) {
-            graphics.lineStyle(1.5, 0xdaa520, 0.9);
-            graphics.lineBetween(-6, 2 + walkBob * 0.3, -4, 10);
-            graphics.lineBetween(6, 2 + walkBob * 0.3, 4, 10);
-            // Extra glow ring around orb
-            graphics.lineStyle(1.5, 0xffd700, 0.5);
-            graphics.strokeCircle(8.5 + staffSway, -18 + walkBob, 6);
-        }
-        // L3: Second glow ring + brighter orb core
-        if (troopLevel >= 3) {
-            graphics.lineStyle(1, glowColor, 0.3);
-            graphics.strokeCircle(8.5 + staffSway, -18 + walkBob, 8);
-            graphics.fillStyle(0xffffff, 0.4);
-            graphics.fillCircle(8.5 + staffSway, -18 + walkBob, 2);
-        }
-    }
-
-    private static drawRecursion(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean = false, troopLevel: number = 1) {
+    private static drawRecursion(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean = false, troopLevel: number = 1, time: number = Date.now(), attackAge: number = -1, attackDelay: number = 0) {
         // Fractal/geometric entity that splits on death
         const bodyColor = isPlayer ? 0x00ffaa : 0xaa00ff;
         const innerColor = isPlayer ? 0x00aa77 : 0x7700aa;
-        const now = Date.now();
+        const now = time;
 
         // Hover bob when moving
         const hoverBob = isMoving ? Math.sin(now / 200) * 2 : 0;
 
-        // Attack animation: expands and contracts with energy burst
-        const attackPhase = !isMoving ? (now % 850) / 850 : 0;
+        // Attack animation: expands and contracts with energy burst.
+        // Cycle locks to the real attack cadence when combat state is known.
+        const cycle = attackDelay > 0 ? attackDelay : 850;
+        const inCombat = attackAge >= 0;
+        const attackPhase = (!isMoving && (!inCombat || attackAge <= cycle + 600)) ? ((inCombat ? Math.min(attackAge, cycle - 1) : now % cycle) / cycle) : 0;
         let attackPulse = 0;
         let burstAlpha = 0;
         if (!isMoving) {
@@ -1858,480 +2673,7 @@ export class TroopRenderer {
             }
         }
     }
-
-    private static drawRam(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, facingAngle: number, troopLevel: number = 1) {
-        // MASSIVE BATTERING RAM - Huge meaty tree trunk carried by two warriors
-        const now = Date.now();
-
-        const cos = Math.cos(facingAngle);
-        const sin = Math.sin(facingAngle);
-
-        // Running animation phase - only animate when moving
-        const runPhase = isMoving ? (now % 300) / 300 : 0;
-        const runBob = isMoving ? Math.sin(runPhase * Math.PI * 2) * 2 : 0;
-        const chargeForward = isMoving ? Math.abs(Math.sin(runPhase * Math.PI)) * 3 : 0;
-
-        // Ram dimensions - MASSIVE tree trunk
-        const ramLength = 48;
-        const ramWidth = 14;
-        const ramHeight = 16;
-
-        // Calculate ram endpoints based on direction
-        const backX = -cos * (ramLength / 2) - cos * chargeForward;
-        const backY = -sin * (ramLength / 2) * 0.5 + runBob - sin * chargeForward * 0.5;
-        const frontX = cos * (ramLength / 2) + cos * chargeForward;
-        const frontY = sin * (ramLength / 2) * 0.5 + runBob + sin * chargeForward * 0.5;
-
-        // Perpendicular offset for width
-        const perpX = -sin * (ramWidth / 2);
-        const perpY = cos * (ramWidth / 2) * 0.5;
-
-        // Giant shadow
-        graphics.fillStyle(0x000000, 0.4);
-        graphics.fillEllipse(cos * 3, 10 + sin * 2, 44, 18);
-
-        // === WARRIORS CARRYING THE RAM ===
-        const warrior1Phase = runPhase;
-        const warrior2Phase = (runPhase + 0.5) % 1;
-        const warrior1Bob = Math.sin(warrior1Phase * Math.PI * 2) * 3;
-        const warrior2Bob = Math.sin(warrior2Phase * Math.PI * 2) * 3;
-
-        const skinColor = isPlayer ? 0xdeb887 : 0xc9a66b;
-        const skinDark = isPlayer ? 0xcd9b5a : 0xb8956a;
-        const armorColor = isPlayer ? 0x8b4513 : 0x654321;
-        const armorDark = isPlayer ? 0x5c3317 : 0x4a2f1a;
-
-        // Warrior positions - at back and middle of ram
-        const w1Offset = -0.35; // Back warrior
-        const w2Offset = 0.1;   // Front warrior
-
-        for (const [wOffset, wBob, legPhase] of [[w1Offset, warrior1Bob, warrior1Phase], [w2Offset, warrior2Bob, warrior2Phase]] as [number, number, number][]) {
-            const wx = backX + (frontX - backX) * (wOffset + 0.5);
-            const wy = backY + (frontY - backY) * (wOffset + 0.5);
-            const legKick = Math.sin(legPhase * Math.PI * 2) * 3;
-
-            // Warrior shadow
-            graphics.fillStyle(0x000000, 0.25);
-            graphics.fillEllipse(wx, wy + 12, 10, 5);
-
-            // Running legs
-            graphics.fillStyle(armorDark, 1);
-            // Back leg
-            graphics.beginPath();
-            graphics.moveTo(wx - 2, wy + 4);
-            graphics.lineTo(wx - 3 - legKick, wy + 10);
-            graphics.lineTo(wx - 1 - legKick, wy + 10);
-            graphics.lineTo(wx, wy + 4);
-            graphics.closePath();
-            graphics.fillPath();
-            // Front leg
-            graphics.beginPath();
-            graphics.moveTo(wx + 2, wy + 4);
-            graphics.lineTo(wx + 3 + legKick, wy + 10);
-            graphics.lineTo(wx + 5 + legKick, wy + 10);
-            graphics.lineTo(wx + 4, wy + 4);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Feet
-            graphics.fillStyle(0x3a2a1a, 1);
-            graphics.fillEllipse(wx - 2 - legKick, wy + 11, 3, 2);
-            graphics.fillEllipse(wx + 4 + legKick, wy + 11, 3, 2);
-
-            // Body (leather armor)
-            graphics.fillStyle(armorColor, 1);
-            graphics.fillCircle(wx, wy + wBob, 6);
-            graphics.fillStyle(armorDark, 1);
-            graphics.fillCircle(wx + 1, wy + wBob + 1, 5);
-
-            // Arms reaching up to hold ram
-            graphics.fillStyle(skinColor, 1);
-            // Left arm
-            graphics.beginPath();
-            graphics.moveTo(wx - 4, wy + wBob - 2);
-            graphics.lineTo(wx - 5, wy + wBob - 10);
-            graphics.lineTo(wx - 3, wy + wBob - 10);
-            graphics.lineTo(wx - 2, wy + wBob - 2);
-            graphics.closePath();
-            graphics.fillPath();
-            // Right arm
-            graphics.beginPath();
-            graphics.moveTo(wx + 4, wy + wBob - 2);
-            graphics.lineTo(wx + 5, wy + wBob - 10);
-            graphics.lineTo(wx + 3, wy + wBob - 10);
-            graphics.lineTo(wx + 2, wy + wBob - 2);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Hands gripping (shown as small circles at top of arms)
-            graphics.fillStyle(skinDark, 1);
-            graphics.fillCircle(wx - 4, wy + wBob - 11, 2);
-            graphics.fillCircle(wx + 4, wy + wBob - 11, 2);
-
-            // Head
-            graphics.fillStyle(skinColor, 1);
-            graphics.fillCircle(wx, wy + wBob - 6, 4);
-            // Helmet
-            graphics.fillStyle(0x555555, 1);
-            graphics.beginPath();
-            graphics.arc(wx, wy + wBob - 7, 4, Math.PI, 0, false);
-            graphics.closePath();
-            graphics.fillPath();
-            // Helmet spike
-            graphics.fillStyle(0x666666, 1);
-            graphics.beginPath();
-            graphics.moveTo(wx - 1, wy + wBob - 11);
-            graphics.lineTo(wx, wy + wBob - 14);
-            graphics.lineTo(wx + 1, wy + wBob - 11);
-            graphics.closePath();
-            graphics.fillPath();
-        }
-
-        // === MASSIVE TREE TRUNK ===
-        // Dark bark base layer
-        graphics.fillStyle(0x3d2817, 1);
-        graphics.beginPath();
-        graphics.moveTo(backX + perpX * 1.1, backY + perpY * 1.1 - ramHeight + 2);
-        graphics.lineTo(frontX + perpX * 0.9, frontY + perpY * 0.9 - ramHeight + 2);
-        graphics.lineTo(frontX - perpX * 0.9, frontY - perpY * 0.9 - ramHeight + 2);
-        graphics.lineTo(backX - perpX * 1.1, backY - perpY * 1.1 - ramHeight + 2);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Main trunk body - rich brown wood
-        graphics.fillStyle(0x5d3a1a, 1);
-        graphics.beginPath();
-        graphics.moveTo(backX + perpX, backY + perpY - ramHeight);
-        graphics.lineTo(frontX + perpX * 0.85, frontY + perpY * 0.85 - ramHeight);
-        graphics.lineTo(frontX - perpX * 0.85, frontY - perpY * 0.85 - ramHeight);
-        graphics.lineTo(backX - perpX, backY - perpY - ramHeight);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Wood highlight - top surface
-        graphics.fillStyle(0x7a4a2a, 1);
-        graphics.beginPath();
-        graphics.moveTo(backX + perpX * 0.8, backY + perpY * 0.8 - ramHeight - 4);
-        graphics.lineTo(frontX + perpX * 0.7, frontY + perpY * 0.7 - ramHeight - 4);
-        graphics.lineTo(frontX - perpX * 0.4, frontY - perpY * 0.4 - ramHeight - 3);
-        graphics.lineTo(backX - perpX * 0.4, backY - perpY * 0.4 - ramHeight - 3);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Bark texture - deep grooves running lengthwise
-        graphics.lineStyle(2, 0x2a1a0a, 0.7);
-        for (let i = 0; i < 5; i++) {
-            const offset = (i - 2) * 0.15;
-            const gx1 = backX + perpX * offset;
-            const gy1 = backY + perpY * offset - ramHeight - 1;
-            const gx2 = frontX + perpX * offset * 0.8;
-            const gy2 = frontY + perpY * offset * 0.8 - ramHeight - 1;
-            graphics.lineBetween(gx1, gy1, gx2, gy2);
-        }
-
-        // Knots and wood details
-        graphics.fillStyle(0x4a2a15, 1);
-        const knot1T = 0.3;
-        const knot1X = backX + (frontX - backX) * knot1T + perpX * 0.3;
-        const knot1Y = backY + (frontY - backY) * knot1T + perpY * 0.3 - ramHeight - 2;
-        graphics.fillCircle(knot1X, knot1Y, 3);
-        graphics.fillStyle(0x3a1a0a, 1);
-        graphics.fillCircle(knot1X, knot1Y, 1.5);
-
-        const knot2T = 0.65;
-        const knot2X = backX + (frontX - backX) * knot2T - perpX * 0.2;
-        const knot2Y = backY + (frontY - backY) * knot2T - perpY * 0.2 - ramHeight - 1;
-        graphics.fillStyle(0x4a2a15, 1);
-        graphics.fillCircle(knot2X, knot2Y, 2.5);
-        graphics.fillStyle(0x3a1a0a, 1);
-        graphics.fillCircle(knot2X, knot2Y, 1);
-
-        if (troopLevel >= 2) {
-            // === IRON REINFORCEMENT RINGS (L2+) ===
-            graphics.fillStyle(0x3a3a3a, 1);
-            for (let i = 0; i < 5; i++) {
-                const t = (i + 1) / 6;
-                const bx = backX + (frontX - backX) * t;
-                const by = backY + (frontY - backY) * t - ramHeight;
-                graphics.beginPath();
-                graphics.moveTo(bx + perpX * 1.15, by + perpY * 1.15 + 2);
-                graphics.lineTo(bx - perpX * 1.15, by - perpY * 1.15 + 2);
-                graphics.lineTo(bx - perpX * 1.15, by - perpY * 1.15 - 4);
-                graphics.lineTo(bx + perpX * 1.15, by + perpY * 1.15 - 4);
-                graphics.closePath();
-                graphics.fillPath();
-            }
-            graphics.fillStyle(0x5a5a5a, 0.8);
-            for (let i = 0; i < 5; i++) {
-                const t = (i + 1) / 6;
-                const bx = backX + (frontX - backX) * t;
-                const by = backY + (frontY - backY) * t - ramHeight - 3;
-                graphics.fillRect(bx - perpX * 0.3 - 3, by, 6, 1.5);
-            }
-            graphics.fillStyle(0x6a6a6a, 1);
-            for (let i = 0; i < 5; i++) {
-                const t = (i + 1) / 6;
-                const bx = backX + (frontX - backX) * t;
-                const by = backY + (frontY - backY) * t - ramHeight - 1;
-                graphics.fillCircle(bx + perpX * 0.9, by + perpY * 0.9, 1.5);
-                graphics.fillCircle(bx - perpX * 0.9, by - perpY * 0.9, 1.5);
-            }
-
-            // === MASSIVE IRON RAM HEAD (L2+) ===
-            const headLength = 18;
-            const tipX = frontX + cos * headLength + cos * chargeForward;
-            const tipY = frontY + sin * headLength * 0.5 - ramHeight + sin * chargeForward * 0.5;
-
-            graphics.fillStyle(0x2a2a2a, 1);
-            graphics.beginPath();
-            graphics.moveTo(frontX + perpX * 1.3, frontY + perpY * 1.3 - ramHeight + 3);
-            graphics.lineTo(frontX - perpX * 1.3, frontY - perpY * 1.3 - ramHeight + 3);
-            graphics.lineTo(frontX - perpX * 1.3, frontY - perpY * 1.3 - ramHeight - 6);
-            graphics.lineTo(frontX + perpX * 1.3, frontY + perpY * 1.3 - ramHeight - 6);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0x4a4a4a, 1);
-            graphics.beginPath();
-            graphics.moveTo(tipX, tipY - 2);
-            graphics.lineTo(frontX + perpX * 1.2, frontY + perpY * 1.2 - ramHeight + 2);
-            graphics.lineTo(frontX + perpX * 1.2, frontY + perpY * 1.2 - ramHeight - 5);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0x3a3a3a, 1);
-            graphics.beginPath();
-            graphics.moveTo(tipX, tipY - 2);
-            graphics.lineTo(frontX - perpX * 1.2, frontY - perpY * 1.2 - ramHeight + 2);
-            graphics.lineTo(frontX - perpX * 1.2, frontY - perpY * 1.2 - ramHeight - 5);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(0x6a6a6a, 1);
-            graphics.beginPath();
-            graphics.moveTo(tipX + 1, tipY - 4);
-            graphics.lineTo(frontX + perpX * 0.3, frontY + perpY * 0.3 - ramHeight - 4);
-            graphics.lineTo(frontX + perpX * 0.6, frontY + perpY * 0.6 - ramHeight - 2);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Decorative ram horns
-            graphics.fillStyle(0x555555, 1);
-            graphics.beginPath();
-            graphics.moveTo(frontX + perpX * 1.1 + cos * 4, frontY + perpY * 1.1 - ramHeight - 4);
-            graphics.lineTo(frontX + perpX * 1.8 + cos * 2, frontY + perpY * 1.8 - ramHeight - 8);
-            graphics.lineTo(frontX + perpX * 1.5 + cos * 6, frontY + perpY * 1.5 - ramHeight - 6);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.beginPath();
-            graphics.moveTo(frontX - perpX * 1.1 + cos * 4, frontY - perpY * 1.1 - ramHeight - 4);
-            graphics.lineTo(frontX - perpX * 1.8 + cos * 2, frontY - perpY * 1.8 - ramHeight - 8);
-            graphics.lineTo(frontX - perpX * 1.5 + cos * 6, frontY - perpY * 1.5 - ramHeight - 6);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Menacing eyes
-            graphics.fillStyle(0xff3300, 0.9);
-            graphics.fillCircle(frontX + perpX * 0.5 + cos * 8, frontY + perpY * 0.5 - ramHeight - 2, 2);
-            graphics.fillCircle(frontX - perpX * 0.5 + cos * 8, frontY - perpY * 0.5 - ramHeight - 2, 2);
-            graphics.fillStyle(0xffff00, 0.7);
-            graphics.fillCircle(frontX + perpX * 0.5 + cos * 8.5, frontY + perpY * 0.5 - ramHeight - 2.5, 0.8);
-            graphics.fillCircle(frontX - perpX * 0.5 + cos * 8.5, frontY - perpY * 0.5 - ramHeight - 2.5, 0.8);
-        }
-        // L3: Gold reinforcement rings + glowing eyes brighter
-        if (troopLevel >= 3) {
-            graphics.lineStyle(1.5, 0xdaa520, 0.8);
-            for (let i = 0; i < 5; i++) {
-                const t = (i + 1) / 6;
-                const bx = backX + (frontX - backX) * t;
-                const by = backY + (frontY - backY) * t - ramHeight - 1;
-                graphics.lineBetween(bx + perpX * 1.2, by + perpY * 1.2, bx - perpX * 1.2, by - perpY * 1.2);
-            }
-        }
-        if (troopLevel < 2) {
-            // === L1: SIMPLE ROPE BINDINGS ===
-            graphics.lineStyle(2, 0x8a7a5a, 1);
-            for (let i = 0; i < 3; i++) {
-                const t = (i + 1) / 4;
-                const bx = backX + (frontX - backX) * t;
-                const by = backY + (frontY - backY) * t - ramHeight - 1;
-                graphics.lineBetween(bx + perpX * 1.05, by + perpY * 1.05, bx - perpX * 1.05, by - perpY * 1.05);
-            }
-
-            // === L1: SIMPLE POINTED WOODEN TIP ===
-            const tipLen = 10;
-            const tipX = frontX + cos * tipLen + cos * chargeForward;
-            const tipY = frontY + sin * tipLen * 0.5 - ramHeight + sin * chargeForward * 0.5;
-            // Tapered wood point
-            graphics.fillStyle(0x4a2a15, 1);
-            graphics.beginPath();
-            graphics.moveTo(tipX, tipY - 2);
-            graphics.lineTo(frontX + perpX * 0.9, frontY + perpY * 0.9 - ramHeight + 1);
-            graphics.lineTo(frontX + perpX * 0.9, frontY + perpY * 0.9 - ramHeight - 4);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(0x3a1a0a, 1);
-            graphics.beginPath();
-            graphics.moveTo(tipX, tipY - 2);
-            graphics.lineTo(frontX - perpX * 0.9, frontY - perpY * 0.9 - ramHeight + 1);
-            graphics.lineTo(frontX - perpX * 0.9, frontY - perpY * 0.9 - ramHeight - 4);
-            graphics.closePath();
-            graphics.fillPath();
-        }
-
-        // === BACK END - Rough cut wood ===
-        graphics.fillStyle(0x6a4a2a, 1);
-        graphics.beginPath();
-        graphics.arc(backX, backY - ramHeight - 1, ramWidth * 0.45, 0, Math.PI * 2);
-        graphics.closePath();
-        graphics.fillPath();
-    }
-
-    private static drawStormMage(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean = false, troopLevel: number = 1) {
-        const now = Date.now();
-        const robeColor = isPlayer ? 0x3344aa : 0x882222;
-        const robeDark = isPlayer ? 0x222277 : 0x661111;
-        const skinColor = isPlayer ? 0xdeb887 : 0xc9a66b;
-        const glowColor = 0x00ffff;
-
-        // Walk animation
-        const walkPhase = isMoving ? (now % 700) / 700 : 0;
-        const walkBob = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 1.5 : 0;
-        const hatSway = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 0.5 : 0;
-        const staffSway = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 1.0 : 0;
-
-        // Static electricity sparks (more when not moving / casting)
-        const sparkCount = isMoving ? 2 : 4;
-        for (let i = 0; i < sparkCount; i++) {
-            const angle = (now / 100 + i * 2) % (Math.PI * 2);
-            const dist = 12 + Math.sin(now / 200 + i) * 4;
-            const px = Math.cos(angle) * dist;
-            const py = Math.sin(angle) * dist * 0.6 - 10 + walkBob;
-            graphics.fillStyle(glowColor, 0.4 + Math.sin(now / 50 + i) * 0.3);
-            graphics.fillCircle(px, py, 1.5);
-        }
-
-        // Shadow
-        graphics.fillStyle(0x000000, 0.25);
-        graphics.fillEllipse(0, 12, 12, 5);
-
-        // Robe skirt — stays grounded
-        graphics.fillStyle(robeDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-7, 2 + walkBob * 0.3);
-        graphics.lineTo(7, 2 + walkBob * 0.3);
-        graphics.lineTo(5, 11);
-        graphics.lineTo(-5, 11);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(robeColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-6, 2 + walkBob * 0.3);
-        graphics.lineTo(6, 2 + walkBob * 0.3);
-        graphics.lineTo(4, 10);
-        graphics.lineTo(-4, 10);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Torso
-        graphics.fillStyle(robeDark, 1);
-        graphics.fillRect(-5, -5 + walkBob, 10, 8);
-        graphics.fillStyle(robeColor, 1);
-        graphics.fillRect(-4, -4 + walkBob, 8, 7);
-
-        // Belt/sash with lightning emblem
-        graphics.fillStyle(0xc9a227, 1);
-        graphics.fillRect(-5, 0 + walkBob, 10, 2);
-
-        // Head
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(0, -9 + walkBob, 4);
-
-        // Pointy wizard hat (sways with walk)
-        graphics.fillStyle(robeDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-6, -8 + walkBob);
-        graphics.lineTo(6, -8 + walkBob);
-        graphics.lineTo(hatSway, -22 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(robeColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-5, -9 + walkBob);
-        graphics.lineTo(5, -9 + walkBob);
-        graphics.lineTo(hatSway, -21 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Hat brim
-        graphics.fillStyle(robeDark, 1);
-        graphics.fillEllipse(0, -8 + walkBob, 14, 4);
-
-        // Eyes
-        graphics.fillStyle(0x2244aa, 1);
-        graphics.fillCircle(-1.5, -9 + walkBob, 1);
-        graphics.fillCircle(1.5, -9 + walkBob, 1);
-
-        // Staff in right hand (sways)
-        graphics.fillStyle(0x5d4e37, 1);
-        graphics.fillRect(7 + staffSway, -18 + walkBob, 3, 26);
-        graphics.fillStyle(0x4a3520, 1);
-        graphics.fillRect(8 + staffSway, -18 + walkBob, 1.5, 26);
-
-        // Staff crystal (electric)
-        const crystalGlow = 0.7 + Math.sin(now / 80) * 0.3;
-        graphics.fillStyle(glowColor, 0.25 * crystalGlow);
-        graphics.fillCircle(8.5 + staffSway, -20 + walkBob, 7);
-        graphics.fillStyle(glowColor, 0.9);
-        graphics.fillCircle(8.5 + staffSway, -20 + walkBob, 3);
-        graphics.fillStyle(0xffffff, 0.8);
-        graphics.fillCircle(7.5 + staffSway, -21.5 + walkBob, 1.2);
-
-        // Lightning arc from staff tip (occasional, more frequent when stationary)
-        const arcThreshold = isMoving ? 0.85 : 0.6;
-        if (Math.sin(now / 60) > arcThreshold) {
-            graphics.lineStyle(1, 0xffffff, 0.8);
-            const arcX = 8.5 + staffSway + Math.sin(now / 30) * 6;
-            const arcY = -20 + walkBob + Math.cos(now / 40) * 5;
-            graphics.lineBetween(8.5 + staffSway, -20 + walkBob, arcX, arcY);
-        }
-
-        // Left arm raised (casting gesture)
-        graphics.fillStyle(robeColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-4, -3 + walkBob);
-        graphics.lineTo(-10, -10 + walkBob);
-        graphics.lineTo(-8, -11 + walkBob);
-        graphics.lineTo(-3, -5 + walkBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Hand with spark
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(-9, -10.5 + walkBob, 2);
-        const sparkAlpha = 0.3 + Math.sin(now / 70) * 0.3;
-        graphics.fillStyle(glowColor, sparkAlpha);
-        graphics.fillCircle(-9, -12 + walkBob, 2);
-
-        // L2: Gold star on hat + rune markings on robe
-        if (troopLevel >= 2) {
-            // Gold star emblem on hat
-            graphics.fillStyle(0xffd700, 0.9);
-            graphics.fillCircle(hatSway * 0.5, -16 + walkBob, 2);
-            // Gold rune marks on robe
-            graphics.lineStyle(1, 0xdaa520, 0.6);
-            graphics.lineBetween(-3, -2 + walkBob, -1, -4 + walkBob);
-            graphics.lineBetween(-1, -4 + walkBob, 1, -2 + walkBob);
-            graphics.lineBetween(1, -2 + walkBob, 3, -4 + walkBob);
-        }
-        // L3: Crackling lightning aura around hands
-        if (troopLevel >= 3) {
-            const spark2 = 0.4 + Math.sin(now / 50) * 0.3;
-            graphics.lineStyle(1, glowColor, spark2);
-            graphics.lineBetween(-9 + Math.sin(now / 40) * 3, -14 + walkBob, -9 - Math.sin(now / 60) * 3, -8 + walkBob);
-            graphics.lineBetween(-11, -12 + walkBob + Math.sin(now / 30), -7, -10 + walkBob - Math.sin(now / 45));
-        }
-    }
-
-    static drawDaVinciTank(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, _isMoving: boolean, isDeactivated: boolean = false, facingAngle: number = 0, troopLevel: number = 1) {
+    static drawDaVinciTank(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, _isMoving: boolean, isDeactivated: boolean = false, facingAngle: number = 0, troopLevel: number = 1, time: number = Date.now()) {
         // LEONARDO DA VINCI'S ARMORED WAR MACHINE
         // Conical wooden tank with cannons all around the base - NO rotation when moving
         // Rotation only happens after each shot (controlled by facingAngle from MainScene)
@@ -2569,10 +2911,11 @@ export class TroopRenderer {
         // === DEACTIVATION EFFECT ===
         if (isDeactivated) {
             // Smoke wisps from deactivated tank
-            const now = Date.now();
+            const now = time;
             for (let i = 0; i < 3; i++) {
                 const smokePhase = ((now / 2000) + i * 0.33) % 1;
-                const smokeX = (Math.random() - 0.5) * 10;
+                // Deterministic drift (iron rule: no Math.random() per frame).
+                const smokeX = Math.sin(now / 900 + i * 2.1) * 5;
                 const smokeY = -35 - smokePhase * 30;
                 const smokeAlpha = (1 - smokePhase) * 0.3;
                 graphics.fillStyle(0x333333, smokeAlpha);
@@ -2621,495 +2964,6 @@ export class TroopRenderer {
             // Golden glow halo on finial
             graphics.fillStyle(0xffd700, 0.3);
             graphics.fillCircle(0, topConeY - 6, 5);
-        }
-    }
-
-    // === ROMAN SOLDIER - Individual Legionary ===
-    static drawRomanSoldier(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, facingAngle: number, isTestudo: boolean, spearOffset: number = 0, sx: number = 0, sy: number = 0, stagger: number = 0, troopLevel: number = 1) {
-        const now = Date.now();
-        const marchPhase = isMoving ? (now % 600) / 600 : 0;
-        const legPhase = (marchPhase + stagger) % 1;
-
-        // Colors - Roman legion colors, L3 keeps red but with gold elite trim
-        const shieldMain = isPlayer ? 0xcc3333 : 0x554433;
-        const shieldTrim = troopLevel >= 3 ? (isPlayer ? 0xdaa520 : 0xb8960b) : (isPlayer ? 0xd4a84b : 0x8b7355);
-        const shieldBoss = isPlayer ? 0xffd700 : 0xaa9977;
-        const tunicColor = troopLevel >= 3 ? (isPlayer ? 0x991111 : 0x443322) : (isPlayer ? 0xbb2222 : 0x443322);
-        const armorColor = troopLevel >= 3 ? (isPlayer ? 0xdaa520 : 0xb8960b) : (isPlayer ? 0x888899 : 0x777788);
-        const skinColor = 0xd4a574;
-        const spearWood = 0x5d4e37;
-        const spearTip = 0x555566;
-
-        const marchBob = isMoving ? Math.sin((now / 150) + stagger * 10) * 2 : 0;
-        const currentSy = sy + marchBob;
-
-        // === SOLDIER BODY ===
-        // Legs
-        const legSpread = isMoving ? Math.sin(legPhase * Math.PI * 2) * 3 : 0;
-        graphics.fillStyle(tunicColor, 1);
-        graphics.fillRect(sx - 3 + legSpread, currentSy + 2, 2, 8);
-        graphics.fillRect(sx + 1 - legSpread, currentSy + 2, 2, 8);
-
-        // Sandals
-        graphics.fillStyle(0x4a3a2a, 1);
-        graphics.fillRect(sx - 4 + legSpread, currentSy + 9, 3, 2);
-        graphics.fillRect(sx + 1 - legSpread, currentSy + 9, 3, 2);
-
-        // Torso (tunic)
-        graphics.fillStyle(tunicColor, 1);
-        graphics.fillRect(sx - 4, currentSy - 6, 8, 10);
-
-        // Armor strips (lorica segmentata)
-        graphics.fillStyle(armorColor, 1);
-        for (let strip = 0; strip < 3; strip++) {
-            graphics.fillRect(sx - 4, currentSy - 5 + strip * 3, 8, 2);
-        }
-
-        // Arms
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillRect(sx - 6, currentSy - 4, 2, 6);
-        graphics.fillRect(sx + 4, currentSy - 4, 2, 6);
-
-        // Head
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(sx, currentSy - 10, 4);
-
-        // Helmet
-        graphics.fillStyle(armorColor, 1);
-        graphics.fillRect(sx - 4, currentSy - 14, 8, 4);
-        graphics.fillStyle(troopLevel >= 3 ? 0xdaa520 : 0x666677, 1);
-        graphics.fillRect(sx - 1, currentSy - 16, 2, 3); // Crest base
-        graphics.fillStyle(0xcc2222, 1);
-        graphics.fillRect(sx - 1, currentSy - 19, 2, 4);
-
-        // === SPEAR ===
-        const spearLength = 28;
-        const thrust = spearOffset * 15;
-        const spearStartX = sx + Math.cos(facingAngle) * thrust;
-        const spearStartY = currentSy - 8 + Math.sin(facingAngle) * thrust * 0.5;
-        const spearEndX = sx + Math.cos(facingAngle) * (spearLength + thrust);
-        const spearEndY = currentSy - 8 + Math.sin(facingAngle) * (spearLength + thrust) * 0.5;
-
-        graphics.lineStyle(2, spearWood, 1);
-        graphics.lineBetween(spearStartX, spearStartY, spearEndX, spearEndY);
-
-        // Spear tip
-        graphics.fillStyle(spearTip, 1);
-        graphics.beginPath();
-        graphics.moveTo(spearEndX + Math.cos(facingAngle) * 6, spearEndY + Math.sin(facingAngle) * 3);
-        graphics.lineTo(spearEndX + Math.cos(facingAngle + 2.5) * 3, spearEndY + Math.sin(facingAngle + 2.5) * 1.5);
-        graphics.lineTo(spearEndX + Math.cos(facingAngle - 2.5) * 3, spearEndY + Math.sin(facingAngle - 2.5) * 1.5);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // === SHIELD ===
-        const shieldSize = 11;
-        if (isTestudo) {
-            // Overhead shield (roof)
-            graphics.fillStyle(shieldMain, 1);
-            graphics.fillRect(sx - shieldSize / 2, currentSy - 16 - shieldSize / 2, shieldSize, shieldSize);
-            graphics.lineStyle(1.5, shieldTrim, 1);
-            graphics.strokeRect(sx - shieldSize / 2, currentSy - 16 - shieldSize / 2, shieldSize, shieldSize);
-            graphics.fillStyle(shieldBoss, 1);
-            graphics.fillCircle(sx, currentSy - 16, 3);
-            graphics.fillStyle(0x000000, 0.2);
-            graphics.fillCircle(sx, currentSy - 16, 1.5);
-        } else {
-            // Frontal Scutum (individual soldier)
-            const shieldX = sx + Math.cos(facingAngle) * 6;
-            const shieldY = currentSy - 4 + Math.sin(facingAngle) * 3;
-            graphics.fillStyle(shieldMain, 1);
-            graphics.fillRect(shieldX - 5, shieldY - 8, 10, 16);
-            graphics.lineStyle(1, shieldTrim, 1);
-            graphics.strokeRect(shieldX - 5, shieldY - 8, 10, 16);
-            graphics.fillStyle(shieldBoss, 1);
-            graphics.fillCircle(shieldX, shieldY, 2.5);
-        }
-
-        // L2+: Taller helmet plume + shoulder pauldrons
-        if (troopLevel >= 2) {
-            // Taller red crest plume
-            graphics.fillStyle(0xcc2222, 1);
-            graphics.fillRect(sx - 1, currentSy - 21, 2, 6);
-            // Shoulder pauldrons
-            graphics.fillStyle(0xdaa520, 0.8);
-            graphics.fillCircle(sx - 5, currentSy - 5, 2);
-            graphics.fillCircle(sx + 5, currentSy - 5, 2);
-        }
-        // L3: Gold spear tip + gold shield trim details + gold sandal buckles
-        if (troopLevel >= 3) {
-            // Gold spear tip replaces iron
-            const thrust = spearOffset * 15;
-            const spearEndX3 = sx + Math.cos(facingAngle) * (28 + thrust);
-            const spearEndY3 = currentSy - 8 + Math.sin(facingAngle) * (28 + thrust) * 0.5;
-            graphics.fillStyle(0xffd700, 1);
-            graphics.beginPath();
-            graphics.moveTo(spearEndX3 + Math.cos(facingAngle) * 6, spearEndY3 + Math.sin(facingAngle) * 3);
-            graphics.lineTo(spearEndX3 + Math.cos(facingAngle + 2.5) * 3, spearEndY3 + Math.sin(facingAngle + 2.5) * 1.5);
-            graphics.lineTo(spearEndX3 + Math.cos(facingAngle - 2.5) * 3, spearEndY3 + Math.sin(facingAngle - 2.5) * 1.5);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Gold eagle emblem on shield
-            if (!isTestudo) {
-                const shieldX = sx + Math.cos(facingAngle) * 6;
-                const shieldY = currentSy - 4 + Math.sin(facingAngle) * 3;
-                graphics.fillStyle(0xdaa520, 0.8);
-                graphics.beginPath();
-                graphics.moveTo(shieldX, shieldY - 3);
-                graphics.lineTo(shieldX - 3, shieldY);
-                graphics.lineTo(shieldX - 1, shieldY);
-                graphics.lineTo(shieldX, shieldY + 2);
-                graphics.lineTo(shieldX + 1, shieldY);
-                graphics.lineTo(shieldX + 3, shieldY);
-                graphics.closePath();
-                graphics.fillPath();
-            } else {
-                // Gold cross on testudo shield top
-                graphics.fillStyle(0xdaa520, 0.7);
-                graphics.fillRect(sx - 0.5, currentSy - 18, 1, 5);
-                graphics.fillRect(sx - 2, currentSy - 16.5, 4, 1);
-            }
-
-            // Gold sandal buckles
-            graphics.fillStyle(0xdaa520, 0.9);
-            const legSpread3 = isMoving ? Math.sin(legPhase * Math.PI * 2) * 3 : 0;
-            graphics.fillCircle(sx - 2.5 + legSpread3, currentSy + 9, 1);
-            graphics.fillCircle(sx + 2.5 - legSpread3, currentSy + 9, 1);
-
-            // Gold wrist guards
-            graphics.fillStyle(0xdaa520, 0.9);
-            graphics.fillRect(sx - 7, currentSy + 0, 3, 2);
-            graphics.fillRect(sx + 4, currentSy + 0, 3, 2);
-        }
-    }
-
-    // === PHALANX - Roman Testudo Formation (3x3 soldiers with shields overhead) ===
-    static drawPhalanx(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, facingAngle: number, spearOffset: number = 0, troopLevel: number = 1) {
-        // Shadow
-        graphics.fillStyle(0x000000, 0.4);
-        graphics.fillEllipse(0, 8, 50, 25);
-
-        // Draw 3x3 grid of soldiers from back to front for proper layering
-        const soldierSpacing = 12;
-        const rows = [
-            { y: -1, soldiers: [-1, 0, 1] },
-            { y: 0, soldiers: [-1, 0, 1] },
-            { y: 1, soldiers: [-1, 0, 1] }
-        ];
-
-        const cos = Math.cos(facingAngle);
-        const sin = Math.sin(facingAngle);
-
-        const soldiers: Array<{ wx: number, wy: number, row: number, col: number }> = [];
-        for (const row of rows) {
-            for (const col of row.soldiers) {
-                const localX = col * soldierSpacing;
-                const localY = row.y * soldierSpacing;
-                const wx = localX * cos - localY * sin;
-                const wy = localX * sin * 0.5 + localY * cos * 0.5;
-                soldiers.push({ wx, wy, row: row.y, col });
-            }
-        }
-        soldiers.sort((a, b) => a.wy - b.wy);
-
-        for (const s of soldiers) {
-            const stagger = (s.row + s.col) * 0.15;
-            this.drawRomanSoldier(graphics, isPlayer, isMoving, facingAngle, true, spearOffset, s.wx, s.wy, stagger, troopLevel);
-        }
-
-        // Banner/Standard (center back)
-        const bannerX = -Math.cos(facingAngle) * 15;
-        const bannerY = -Math.sin(facingAngle) * 7.5 - 5;
-        const bannerPoleTop = troopLevel >= 3 ? bannerY - 35 : bannerY - 25;
-
-        graphics.lineStyle(2, troopLevel >= 3 ? 0xdaa520 : 0x5d4e37, 1);
-        graphics.lineBetween(bannerX, bannerY, bannerX, bannerPoleTop);
-
-        if (troopLevel >= 3) {
-            // L3: Grand crimson & gold imperial banner
-            const bannerColor = isPlayer ? 0xcc3333 : 0x554433;
-            const bannerDark = isPlayer ? 0x991111 : 0x3a2a1a;
-            const flagWave = isMoving ? Math.sin(Date.now() / 300) * 2 : 0;
-            const flagWave2 = isMoving ? Math.sin(Date.now() / 250 + 1) * 1.5 : 0;
-
-            // === GRAND EAGLE FINIAL (larger, more detailed) ===
-            // Eagle body
-            graphics.fillStyle(0xffd700, 1);
-            graphics.beginPath();
-            graphics.moveTo(bannerX, bannerPoleTop - 9);
-            graphics.lineTo(bannerX - 3, bannerPoleTop - 4);
-            graphics.lineTo(bannerX + 3, bannerPoleTop - 4);
-            graphics.closePath();
-            graphics.fillPath();
-            // Eagle wings spread wide with feather tips
-            graphics.lineStyle(2, 0xffd700, 1);
-            graphics.lineBetween(bannerX - 3, bannerPoleTop - 6, bannerX - 8, bannerPoleTop - 10);
-            graphics.lineBetween(bannerX + 3, bannerPoleTop - 6, bannerX + 8, bannerPoleTop - 10);
-            // Wing feather tips
-            graphics.lineStyle(1.5, 0xdaa520, 1);
-            graphics.lineBetween(bannerX - 8, bannerPoleTop - 10, bannerX - 10, bannerPoleTop - 8);
-            graphics.lineBetween(bannerX - 7, bannerPoleTop - 9, bannerX - 9, bannerPoleTop - 6);
-            graphics.lineBetween(bannerX + 8, bannerPoleTop - 10, bannerX + 10, bannerPoleTop - 8);
-            graphics.lineBetween(bannerX + 7, bannerPoleTop - 9, bannerX + 9, bannerPoleTop - 6);
-            // Eagle head
-            graphics.fillStyle(0xffd700, 1);
-            graphics.fillCircle(bannerX, bannerPoleTop - 9, 2);
-            // Eagle eye
-            graphics.fillStyle(0xb8860b, 1);
-            graphics.fillCircle(bannerX + 0.5, bannerPoleTop - 9.5, 0.5);
-
-            // === MAIN BANNER — large, crimson red ===
-            graphics.fillStyle(bannerColor, 1);
-            graphics.beginPath();
-            graphics.moveTo(bannerX - 1, bannerPoleTop);
-            graphics.lineTo(bannerX + 15 + flagWave, bannerPoleTop + 2);
-            graphics.lineTo(bannerX + 13 + flagWave * 0.5, bannerPoleTop + 18);
-            graphics.lineTo(bannerX - 1, bannerPoleTop + 16);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Darker red inner panel
-            graphics.fillStyle(bannerDark, 0.5);
-            graphics.beginPath();
-            graphics.moveTo(bannerX + 1, bannerPoleTop + 3);
-            graphics.lineTo(bannerX + 13 + flagWave * 0.8, bannerPoleTop + 4);
-            graphics.lineTo(bannerX + 11 + flagWave * 0.4, bannerPoleTop + 15);
-            graphics.lineTo(bannerX + 1, bannerPoleTop + 14);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Gold border trim (thick)
-            graphics.lineStyle(2, 0xdaa520, 1);
-            graphics.beginPath();
-            graphics.moveTo(bannerX - 1, bannerPoleTop);
-            graphics.lineTo(bannerX + 15 + flagWave, bannerPoleTop + 2);
-            graphics.lineTo(bannerX + 13 + flagWave * 0.5, bannerPoleTop + 18);
-            graphics.lineTo(bannerX - 1, bannerPoleTop + 16);
-            graphics.closePath();
-            graphics.strokePath();
-
-            // Gold eagle emblem on banner (larger)
-            const embX = bannerX + 6 + flagWave * 0.3;
-            const embY = bannerPoleTop + 9;
-            graphics.fillStyle(0xffd700, 0.9);
-            graphics.beginPath();
-            graphics.moveTo(embX, embY - 5);
-            graphics.lineTo(embX + 3, embY - 2);
-            graphics.lineTo(embX + 6, embY - 4);
-            graphics.lineTo(embX + 4, embY);
-            graphics.lineTo(embX + 3, embY + 4);
-            graphics.lineTo(embX, embY + 2);
-            graphics.lineTo(embX - 3, embY + 4);
-            graphics.lineTo(embX - 4, embY);
-            graphics.lineTo(embX - 6, embY - 4);
-            graphics.lineTo(embX - 3, embY - 2);
-            graphics.closePath();
-            graphics.fillPath();
-            // Eagle head highlight
-            graphics.fillStyle(0xffd700, 1);
-            graphics.fillCircle(embX, embY - 4, 1.5);
-
-            // Gold horizontal bar across banner (like a laurel divider)
-            graphics.lineStyle(1, 0xdaa520, 0.7);
-            graphics.lineBetween(bannerX + 1, bannerPoleTop + 4, bannerX + 13 + flagWave * 0.7, bannerPoleTop + 5);
-            graphics.lineBetween(bannerX + 1, bannerPoleTop + 14, bannerX + 11 + flagWave * 0.4, bannerPoleTop + 15);
-
-            // === THREE FLOWING TAILS (crimson with gold tips) ===
-            // Left tail
-            graphics.fillStyle(bannerColor, 0.9);
-            graphics.beginPath();
-            graphics.moveTo(bannerX + 1, bannerPoleTop + 16);
-            graphics.lineTo(bannerX + 2 + flagWave2 * 0.5, bannerPoleTop + 24);
-            graphics.lineTo(bannerX + 5, bannerPoleTop + 16);
-            graphics.closePath();
-            graphics.fillPath();
-            // Center tail
-            graphics.beginPath();
-            graphics.moveTo(bannerX + 5, bannerPoleTop + 16);
-            graphics.lineTo(bannerX + 6 + flagWave2, bannerPoleTop + 26);
-            graphics.lineTo(bannerX + 9, bannerPoleTop + 16);
-            graphics.closePath();
-            graphics.fillPath();
-            // Right tail
-            graphics.beginPath();
-            graphics.moveTo(bannerX + 9, bannerPoleTop + 16);
-            graphics.lineTo(bannerX + 10 + flagWave2 * 0.7, bannerPoleTop + 23);
-            graphics.lineTo(bannerX + 13 + flagWave * 0.5, bannerPoleTop + 17);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Gold tips on tails
-            graphics.fillStyle(0xffd700, 0.9);
-            graphics.fillCircle(bannerX + 2 + flagWave2 * 0.5, bannerPoleTop + 23, 1.5);
-            graphics.fillCircle(bannerX + 6 + flagWave2, bannerPoleTop + 25, 1.5);
-            graphics.fillCircle(bannerX + 10 + flagWave2 * 0.7, bannerPoleTop + 22, 1.5);
-
-            // Gold crossbar at top of banner
-            graphics.lineStyle(2, 0xdaa520, 1);
-            graphics.lineBetween(bannerX - 2, bannerPoleTop, bannerX + 15 + flagWave, bannerPoleTop + 2);
-            // Gold ball on crossbar end
-            graphics.fillStyle(0xffd700, 1);
-            graphics.fillCircle(bannerX + 15 + flagWave, bannerPoleTop + 2, 2);
-        } else {
-            // L1-L2 banner
-            graphics.fillStyle(isPlayer ? 0xcc3333 : 0x554433, 1);
-            graphics.fillRect(bannerX - 5, bannerPoleTop, 10, 8);
-            graphics.lineStyle(1.5, isPlayer ? 0xd4a84b : 0x8b7355, 1);
-            graphics.strokeRect(bannerX - 5, bannerPoleTop, 10, 8);
-
-            // L2: Eagle standard on banner pole + gold trim
-            if (troopLevel >= 2) {
-                // Eagle finial on banner pole
-                graphics.fillStyle(0xffd700, 1);
-                graphics.beginPath();
-                graphics.moveTo(bannerX, bannerPoleTop - 3);
-                graphics.lineTo(bannerX - 3, bannerPoleTop);
-                graphics.lineTo(bannerX + 3, bannerPoleTop);
-                graphics.closePath();
-                graphics.fillPath();
-                // Eagle wings
-                graphics.lineStyle(1, 0xffd700, 1);
-                graphics.lineBetween(bannerX - 3, bannerPoleTop - 2, bannerX - 7, bannerPoleTop - 4);
-                graphics.lineBetween(bannerX + 3, bannerPoleTop - 2, bannerX + 7, bannerPoleTop - 4);
-                // Gold emblem on banner
-                graphics.fillStyle(0xffd700, 0.8);
-                graphics.fillCircle(bannerX, bannerPoleTop + 4, 2);
-            }
-        }
-    }
-
-    private static drawWallBreaker(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, troopLevel: number = 1) {
-        // WALL BREAKER — Small guy carrying a big barrel of explosives overhead
-        const now = Date.now();
-        const runPhase = isMoving ? (now % 250) / 250 : 0;
-        const runBob = isMoving ? Math.sin(runPhase * Math.PI * 2) * 1.5 : 0;
-        const leftLeg = isMoving ? Math.sin(runPhase * Math.PI * 2) * 4 : 0;
-        const rightLeg = isMoving ? -Math.sin(runPhase * Math.PI * 2) * 4 : 0;
-        const armBob = isMoving ? Math.sin(runPhase * Math.PI * 2) * 1 : 0;
-
-        const skinColor = isPlayer ? 0xdeb887 : 0xc9a66b;
-        const skinDark = isPlayer ? 0xc9a66b : 0xb8956e;
-        const shirtColor = isPlayer ? 0x885533 : 0x664422;
-
-        // Shadow
-        graphics.fillStyle(0x000000, 0.25);
-        graphics.fillEllipse(0, 12, 16, 6);
-
-        // Legs (thin, fast runner)
-        graphics.fillStyle(shirtColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-3, 4 + runBob);
-        graphics.lineTo(-4 + leftLeg, 11);
-        graphics.lineTo(-1 + leftLeg, 11);
-        graphics.lineTo(-1, 4 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.beginPath();
-        graphics.moveTo(1, 4 + runBob);
-        graphics.lineTo(1 + rightLeg, 11);
-        graphics.lineTo(4 + rightLeg, 11);
-        graphics.lineTo(3, 4 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Boots
-        graphics.fillStyle(0x3a2a1a, 1);
-        graphics.fillEllipse(-2.5 + leftLeg, 11.5, 4, 2);
-        graphics.fillEllipse(2.5 + rightLeg, 11.5, 4, 2);
-
-        // Torso (small, hunched forward from carrying)
-        graphics.fillStyle(shirtColor, 1);
-        graphics.beginPath();
-        graphics.moveTo(-6, -3 + runBob);
-        graphics.lineTo(6, -3 + runBob);
-        graphics.lineTo(5, 5 + runBob);
-        graphics.lineTo(-5, 5 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Arms raised overhead holding barrel
-        graphics.fillStyle(skinColor, 1);
-        // Left arm (up)
-        graphics.beginPath();
-        graphics.moveTo(-6, -2 + runBob);
-        graphics.lineTo(-7, -12 + armBob);
-        graphics.lineTo(-4, -12 + armBob);
-        graphics.lineTo(-4, -2 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Right arm (up)
-        graphics.beginPath();
-        graphics.moveTo(4, -2 + runBob);
-        graphics.lineTo(4, -12 + armBob);
-        graphics.lineTo(7, -12 + armBob);
-        graphics.lineTo(6, -2 + runBob);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Barrel of explosives (above head)
-        const barrelY = -18 + armBob;
-        // Barrel body (dark brown)
-        graphics.fillStyle(0x5a3a1a, 1);
-        graphics.fillEllipse(0, barrelY, 14, 10);
-        // Barrel highlight
-        graphics.fillStyle(0x6b4a2a, 1);
-        graphics.fillEllipse(0, barrelY - 1, 12, 7);
-        // Metal bands
-        graphics.lineStyle(1.5, 0x555555, 0.8);
-        graphics.strokeEllipse(0, barrelY, 14, 10);
-        graphics.lineStyle(1, 0x444444, 0.6);
-        graphics.lineBetween(-3, barrelY - 5, -3, barrelY + 5);
-        graphics.lineBetween(3, barrelY - 5, 3, barrelY + 5);
-
-        // Fuse (sticking out the top, sparking)
-        graphics.lineStyle(1.5, 0x3a3a2a, 1);
-        graphics.lineBetween(0, barrelY - 5, 2, barrelY - 10);
-        // Fuse spark
-        const sparkPhase = (now % 200) / 200;
-        const sparkAlpha = 0.5 + Math.sin(sparkPhase * Math.PI * 2) * 0.5;
-        graphics.fillStyle(0xffaa00, sparkAlpha);
-        graphics.fillCircle(2, barrelY - 10, 2);
-        graphics.fillStyle(0xff4400, sparkAlpha * 0.7);
-        graphics.fillCircle(2, barrelY - 10, 1);
-
-        // Head (small, determined face)
-        const headY = -7 + runBob;
-        graphics.fillStyle(skinDark, 1);
-        graphics.fillCircle(0, headY, 4.5);
-        graphics.fillStyle(skinColor, 1);
-        graphics.fillCircle(0, headY - 0.5, 4);
-
-        // Eyes (wide, determined)
-        graphics.fillStyle(0x000000, 0.8);
-        graphics.fillCircle(-1.5, headY - 1, 1);
-        graphics.fillCircle(1.5, headY - 1, 1);
-
-        // Headband
-        graphics.fillStyle(0xcc3333, 1);
-        graphics.fillRect(-4, headY - 4, 8, 2);
-
-        // Hands gripping barrel
-        graphics.fillStyle(skinDark, 1);
-        graphics.fillCircle(-5.5, -12 + armBob, 2);
-        graphics.fillCircle(5.5, -12 + armBob, 2);
-
-        // L2: Gold barrel bands + bigger fuse spark + gold headband
-        if (troopLevel >= 2) {
-            // Gold barrel bands
-            graphics.lineStyle(1.5, 0xdaa520, 0.9);
-            graphics.strokeEllipse(0, barrelY, 14, 10);
-            // Gold headband replaces red
-            graphics.fillStyle(0xdaa520, 1);
-            graphics.fillRect(-4, headY - 4, 8, 2);
-        }
-        // L3: Skull emblem on barrel + extra fuse sparks
-        if (troopLevel >= 3) {
-            graphics.fillStyle(0xdddddd, 0.6);
-            graphics.fillCircle(0, barrelY - 1, 2.5);
-            graphics.fillStyle(0x111111, 0.8);
-            graphics.fillCircle(-0.8, barrelY - 1.5, 0.6);
-            graphics.fillCircle(0.8, barrelY - 1.5, 0.6);
         }
     }
 }

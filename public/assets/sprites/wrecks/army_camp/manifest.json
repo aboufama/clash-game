@@ -1,0 +1,45 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "army_camp_L1_wreck_body.png",
+        "texelW": 78,
+        "texelH": 41,
+        "cellWorldPx": 1.35,
+        "originX": 0.5313390313390312,
+        "originY": 0.4878048780487805
+      }
+    },
+    "2": {
+      "body": {
+        "file": "army_camp_L2_wreck_body.png",
+        "texelW": 78,
+        "texelH": 41,
+        "cellWorldPx": 1.35,
+        "originX": 0.5313390313390312,
+        "originY": 0.4878048780487805
+      }
+    },
+    "3": {
+      "body": {
+        "file": "army_camp_L3_wreck_body.png",
+        "texelW": 78,
+        "texelH": 41,
+        "cellWorldPx": 1.35,
+        "originX": 0.5313390313390312,
+        "originY": 0.4878048780487805
+      }
+    },
+    "4": {
+      "body": {
+        "file": "army_camp_L4_wreck_body.png",
+        "texelW": 78,
+        "texelH": 41,
+        "cellWorldPx": 1.35,
+        "originX": 0.5313390313390312,
+        "originY": 0.4878048780487805
+      }
+    }
+  }
+}

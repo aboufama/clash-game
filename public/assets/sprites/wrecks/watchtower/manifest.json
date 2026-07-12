@@ -1,0 +1,25 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "watchtower_L1_wreck_body.png",
+        "texelW": 59,
+        "texelH": 38,
+        "cellWorldPx": 1.35,
+        "originX": 0.4651600753295666,
+        "originY": 0.560428849902534
+      }
+    },
+    "2": {
+      "body": {
+        "file": "watchtower_L2_wreck_body.png",
+        "texelW": 59,
+        "texelH": 38,
+        "cellWorldPx": 1.35,
+        "originX": 0.4651600753295666,
+        "originY": 0.560428849902534
+      }
+    }
+  }
+}

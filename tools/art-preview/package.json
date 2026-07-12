@@ -1,0 +1,9 @@
+{
+  "name": "art-preview",
+  "private": true,
+  "type": "module",
+  "description": "Headless screenshot harness for iterating on building art. See docs/BUILDING_ART_GUIDE.md.",
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}

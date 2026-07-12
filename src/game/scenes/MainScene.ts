@@ -1,25 +1,41 @@
 
 import Phaser from 'phaser';
-import { Backend, type AttackReplayState, type ReplayFrameSnapshot, type ReplayTroopSnapshot } from '../backend/GameBackend';
+import { Backend, type AttackEndResult, type AttackReplayState, type ReplayFrameSnapshot, type ReplayTroopSnapshot } from '../backend/GameBackend';
 import type { SerializedBuilding, SerializedWorld } from '../data/Models';
 import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
 import { LootSystem } from '../systems/LootSystem';
 import type { PlacedBuilding, Troop, PlacedObstacle } from '../types/GameTypes';
-import { BuildingRenderer } from '../renderers/BuildingRenderer';
+import { drawBuildingVisual, type WallNeighborTopology } from '../renderers/BuildingVisualDispatcher';
 import { TroopRenderer } from '../renderers/TroopRenderer';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
-import { RubbleRenderer } from '../renderers/RubbleRenderer';
-import { PathfindingSystem } from '../systems/PathfindingSystem';
+import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
 import { TargetingSystem } from '../systems/TargetingSystem';
+import { DefenseSystem } from '../systems/DefenseSystem';
+import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
 import { depthForBuilding, depthForGroundPlane, depthForObstacle, depthForRubble, depthForTroop } from '../systems/DepthSystem';
-import { IsoUtils } from '../utils/IsoUtils';
+import { IsoUtils, TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
+import { cameraCssHeight, cameraCssWidth, toBackingZoom, toLogicalZoom } from '../utils/DisplayResolution';
 import { MobileUtils } from '../utils/MobileUtils';
 import { Auth } from '../backend/Auth';
 import { gameManager } from '../GameManager';
 import { particleManager } from '../systems/ParticleManager';
+import { VillageLifeSystem } from '../systems/VillageLifeSystem';
+import { VillageBubbles } from '../systems/VillageBubbles';
+import { onCameraFrame } from '../../ui/cameraFrame';
+import { soundSystem } from '../systems/SoundSystem';
+import { DayNightSystem } from '../systems/DayNightSystem';
+import { WeatherSystem } from '../systems/WeatherSystem';
+import { windAtScreen } from '../systems/Wind';
+import { WorldMapSystem } from '../systems/WorldMapSystem';
+import { hashString, mulberry32, upgradeDurationMs, watchtowerSightOf } from '../config/Economy';
+import { drawGrassTile, grassPaletteFor, type GrassCornerCut } from '../renderers/GrassRenderer';
+import { PLOT_PITCH } from '../systems/WorldMapSystem';
+import type { BattleOverlayScene } from './BattleOverlayScene';
 import type { GameMode } from '../types/GameMode';
 import { SceneInputController } from './controllers/SceneInputController';
-import solanaCoin from '../../assets/Solana.png';
+import { installBakeBridge } from '../dev/BakeBridge';
+import { SpriteBank } from '../render/SpriteBank';
+import { applyPixelSnap } from '../render/PixelSnap';
 
 const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
@@ -32,6 +48,17 @@ interface EnemyInstantiationSummary {
     skippedUnknownType: number;
     skippedOutOfBounds: number;
     failedInstantiation: number;
+}
+
+interface EnemyWorldMeta {
+    id: string;
+    username: string;
+    isBot: boolean;
+    attackId?: string;
+    botRaidId?: string;
+    botPlot?: { x: number; y: number };
+    /** The server already applied raid shares/protection to world.resources. */
+    lootPreCapped?: boolean;
 }
 
 type ReplayWatchMode = 'live' | 'replay';
@@ -49,14 +76,12 @@ interface ReplayCaptureState {
 interface ReplayWatchState {
     attackId: string;
     mode: ReplayWatchMode;
-    playbackStartTime: number;
     renderClockT: number;
+    clockStarted: boolean;
     nextFrameIndex: number;
     lastAppliedFrameT: number;
     lastFetchedFrameT: number;
     status: 'live' | 'finished' | 'aborted';
-    liveRenderDelayMs: number;
-    maxExtrapolationMs: number;
     pollInFlight: boolean;
     frames: ReplayFrameSnapshot[];
     pollEvent?: Phaser.Time.TimerEvent;
@@ -72,68 +97,6 @@ interface ReplayWatchState {
 
 
 
-const fragShader = `
-precision mediump float;
-uniform sampler2D uMainSampler;
-uniform vec2 uResolution;
-uniform float uSize;
-uniform float uZoom;
-uniform vec2 uScroll;
-varying vec2 outTexCoord;
-
-void main()
-{
-    if (uSize <= 1.0) {
-        gl_FragColor = texture2D(uMainSampler, outTexCoord);
-    } else {
-        // 1. Convert screen UV to logical world coordinates
-        // outTexCoord is [0, 1]. uResolution is [width, height] in screen pixels.
-        vec2 worldPos = (outTexCoord * uResolution) / uZoom + uScroll;
-        
-        // 2. Snap the world position to the logical 'LO-FI' grid
-        // This makes the pixelation 'stick' to world objects.
-        vec2 snappedWorldPos = floor(worldPos / uSize) * uSize;
-        
-        // 3. To prevent shimmering, we MUST sample from the center of the world-pixel
-        snappedWorldPos += uSize * 0.5;
-        
-        // 4. Project the snapped world position back to the source buffer's pixel coordinates
-        vec2 sourcePixelPos = (snappedWorldPos - uScroll) * uZoom;
-        
-        // 5. STABILITY STEP: Snap the source sampling position to the source texture's pixel grid.
-        // This prevents the GPU from interpolating between pixels as the camera moves sub-pixel.
-        vec2 crispSourcePos = floor(sourcePixelPos) + 0.5;
-        
-        // 6. Convert back to UV for sampling
-        vec2 sampleUV = crispSourcePos / uResolution;
-        
-        // Clamp to avoid sampling outside texture bounds
-        sampleUV = clamp(sampleUV, 1.5 / uResolution, 1.0 - 1.5 / uResolution);
-        
-        gl_FragColor = texture2D(uMainSampler, sampleUV);
-    }
-}
-`;
-
-class PixelatePipeline extends Phaser.Renderer.WebGL.Pipelines.PostFXPipeline {
-    static size: number = 1.0;
-    static zoom: number = 1.0;
-    static scroll: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
-
-    constructor(game: Phaser.Game) {
-        super({
-            game,
-            fragShader,
-            name: 'Pixelate'
-        });
-    }
-    onPreRender() {
-        this.set1f('uSize', PixelatePipeline.size);
-        this.set1f('uZoom', PixelatePipeline.zoom);
-        this.set2f('uScroll', PixelatePipeline.scroll.x, PixelatePipeline.scroll.y);
-        this.set2f('uResolution', this.renderer.width, this.renderer.height);
-    }
-}
 
 
 export class MainScene extends Phaser.Scene {
@@ -145,7 +108,7 @@ export class MainScene extends Phaser.Scene {
     public tileHeight = 32;
     public mapSize = 25;
     public buildings: PlacedBuilding[] = [];
-    public rubble: { gridX: number; gridY: number; width: number; height: number; graphics: Phaser.GameObjects.Graphics; createdAt: number }[] = [];
+    public rubble: { gridX: number; gridY: number; width: number; height: number; type: string; level: number; graphics: Phaser.GameObjects.Graphics; baseGraphics: Phaser.GameObjects.Graphics; createdAt: number; animationDone?: boolean }[] = [];
     public obstacles: PlacedObstacle[] = [];
     public troops: Troop[] = [];
     public ghostBuilding!: Phaser.GameObjects.Graphics;
@@ -167,10 +130,43 @@ export class MainScene extends Phaser.Scene {
 
     public mode: GameMode = 'HOME';
     public isScouting = false;
+    // Rotating stagger slot (0-2) for throttled ambient building redraws.
+    private buildingAnimFrame = 0;
+    // Next allowed battle-end scan (throttled to 4Hz).
+    private nextBattleEndCheckAt = 0;
+    // Ambient villagers/dogs/chickens + army figures at the camps.
+    public villageLife!: VillageLifeSystem;
+    // Sunset, night lights, moon and stars — the village's mood lighting.
+    public dayNight!: DayNightSystem;
+    // Diegetic speech bubbles the buildings raise over their own roofs.
+    public villageBubbles!: VillageBubbles;
+    private stopCameraFrameSync: (() => void) | null = null;
+    public weather!: WeatherSystem;
+    private nextAmbienceAt = 0;
+    public worldMap!: WorldMapSystem;
 
     // Combat stuff
-    public resourceInterval = 2000;
-    public lastResourceUpdate = 0;
+
+    private readonly defenseSystem = new DefenseSystem({
+        fire: {
+            cannon: (defense, target) => this.shootAt(defense, target),
+            ballista: (defense, target) => this.shootBallistaAt(defense, target),
+            xbow: (defense, target) => this.shootXBowAt(defense, target),
+            mortar: (defense, target) => this.shootMortarAt(defense, target),
+            tesla: (defense, target) => this.shootTeslaAt(defense, target),
+            prism: (defense, target, time) => this.shootPrismContinuousLaser(defense, target, time),
+            dragons_breath: (defense, target) => this.shootDragonsBreathAt(defense, target),
+            spike_launcher: (defense, target) => this.shootSpikeLauncherAt(defense, target),
+            frostfall: (defense, _target, time) => this.shootFrostfallShard(defense, time)
+        },
+        idle: {
+            cleanupPrismLaser: defense => this.cleanupPrismLaser(defense)
+        }
+    });
+
+    /** Incremented whenever live structure geometry changes. Combat plans are
+     * never followed across revisions; their strategic intent is replanned. */
+    private combatTopologyRevision = 0;
 
     // Battle stats tracking
     public initialEnemyBuildings = 0;
@@ -180,35 +176,57 @@ export class MainScene extends Phaser.Scene {
     public lastGrassGrowTime = 0;
 
     public destroyedBuildings = 0;
-    public solLooted = 0;
+    public goldLooted = 0;
+    public oreLooted = 0;
+    public foodLooted = 0;
     public hasDeployed = false;
     public raidEndScheduled = false; // Prevent multiple end calls
+    /** First-generation troops deployed this battle, by type — the server consumes these on bot raids. */
+    public deployedThisBattle: Record<string, number> = {};
+    private botRaidSettled = false;
+    private pendingBotSettlement: Promise<number> | null = null;
     public pendingSpawnCount = 0; // Prevent battle end during troop splits (phalanx/recursion)
     private readonly HEALTH_BAR_IDLE_MS = 5000;
     private readonly HEALTH_BAR_FADE_MS = 600;
-    private readonly REPLAY_PUSH_INTERVAL_MS = 160;
-    private readonly REPLAY_LIVE_POLL_INTERVAL_MS = 160;
-    private readonly REPLAY_LIVE_RENDER_DELAY_MS = 760;
-    private readonly REPLAY_MAX_EXTRAPOLATION_MS = 460;
-    private readonly REPLAY_SIM_SPEED_LIVE = 1.85;
-    private readonly REPLAY_SIM_SPEED_REPLAY = 1.6;
+    private readonly REPLAY_LIVE_POLL_INTERVAL_MS = 300;
+    /** Live spectating rides this far behind the newest frame — the jitter buffer. */
+    private readonly REPLAY_LIVE_DELAY_MS = 1500;
+    /** Recorded replays play back at a brisk fixed speed. */
+    private readonly REPLAY_SPEED = 1.6;
 
     public villageNameLabel!: Phaser.GameObjects.Text;
     public attackModeSelectedBuilding: PlacedBuilding | null = null;
-    public dummyTroop: Troop | null = null;
-    private _dummyLeaveHandler: (() => void) | null = null;
 
     // Online attack tracking
-    public currentEnemyWorld: { id: string; username: string; isBot?: boolean; attackId?: string } | null = null;
-    public playerBarracksLevel = 1;
+    public currentEnemyWorld: EnemyWorldMeta | null = null;
+    /** True while a neighbour raid is being fought IN PLACE on the world map
+     *  (no cloud, no lighting/weather cutover — the world just keeps going). */
+    public battleInPlace = false;
+    /** The cached home world held for the homecoming swap (null = no march home in flight). */
+    private pendingHomecoming: { world: SerializedWorld } | null = null;
+    /** Whose lawn the ground texture is currently baked as. */
+    private groundPaletteKey = 'village';
     public playerLabLevel = 1;
     private needsDefaultBase = false;
     private sceneReadyForBaseLoad = false;
     private replayCaptureState: ReplayCaptureState | null = null;
+    /** Destroyed buildings leave `this.buildings`; keep their terminal replay state in every later frame. */
+    private replayDestroyedBuildings = new Map<string, { id: string; health: number; isDestroyed: boolean }>();
+    private pendingAttackSettlement: Promise<AttackEndResult | null> | null = null;
+    // Attacks already settled via a battle end, so a later abandon can't re-settle them as aborted.
+    private settledAttackIds = new Set<string>();
     private replayWatchState: ReplayWatchState | null = null;
     private replaySimulationTime = 0;
     private isApplyingReplayFrame = false;
     private replayAutoExitQueued = false;
+    /** One exclusive navigation at a time; stale async continuations must not commit. */
+    private transitionEpoch = 0;
+    private transitionBusy = false;
+    private transitionLabel = '';
+    private battleEpoch = 0;
+    private battleTimerEvents = new Set<Phaser.Time.TimerEvent>();
+    /** Invalidates network continuations when this scene is stopped/destroyed. */
+    private lifecycleEpoch = 0;
 
     public get userId(): string {
         try {
@@ -234,9 +252,6 @@ export class MainScene extends Phaser.Scene {
     private normalizeBuildingType(type: string): BuildingType | null {
         if (!type) return null;
         const canonical = type.trim().toLowerCase().replace(/[\s-]+/g, '_');
-        if (canonical === 'mine' || canonical === 'elixir_collector' || canonical === 'gold_mine' || canonical === 'elixir_pump' || canonical === 'gold_collector' || canonical === 'solana_mine') {
-            return 'solana_collector';
-        }
         // Legacy compatibility: accept names that differ only by underscores.
         if (!BUILDINGS[canonical]) {
             const compactCanonical = canonical.replace(/_/g, '');
@@ -256,20 +271,89 @@ export class MainScene extends Phaser.Scene {
         return this.buildings.filter(b => b.owner === 'ENEMY' && b.type !== 'wall');
     }
 
-    private snapshotPlayerBarracksLevel() {
-        const maxBarracks = this.buildings.reduce((max, building) => {
-            if (building.owner !== 'PLAYER' || building.type !== 'barracks') return max;
-            return Math.max(max, Math.max(1, building.level || 1));
-        }, 1);
-        this.playerBarracksLevel = Math.max(1, maxBarracks);
-    }
-
     private snapshotPlayerLabLevel() {
         const maxLab = this.buildings.reduce((max, building) => {
             if (building.owner !== 'PLAYER' || building.type !== 'lab') return max;
             return Math.max(max, Math.max(1, building.level || 1));
         }, 0);
-        this.playerLabLevel = maxLab;
+        // A NEXT transition may already have cleared the enemy scene. Keep the
+        // home snapshot in ATTACK mode instead of mistaking an empty frame for
+        // a level-zero home; HOME is the only authoritative place to reset it.
+        if (this.mode === 'HOME' || maxLab > 0) this.playerLabLevel = maxLab;
+    }
+
+    private beginExclusiveTransition(label: string): number | null {
+        if (this.transitionBusy) {
+            gameManager.showToast(`${this.transitionLabel || 'Another journey'} is already underway.`);
+            return null;
+        }
+        this.transitionBusy = true;
+        this.transitionLabel = label;
+        return ++this.transitionEpoch;
+    }
+
+    private isTransitionCurrent(epoch: number): boolean {
+        return this.transitionBusy && epoch === this.transitionEpoch;
+    }
+
+    private finishExclusiveTransition(epoch: number) {
+        if (epoch !== this.transitionEpoch) return;
+        this.transitionBusy = false;
+        this.transitionLabel = '';
+    }
+
+    private invalidateTransitions() {
+        this.transitionEpoch++;
+        this.transitionBusy = false;
+        this.transitionLabel = '';
+    }
+
+    private scheduleBattleCall(delay: number, callback: () => void): Phaser.Time.TimerEvent {
+        const epoch = this.battleEpoch;
+        let event!: Phaser.Time.TimerEvent;
+        event = this.time.delayedCall(delay, () => {
+            this.battleTimerEvents.delete(event);
+            if (epoch !== this.battleEpoch) return;
+            callback();
+        });
+        this.battleTimerEvents.add(event);
+        return event;
+    }
+
+    private cancelBattleAsyncWork() {
+        this.battleEpoch++;
+        for (const event of this.battleTimerEvents) event.remove(false);
+        this.battleTimerEvents.clear();
+        this.pendingSpawnCount = 0;
+        this.raidEndScheduled = false;
+    }
+
+    /** Shared preamble for every attack-mode transition. */
+    private async beginAttackSession(scouting: boolean, epoch?: number): Promise<boolean> {
+        if (!await this.flushPendingSaveForTransition()) return false;
+        if (epoch !== undefined && !this.isTransitionCurrent(epoch)) return false;
+        // A scout scene contains only ENEMY buildings. Preserve the home lab
+        // snapshot when converting that scout directly into an attack.
+        if (this.mode === 'HOME') this.snapshotPlayerLabLevel();
+        gameManager.setGameMode('ATTACK');
+        this.mode = 'ATTACK';
+        this.isScouting = scouting;
+        this.clearScene();
+        return true;
+    }
+
+    /** Reset per-raid battle stats once the enemy world is in place. */
+    private resetBattleStats() {
+        this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
+        this.destroyedBuildings = 0;
+        this.goldLooted = 0;
+        this.oreLooted = 0;
+        this.foodLooted = 0;
+        this.deployedThisBattle = {};
+        this.botRaidSettled = false;
+        this.replayDestroyedBuildings.clear();
+        this.raidEndScheduled = false;
+        this.updateBattleStats();
     }
 
     private getLabLevelForOwner(owner: 'PLAYER' | 'ENEMY'): number {
@@ -308,7 +392,6 @@ export class MainScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('solanaCoin', solanaCoin);
     }
 
     create() {
@@ -316,7 +399,7 @@ export class MainScene extends Phaser.Scene {
 
         // Set default zoom based on device
         const defaultZoom = MobileUtils.getDefaultZoom();
-        this.cameras.main.setZoom(defaultZoom);
+        this.cameras.main.setZoom(toBackingZoom(defaultZoom));
 
         this.scale.on('resize', () => {
             if (!this.hasUserMovedCamera) {
@@ -324,34 +407,50 @@ export class MainScene extends Phaser.Scene {
             }
         });
 
-        // Register and apply pixelation pipeline
-        const renderer = this.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
-        if (renderer.pipelines) {
-            if (!renderer.pipelines.has('Pixelate')) {
-                renderer.pipelines.addPostPipeline('Pixelate', PixelatePipeline);
-            }
-            this.cameras.main.setPostPipeline('Pixelate');
+        // Global runtime pixelation is intentionally absent. Live vector art is
+        // antialiased; baked pixel sprites opt into NEAREST per texture through
+        // TextureRenderPolicy. See docs/AGENTS_SPRITE_PIPELINE.md.
+
+        // Battle UI (health bars + level chips) renders in a mirrored scene
+        // above this one — see BattleOverlayScene.
+        if (!this.scene.isActive('BattleOverlay')) {
+            this.scene.launch('BattleOverlay');
         }
 
         gameManager.registerScene({
-            setPixelation: (size: number) => {
-                PixelatePipeline.size = size;
-            },
-            setSensitivity: (val: number) => {
-                this.cameraSensitivity = val;
-            },
             // Startup path: App already fetched cloud state and cached it, so avoid a second cloud refresh here.
             loadBase: () => this.sceneReadyForBaseLoad
                 ? this.reloadHomeBase({ refreshOnline: false })
-                : Promise.resolve(false)
+                : Promise.resolve(false),
+            setUnderAttack: (underAttack: boolean, attackId?: string | null) => {
+                if (this.mode !== 'HOME') return;
+                if (underAttack) this.villageLife.panic();
+                else this.villageLife.calm();
+                // One detector (the App's 2.5s incoming poll) drives everything:
+                // villager panic AND the in-scene siege banner.
+                this.worldMap?.setSiege(underAttack ? attackId ?? null : null);
+            },
+            dismissSiegeBanner: () => {
+                this.worldMap?.dismissSiege();
+            },
+            advanceDayNight: () => {
+                this.dayNight.advancePhase();
+            },
+            summonDragon: () => {
+                this.villageLife.spawnDragonShadow();
+            },
+            showNeighborhood: () => {
+                this.showNeighborhood();
+            },
+            syncPopulation: (count: number) => {
+                if (this.mode === 'HOME') this.villageLife.syncPopulation(count);
+            }
         });
 
-        // Initialize at 1.5
-        PixelatePipeline.size = 1.5;
-
-        if (this.textures.exists('solanaCoin')) {
-            this.textures.get('solanaCoin').setFilter(Phaser.Textures.FilterMode.NEAREST);
-        }
+        installBakeBridge(this);
+        // Baked sprite atlases (buildings/troops/wrecks/obstacles) — loads in
+        // the background; until ready every draw falls back to vector.
+        SpriteBank.init(this);
 
         this.inputController = new SceneInputController(this);
         this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.inputController.onPointerDown(pointer));
@@ -360,14 +459,18 @@ export class MainScene extends Phaser.Scene {
 
         this.input.on('wheel', (pointer: Phaser.Input.Pointer, _gameObjects: any, _deltaX: number, deltaY: number, _deltaZ: number) => {
             const camera = this.cameras.main;
-            const minZoom = MobileUtils.getMinZoom();
             const maxZoom = MobileUtils.getMaxZoom();
 
-            const oldZoom = camera.zoom;
+            const oldBackingZoom = camera.zoom;
+            const oldZoom = toLogicalZoom(oldBackingZoom);
+            // Never yank a camera the world view legitimately parked below the
+            // floor — below it, wheel-out is inert and wheel-in still works.
+            const minZoom = Math.min(this.minGestureZoom(), oldZoom);
             const newZoom = Phaser.Math.Clamp(oldZoom - deltaY * 0.002, minZoom, maxZoom);
 
             if (newZoom === oldZoom) return;
             this.hasUserMovedCamera = true;
+            const newBackingZoom = toBackingZoom(newZoom);
 
             // Pointer position on screen (relative to canvas)
             const screenX = pointer.x;
@@ -379,28 +482,86 @@ export class MainScene extends Phaser.Scene {
             const viewportCenterY = camera.height / 2;
 
             // Calculate the world point under the cursor with current zoom
-            const worldX = camera.scrollX + (screenX - viewportCenterX) / oldZoom;
-            const worldY = camera.scrollY + (screenY - viewportCenterY) / oldZoom;
+            const worldX = camera.scrollX + (screenX - viewportCenterX) / oldBackingZoom;
+            const worldY = camera.scrollY + (screenY - viewportCenterY) / oldBackingZoom;
 
             // Apply new zoom
-            camera.setZoom(newZoom);
+            camera.setZoom(newBackingZoom);
 
             // Calculate new scroll so the same world point stays under the cursor
             // worldX = newScrollX + (screenX - viewportCenterX) / newZoom
             // newScrollX = worldX - (screenX - viewportCenterX) / newZoom
-            camera.scrollX = worldX - (screenX - viewportCenterX) / newZoom;
-            camera.scrollY = worldY - (screenY - viewportCenterY) / newZoom;
+            camera.scrollX = worldX - (screenX - viewportCenterX) / newBackingZoom;
+            camera.scrollY = worldY - (screenY - viewportCenterY) / newBackingZoom;
         });
 
-        this.events.once('shutdown', () => {
+        const onAttackInvalidated = (event: Event) => {
+            const detail = (event as CustomEvent<{ attackId?: string; message?: string }>).detail;
+            const attackId = detail?.attackId;
+            if (!attackId || this.mode !== 'ATTACK' || this.currentEnemyWorld?.attackId !== attackId) return;
+            // Another army won the deferred victim lock, or the village moved
+            // before our first troop landed. Stop publishing the dead replay
+            // and return to authoritative home state immediately.
+            if (this.replayCaptureState?.attackId === attackId) {
+                this.replayCaptureState.ended = true;
+                this.replayCaptureState = null;
+            }
+            this.settledAttackIds.add(attackId);
+            this.currentEnemyWorld = { ...this.currentEnemyWorld, attackId: undefined };
+            gameManager.showToast(detail.message || 'That village changed before your army arrived.');
+            void this.goHome();
+        };
+        window.addEventListener('clash:attack-invalidated', onAttackInvalidated);
+
+        let sceneCleanedUp = false;
+        const cleanupScene = () => {
+            if (sceneCleanedUp) return;
+            sceneCleanedUp = true;
+            this.lifecycleEpoch++;
             this.sceneReadyForBaseLoad = false;
+            this.invalidateTransitions();
             this.endAttackReplayCapture('aborted');
             this.clearReplayWatchState();
+            this.cancelBattleAsyncWork();
+            this.dropGroundBake();
+            this.pendingHomecoming = null;
+            this.currentEnemyWorld = null;
+            this.villageLife?.clear();
+            this.villageBubbles?.teardown();
+            this.stopCameraFrameSync?.();
+            this.stopCameraFrameSync = null;
+            this.dayNight?.clearLights();
+            this.weather?.destroy();
+            this.worldMap?.teardown();
+            this.time.removeAllEvents();
+            this.tweens.killAll();
+            window.removeEventListener('clash:attack-invalidated', onAttackInvalidated);
             gameManager.clearScene();
             particleManager.clearAll();
-        });
+        };
+        // A normal scene stop emits shutdown; destroying the Phaser.Game can
+        // go straight to destroy. Clean external DOM/audio state in both paths.
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanupScene);
+        this.events.once(Phaser.Scenes.Events.DESTROY, cleanupScene);
 
         particleManager.init(this);
+        soundSystem.attach();
+        this.villageLife = new VillageLifeSystem(this);
+        this.villageBubbles = new VillageBubbles(this);
+        this.dayNight = new DayNightSystem(this);
+        this.weather = new WeatherSystem(this);
+        this.worldMap = new WorldMapSystem(this);
+        // World-anchored DOM (bubbles, and any tag that tracks the world)
+        // positions on POST_RENDER — never in update(), whose worldView is a
+        // frame stale during drags.
+        this.stopCameraFrameSync = onCameraFrame(cam => {
+            this.villageBubbles?.reposition(cam);
+        });
+        this.dayNight.setLanternProvider(() => this.villageLife.getLanternPositions());
+        // One sky for everything: rain dims the hearths and sends everyone indoors.
+        this.weather.onRainChange((raining) => {
+            this.villageLife.setRain(raining);
+        });
 
         this.tempGraphics = this.add.graphics().setVisible(false);
         this.createIsoGrid();
@@ -419,13 +580,16 @@ export class MainScene extends Phaser.Scene {
         this.forbiddenGraphics.setDepth(5);
         this.forbiddenGraphics.setVisible(false);
 
+        // In-world overlays (selection ring, placement ghost, deploy zones)
+        // ride the same pixel-snap pass as the rest of the non-UI world.
+        applyPixelSnap(this, this.selectionGraphics);
+        applyPixelSnap(this, this.ghostBuilding);
+        applyPixelSnap(this, this.deploymentGraphics);
+        applyPixelSnap(this, this.forbiddenGraphics);
+
         if (this.input.keyboard) {
             this.cursorKeys = this.input.keyboard.createCursorKeys();
             this.input.keyboard.on('keydown-ESC', () => {
-                if (this.dummyTroop) {
-                    this.removeDummyTroop();
-                    return;
-                }
                 this.cancelPlacement();
             });
             this.input.keyboard.on('keydown-M', () => {
@@ -433,6 +597,7 @@ export class MainScene extends Phaser.Scene {
                     this.unbakeBuildingFromGround(this.selectedInWorld);
                     this.isMoving = true;
                     this.selectedBuildingType = null;
+                    this.villageLife.onBuildingLifted(this.selectedInWorld);
                     this.inputController.onPointerMove(this.input.activePointer);
                 }
             });
@@ -465,6 +630,100 @@ export class MainScene extends Phaser.Scene {
         this.hasUserMovedCamera = false;
     }
 
+    /**
+     * The gesture zoom floor: wheel/pinch zoom-out stops once the view holds
+     * the village plot, its meadow apron and the near cloud bank — the far
+     * world is reached through the watchtower world view (showNeighborhood),
+     * never by scrolling out into the haze. Cover-fit (max ratio) so neither
+     * axis ever shows more than the apron square; clamped so a tiny window
+     * can still zoom out at least a little from the default.
+     */
+    public minGestureZoom(): number {
+        const camera = this.cameras.main;
+        const APRON_TILES = 12; // meadow ring + the front row of fog cumulus
+        const CLOUD_HEADROOM = 130; // world px: cloud puffs stand above their base line
+        const span = this.mapSize + APRON_TILES * 2;
+        const fit = Math.max(
+            cameraCssWidth(camera) / (span * TILE_WIDTH),
+            cameraCssHeight(camera) / (span * TILE_HEIGHT + CLOUD_HEADROOM)
+        );
+        return Phaser.Math.Clamp(fit, MobileUtils.getMinZoom(), MobileUtils.getDefaultZoom() * 0.92);
+    }
+
+    /**
+     * WeatherSystem probe: what does a raindrop land on at a scene-grid
+     * point? The live plot is lawn or a standing roof; everything beyond it
+     * defers to the world map's lake/river/brook geometry.
+     */
+    public rainSurfaceAt(gx: number, gy: number): 'water' | 'bank' | 'grass' | 'blocked' {
+        if (gx >= 0 && gy >= 0 && gx < this.mapSize && gy < this.mapSize) {
+            const tx = Math.floor(gx);
+            const ty = Math.floor(gy);
+            for (const building of this.buildings) {
+                if (building.health <= 0) continue;
+                const info = BUILDING_DEFINITIONS[building.type as BuildingType];
+                if (!info) continue;
+                if (tx >= building.gridX && tx < building.gridX + info.width
+                    && ty >= building.gridY && ty < building.gridY + info.height) {
+                    return 'blocked';
+                }
+            }
+            return 'grass';
+        }
+        return this.worldMap?.rainSurfaceAt(gx, gy) ?? 'grass';
+    }
+
+    private showNeighborhood() {
+        if (this.mode !== 'HOME') return;
+        const sight = watchtowerSightOf(this.buildings as unknown as SerializedBuilding[]);
+        if (sight <= 0) {
+            gameManager.showToast('Build a Watchtower to discover the surrounding world.');
+            return;
+        }
+
+        const camera = this.cameras.main;
+        // Fit the complete discovered square, including the outer plot edges,
+        // instead of relying on a desktop-only magic zoom.  The isometric
+        // diamond is twice as wide as it is tall, so narrow phones are the
+        // limiting case and may legitimately need to zoom below the normal
+        // gesture floor for this one overview transition.
+        const minGrid = -sight * PLOT_PITCH;
+        const maxGrid = sight * PLOT_PITCH + this.mapSize;
+        const corners = [
+            IsoUtils.cartToIso(minGrid, minGrid),
+            IsoUtils.cartToIso(maxGrid, minGrid),
+            IsoUtils.cartToIso(minGrid, maxGrid),
+            IsoUtils.cartToIso(maxGrid, maxGrid)
+        ];
+        const worldWidth = Math.max(...corners.map(point => point.x))
+            - Math.min(...corners.map(point => point.x));
+        const worldHeight = Math.max(...corners.map(point => point.y))
+            - Math.min(...corners.map(point => point.y));
+        const horizontalInset = MobileUtils.isMobile() ? 28 : 88;
+        const verticalInset = MobileUtils.isMobile() ? 148 : 128;
+        const fitZoom = Math.min(
+            Math.max(1, cameraCssWidth(camera) - horizontalInset) / Math.max(1, worldWidth),
+            Math.max(1, cameraCssHeight(camera) - verticalInset) / Math.max(1, worldHeight)
+        );
+        const neighborhoodZoom = Phaser.Math.Clamp(
+            fitZoom * 0.96,
+            0.035,
+            Math.min(MobileUtils.getDefaultZoom(), sight >= 2 ? 0.24 : 0.42)
+        );
+        const openingWorld = toLogicalZoom(camera.zoom) > neighborhoodZoom + 0.06;
+        const targetZoom = openingWorld ? neighborhoodZoom : MobileUtils.getDefaultZoom();
+        const centerGrid = this.mapSize / 2;
+        const center = IsoUtils.cartToIso(centerGrid, centerGrid);
+        camera.centerOn(center.x, center.y);
+        camera.zoomTo(toBackingZoom(targetZoom), 500, 'Sine.easeInOut');
+        this.hasUserMovedCamera = true;
+
+        if (openingWorld) {
+            void this.worldMap.prime(this.time.now);
+            gameManager.showToast('World view — tap a village or wilderness plot to explore.');
+        }
+    }
+
     public cancelPlacement() {
         if (this.isMoving && this.selectedInWorld) {
             this.bakeBuildingToGround(this.selectedInWorld);
@@ -476,31 +735,46 @@ export class MainScene extends Phaser.Scene {
         this.ghostBuilding.setVisible(false);
         this.selectedInWorld = null;
         this.clearBuildingRangeIndicator();
-        this.removeDummyTroop();
         gameManager.onPlacementCancelled();
     }
 
+    /** Errors this frame are logged (throttled) and the frame is skipped —
+     *  the game loop itself must never die to a single bad update. */
+    private updateErrorCount = 0;
+    private lastUpdateErrorLogAt = 0;
+
     update(time: number, delta: number) {
-        PixelatePipeline.zoom = this.cameras.main.zoom;
-        PixelatePipeline.scroll.set(this.cameras.main.scrollX, this.cameras.main.scrollY);
+        try {
+            this.updateCore(time, delta);
+        } catch (error) {
+            this.updateErrorCount += 1;
+            if (time - this.lastUpdateErrorLogAt > 5000) {
+                this.lastUpdateErrorLogAt = time;
+                console.error(`[bulkhead] update() error #${this.updateErrorCount} (frame skipped, loop alive):`, error);
+            }
+        }
+    }
+
+    private updateCore(time: number, delta: number) {
+        // A road caravan owns a durable battle session before the scene flips
+        // from HOME to ATTACK, so keep the tab lease alive through the march
+        // and focus/save waits too. The backend no-ops when no session exists.
+        Backend.heartbeatActiveBattle();
 
         if (this.mode === 'REPLAY') {
-            const replaySpeed = this.replayWatchState?.mode === 'live'
-                ? this.REPLAY_SIM_SPEED_LIVE
-                : this.REPLAY_SIM_SPEED_REPLAY;
-            const replayDelta = delta * replaySpeed;
-            this.replaySimulationTime += replayDelta;
-
             this.handleCameraMovement(delta);
-            this.updateReplayWatchPlayback(time, replayDelta);
-            this.updateReplayTroopSmoothing(replayDelta);
+            this.updateReplayWatchPlayback(time, delta);
+            this.updateReplayTroopSmoothing(delta);
             this.updateCombat(this.replaySimulationTime);
             this.updateSpikeZones();
-            this.updateLavaZones();
             this.refreshBuildingHealthBars();
             this.updateBuildingAnimations(time);
             this.updateObstacleAnimations(time);
             this.updateRubbleAnimations(time);
+            this.dayNight.update(time);
+            this.weather.update(time);
+            this.dayNight.setRainFactor(this.weather.rainFactor());
+            this.worldMap.update(time);
             return;
         }
 
@@ -509,30 +783,79 @@ export class MainScene extends Phaser.Scene {
         this.handleCameraMovement(delta);
         this.updateCombat(time);
         this.updateSpikeZones();
-        this.updateLavaZones();
         this.updateTroops(delta);
         this.maybePushReplayFrame();
         this.refreshBuildingHealthBars();
-        this.updateResources(time);
         this.updateSelectionHighlight();
         this.updateDeploymentHighlight();
         this.updateBuildingAnimations(time);
         this.updateObstacleAnimations(time);
+        this.dayNight.update(time);
+        this.weather.update(time);
+        this.dayNight.setRainFactor(this.weather.rainFactor());
+        this.stepGroundBake();
+        this.maybeQuantizeGround(time);
+        SpriteBank.sweep(time);
+        this.worldMap.update(time);
+        this.villageBubbles.update(time);
+        if (this.wallGateRecomputeAt !== 0 && time >= this.wallGateRecomputeAt) {
+            this.wallGateRecomputeAt = 0;
+            this.recomputeWallGates();
+        }
+        soundSystem.setNightFactor(this.dayNight.nightFactor());
+        // The audible wind rides the same gust field the flags sample (throttled).
+        if (time >= this.nextAmbienceAt) {
+            this.nextAmbienceAt = time + 240;
+            const cam = this.cameras.main;
+            soundSystem.setWindLevel(Math.max(0, windAtScreen(cam.worldView.centerX, cam.worldView.centerY, time)));
+        }
+        this.villageLife.setNightMode(this.mode === 'HOME' && this.dayNight.nightFactor() > 0.6);
+        this.villageLife.update(time, delta);
         this.growGrass(time);
         this.updateRubbleAnimations(time);
+        this.resolveLocalUpgrades(time);
+    }
 
-        // Dummy troop cursor-follow
-        if (this.dummyTroop) {
-            const pointer = this.input.activePointer;
-            const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-            const cart = IsoUtils.isoToCart(worldPt.x, worldPt.y);
-            this.dummyTroop.gridX = cart.x;
-            this.dummyTroop.gridY = cart.y;
-            const iso = IsoUtils.cartToIso(cart.x, cart.y);
-            this.dummyTroop.gameObject.setPosition(iso.x, iso.y);
-            this.dummyTroop.gameObject.setDepth(depthForTroop(cart.x, cart.y, 'warrior') + 10);
-            this.dummyTroop.health = this.dummyTroop.maxHealth;
-            this.dummyTroop.hasTakenDamage = false;
+    /**
+     * Land matured upgrade timers locally (the server does the same on its
+     * next read — resolveUpgrades in server/game.ts; both derive the same
+     * level from the same deadline, so they never disagree).
+     */
+    private nextUpgradeScanAt = 0;
+    private resolveLocalUpgrades(time: number) {
+        if (time < this.nextUpgradeScanAt) return;
+        this.nextUpgradeScanAt = time + 500;
+        if (this.mode !== 'HOME') return;
+        const now = Date.now();
+        for (const b of this.buildings) {
+            if (!b.upgradingTo || (b.upgradeEndsAt ?? 0) > now) continue;
+            const target = Math.min(b.upgradingTo, BUILDINGS[b.type]?.maxLevel ?? b.upgradingTo);
+            b.upgradingTo = undefined;
+            b.upgradeEndsAt = undefined;
+            b.level = target;
+            b.builtAt = now;
+            const stats = getBuildingStats(b.type as BuildingType, target);
+            b.maxHealth = stats.maxHealth;
+            b.health = stats.maxHealth;
+            b.graphics.clear();
+            if (b.baseGraphics) b.baseGraphics.clear();
+            this.drawBuildingVisuals(b.graphics, b.gridX, b.gridY, b.type, 1, null, b, b.baseGraphics);
+            this.updateHealthBar(b);
+            this.unbakeBuildingFromGround(b);
+            this.bakeBuildingToGround(b);
+            this.playUpgradeEffect(b);
+            if (b.type === 'army_camp') {
+                const campLevels = this.buildings.filter(x => x.type === 'army_camp').map(x => x.level ?? 1);
+                gameManager.refreshCampCapacity(campLevels);
+            }
+            if (b.type === 'lab' && b.owner === 'PLAYER') {
+                this.playerLabLevel = Math.max(this.playerLabLevel, target);
+            }
+            // The bubble may be open on this building: refresh it to the
+            // finished level so the countdown gives way to the new stats.
+            if (this.selectedInWorld === b) {
+                gameManager.onBuildingSelected({ id: b.id, type: b.type as BuildingType, level: target, gridX: b.gridX, gridY: b.gridY });
+            }
         }
     }
 
@@ -547,6 +870,11 @@ export class MainScene extends Phaser.Scene {
     private checkBattleEnd() {
         // Only check if we are attacking and have started deploying
         if (this.mode !== 'ATTACK' || !this.hasDeployed || this.raidEndScheduled) return;
+
+        // End-of-battle is not frame-sensitive; scanning armies/troops/buildings
+        // 4x per second instead of every frame is imperceptible (≤250ms delay).
+        if (this.time.now < this.nextBattleEndCheckAt) return;
+        this.nextBattleEndCheckAt = this.time.now + 250;
 
         // 1. Check Army Remaining (troops not yet converted to entities)
         const army = gameManager.getArmy();
@@ -567,250 +895,50 @@ export class MainScene extends Phaser.Scene {
         const noEnemiesRemaining = remaining === 0 && (this.destroyedBuildings > 0 || this.initialEnemyBuildings > 0);
         if ((armyRemaining <= 0 && activeTroops === 0 && this.pendingSpawnCount === 0) || noEnemiesRemaining) {
             this.raidEndScheduled = true;
-            this.endAttackReplayCapture('finished');
+            const settlement = this.endAttackReplayCapture('finished');
 
             // 2-second delay to let final animations play / player realize what happened
-            this.time.delayedCall(2000, () => {
-                // Trigger the end sequence via the game manager callback, but pass a flag or handle it there
-                // The user wants the SAME pathway as "Return Home"
-                let handled = false;
-                try {
-                    handled = gameManager.onRaidEnded(this.solLooted);
-                } catch (error) {
-                    console.error('onRaidEnded handler failed:', error);
-                }
-                if (!handled) {
-                    this.showCloudTransition(async () => {
-                        gameManager.setGameMode('HOME');
-                        await this.goHome();
-                        // We also need to tell React to switch view if possible, but goHome handles internal state
+            const raidEpoch = this.battleEpoch;
+            this.scheduleBattleCall(2000, () => {
+                void (async () => {
+                    // The authoritative balance/army revision must land before
+                    // React switches HUDs or home reload reads the cache.
+                    const attackResult = await settlement?.catch(error => {
+                        console.warn('Attack settlement failed before raid handoff:', error);
+                        return null;
                     });
-                }
+                    // World-map bot camps settle server-side (capped loot on a
+                    // cooldown + troop consumption) BEFORE the payout reaches
+                    // the UI — the number shown is the number banked.
+                    let payout = Math.max(0, Math.floor(attackResult?.lootApplied ?? 0));
+                    if (this.currentEnemyWorld?.isBot) {
+                        payout = await this.settleBotRaid().catch(() => 0);
+                    }
+                    if (raidEpoch !== this.battleEpoch || this.mode !== 'ATTACK') return;
+                    // Trigger the end sequence via the game manager callback (same pathway as "Return Home").
+                    let handled = false;
+                    try {
+                        handled = gameManager.onRaidEnded(payout);
+                    } catch (error) {
+                        console.error('onRaidEnded handler failed:', error);
+                    }
+                    if (!handled) {
+                        if (this.battleInPlace) {
+                            await this.goHome(); // marches home, no clouds
+                        } else {
+                            this.showCloudTransition(async () => {
+                                gameManager.setGameMode('HOME');
+                                await this.goHome();
+                            });
+                        }
+                    }
+                })();
             });
         }
     }
 
-    public activateDummyTroop() {
-        // Deselect any selected building
-        if (this.selectedInWorld) {
-            if (this.selectedInWorld.type === 'prism') this.cleanupPrismLaser(this.selectedInWorld);
-            this.selectedInWorld = null;
-            gameManager.onBuildingSelected(null);
-            this.clearBuildingRangeIndicator();
-        }
-
-        const pointer = this.input.activePointer;
-        const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-        const cart = IsoUtils.isoToCart(worldPt.x, worldPt.y);
-        const iso = IsoUtils.cartToIso(cart.x, cart.y);
-
-        const gfx = this.add.graphics();
-        this.drawScarecrow(gfx);
-        gfx.setPosition(iso.x, iso.y);
-        gfx.setDepth(depthForTroop(cart.x, cart.y, 'warrior') + 10);
-
-        const healthBar = this.add.graphics().setVisible(false);
-
-        const troop: Troop = {
-            id: 'dummy_scarecrow',
-            type: 'warrior',
-            level: 1,
-            gameObject: gfx,
-            healthBar,
-            gridX: cart.x,
-            gridY: cart.y,
-            health: Infinity,
-            maxHealth: Infinity,
-            owner: 'ENEMY',
-            lastAttackTime: 0,
-            attackDelay: 999999,
-            speedMult: 0,
-            hasTakenDamage: false,
-            facingAngle: 0,
-            target: null
-        };
-
-        this.troops.push(troop);
-        this.dummyTroop = troop;
-        this.game.canvas.style.cursor = 'none';
-
-        // Auto-remove dummy when cursor leaves the canvas
-        this._dummyLeaveHandler = () => {
-            if (this.dummyTroop) this.removeDummyTroop();
-        };
-        this.game.canvas.addEventListener('mouseleave', this._dummyLeaveHandler);
-    }
-
-    public removeDummyTroop() {
-        if (!this.dummyTroop) return;
-        const idx = this.troops.indexOf(this.dummyTroop);
-        if (idx !== -1) this.troops.splice(idx, 1);
-        this.dummyTroop.gameObject.destroy();
-        this.dummyTroop.healthBar.destroy();
-        this.dummyTroop = null;
-        this.game.canvas.style.cursor = '';
-
-        // Remove mouseleave listener
-        if (this._dummyLeaveHandler) {
-            this.game.canvas.removeEventListener('mouseleave', this._dummyLeaveHandler);
-            this._dummyLeaveHandler = null;
-        }
-
-        // Clean up any active prism lasers
-        this.buildings.forEach(b => {
-            if (b.type === 'prism') this.cleanupPrismLaser(b);
-        });
-
-        gameManager.setDummyActive(false);
-    }
-
-    public toggleDummyTroop() {
-        if (this.dummyTroop) {
-            this.removeDummyTroop();
-        } else {
-            this.activateDummyTroop();
-        }
-    }
-
-    private drawScarecrow(graphics: Phaser.GameObjects.Graphics) {
-        // Brown vertical pole
-        graphics.lineStyle(3, 0x8B4513);
-        graphics.beginPath();
-        graphics.moveTo(0, -30);
-        graphics.lineTo(0, 10);
-        graphics.strokePath();
-
-        // Horizontal crossbar
-        graphics.lineStyle(3, 0x8B4513);
-        graphics.beginPath();
-        graphics.moveTo(-12, -18);
-        graphics.lineTo(12, -18);
-        graphics.strokePath();
-
-        // Circle head (burlap color)
-        graphics.fillStyle(0xD2B48C);
-        graphics.fillCircle(0, -34, 6);
-        graphics.lineStyle(1, 0x8B4513);
-        graphics.strokeCircle(0, -34, 6);
-
-        // Small triangular shirt below crossbar
-        graphics.fillStyle(0xA0522D);
-        graphics.beginPath();
-        graphics.moveTo(-10, -18);
-        graphics.lineTo(10, -18);
-        graphics.lineTo(0, -4);
-        graphics.closePath();
-        graphics.fillPath();
-    }
-
     private getDefenseStats(def: PlacedBuilding) {
         return getBuildingStats(def.type as BuildingType, def.level || 1);
-    }
-
-
-
-
-
-    private fireDefenseAtTarget(defense: PlacedBuilding, target: Troop, time: number) {
-        switch (defense.type) {
-            case 'cannon':
-                this.shootAt(defense, target);
-                break;
-            case 'ballista':
-                this.shootBallistaAt(defense, target);
-                break;
-            case 'xbow':
-                this.shootXBowAt(defense, target);
-                break;
-            case 'mortar':
-                this.shootMortarAt(defense, target);
-                break;
-            case 'tesla':
-                this.shootTeslaAt(defense, target);
-                break;
-            case 'magmavent':
-                this.shootMagmaEruption(defense);
-                break;
-            case 'prism':
-                this.shootPrismContinuousLaser(defense, target, time);
-                break;
-            case 'dragons_breath':
-                this.shootDragonsBreathAt(defense, target);
-                break;
-            case 'spike_launcher':
-                this.shootSpikeLauncherAt(defense, target);
-                break;
-            case 'frostfall':
-                this.shootFrostfallShard(defense, time);
-                break;
-            default:
-                this.shootGenericDefenseAt(defense, target);
-        }
-    }
-
-
-    private shootGenericDefenseAt(defense: PlacedBuilding, target: Troop) {
-        let stats: any;
-        try {
-            stats = this.getDefenseStats(defense);
-        } catch {
-            stats = BUILDINGS[defense.type] ?? { width: 1, height: 1, damage: 0, color: 0xffffff };
-        }
-
-        const startCenter = IsoUtils.cartToIso(defense.gridX + (stats.width ?? 1) / 2, defense.gridY + (stats.height ?? 1) / 2);
-        const end = IsoUtils.cartToIso(target.gridX, target.gridY);
-
-        const angle = Math.atan2(end.y - startCenter.y, end.x - startCenter.x);
-        defense.ballistaTargetAngle = angle;
-        if (defense.ballistaAngle === undefined) defense.ballistaAngle = angle;
-
-        const start = { x: startCenter.x, y: startCenter.y - 30 };
-
-        const projectile = this.add.graphics();
-        const color = stats.color ?? 0xffffff;
-        projectile.fillStyle(color, 1);
-        projectile.fillRect(-4, -4, 8, 8);
-        projectile.setPosition(start.x, start.y);
-        projectile.setDepth((defense.graphics?.depth ?? 5000) + 50);
-
-        const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
-        const duration = Math.max(120, dist / 1.2);
-
-        this.tweens.add({
-            targets: projectile,
-            x: end.x,
-            y: end.y,
-            duration,
-            ease: 'Linear',
-            onComplete: () => {
-                projectile.destroy();
-
-                const impact = this.add.graphics();
-                impact.fillStyle(0xffffff, 0.45);
-                impact.fillRect(-6, -6, 12, 12);
-                impact.setPosition(end.x, end.y);
-                impact.setDepth((defense.graphics?.depth ?? 5000) + 49);
-                this.tweens.add({
-                    targets: impact,
-                    alpha: 0,
-                    scale: 2,
-                    duration: 200,
-                    onComplete: () => impact.destroy()
-                });
-
-                // Only apply damage to real troops that exist in the active troop list.
-                if (!this.troops.includes(target)) return;
-                if (target.owner === defense.owner || target.health <= 0) return;
-
-                const damage = typeof stats.damage === 'number' ? stats.damage : 0;
-                if (damage <= 0) return;
-
-                target.health -= damage;
-                target.hasTakenDamage = true;
-                this.updateHealthBar(target);
-                if (target.health <= 0) this.destroyTroop(target);
-            }
-        });
     }
 
     private isOffScreen(gridX: number, gridY: number, _size: number = 1): boolean {
@@ -830,8 +958,8 @@ export class MainScene extends Phaser.Scene {
             iso.y > view.y + view.height + padding);
     }
 
-    private updateBuildingAnimations(_time: number) {
-        const frameStepMs = Phaser.Math.Clamp(this.game.loop.delta || 16, 8, 34);
+    private updateBuildingAnimations(time: number) {
+        this.buildingAnimFrame = (this.buildingAnimFrame + 1) % 3;
 
         // Redraw all buildings for idle animations
         this.buildings.forEach(b => {
@@ -877,39 +1005,19 @@ export class MainScene extends Phaser.Scene {
                 }
 
                 // === IDLE SWIVEL for rotating defenses ===
-                // When not firing, slowly swivel to random angles for life
+                // When not firing, swivel on an absolute, seeded clock. This
+                // remains identical at 30/60/144fps and across redraw skips.
                 if ((b.type === 'ballista' || b.type === 'xbow' || b.type === 'cannon') && !b.isFiring) {
-                    // Initialize idle behavior
-                    if (b.idleSwiveTime === undefined) {
-                        b.idleSwiveTime = Math.random() * 5000; // Random start offset
-                        b.idleTargetAngle = Math.random() * Math.PI * 2;
-                    }
-
-                    b.idleSwiveTime += frameStepMs;
-
-                    // Change idle target angle every 3-6 seconds
-                    const idleChangeInterval = 3000 + Math.random() * 3000;
-                    if (b.idleSwiveTime > idleChangeInterval) {
-                        b.idleSwiveTime = 0;
-                        // Small random angle change (not full rotation)
-                        const currentIdle = b.idleTargetAngle ?? 0;
-                        b.idleTargetAngle = currentIdle + (Math.random() - 0.5) * Math.PI * 0.5;
-                    }
-
                     // Only apply idle swivel if no combat target
-                    if (b.ballistaTargetAngle === undefined && b.idleTargetAngle !== undefined) {
-                        const currentAngle = b.ballistaAngle ?? 0;
-                        let diff = b.idleTargetAngle - currentAngle;
-                        while (diff > Math.PI) diff -= Math.PI * 2;
-                        while (diff < -Math.PI) diff += Math.PI * 2;
-
-                        // Very slow idle rotation
-                        const idleRotationSpeed = 0.02;
-                        if (Math.abs(diff) > 0.01) {
-                            b.ballistaAngle = currentAngle + diff * idleRotationSpeed;
-                        } else {
-                            b.ballistaAngle = b.idleTargetAngle;
-                        }
+                    if (b.ballistaTargetAngle === undefined) {
+                        const seed = hashString(`${b.id}:idle-swivel`);
+                        const base = (seed / 0xffffffff) * Math.PI * 2;
+                        const phase = time * 0.00024 + (seed % 8192) * 0.001;
+                        const idleAngle = base
+                            + Math.sin(phase) * 0.34
+                            + Math.sin(phase * 0.47 + 1.7) * 0.14;
+                        b.idleTargetAngle = idleAngle;
+                        b.ballistaAngle = idleAngle;
                     }
                 }
 
@@ -920,38 +1028,81 @@ export class MainScene extends Phaser.Scene {
                     if (dist < 4) alpha = 0.4;
                 }
 
-                // All buildings now have animations for a lively feel
+                // Production fill for mines/farms: builds over ~90s, harvested by
+                // the delivery runs. Purely visual progress/aesthetics.
+                if (b.type === 'mine' || b.type === 'farm') {
+                    if (b.lastHarvestAt === undefined) {
+                        // Seeded starting phase so fields do not ripen in lockstep.
+                        b.lastHarvestAt = this.time.now - (hashString(`${b.id}:harvest-phase`) % 90_000);
+                    }
+                    b.fillLevel = Math.min(1, (this.time.now - b.lastHarvestAt) / 90_000);
+                }
+
+                // Ease the door toward open while a villager is passing through it.
+                const doorTarget = (b.doorOpenUntil ?? 0) > this.time.now ? 1 : 0;
+                const doorCurrent = b.doorOpen ?? 0;
+                if (Math.abs(doorTarget - doorCurrent) > 0.001) {
+                    b.doorOpen = doorCurrent + (doorTarget - doorCurrent) * 0.16;
+                    if (Math.abs(doorTarget - b.doorOpen) < 0.02) b.doorOpen = doorTarget;
+                }
+
+                // Full vector re-tessellation is the most expensive per-frame cost in the
+                // game, so redraw immediately only when something the player can notice
+                // changed (turret angle, firing, hover alpha, damage state, selection).
+                // Ambient time-based animation still ticks at 20fps via a per-building
+                // stagger slot, which spreads the redraw cost across frames.
+                if (b.drawStagger === undefined) b.drawStagger = hashString(`${b.id}:draw-stagger`) % 3;
+                const angle = b.ballistaAngle ?? 0;
+                const changed =
+                    b.isFiring ||
+                    this.selectedInWorld === b ||
+                    alpha !== (b.lastDrawAlpha ?? 1) ||
+                    b.health !== b.lastDrawHealth ||
+                    Math.abs((b.doorOpen ?? 0) - (b.lastDrawDoorOpen ?? 0)) > 0.01 ||
+                    Math.abs((b.fillLevel ?? 0) - (b.lastDrawFill ?? 0)) > 0.04 ||
+                    Math.abs(angle - (b.lastDrawAngle ?? 0)) > 0.002;
+                // Wall art has no time-driven state. Neighbor/gate changes are
+                // repainted explicitly by refreshWallNeighbors/recomputeGates,
+                // so an unchanged wall never needs the ambient stagger pass.
+                if (!changed && b.type === 'wall') return;
+                if (!changed && b.drawStagger !== this.buildingAnimFrame) return;
+                b.lastDrawAngle = angle;
+                b.lastDrawAlpha = alpha;
+                b.lastDrawHealth = b.health;
+                b.lastDrawDoorOpen = b.doorOpen ?? 0;
+                b.lastDrawFill = b.fillLevel ?? 0;
+
                 b.graphics.clear();
                 b.baseGraphics?.clear();
                 // If baseGraphics is missing (baked), skipBase=true. If present (moving), skipBase=false.
                 this.drawBuildingVisuals(b.graphics, b.gridX, b.gridY, b.type, alpha, null, b, b.baseGraphics, !b.baseGraphics);
 
-                // SOLANA COLLECTOR: Rock dust burst during shake phase
-                if (b.type === 'solana_collector') {
-                    const cycleLength = 8000;
-                    const cycleTime = this.time.now % cycleLength;
-                    const isShaking = cycleTime >= 2000 && cycleTime < 3000;
-                    if (isShaking) {
-                        const pos = IsoUtils.cartToIso(b.gridX + 1, b.gridY + 1);
-                        particleManager.emitSmokeTracker(b.id + '_drill', pos.x, pos.y, this.time.now, 29900, 2, 180, 0x7a6a55);
-                    }
-                }
-
-                // MAGMA VENT: Constant thin black smoke trail
-                if (b.type === 'magmavent') {
-                    if (this.time.now > (b.lastTrailTime || 0) + 150) {
-                        this.createSmokeTrailEffect(b.gridX + 1.5, b.gridY + 1.5);
-                        b.lastTrailTime = this.time.now;
+                // JUKEBOX: floating notes while a chosen track plays.
+                if (b.type === 'jukebox' && soundSystem.overrideActive) {
+                    const noteSlot = Math.floor(time / 900);
+                    if (b.lastTrailTime !== noteSlot) {
+                        b.lastTrailTime = noteSlot;
+                        const noteRng = mulberry32(hashString(`${b.id}:jukebox-note:${noteSlot}`));
+                        const notePos = IsoUtils.cartToIso(b.gridX + 0.5, b.gridY + 0.5);
+                        const note = this.add.text(notePos.x + 10, notePos.y - 38, ['\u266A', '\u266B'][Math.floor(noteRng() * 2)], {
+                            fontSize: '12px',
+                            color: '#d8a8ff'
+                        }).setDepth(b.graphics.depth + 2).setAlpha(0.9);
+                        this.tweens.add({
+                            targets: note,
+                            y: note.y - 22,
+                            x: note.x + (noteRng() - 0.5) * 16,
+                            alpha: 0,
+                            duration: 1600,
+                            ease: 'Sine.easeOut',
+                            onComplete: () => note.destroy()
+                        });
                     }
                 }
             }
         });
     }
 
-    private createSmokeTrailEffect(gridX: number, gridY: number) {
-        const pos = IsoUtils.cartToIso(gridX, gridY);
-        particleManager.emitSmokeTracker('ambient_' + gridX + '_' + gridY, pos.x, pos.y - 25, this.time.now, 29999, 1, 150, 0x111111);
-    }
 
 
     // Persistent state is now managed by Backend service automatically on modification
@@ -985,18 +1136,12 @@ export class MainScene extends Phaser.Scene {
             if (normalizedType !== 'wall') return max;
             return Math.max(max, Math.max(1, Number((building as { level?: unknown }).level) || 1));
         }, 1);
-        const maxBarracksFromWorld = (Array.isArray(world.buildings) ? world.buildings : []).reduce((max, building) => {
-            const normalizedType = this.normalizeBuildingType(String((building as { type?: unknown }).type ?? ''));
-            if (normalizedType !== 'barracks') return max;
-            return Math.max(max, Math.max(1, Number((building as { level?: unknown }).level) || 1));
-        }, 1);
         const maxLabFromWorld = (Array.isArray(world.buildings) ? world.buildings : []).reduce((max, building) => {
             const normalizedType = this.normalizeBuildingType(String((building as { type?: unknown }).type ?? ''));
             if (normalizedType !== 'lab') return max;
             return Math.max(max, Math.max(1, Number((building as { level?: unknown }).level) || 1));
         }, 0);
         this.preferredWallLevel = Math.max(1, Math.max(world.wallLevel || 1, maxWallFromWorld));
-        this.playerBarracksLevel = Math.max(1, maxBarracksFromWorld);
         this.playerLabLevel = maxLabFromWorld;
 
         // Load buildings with strict per-building validation so one bad entry cannot blank the scene.
@@ -1027,7 +1172,10 @@ export class MainScene extends Phaser.Scene {
                         type: normalizedType,
                         gridX,
                         gridY,
-                        level
+                        level,
+                        builtAt: Number.isFinite(Number((rawBuilding as { builtAt?: unknown }).builtAt))
+                            ? Number((rawBuilding as { builtAt?: unknown }).builtAt)
+                            : undefined
                     },
                     'PLAYER'
                 );
@@ -1055,6 +1203,17 @@ export class MainScene extends Phaser.Scene {
         const campLevels = this.buildings.filter(b => b.type === 'army_camp').map(b => b.level ?? 1);
         gameManager.refreshCampCapacity(campLevels);
         gameManager.closeMenus?.(); // Ensure UI is reset when loading
+        this.scheduleGateRecompute();
+
+        // Bring the village to life: villagers, dogs, chickens, camp troops.
+        // Head-count comes from the server-authoritative population when present.
+        if (playablePlaced > 0 && this.mode === 'HOME') {
+            this.villageLife.populate('PLAYER', {
+                population: world.population?.count,
+                identity: world.ownerId || this.userId,
+                bornAt: world.population?.bornAt
+            });
+        }
 
         return { requested, placed, playablePlaced };
     }
@@ -1062,8 +1221,13 @@ export class MainScene extends Phaser.Scene {
     private async refreshHomeBaseFromCloud(lastKnownSaveTime: number) {
         if (!Auth.isOnlineMode()) return;
         if (this.mode !== 'HOME') return;
+        if (Backend.hasPendingSave(this.userId)) return;
+        const lifecycleEpoch = this.lifecycleEpoch;
+        const editSequence = Backend.getLocalEditSequence(this.userId);
         const refreshed = await Backend.refreshWorldFromCloud(this.userId);
+        if (lifecycleEpoch !== this.lifecycleEpoch || !this.sceneReadyForBaseLoad) return;
         if (!refreshed || !this.isWorldValid(refreshed)) return;
+        if (Backend.getLocalEditSequence(this.userId) !== editSequence || Backend.hasPendingSave(this.userId)) return;
         const refreshedSave = refreshed.lastSaveTime ?? 0;
         if (refreshedSave <= lastKnownSaveTime) return;
         if (this.mode !== 'HOME') return;
@@ -1102,6 +1266,7 @@ export class MainScene extends Phaser.Scene {
         forceOnline: boolean = false,
         options: { preferCache?: boolean; refreshOnline?: boolean } = {}
     ): Promise<boolean> {
+        const lifecycleEpoch = this.lifecycleEpoch;
         // Load player home world from Backend
         this.needsDefaultBase = false;
         let world: SerializedWorld | null = null;
@@ -1125,11 +1290,13 @@ export class MainScene extends Phaser.Scene {
             world = forceOnline && Auth.isOnlineMode()
                 ? await Backend.forceLoadFromCloud(this.userId)
                 : await Backend.getWorld(this.userId);
+            if (lifecycleEpoch !== this.lifecycleEpoch) return false;
 
             // If world doesn't exist, create it (empty)
             if (!world) {
                 if (!Auth.isOnlineMode()) {
                     world = await Backend.createWorld(this.userId, 'PLAYER');
+                    if (lifecycleEpoch !== this.lifecycleEpoch) return false;
                 } else {
                     console.warn('loadSavedBase: Online base unavailable, skipping default placement.');
                     return false;
@@ -1165,12 +1332,18 @@ export class MainScene extends Phaser.Scene {
     }
 
     private async reloadHomeBase(options: { refreshOnline?: boolean } = {}): Promise<boolean> {
+        const lifecycleEpoch = this.lifecycleEpoch;
         const refreshOnline = options.refreshOnline ?? true;
+        // Our own lawn has its own seeded tint too — neighbours see the same
+        // grass on our postcard that we stand on here.
+        if (this.userId) this.rebakeGround(this.userId);
         let success = await this.loadSavedBase(false, { preferCache: true, refreshOnline });
+        if (lifecycleEpoch !== this.lifecycleEpoch) return false;
 
         // If local/cache hydration failed, force a direct cloud fetch once before giving up.
         if (!success && Auth.isOnlineMode()) {
             success = await this.loadSavedBase(true, { preferCache: false, refreshOnline: false });
+            if (lifecycleEpoch !== this.lifecycleEpoch) return false;
         }
 
         if (!success && this.needsDefaultBase) {
@@ -1181,6 +1354,7 @@ export class MainScene extends Phaser.Scene {
             }
 
             const offlineWorld = await Backend.createWorld(this.userId, 'PLAYER');
+            if (lifecycleEpoch !== this.lifecycleEpoch) return false;
             const summary = this.applyWorldToScene(offlineWorld);
             if (!this.canUseAppliedHomeWorld(summary)) {
                 return false;
@@ -1190,6 +1364,14 @@ export class MainScene extends Phaser.Scene {
         }
         if (success) {
             this.centerCamera();
+        }
+        if (success && this.mode === 'HOME') {
+            if (lifecycleEpoch !== this.lifecycleEpoch) return false;
+            // Everything the reveal shows must already be there: night lights
+            // burning and every neighbour postcard drawn, not popping in late.
+            this.dayNight?.resyncLights();
+            await this.worldMap?.prime(this.time.now);
+            if (lifecycleEpoch !== this.lifecycleEpoch) return false;
         }
         return success;
     }
@@ -1230,6 +1412,444 @@ export class MainScene extends Phaser.Scene {
         this.updateVillageName();
     }
 
+    /** Pointer hover over the map — lets nearby villagers/dogs/chickens notice the cursor. */
+    public hoverVillageLife(gridX: number, gridY: number) {
+        this.villageLife?.handleHover(gridX, gridY);
+    }
+
+    /** Tap/click on the map — neighbour plots first, then the critters at home. */
+    public pokeVillageLife(gridX: number, gridY: number) {
+        if (this.worldMap?.handleTap(gridX, gridY)) return;
+        this.worldMap?.closePanel();
+        this.villageLife?.handlePoke(gridX, gridY);
+    }
+
+    /**
+     * Attack a bot clan straight off the global map. The server first issues
+     * the raid session and canonical seeded world; only then may the caravan
+     * leave, so a canceled/failed march can close that exact reservation.
+     */
+    public attackBotPlot(seed: number, username: string, plotX?: number, plotY?: number) {
+        const requestedSeed = seed >>> 0;
+        // A camp one lawn over is not a cloud trip: the army marches there
+        // down the roads and the battle happens ON the world map.
+        const travel = plotX !== undefined && plotY !== undefined
+            ? this.worldMap.travelOffsetFor(plotX, plotY)
+            : null;
+        if (travel) {
+            const epoch = this.beginExclusiveTransition('A war caravan');
+            if (epoch === null) return;
+            let issuedMeta: EnemyWorldMeta | null = null;
+            void (async () => {
+                if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) {
+                    this.finishExclusiveTransition(epoch);
+                    return;
+                }
+                const started = await Backend.botStart(plotX, plotY);
+                if (!started) {
+                    gameManager.showToast('That camp cannot be raided right now.');
+                    this.finishExclusiveTransition(epoch);
+                    return;
+                }
+                if (started.seed !== requestedSeed) {
+                    console.warn('Bot camp seed changed between map view and raid start.', { requestedSeed, issuedSeed: started.seed });
+                }
+                const meta = {
+                    id: `bot_${started.seed >>> 0}`,
+                    username,
+                    isBot: true,
+                    attackId: started.raidId,
+                    botRaidId: started.raidId,
+                    botPlot: { x: started.x, y: started.y }
+                };
+                issuedMeta = meta;
+                if (!this.isTransitionCurrent(epoch)) {
+                    await this.abortBotSession(meta);
+                    return;
+                }
+                const world = started.world;
+                world.username = username;
+                // Start every allocation before installing the moving callback.
+                // If either setup step throws, no caravan is left behind to
+                // invoke a second cancellation path.
+                this.worldMap.prepareFocus({ x: started.x, y: started.y });
+                this.prepareGroundBake(meta.id);
+                this.worldMap.marchTo(
+                    { x: started.x, y: started.y },
+                    this.armyFigures(),
+                    () => this.arriveAndFightSafely({ x: started.x, y: started.y }, world, meta, epoch),
+                    () => {
+                        void this.abortBotSession(meta).finally(() => this.finishExclusiveTransition(epoch));
+                    }
+                );
+            })().catch(error => {
+                if (issuedMeta) {
+                    return this.recoverIssuedAttackFailure(issuedMeta, epoch, error);
+                }
+                console.error('Bot road attack setup failed:', error);
+                gameManager.showToast('The war caravan could not depart. Please try again.');
+                this.finishExclusiveTransition(epoch);
+            });
+            return;
+        }
+        this.showCloudTransition(async epoch => {
+            if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+            const started = await Backend.botStart(plotX, plotY);
+            if (!started) {
+                gameManager.showToast('That camp cannot be raided right now.');
+                return;
+            }
+            const meta = {
+                id: `bot_${started.seed >>> 0}`,
+                username: plotX !== undefined && plotY !== undefined ? username : (started.world.username || username),
+                isBot: true,
+                attackId: started.raidId,
+                botRaidId: started.raidId,
+                botPlot: { x: started.x, y: started.y }
+            };
+            if (!this.isTransitionCurrent(epoch)) {
+                await this.abortBotSession(meta);
+                return;
+            }
+            started.world.username = meta.username;
+            const plot = { x: started.x, y: started.y };
+            this.worldMap.prepareFocus(plot);
+            this.prepareGroundBake(meta.id);
+            await this.arriveAndFight(plot, started.world, meta, epoch, {
+                cameraArrivedAtGate: false,
+                finishTransition: false
+            });
+        });
+    }
+
+    private async abortBotSession(meta: { botRaidId?: string; botPlot?: { x: number; y: number } }): Promise<void> {
+        if (!meta.botRaidId || !meta.botPlot) return;
+        await Backend.botSettle(meta.botRaidId, meta.botPlot.x, meta.botPlot.y, 0, {});
+    }
+
+    /**
+     * One failure boundary for a server-issued road attack. Rendering and GPU
+     * allocation can fail after the server has reserved both participants; the
+     * reservation must close and the scene must leave transition mode even in
+     * that exceptional path.
+     */
+    private async recoverIssuedAttackFailure(meta: EnemyWorldMeta, epoch: number, error: unknown): Promise<void> {
+        console.error('Issued road attack could not enter its battle frame:', error);
+        try {
+            try {
+                if (meta.isBot) {
+                    await this.abortBotSession(meta);
+                } else if (meta.attackId) {
+                    this.settledAttackIds.add(meta.attackId);
+                    await Backend.endAttack(meta.attackId, 'aborted', 0, 0);
+                }
+            } catch (closeError) {
+                // Backend recovery metadata remains durable when the close call
+                // itself is interrupted, so scene recovery must still continue.
+                console.warn('Failed to close the issued road attack immediately:', closeError);
+            }
+
+            if (!this.isTransitionCurrent(epoch)) return;
+            this.currentEnemyWorld = null;
+            this.battleInPlace = false;
+            this.worldMap.teardown();
+            this.dropGroundBake();
+            gameManager.showToast('The destination could not be rendered. Returning home.');
+            try {
+                await this.goHome();
+            } catch (homeError) {
+                console.error('Failed to restore home after an attack handoff error:', homeError);
+            }
+        } catch (recoveryError) {
+            // Never let recovery itself become an unhandled callback rejection.
+            console.error('Unexpected road attack recovery failure:', recoveryError);
+        } finally {
+            this.finishExclusiveTransition(epoch);
+        }
+    }
+
+    /** Fire-and-contain the asynchronous gate-to-battle handoff. */
+    private arriveAndFightSafely(
+        plot: { x: number; y: number },
+        world: SerializedWorld,
+        meta: EnemyWorldMeta,
+        epoch: number
+    ): void {
+        void this.arriveAndFight(plot, world, meta, epoch).catch(error =>
+            this.recoverIssuedAttackFailure(meta, epoch, error));
+    }
+
+    /**
+     * Attack a neighbouring PLAYER by road. The attack is registered with the
+     * server BEFORE the army marches (shields refuse it at the gate, not after
+     * a pointless walk); a cancelled march aborts the registered attack.
+     */
+    public attackPlayerPlotByRoad(ownerId: string, username: string, plotX: number, plotY: number) {
+        const travel = this.worldMap.travelOffsetFor(plotX, plotY);
+        if (!travel) {
+            gameManager.startAttackOnUser(ownerId, username);
+            return;
+        }
+        const epoch = this.beginExclusiveTransition('A war caravan');
+        if (epoch === null) return;
+        let issuedMeta: EnemyWorldMeta | null = null;
+        void (async () => {
+            if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) {
+                this.finishExclusiveTransition(epoch);
+                return;
+            }
+            let started: Awaited<ReturnType<typeof Backend.startAttackOnUser>> = null;
+            try {
+                started = await Backend.startAttackOnUser(ownerId);
+            } catch (error) {
+                console.warn('road attack registration failed:', error);
+            }
+            if (!this.isTransitionCurrent(epoch)) {
+                if (started?.attackId) void Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
+                return;
+            }
+            if (!started || !Array.isArray(started.world?.buildings) || started.world.buildings.length === 0) {
+                // Registration may have succeeded even when the returned combat
+                // snapshot is unusable. Close that exact server reservation now;
+                // otherwise both attacker and defender stay locked until later
+                // recovery or expiry.
+                if (started?.attackId) {
+                    await Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
+                }
+                gameManager.showToast('That village cannot be attacked right now.');
+                this.finishExclusiveTransition(epoch);
+                return;
+            }
+            const attackId = started.attackId;
+            const world = started.world;
+            const targetPlot = { x: started.target.x, y: started.target.y };
+            const meta: EnemyWorldMeta = {
+                id: ownerId,
+                username,
+                isBot: false,
+                attackId,
+                lootPreCapped: true
+            };
+            issuedMeta = meta;
+            this.worldMap.prepareFocus(targetPlot);
+            this.prepareGroundBake(ownerId);
+            this.worldMap.marchTo(
+                targetPlot,
+                this.armyFigures(),
+                () => this.arriveAndFightSafely(targetPlot, world, meta, epoch),
+                () => {
+                    // March called off before the gate: a frameless abort — the
+                    // server settles it as a complete no-op.
+                    void Backend.endAttack(attackId, 'aborted', 0, 0).catch(() => undefined);
+                    this.finishExclusiveTransition(epoch);
+                }
+            );
+        })().catch(error => {
+            if (issuedMeta) {
+                return this.recoverIssuedAttackFailure(issuedMeta, epoch, error);
+            }
+            console.error('Player road attack setup failed:', error);
+            gameManager.showToast('The war caravan could not depart. Please try again.');
+            this.finishExclusiveTransition(epoch);
+        });
+    }
+
+    /**
+     * The caravan is at their gate: swap the battle in WITHOUT leaving the
+     * world — the neighbourhood re-renders around the battlefield (the
+     * player's own home becomes one of the postcards) and the fight happens
+     * right there on the map. No cloud transition.
+     */
+    private async arriveAndFight(
+        plot: { x: number; y: number },
+        world: SerializedWorld,
+        meta: EnemyWorldMeta,
+        epoch: number,
+        options: { cameraArrivedAtGate?: boolean; finishTransition?: boolean } = {}
+    ) {
+        const cameraArrivedAtGate = options.cameraArrivedAtGate ?? true;
+        const finishTransition = options.finishTransition ?? true;
+        const finish = () => {
+            if (finishTransition) this.finishExclusiveTransition(epoch);
+        };
+        // How far the world is about to re-anchor (target plot becomes origin).
+        const shift = this.worldMap.travelOffsetFor(plot.x, plot.y);
+
+        // EVERYTHING slow happens first, while the column stands at their
+        // gate: the hidden post-swap world finishes rendering and pending
+        // saves flush. Only then does the swap run — one synchronous block,
+        // one frame, nothing for the eye to catch.
+        const focusReady = await this.worldMap.waitForFocusReady();
+        if (!this.isTransitionCurrent(epoch)) {
+            if (!meta.isBot && meta.attackId) await Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
+            if (meta.botRaidId) await this.abortBotSession(meta);
+            return;
+        }
+        if (!focusReady) {
+            if (!meta.isBot && meta.attackId) void Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
+            if (meta.botRaidId) await this.abortBotSession(meta);
+            this.worldMap.teardown();
+            this.dropGroundBake();
+            gameManager.showToast('The road ahead could not be loaded. Please try again.');
+            finish();
+            return;
+        }
+        if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) {
+            if (!meta.isBot && meta.attackId) void Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
+            if (meta.botRaidId) await this.abortBotSession(meta);
+            this.worldMap.teardown();
+            this.dropGroundBake();
+            finish();
+            return;
+        }
+
+        // ---- the swap: a single frame ----
+        this.battleInPlace = true;
+        this.snapshotPlayerLabLevel();
+        gameManager.setGameMode('ATTACK');
+        this.mode = 'ATTACK';
+        this.isScouting = false;
+        this.clearScene();
+        this.worldMap.commitFocus();
+        this.commitGroundBake(meta.id);
+        const summary = this.instantiateEnemyWorld(world, meta);
+        if (summary.playablePlaced === 0) {
+            if (!meta.isBot && meta.attackId) void Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
+            if (meta.botRaidId) await this.abortBotSession(meta);
+            await this.goHome();
+            finish();
+            return;
+        }
+        // No transition means no UI theatre either: the name label stays
+        // hidden — the only change on screen is the attack HUD arriving.
+        this.setVillageNameVisible(false);
+        if (shift && cameraArrivedAtGate) {
+            // The world re-anchored by exactly (-dx, -dy) plots; the camera
+            // moves by the same world-space delta. Because the march glide
+            // ended centred on the target, this lands pixel-identical.
+            const delta = IsoUtils.cartToIso(shift.dx * PLOT_PITCH, shift.dy * PLOT_PITCH);
+            const cam = this.cameras.main;
+            cam.scrollX -= delta.x;
+            cam.scrollY -= delta.y;
+        } else {
+            this.centerCamera();
+        }
+        this.resetBattleStats();
+        finish();
+    }
+
+    /** Live destruction percentage, same math the battle HUD shows. */
+    private currentDestructionPct(): number {
+        const { totalKnown } = this.getBattleTotals();
+        return totalKnown > 0
+            ? Math.min(100, Math.round((this.destroyedBuildings / totalKnown) * 100))
+            : 0;
+    }
+
+    /**
+     * Settle a world-map bot raid exactly once (natural end or retreat): the
+     * server derives the camp's wealth from its issued session, pays capped
+     * loot on a per-camp cooldown and consumes deployed troops. Even a
+     * zero-deployment retreat is sent so the reservation closes immediately.
+     * Practice drills have no raidId and therefore settle nothing.
+     */
+    private async settleBotRaid(): Promise<number> {
+        const enemy = this.currentEnemyWorld;
+        if (!enemy?.isBot || !enemy.botRaidId || !enemy.botPlot || this.botRaidSettled) return 0;
+        if (this.pendingBotSettlement) return this.pendingBotSettlement;
+        const task = (async () => {
+            const result = await Backend.botSettle(
+                enemy.botRaidId as string,
+                enemy.botPlot!.x,
+                enemy.botPlot!.y,
+                this.currentDestructionPct(),
+                { ...this.deployedThisBattle }
+            );
+            if (!result) throw new Error('Bot raid settlement is still pending');
+            this.botRaidSettled = true;
+            return Math.max(0, Math.floor(result.lootApplied ?? 0));
+        })();
+        this.pendingBotSettlement = task;
+        try {
+            return await task;
+        } finally {
+            if (this.pendingBotSettlement === task) this.pendingBotSettlement = null;
+        }
+    }
+
+    /** Clicked on (or near) the visiting merchant: open his trade offers. */
+    public tryOpenMerchant(gridX: number, gridY: number): boolean {
+        if (this.mode !== 'HOME') return false;
+        if (!this.villageLife?.merchantAt(gridX, gridY)) return false;
+        soundSystem.play('merchant');
+        gameManager.openMerchant(this.villageLife.getMerchantOffers());
+        return true;
+    }
+
+    /**
+     * Clicked a mushroom patch in HOME: the picking is villagers' work — this
+     * just points one at the patch. They walk over, kneel to pick, and carry
+     * the haul to the storehouse; the food arrives when they do.
+     */
+    public tryPickMushrooms(gridX: number, gridY: number): boolean {
+        if (this.mode !== 'HOME') return false;
+        const patch = this.obstacles.find(o =>
+            o.type === 'grass_patch' && o.gridX === gridX && o.gridY === gridY);
+        if (!patch) return false;
+        const look = ObstacleRenderer.grassLookOf(patch.id);
+        const golden = look.egg === 0;
+        if (!golden && look.variant !== 3) return false;
+
+        const assigned = this.villageLife.assignForage(patch);
+        if (assigned) {
+            // Ring pulse so the click clearly landed (gold for the lucky find).
+            const pos = IsoUtils.cartToIso(patch.gridX + 0.5, patch.gridY + 0.5);
+            const ring = this.add.graphics();
+            ring.lineStyle(2, golden ? 0xffd84a : 0xffffff, 0.8);
+            ring.strokeEllipse(0, 0, 22, 11);
+            ring.setPosition(pos.x, pos.y);
+            ring.setDepth(patch.graphics.depth + 1);
+            this.tweens.add({
+                targets: ring, scaleX: 1.6, scaleY: 1.6, alpha: 0,
+                duration: 380, ease: 'Quad.easeOut',
+                onComplete: () => ring.destroy()
+            });
+        }
+        return assigned;
+    }
+
+    /**
+     * Clicked a rock in HOME: a villager hauls it to the storehouse for ore
+     * (the baseline ore trickle before any mine exists).
+     */
+    public tryStartRockHaul(gridX: number, gridY: number): boolean {
+        if (this.mode !== 'HOME') return false;
+        const rock = this.obstacles.find(o => {
+            if (o.type !== 'rock_small' && o.type !== 'rock_large') return false;
+            const info = OBSTACLES[o.type];
+            return gridX >= o.gridX && gridX < o.gridX + (info?.width ?? 1) &&
+                gridY >= o.gridY && gridY < o.gridY + (info?.height ?? 1);
+        });
+        if (!rock) return false;
+        const assigned = this.villageLife.assignRockHaul(rock);
+        if (assigned) {
+            // Quick ring pulse so the click clearly landed.
+            const info = OBSTACLES[rock.type];
+            const pos = IsoUtils.cartToIso(rock.gridX + (info?.width ?? 1) / 2, rock.gridY + (info?.height ?? 1) / 2);
+            const ring = this.add.graphics();
+            ring.lineStyle(2, 0xffffff, 0.8);
+            ring.strokeEllipse(0, 0, 24, 12);
+            ring.setPosition(pos.x, pos.y);
+            ring.setDepth(rock.graphics.depth + 1);
+            this.tweens.add({
+                targets: ring, scaleX: 1.6, scaleY: 1.6, alpha: 0,
+                duration: 380, ease: 'Quad.easeOut',
+                onComplete: () => ring.destroy()
+            });
+        }
+        return assigned;
+    }
+
     public updateUsername(name: string) {
         if (!this.villageNameLabel) return;
 
@@ -1259,54 +1879,96 @@ export class MainScene extends Phaser.Scene {
         this.villageNameLabel.setVisible(visible);
     }
 
+    /** The four plot-corner tiles get their outer corner rounded off — the
+     *  junction's packed-earth bed (WorldMapSystem) shows through the cut. */
+    private lawnCornerCut(x: number, y: number): GrassCornerCut | undefined {
+        const last = this.mapSize - 1;
+        if (x === 0 && y === 0) return 'nw';
+        if (x === last && y === 0) return 'ne';
+        if (x === last && y === last) return 'se';
+        if (x === 0 && y === last) return 'sw';
+        return undefined;
+    }
+
     private drawIsoTile(graphics: Phaser.GameObjects.Graphics, x: number, y: number, fillOnly: boolean = false) {
+        // Shared with the world-map postcards: the SAME function, palette and
+        // per-tile pattern — a village's lawn is pixel-identical whether seen
+        // from home or stood on in battle (the seamless-invasion contract).
         const pos = IsoUtils.cartToIso(x, y);
-        const halfW = this.tileWidth / 2;
-        const halfH = this.tileHeight / 2;
+        drawGrassTile(graphics, pos.x, pos.y, this.tileWidth, this.tileHeight, x, y, grassPaletteFor(this.groundPaletteKey), !fillOnly, this.lawnCornerCut(x, y));
+    }
 
-        // CoC-style grass colors with natural variation
-        const baseColors = [0x4a9c3d, 0x52a844, 0x48943a, 0x5bb34d, 0x4fa041];
-        const colorIndex = (x * 7 + y * 13) % baseColors.length;
-        const baseColor = baseColors[colorIndex];
-
-        // Subtle checkerboard pattern
-        const tileColor = (x + y) % 2 === 0
-            ? Phaser.Display.Color.IntegerToColor(baseColor).brighten(5).color
-            : Phaser.Display.Color.IntegerToColor(baseColor).darken(3).color;
-
-        const points = [
-            new Phaser.Math.Vector2(pos.x, pos.y),           // Top
-            new Phaser.Math.Vector2(pos.x + halfW, pos.y + halfH), // Right
-            new Phaser.Math.Vector2(pos.x, pos.y + this.tileHeight), // Bottom
-            new Phaser.Math.Vector2(pos.x - halfW, pos.y + halfH)  // Left
-        ];
-
-        // Main tile fill
-        graphics.fillStyle(tileColor, 1);
-        graphics.fillPoints(points, true);
-
-        if (!fillOnly) {
-            // Top-left highlight edge (sun direction)
-            graphics.lineStyle(1, 0xffffff, 0.15);
-            graphics.lineBetween(points[3].x, points[3].y, points[0].x, points[0].y);
-            graphics.lineBetween(points[0].x, points[0].y, points[1].x, points[1].y);
-
-            // Bottom-right shadow edge
-            graphics.lineStyle(1, 0x000000, 0.12);
-            graphics.lineBetween(points[1].x, points[1].y, points[2].x, points[2].y);
-            graphics.lineBetween(points[2].x, points[2].y, points[3].x, points[3].y);
-
-            // Occasional grass detail (small darker spots)
-            if ((x * 3 + y * 5) % 7 === 0) {
-                const detailColor = Phaser.Display.Color.IntegerToColor(baseColor).darken(15).color;
-                graphics.fillStyle(detailColor, 0.4);
-                graphics.fillCircle(pos.x + (Math.sin(x * y) * 5), pos.y + halfH + (Math.cos(x * y) * 3), 2);
+    /** Re-bake the ground as another village's lawn (or back to ours). */
+    public rebakeGround(paletteKey: string) {
+        if (paletteKey === this.groundPaletteKey || !this.groundRenderTexture) return;
+        this.groundPaletteKey = paletteKey;
+        this.groundRenderTexture.clear();
+        for (let x = 0; x < this.mapSize; x++) {
+            for (let y = 0; y < this.mapSize; y++) {
+                this.tempGraphics.clear();
+                this.drawIsoTile(this.tempGraphics, x, y);
+                this.groundRenderTexture.draw(this.tempGraphics, this.RT_OFFSET_X, this.RT_OFFSET_Y);
             }
+        }
+        this.markGroundPixelDirty();
+    }
+
+    // ---- pre-baked lawn for the seamless swap ----
+    private pendingGroundRT: Phaser.GameObjects.RenderTexture | null = null;
+    private pendingGroundKey: string | null = null;
+    private pendingGroundCursor = 0;
+
+    /**
+     * Start baking the target's lawn into a HIDDEN second render texture.
+     * The bake is CHUNKED — ~50 tiles per frame from the update loop — so
+     * pressing attack never stalls a frame (a 625-tile bake in one tick was
+     * a visible hitch, i.e. "the flash").
+     */
+    public prepareGroundBake(paletteKey: string) {
+        this.pendingGroundRT?.destroy();
+        this.pendingGroundRT = this.add.renderTexture(-this.RT_OFFSET_X, -this.RT_OFFSET_Y, 2000, 1500);
+        this.pendingGroundRT.setDepth(depthForGroundPlane());
+        this.pendingGroundRT.setOrigin(0, 0);
+        this.pendingGroundRT.setVisible(false);
+        this.pendingGroundKey = paletteKey;
+        this.pendingGroundCursor = 0;
+    }
+
+    /** A slice of the hidden bake; called every frame while one is pending. */
+    private stepGroundBake(tilesPerFrame = 50) {
+        if (!this.pendingGroundRT || !this.pendingGroundKey) return;
+        const total = this.mapSize * this.mapSize;
+        if (this.pendingGroundCursor >= total) return;
+        const palette = grassPaletteFor(this.pendingGroundKey);
+        const end = Math.min(total, this.pendingGroundCursor + tilesPerFrame);
+        for (; this.pendingGroundCursor < end; this.pendingGroundCursor++) {
+            const x = this.pendingGroundCursor % this.mapSize;
+            const y = Math.floor(this.pendingGroundCursor / this.mapSize);
+            this.tempGraphics.clear();
+            const pos = IsoUtils.cartToIso(x, y);
+            drawGrassTile(this.tempGraphics, pos.x, pos.y, this.tileWidth, this.tileHeight, x, y, palette, true, this.lawnCornerCut(x, y));
+            this.pendingGroundRT.draw(this.tempGraphics, this.RT_OFFSET_X, this.RT_OFFSET_Y);
+        }
+    }
+
+    /** The one-frame lawn flip (finishes any bake remainder synchronously). */
+    private commitGroundBake(fallbackKey: string) {
+        if (this.pendingGroundRT && this.pendingGroundKey) {
+            this.stepGroundBake(this.mapSize * this.mapSize); // whatever is left
+            this.groundRenderTexture.destroy();
+            this.groundRenderTexture = this.pendingGroundRT;
+            this.groundRenderTexture.setVisible(true);
+            this.groundPaletteKey = this.pendingGroundKey;
+            this.pendingGroundRT = null;
+            this.pendingGroundKey = null;
+            this.markGroundPixelDirty();
+        } else {
+            this.rebakeGround(fallbackKey);
         }
     }
 
     private instantiateBuilding(data: SerializedBuilding, owner: 'PLAYER' | 'ENEMY') {
-        const { gridX, gridY, type, id, level = 1 } = data;
+        const { gridX, gridY, type, id, level = 1, builtAt, upgradingTo, upgradeEndsAt } = data;
         const normalizedType = this.normalizeBuildingType(type as string);
         if (!normalizedType) {
             console.warn('Unknown building type skipped:', type);
@@ -1319,8 +1981,8 @@ export class MainScene extends Phaser.Scene {
         const graphics = this.add.graphics();
         const baseGraphics = undefined; // Optimization: Bake to Ground Texture instead of per-building graphics
         const building: PlacedBuilding = {
-            id, type: normalizedType, gridX, gridY, level, graphics, baseGraphics,
-            healthBar: this.add.graphics(),
+            id, type: normalizedType, gridX, gridY, level, builtAt, upgradingTo, upgradeEndsAt, graphics, baseGraphics,
+            healthBar: this.createHealthBarGraphics(),
             health: stats.maxHealth || 100,
             maxHealth: stats.maxHealth || 100,
             owner
@@ -1342,6 +2004,7 @@ export class MainScene extends Phaser.Scene {
         }
 
         this.buildings.push(building);
+        this.combatTopologyRevision++;
         this.updateHealthBar(building);
 
         if (normalizedType === 'army_camp') {
@@ -1351,10 +2014,6 @@ export class MainScene extends Phaser.Scene {
 
         if (normalizedType === 'wall') {
             this.preferredWallLevel = Math.max(this.preferredWallLevel, level || 1);
-        }
-
-        if (normalizedType === 'barracks' && owner === 'PLAYER') {
-            this.playerBarracksLevel = Math.max(this.playerBarracksLevel, level || 1);
         }
 
         if (normalizedType === 'lab' && owner === 'PLAYER') {
@@ -1380,8 +2039,13 @@ export class MainScene extends Phaser.Scene {
             // Backend Validation & Placement
             const data = await Backend.placeBuilding(this.userId, type as BuildingType, gridX, gridY);
             if (data) {
-                this.instantiateBuilding(data, 'PLAYER');
+                const inst = this.instantiateBuilding(data, 'PLAYER');
                 gameManager.onBuildingPlaced(type, isFree);
+                soundSystem.play('thud');
+                // Lanes re-route around the new footprint; critters caught
+                // under it scatter (same treatment as a moved building).
+                if (inst) this.villageLife.onBuildingPlaced(inst);
+                if (inst && !isFree) this.villageLife.onConstruction(inst, 'place');
                 return true;
             }
             return false;
@@ -1439,11 +2103,45 @@ export class MainScene extends Phaser.Scene {
         // Walls are fully dynamic (level + neighbor links), so they should never be baked.
         if (b.type === 'wall') return;
         if (!this.groundRenderTexture || !this.tempGraphics) return;
+        // Sprite-backed buildings stamp their baked ground DECAL (contact
+        // shadow + pad) straight into the ground texture.
+        const ground = SpriteBank.buildingGround(b.type, b.level ?? 1);
+        if (ground) {
+            const info = BUILDINGS[b.type];
+            const cx = (b.gridX + info.width / 2 - (b.gridY + info.height / 2)) * 32;
+            const cy = (b.gridX + info.width / 2 + (b.gridY + info.height / 2)) * 16;
+            const img = this.make.image({ key: ground.atlasKey, frame: ground.meta.file }, false)
+                .setOrigin(ground.meta.originX, ground.meta.originY)
+                .setScale(ground.meta.cellWorldPx);
+            this.groundRenderTexture.draw(img, cx + this.RT_OFFSET_X, cy + this.RT_OFFSET_Y);
+            img.destroy();
+            this.markGroundPixelDirty();
+            return;
+        }
         this.tempGraphics.clear();
         // Draw ONLY the base to temporary graphics
         this.drawBuildingVisuals(this.tempGraphics, b.gridX, b.gridY, b.type, 1, null, b, undefined, false, true);
         // Stamp to texture (additive)
         this.groundRenderTexture.draw(this.tempGraphics, this.RT_OFFSET_X, this.RT_OFFSET_Y);
+        this.markGroundPixelDirty();
+    }
+
+    /** Ground-layer pixel treatment: the whole ground RT (grass tiles, worn
+     * paths, stone lanes, baked decals) re-quantizes into 1.35 world-px cells
+     * shortly after any bake write — the world-glued equivalent of the baked
+     * sprites (docs/AGENTS_SPRITE_PIPELINE.md). */
+    private groundPixelDirtyAt = 0;
+    private groundPixelEpoch = 0;
+    private markGroundPixelDirty() {
+        this.groundPixelDirtyAt = this.time.now + 250;
+        this.groundPixelEpoch++;
+    }
+    private maybeQuantizeGround(time: number) {
+        if (!SpriteBank.enabled || this.groundPixelDirtyAt === 0 || time < this.groundPixelDirtyAt) return;
+        this.groundPixelDirtyAt = 0;
+        if (this.groundRenderTexture) {
+            SpriteBank.quantizeRenderTexture(this, this.groundRenderTexture, 1.35, this.groundPixelEpoch);
+        }
     }
 
     // Call this before moving/deleting to restore grass
@@ -1489,100 +2187,193 @@ export class MainScene extends Phaser.Scene {
     }
 
     public drawBuildingVisuals(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, type: string, alpha: number = 1, tint: number | null = null, building?: PlacedBuilding, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        const info = BUILDINGS[type];
-        const c1 = IsoUtils.cartToIso(gridX, gridY);
-        const c2 = IsoUtils.cartToIso(gridX + info.width, gridY);
-        const c3 = IsoUtils.cartToIso(gridX + info.width, gridY + info.height);
-        const c4 = IsoUtils.cartToIso(gridX, gridY + info.height);
-        const center = IsoUtils.cartToIso(gridX + info.width / 2, gridY + info.height / 2);
+        let wallNeighbors: WallNeighborTopology | undefined;
+        if (type === 'wall') {
+            const owner = building?.owner ?? 'PLAYER';
+            const hasWallNeighbor = (dx: number, dy: number) => this.buildings.some(candidate =>
+                candidate.type === 'wall'
+                && candidate.gridX === gridX + dx
+                && candidate.gridY === gridY + dy
+                && candidate.owner === owner
+            );
+            wallNeighbors = {
+                nN: hasWallNeighbor(0, -1),
+                nS: hasWallNeighbor(0, 1),
+                nE: hasWallNeighbor(1, 0),
+                nW: hasWallNeighbor(-1, 0),
+                owner
+            };
+        }
+        // Sprite-backed types swap the vector body for baked-frame selection;
+        // the carrier graphics stays (empty) as the position/depth owner. The
+        // ground pass keeps its own path via bakeBuildingToGround.
+        if (!onlyBase && SpriteBank.backed('buildings', type)) {
+            const wallTag = type === 'wall' && wallNeighbors
+                ? SpriteBank.wallTag(wallNeighbors, Boolean(building?.isGate))
+                : undefined;
+            graphics.clear();
+            const synced = SpriteBank.syncBuilding(
+                this, graphics, gridX, gridY, type, building?.level ?? 1, alpha, tint,
+                building, this.time.now,
+                { wallTag, jukeboxPlaying: soundSystem.overrideActive }
+            );
+            if (synced) return;
+            SpriteBank.release(graphics);
+        }
+        const visual = drawBuildingVisual({
+            graphics,
+            gridX,
+            gridY,
+            type,
+            alpha,
+            tint,
+            building,
+            baseGraphics,
+            skipBase,
+            onlyBase,
+            time: this.time.now,
+            jukeboxPlaying: soundSystem.overrideActive,
+            wallNeighbors
+        });
+        if (!visual) return;
+        const { c1, c2, c3, c4, center } = visual;
 
-        // Building-specific premium visuals
-        switch (type) {
-            case 'town_hall':
-                BuildingRenderer.drawTownHall(graphics, gridX, gridY, this.time.now, alpha, tint, baseGraphics, skipBase, onlyBase);
-                break;
-            case 'barracks':
-                BuildingRenderer.drawBarracks(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                break;
-            case 'cannon':
-                // Use level-based rendering for cannon
-                if (building && building.level >= 4) {
-                    BuildingRenderer.drawCannonLevel4(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                } else if (building && building.level === 3) {
-                    BuildingRenderer.drawCannonLevel3(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                } else if (building && building.level === 2) {
-                    BuildingRenderer.drawCannonLevel2(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                } else {
-                    BuildingRenderer.drawCannon(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
+        // ---- patina: buildings age, upgrades scrub them clean ----
+        // Weeks since the server's builtAt stamp grow a whisper of moss and
+        // soot along the lower edges. Deliberately faint (a texture you feel
+        // more than see), deterministic per building, skipped for walls (a
+        // hundred mossy stubs would read as noise) and for ghost previews.
+        if (!onlyBase && building?.builtAt && building.type !== 'wall' && alpha >= 1) {
+            const weeks = (Date.now() - building.builtAt) / (7 * 86_400_000);
+            const strength = Math.min(0.4, weeks * 0.1);
+            if (strength > 0.05) {
+                const rng = mulberry32(hashString(`${building.id}:patina`));
+                const foot = [c1, c2, c3, c4];
+                const specks = 3 + Math.floor(rng() * 3) + Math.floor(Math.min(4, weeks));
+                for (let s = 0; s < specks; s++) {
+                    const a = foot[Math.floor(rng() * 4)];
+                    const b = foot[(Math.floor(rng() * 4) + 1) % 4];
+                    const f = rng();
+                    const px = a.x + (b.x - a.x) * f + (rng() - 0.5) * 6;
+                    const py = a.y + (b.y - a.y) * f - rng() * 5;
+                    graphics.fillStyle(rng() < 0.6 ? 0x51683a : 0x2a241c, strength * (0.5 + rng() * 0.5));
+                    graphics.fillRect(px, py, 1.6 + rng() * 1.2, 1.2 + rng() * 0.8);
                 }
-                break;
-            case 'ballista':
-                if (building && building.level >= 3) {
-                    BuildingRenderer.drawBallistaLevel3(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                } else if (building && building.level >= 2) {
-                    BuildingRenderer.drawBallistaLevel2(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                } else {
-                    BuildingRenderer.drawBallista(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                }
-                break;
-            case 'solana_collector':
-                BuildingRenderer.drawSolanaCollector(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics, skipBase, onlyBase);
-                break;
-            case 'mortar':
-                BuildingRenderer.drawMortar(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics);
-                break;
-            case 'tesla':
-                BuildingRenderer.drawTeslaCoil(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics);
-                break;
-            case 'wall': {
-                const owner = building?.owner ?? 'PLAYER';
-                const hasNeighbor = (dx: number, dy: number) => {
-                    return this.buildings.some(b =>
-                        b.type === 'wall' && b.gridX === gridX + dx && b.gridY === gridY + dy && b.owner === owner
-                    );
-                };
-                BuildingRenderer.drawWall(graphics, center, gridX, gridY, alpha, tint, building, {
-                    nN: hasNeighbor(0, -1),
-                    nS: hasNeighbor(0, 1),
-                    nE: hasNeighbor(1, 0),
-                    nW: hasNeighbor(-1, 0),
-                    owner: owner
-                });
-                break;
+                // One faint weather streak down a front face.
+                const sx = center.x + (rng() - 0.5) * 14;
+                graphics.fillStyle(0x1c1410, strength * 0.35);
+                graphics.fillRect(sx, center.y - 10 - rng() * 6, 1.1, 7 + rng() * 5);
             }
-            case 'army_camp':
-                BuildingRenderer.drawArmyCamp(graphics, c1, c2, c3, c4, center, alpha, tint, baseGraphics, building, skipBase, onlyBase);
-                break;
-            case 'xbow':
-                if (building && building.level >= 3) {
-                    BuildingRenderer.drawXBowLevel3(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics, skipBase, onlyBase);
-                } else if (building && building.level >= 2) {
-                    BuildingRenderer.drawXBowLevel2(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics, skipBase, onlyBase);
-                } else {
-                    BuildingRenderer.drawXBow(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics, skipBase, onlyBase);
-                }
-                break;
-            case 'prism':
-                BuildingRenderer.drawPrismTower(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase);
-                break;
-            case 'frostfall':
-                BuildingRenderer.drawFrostfall(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, this.time.now);
-                break;
-            case 'magmavent':
-                BuildingRenderer.drawMagmaVent(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, this.time.now, skipBase, onlyBase);
-                break;
-            case 'dragons_breath':
-                BuildingRenderer.drawDragonsBreath(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, gridX, gridY, this.time.now, skipBase, onlyBase);
-                break;
-            case 'spike_launcher':
-                BuildingRenderer.drawSpikeLauncher(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics, skipBase, onlyBase);
-                break;
-            case 'lab':
-                BuildingRenderer.drawLab(graphics, c1, c2, c3, c4, center, alpha, tint, building, this.time.now, baseGraphics, skipBase, onlyBase);
-                break;
+        }
+    }
 
-            default:
-                BuildingRenderer.drawGenericBuilding(graphics, c1, c2, c3, c4, center, info, alpha, tint, baseGraphics);
+    // ---- wall gates: every enclosed pocket keeps a door ----
+    private wallGateRecomputeAt = 0;
+
+    /** Debounced: wall layouts change in bursts (drags, loads, breaks). */
+    public scheduleGateRecompute() {
+        this.wallGateRecomputeAt = this.time.now + 150;
+    }
+
+    /**
+     * Designate GATES so a villager can walk from any pocket of the village
+     * to any other: flood-fill the open ground into regions, then connect
+     * every region to the outside with one doorway per wall it shares —
+     * a deterministic spanning tree over straight wall pieces (posts and
+     * double-thick ramparts are skipped; the ambient pathfinder keeps its
+     * expensive hop as the fallback of last resort). Purely decorative in
+     * battle: a gate fights exactly like the wall it is.
+     */
+    private recomputeWallGates() {
+        // Home decor only: battle walls (enemy layouts, mid-raid breaks) keep
+        // whatever they were instantiated with — no doorways popping open as
+        // loops fall.
+        if (this.mode !== 'HOME') return;
+        const size = this.mapSize;
+        const walls = this.buildings.filter(b => b.type === 'wall' && b.health > 0 && !b.isDestroyed && b.owner === 'PLAYER');
+        const wallAt = new Map<number, PlacedBuilding>();
+        for (const w of walls) wallAt.set(w.gridY * size + w.gridX, w);
+
+        // Region labels: 0 = outside (connected to the border), 1.. = pockets.
+        const region = new Int16Array(size * size).fill(-1);
+        const flood = (seeds: number[], label: number) => {
+            const queue = [...seeds];
+            for (const s of queue) region[s] = label;
+            while (queue.length) {
+                const at = queue.pop() as number;
+                const ax = at % size;
+                const ay = Math.floor(at / size);
+                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+                    const nx = ax + dx;
+                    const ny = ay + dy;
+                    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+                    const ni = ny * size + nx;
+                    if (region[ni] !== -1 || wallAt.has(ni)) continue;
+                    region[ni] = label;
+                    queue.push(ni);
+                }
+            }
+        };
+        const border: number[] = [];
+        for (let i = 0; i < size; i++) {
+            for (const cell of [i, (size - 1) * size + i, i * size, i * size + size - 1]) {
+                if (!wallAt.has(cell) && region[cell] === -1) border.push(cell);
+            }
+        }
+        flood(border, 0);
+        let regions = 1;
+        for (let i = 0; i < size * size; i++) {
+            if (region[i] === -1 && !wallAt.has(i)) flood([i], regions++);
+        }
+
+        const newGates = new Set<string>();
+        if (regions > 1) {
+            // Candidate doorways: straight wall pieces separating two regions.
+            const candidates: Array<{ a: number; b: number; wall: PlacedBuilding; straight: boolean }> = [];
+            for (const w of walls) {
+                const x = w.gridX;
+                const y = w.gridY;
+                const has = (dx: number, dy: number) => wallAt.has((y + dy) * size + (x + dx));
+                const straight = (has(0, -1) && has(0, 1) && !has(1, 0) && !has(-1, 0))
+                    || (has(1, 0) && has(-1, 0) && !has(0, -1) && !has(0, 1));
+                const touching = new Set<number>();
+                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= size || ny >= size) { touching.add(0); continue; }
+                    const r = region[ny * size + nx];
+                    if (r >= 0) touching.add(r);
+                }
+                if (touching.size >= 2) {
+                    const [a, b] = [...touching].sort((p, q) => p - q);
+                    candidates.push({ a, b, wall: w, straight });
+                }
+            }
+            // Deterministic spanning tree: straight pieces first, then reading order.
+            candidates.sort((p, q) =>
+                Number(q.straight) - Number(p.straight)
+                || (p.wall.gridY - q.wall.gridY)
+                || (p.wall.gridX - q.wall.gridX));
+            const parent = Array.from({ length: regions }, (_, i) => i);
+            const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+            for (const c of candidates) {
+                const ra = find(c.a);
+                const rb = find(c.b);
+                if (ra === rb) continue;
+                parent[ra] = rb;
+                if (c.straight) newGates.add(c.wall.id);
+                // Non-straight separators connect regions for the solver but
+                // carry no doorway art — the pathfinder's hop covers them.
+            }
+        }
+
+        // Apply the diff and repaint only what changed.
+        for (const w of walls) {
+            const gate = newGates.has(w.id);
+            if (Boolean(w.isGate) === gate) continue;
+            w.isGate = gate;
+            w.graphics.clear();
+            this.drawBuildingVisuals(w.graphics, w.gridX, w.gridY, 'wall', 1, null, w);
         }
     }
 
@@ -1591,6 +2382,7 @@ export class MainScene extends Phaser.Scene {
      * Call this after moving/placing/removing a wall.
      */
     public refreshWallNeighbors(gridX: number, gridY: number, owner: 'PLAYER' | 'ENEMY') {
+        this.scheduleGateRecompute();
         const offsets = [
             { dx: 0, dy: -1 },  // North
             { dx: 0, dy: 1 },   // South
@@ -1626,38 +2418,59 @@ export class MainScene extends Phaser.Scene {
 
 
 
-    // === MAGMA VENT - STEAMPUNK/TECH REDESIGN ===
-
-    // === DRAGON'S BREATH - Subtle Asian-Themed Firecracker Battery ===
-
     // === RUBBLE SYSTEM (Destroyed Building Remains) ===
-    private createRubble(gridX: number, gridY: number, width: number, height: number) {
+    private createRubble(gridX: number, gridY: number, width: number, height: number, type = 'generic', level = 1) {
         const graphics = this.add.graphics();
-        RubbleRenderer.drawRubble(graphics, gridX, gridY, width, height);
-
+        const baseGraphics = this.add.graphics();
         graphics.setDepth(depthForRubble(gridX, gridY, width, height));
+        baseGraphics.setDepth(depthForGroundPlane());
 
-        this.rubble.push({ gridX, gridY, width, height, graphics, createdAt: Date.now() });
+        // Baked wreck sprites (clean rubble; burn/smoke become runtime FX).
+        const spriteBacked = SpriteBank.syncWreck(this, graphics, baseGraphics, type, level, gridX, gridY, width, height);
+        if (!spriteBacked) {
+            WreckRenderer.drawWreck(graphics, gridX, gridY, width, height, type, level, 0, 1, baseGraphics);
+        }
+
+        this.rubble.push({
+            gridX,
+            gridY,
+            width,
+            height,
+            type,
+            level,
+            graphics,
+            baseGraphics,
+            createdAt: Date.now(),
+            animationDone: spriteBacked || !wreckNeedsAnimation(type, width, height, 1),
+        });
     }
 
 
 
+    // Greenery approaches this fraction of the map and stops — never overgrows.
+    private readonly GRASS_FILL_TARGET = 0.05;
+    private readonly GRASS_GROW_INTERVAL_MS = 25_000;
+
     private growGrass(time: number) {
         if (this.mode !== 'HOME') return;
-        // Grow every 1000ms (Reduced rate: 2x slower and sparser)
-        if (time < this.lastGrassGrowTime + 1000) return;
+        if (time < this.lastGrassGrowTime + this.GRASS_GROW_INTERVAL_MS) return;
         this.lastGrassGrowTime = time;
 
         const grass = this.obstacles.filter(o => o.type === 'grass_patch');
-        const maxGrass = this.mapSize * this.mapSize * 0.07; // 7% limit (sparser)
+        const targetCount = this.mapSize * this.mapSize * this.GRASS_FILL_TARGET;
+        const fill = grass.length / targetCount;
+        if (fill >= 1) return;
 
-        if (grass.length >= maxGrass) return;
-
-
+        // Asymptotic approach: growth gets rarer as cover nears the target,
+        // so the village greens up early on and then just about holds steady.
+        if (Math.random() < fill * 0.8) return;
 
         // Spread logic: Pick random grass, try neighbor (high probability)
         const spreadChance = grass.length > 5 ? 0.9 : 0.4; // If established, spread mostly
 
+        // Grown greenery persists to the village save (skipBackend=false):
+        // the same patch — including a lucky easter egg — is still there
+        // tomorrow, on any device, because the variant hashes off its saved id.
         if (grass.length > 0 && Math.random() < spreadChance) {
             const parent = grass[Math.floor(Math.random() * grass.length)];
             const neighbors = [
@@ -1668,38 +2481,41 @@ export class MainScene extends Phaser.Scene {
             ];
             const spot = neighbors[Math.floor(Math.random() * neighbors.length)];
             // placeObstacle checks validity (bounds + optimization)
-            this.placeObstacle(spot.x, spot.y, 'grass_patch', true);
+            this.placeObstacle(spot.x, spot.y, 'grass_patch', false);
         } else {
             // Spontaneous generation
             const x = Math.floor(Math.random() * (this.mapSize - 4)) + 2;
             const y = Math.floor(Math.random() * (this.mapSize - 4)) + 2;
-            this.placeObstacle(x, y, 'grass_patch', true);
+            this.placeObstacle(x, y, 'grass_patch', false);
         }
     }
 
     private updateRubbleAnimations(time: number) {
         const now = Date.now();
         this.rubble.forEach(r => {
-            // Only animate large rubble (3x3)
-            if (r.width >= 3 || r.height >= 3) {
-                if (!r.graphics || !r.graphics.scene) return;
-                r.graphics.clear();
-
-                // Fire fades out over time: full for 15s, then fades over 30s
-                const age = (now - r.createdAt) / 1000; // Age in seconds
-                let fireIntensity = 1;
-                if (age > 15) {
-                    // Fade from 1 to 0 between 15s and 45s
-                    fireIntensity = Math.max(0, 1 - (age - 15) / 30);
-                }
-
-                RubbleRenderer.drawRubble(r.graphics, r.gridX, r.gridY, r.width, r.height, time, fireIntensity);
+            if (r.animationDone) return;
+            // Fire fades out over time: full for 15s, then fades over 30s.
+            const age = (now - r.createdAt) / 1000;
+            const fireIntensity = age > 15 ? Math.max(0, 1 - (age - 15) / 30) : 1;
+            if (!r.graphics.scene || !r.baseGraphics.scene) return;
+            r.graphics.clear();
+            r.baseGraphics.clear();
+            if (wreckNeedsAnimation(r.type, r.width, r.height, fireIntensity)) {
+                WreckRenderer.drawWreck(r.graphics, r.gridX, r.gridY, r.width, r.height, r.type, r.level, time, fireIntensity, r.baseGraphics);
+                return;
             }
+            // Draw one terminal zero-intensity frame so the last smoke/fire
+            // frame cannot remain frozen after animation shuts down.
+            WreckRenderer.drawWreck(r.graphics, r.gridX, r.gridY, r.width, r.height, r.type, r.level, time, 0, r.baseGraphics);
+            r.animationDone = true;
         });
     }
 
     private clearRubble() {
-        this.rubble.forEach(r => r.graphics.destroy());
+        this.rubble.forEach(r => {
+            r.graphics.destroy();
+            r.baseGraphics.destroy();
+        });
         this.rubble = [];
     }
 
@@ -1729,9 +2545,11 @@ export class MainScene extends Phaser.Scene {
 
         this.obstacles.push(obstacle);
 
-        // Persist to backend if in HOME mode and not skipping
+        // Persist to backend if in HOME mode and not skipping. The SAME id must
+        // be saved — grass variants (and easter eggs) hash off it, so an id
+        // mismatch would reroll every patch's look on the next load.
         if (this.mode === 'HOME' && !skipBackend) {
-            Backend.placeObstacle(this.userId, type, gridX, gridY);
+            Backend.placeObstacle(this.userId, type, gridX, gridY, obstacle.id);
         }
         return true;
     }
@@ -1759,20 +2577,27 @@ export class MainScene extends Phaser.Scene {
     }
 
     private drawObstacle(obstacle: PlacedObstacle, time: number = 0) {
+        obstacle.graphics.clear();
+        if (SpriteBank.syncObstacle(this, obstacle.graphics, obstacle.type, obstacle.id, obstacle.gridX, obstacle.gridY, time)) return;
         ObstacleRenderer.drawObstacle(obstacle.graphics, obstacle, time);
     }
 
 
 
     private updateObstacleAnimations(time: number) {
-        this.obstacles.forEach(obstacle => {
+        // Foliage sway is ambient — stagger redraws across 3 frames (20fps) and
+        // skip anything the camera can't see; grass alone can be 100+ patches.
+        const staggerSlot = this.buildingAnimFrame;
+        this.obstacles.forEach((obstacle, index) => {
             if (obstacle.type === 'tree_oak' || obstacle.type === 'tree_pine' || obstacle.type === 'grass_patch') {
+                if (index % 3 !== staggerSlot) return;
+                if (this.isOffScreen(obstacle.gridX, obstacle.gridY)) return;
                 this.drawObstacle(obstacle, time);
             }
         });
     }
 
-    private removeObstacle(obstacleId: string): boolean {
+    public removeObstacle(obstacleId: string): boolean {
         const index = this.obstacles.findIndex(o => o.id === obstacleId);
         if (index === -1) return false;
 
@@ -1802,13 +2627,22 @@ export class MainScene extends Phaser.Scene {
 
 
 
+    /** Health bars live in the BattleOverlay scene: its camera mirrors this
+     *  one, keeping bars and level digits above the night grade / rain layers.
+     *  Falls back to this scene if
+     *  the overlay hasn't booted yet (only possible during initial create). */
+    private createHealthBarGraphics(): Phaser.GameObjects.Graphics {
+        const overlay = this.scene.get('BattleOverlay');
+        if (overlay && overlay.sys.displayList) {
+            return overlay.add.graphics();
+        }
+        return this.add.graphics();
+    }
+
     public updateHealthBar(item: PlacedBuilding | Troop) {
-        if (!item.healthBar || !item.healthBar.scene) return; // Ignore destroyed or dummy health bars
+        if (!item.healthBar || !item.healthBar.scene) return; // Ignore destroyed health bars
         if ('isDestroyed' in item && item.isDestroyed) return;
-        // Never show health bar for the dummy scarecrow
-        if ('id' in item && (item as Troop).id === 'dummy_scarecrow') return;
         const bar = item.healthBar;
-        bar.clear();
         const now = this.time.now;
 
         if (item.lastHealthBarValue === undefined || item.lastHealthBarValue !== item.health) {
@@ -1824,6 +2658,7 @@ export class MainScene extends Phaser.Scene {
         if (!showBar) {
             bar.setVisible(false);
             bar.setAlpha(1);
+            if (isTroop) (item as Troop).levelTag?.setVisible(false);
             return;
         }
 
@@ -1838,6 +2673,7 @@ export class MainScene extends Phaser.Scene {
         if (alpha <= 0) {
             bar.setVisible(false);
             bar.setAlpha(1);
+            if (isTroop) (item as Troop).levelTag?.setVisible(false);
             return;
         }
 
@@ -1862,31 +2698,47 @@ export class MainScene extends Phaser.Scene {
             height = 6;
             x = pos.x - width / 2;
 
-            // Adjust health bar height based on unit size
+            // Adjust health bar height based on unit size (humanoids are
+            // villager-scale now, so the default rides much lower).
             let yOffset = 22;
             if (troop.type === 'golem') yOffset = 70;
-            else if (troop.type === 'sharpshooter' || troop.type === 'mobilemortar') yOffset = 45;
-            else if (troop.type === 'giant') yOffset = 35;
+            else if (troop.type === 'davincitank') yOffset = 48;
+            else if (troop.type === 'giant') yOffset = 30;
+            else if (troop.type === 'mobilemortar') yOffset = 26;
 
             y = pos.y - yOffset;
         }
 
+        // The level tag is a separate Image riding the bar: sync its position
+        // every frame so it tracks the bar even when the geometry redraw
+        // below gets skipped.
+        if (isTroop) this.syncTroopLevelTag(item as Troop, x, y, width, height, alpha);
+
+        // Geometry only depends on health and position — if neither moved since the
+        // last draw, the existing paths are still correct and only the alpha/visibility
+        // (already applied above) needed updating. This runs per entity per frame.
+        if (item.lastBarDrawHealth === item.health && item.lastBarDrawX === x && item.lastBarDrawY === y) {
+            return;
+        }
+        item.lastBarDrawHealth = item.health;
+        item.lastBarDrawX = x;
+        item.lastBarDrawY = y;
+        bar.clear();
+
         const healthPct = Math.max(0, item.health / item.maxHealth);
-        const radius = height / 2;
+        // Hand-pixelated styling: chunky 1.5-unit cells drawn directly in the
+        // overlay scene, independent of the smooth world sampling policy.
+        const C = 1.5;
 
-        // Outer border (dark)
+        // Border (dark ring, one cell thick, stepped corners)
         bar.fillStyle(0x1a1a1a, 0.9);
-        this.drawRoundedRect(bar, x - 2, y - 2, width + 4, height + 4, radius + 2);
-
-        // Inner border (slightly lighter)
-        bar.fillStyle(0x333333, 1);
-        this.drawRoundedRect(bar, x - 1, y - 1, width + 2, height + 2, radius + 1);
+        this.drawPixelPill(bar, x - C, y - C, width + C * 2, height + C * 2, C);
 
         // Background (dark red/maroon for empty health)
         bar.fillStyle(0x4a1a1a, 1);
-        this.drawRoundedRect(bar, x, y, width, height, radius);
+        this.drawPixelPill(bar, x, y, width, height, C);
 
-        // Health fill color with smooth gradient feel
+        // Health fill color
         let fillColor: number;
         let highlightColor: number;
         if (healthPct > 0.6) {
@@ -1900,35 +2752,29 @@ export class MainScene extends Phaser.Scene {
             highlightColor = 0xf1948a;
         }
 
-        // Main health fill
+        // Main health fill, quantized to whole cells so it depletes in steps
         if (healthPct > 0) {
-            const fillWidth = width * healthPct;
-            if (fillWidth > 0.5) { // Only draw if visible
-                bar.fillStyle(fillColor, 1);
-                // For very small widths, use a smaller radius to prevent artifacts
-                const fillRadius = Math.min(radius, fillWidth / 2);
-                this.drawRoundedRect(bar, x, y, fillWidth, height, fillRadius);
+            const fillWidth = Math.max(C, Math.round((width * healthPct) / C) * C);
+            bar.fillStyle(fillColor, 1);
+            this.drawPixelPill(bar, x, y, fillWidth, height, C);
 
-                // Inner shadow at top of fill
-                bar.fillStyle(0x000000, 0.2);
-                bar.fillRect(x + radius, y, Math.max(0, fillWidth - radius * 2), 2);
+            // Top shadow row, then a glossy band under it (one cell each)
+            bar.fillStyle(0x000000, 0.2);
+            bar.fillRect(x + C, y, Math.max(0, fillWidth - C * 2), C);
+            bar.fillStyle(highlightColor, 0.4);
+            bar.fillRect(x + C, y + C, Math.max(0, fillWidth - C * 2), C);
 
-                // Glossy highlight on top half
-                bar.fillStyle(highlightColor, 0.4);
-                bar.fillRect(x + radius, y + 1, Math.max(0, fillWidth - radius * 2), height / 3);
+            // Specular sparkle: a short detached run of bright cells
+            bar.fillStyle(0xffffff, 0.3);
+            bar.fillRect(x + C * 2, y + C, Math.min(C * 3, Math.max(0, fillWidth - C * 4)), C);
 
-                // Bright specular highlight
-                bar.fillStyle(0xffffff, 0.3);
-                bar.fillRect(x + radius + 2, y + 2, Math.min(8, Math.max(0, fillWidth - radius * 2 - 4)), 1);
-            }
-
-            // Health segments (CoC-style dividers)
+            // Health segments (CoC-style dividers), one cell wide
             if (isBuilding && width > 30) {
-                bar.lineStyle(1, 0x000000, 0.3);
+                bar.fillStyle(0x000000, 0.3);
                 const segments = Math.floor(width / 12);
                 for (let i = 1; i < segments; i++) {
-                    const segX = x + (width / segments) * i;
-                    bar.lineBetween(segX, y + 1, segX, y + height - 1);
+                    const segX = x + Math.round(((width / segments) * i) / C) * C;
+                    bar.fillRect(segX, y + C, C, height - C * 2);
                 }
             }
         }
@@ -1937,156 +2783,52 @@ export class MainScene extends Phaser.Scene {
         bar.setDepth(30000);
     }
 
-    private drawRoundedRect(graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number, radius: number) {
-        graphics.beginPath();
-        graphics.moveTo(x + radius, y);
-        graphics.lineTo(x + width - radius, y);
-        graphics.arc(x + width - radius, y + radius, radius, -Math.PI / 2, 0);
-        graphics.lineTo(x + width, y + height - radius);
-        graphics.arc(x + width - radius, y + height - radius, radius, 0, Math.PI / 2);
-        graphics.lineTo(x + radius, y + height);
-        graphics.arc(x + radius, y + height - radius, radius, Math.PI / 2, Math.PI);
-        graphics.lineTo(x, y + radius);
-        graphics.arc(x + radius, y + radius, radius, Math.PI, -Math.PI / 2);
-        graphics.closePath();
-        graphics.fillPath();
+    /** The troop level tag: a pre-pixelated chip texture (baked once in the
+     *  BattleOverlay scene) shown as an Image at fixed WORLD size, so it
+     *  shrinks with distance like the bar itself — Clash Royale style. It
+     *  stays crisp because its texture explicitly samples NEAREST. Lifecycle
+     *  rides on the health bar:
+     *  created lazily here, hidden and faded with the bar, destroyed when
+     *  the bar's Graphics is. */
+    private syncTroopLevelTag(troop: Troop, barX: number, barY: number, _barW: number, barH: number, alpha: number) {
+        if (!troop.levelTag || !troop.levelTag.scene) {
+            const overlay = this.scene.get('BattleOverlay') as BattleOverlayScene | null;
+            if (!overlay || !overlay.sys.displayList) return;
+            const level = Math.max(1, Math.min(3, Math.floor(troop.level || 1)));
+            const img = overlay.add.image(0, 0, overlay.ensureLevelChipTexture(level)).setDepth(30001);
+            troop.healthBar.once(Phaser.GameObjects.Events.DESTROY, () => img.destroy());
+            troop.levelTag = img;
+        }
+        const tag = troop.levelTag;
+        // One texture cell per world unit: locked world size, never
+        // counter-scaled against zoom, so the chip and the bar shrink
+        // together when you pull the camera back.
+        const scale = 1;
+        tag.setScale(scale);
+        // Docked Clash-Royale style: right edge overlapping the bar's left
+        // border cell (C = 1.5), vertically centred on the bar.
+        tag.setPosition(barX + 1.5 - (tag.width * scale) / 2, barY + barH / 2);
+        tag.setVisible(true);
+        tag.setAlpha(alpha);
+    }
+
+    /** Pixel-art pill: a rect with one corner cell cut on each corner —
+     *  the chunky equivalent of a rounded rect, used by the battle bars. */
+    private drawPixelPill(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, cell: number) {
+        if (w < cell * 2 + 0.1 || h < cell * 2 + 0.1) {
+            g.fillRect(x, y, w, h);
+            return;
+        }
+        g.fillRect(x + cell, y, w - cell * 2, h);
+        g.fillRect(x, y + cell, cell, h - cell * 2);
+        g.fillRect(x + w - cell, y + cell, cell, h - cell * 2);
     }
 
     private updateCombat(time: number) {
-        const isDummyActive = this.mode === 'HOME' && this.dummyTroop !== null;
         const isReplayWatch = this.mode === 'REPLAY';
-        if (this.mode !== 'ATTACK' && !isDummyActive && !isReplayWatch) return;
+        if (this.mode !== 'ATTACK' && !isReplayWatch) return;
 
-        // Include any fireable defense (no per-type hardcoding).
-        const defenses = this.buildings.filter(b => {
-            const info = BUILDINGS[b.type];
-            return info && info.category === 'defense' && b.type !== 'wall' && b.health > 0;
-        });
-        defenses.forEach(defense => {
-            const stats = getBuildingStats(defense.type as BuildingType, defense.level || 1);
-            const maxRange = stats.range || 7;
-            const interval = stats.fireRate || 2500;
-            const bWidth = stats.width || 1;
-            const bHeight = stats.height || 1;
-            const centerX = defense.gridX + bWidth / 2;
-            const centerY = defense.gridY + bHeight / 2;
-            const usesTargetLock =
-                defense.type !== 'dragons_breath' &&
-                defense.type !== 'mortar' &&
-                defense.type !== 'magmavent' &&
-                defense.type !== 'spike_launcher' &&
-                defense.type !== 'frostfall';
-
-            const isTargetInRange = (troop: Troop | null | undefined): troop is Troop => {
-                if (!troop || troop.health <= 0 || troop.owner === defense.owner) return false;
-                const dist = Phaser.Math.Distance.Between(centerX, centerY, troop.gridX, troop.gridY);
-                if (dist > maxRange) return false;
-                if (stats.minRange && dist < stats.minRange) return false;
-                return true;
-            };
-
-            const findNearestTarget = (): Troop | null => {
-                let nearestTroop: Troop | null = null;
-                let minDist = maxRange;
-                this.troops.forEach(troop => {
-                    if (!isTargetInRange(troop)) return;
-                    const dist = Phaser.Math.Distance.Between(centerX, centerY, troop.gridX, troop.gridY);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearestTroop = troop;
-                    }
-                });
-                return nearestTroop;
-            };
-
-            if (!usesTargetLock && defense.lockedTargetId) {
-                defense.lockedTargetId = undefined;
-            }
-
-            let lockedTarget: Troop | null = null;
-            if (usesTargetLock && defense.lockedTargetId) {
-                const existing = this.troops.find(t => t.id === defense.lockedTargetId);
-                if (isTargetInRange(existing)) {
-                    lockedTarget = existing;
-                } else {
-                    defense.lockedTargetId = undefined;
-                }
-            }
-
-            // Initial delay for non-continuous defenses (not prism laser)
-            const needsInitialDelay = defense.type !== 'prism' && defense.type !== 'frostfall' && defense.type !== 'magmavent';
-            if (defense.lastFireTime === undefined) {
-                // Set initial fire time - continuous defenses fire immediately, others have 1.5s delay
-                defense.lastFireTime = needsInitialDelay ? time : (time - interval);
-            }
-
-            // Tesla charge-up mechanic: handle charging/firing separately from cooldown
-            if (defense.type === 'tesla') {
-                // If currently charging, check if charge is complete (800ms)
-                if (defense.teslaCharging && defense.teslaChargeStart) {
-                    const chargeTarget = defense.teslaChargeTarget;
-                    if (!isTargetInRange(chargeTarget)) {
-                        defense.teslaCharging = false;
-                        defense.teslaChargeTarget = undefined;
-                        if (usesTargetLock) defense.lockedTargetId = undefined;
-                        return;
-                    }
-                    if (time >= defense.teslaChargeStart + 800) {
-                        // Charge complete — fire!
-                        const target = chargeTarget;
-                        if (target && target.health > 0) {
-                            this.fireDefenseAtTarget(defense, target, time);
-                        }
-                        defense.teslaCharging = false;
-                        defense.teslaCharged = true;
-                        defense.lastFireTime = time;
-                        defense.teslaChargeTarget = undefined;
-                        if (usesTargetLock && target) defense.lockedTargetId = target.id;
-                    }
-                    return; // Don't look for new targets while charging
-                }
-
-                // Reset charged state after 400ms
-                if (defense.teslaCharged && defense.lastFireTime && time > defense.lastFireTime + 400) {
-                    defense.teslaCharged = false;
-                }
-
-                // Check cooldown before starting new charge
-                if (time < (defense.lastFireTime || 0) + interval) return;
-
-                const targetToCharge = lockedTarget ?? findNearestTarget();
-
-                if (targetToCharge) {
-                    defense.teslaCharging = true;
-                    defense.teslaChargeStart = time;
-                    defense.teslaChargeTarget = targetToCharge;
-                    if (usesTargetLock) defense.lockedTargetId = targetToCharge.id;
-                } else if (usesTargetLock) {
-                    defense.lockedTargetId = undefined;
-                }
-                return;
-            }
-
-            // Check if enough time has passed since last shot
-            if (time < (defense.lastFireTime || 0) + interval) return;
-
-            const targetToFire = lockedTarget ?? findNearestTarget();
-
-            if (targetToFire) {
-                if (usesTargetLock) defense.lockedTargetId = targetToFire.id;
-                defense.lastFireTime = time;
-                this.fireDefenseAtTarget(defense, targetToFire, time);
-            } else {
-                if (usesTargetLock) defense.lockedTargetId = undefined;
-                // No target - clean up continuous lasers if they exist
-                if (defense.type === 'prism') {
-                    this.cleanupPrismLaser(defense);
-                }
-            }
-        });
-
-        // Only fire defenses in dummy mode, skip troop AI/movement/damage
-        if (isDummyActive) return;
+        this.defenseSystem.update(time, this.buildings, this.troops);
 
         this.troops.forEach(troop => {
             if (troop.health <= 0) return;
@@ -2135,21 +2877,12 @@ export class MainScene extends Phaser.Scene {
                 }
             }
 
-            const previousTargetId = (troop.target as any)?.id;
-            if (!troop.target || troop.target.health <= 0) {
-                if (troop.type === 'ward') {
-                    troop.target = this.findWardTarget(troop);
-                } else {
-                    troop.target = TargetingSystem.findTarget(troop, this.buildings);
-                }
-            }
-            const nextTargetId = (troop.target as any)?.id;
-            if (previousTargetId !== nextTargetId) {
-                troop.path = undefined;
-                troop.nextPathTime = 0;
-                troop.lastTargetSwitchTime = time;
-                this.setTroopRetargetPause(troop, 60, 140);
-            }
+            // Validate strategic intent before the active damage target. A wall
+            // may be the current interaction target, but never replaces the
+            // building this troop is actually trying to reach.
+            this.ensureTroopNavigation(troop, time);
+            if (!troop.navigationPlan
+                || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision) return;
 
             if (troop.target) {
                 const b = troop.target;
@@ -2191,6 +2924,15 @@ export class MainScene extends Phaser.Scene {
                             }
                         }
 
+                        // A following ward retains its ally as the follow target,
+                        // but can help open the wall selected by its own route.
+                        if (!attackTarget) {
+                            const blocker = this.liveBuildingById(troop.navigationPlan?.blockerId);
+                            if (blocker && this.getTargetEdgeDistance(troop, blocker) <= wardStats.range + 0.1) {
+                                attackTarget = blocker;
+                            }
+                        }
+
                         // 3. If no leader target, find nearest building in range (PRIORITIZE NON-WALLS)
                         if (!attackTarget) {
                             const buildings = enemies.filter(b => b.type !== 'wall');
@@ -2211,15 +2953,6 @@ export class MainScene extends Phaser.Scene {
                     if (attackTarget) {
                         troop.lastAttackTime = time;
                         this.showWardLaser(troop, attackTarget, wardStats.damage);
-
-                        // Apply damage directly if it's the target loop handling it
-                        if (attackTarget.health > 0) {
-                            attackTarget.health -= (wardStats.damage * 0.2); // Small tick damage per pulse handled by laser visuals usually, but adding solid hit here
-                            this.updateHealthBar(attackTarget);
-                            if (attackTarget.health <= 0) {
-                                this.destroyBuilding(attackTarget);
-                            }
-                        }
                     }
                 } else if (dist <= stats.range + 0.1) {
                     if (time > troop.lastAttackTime + troop.attackDelay) {
@@ -2264,14 +2997,13 @@ export class MainScene extends Phaser.Scene {
 
                                         // Deal damage to all buildings within 3 tile radius
                                         const aoeTiles = 3;
-                                        this.buildings.forEach(b => {
+                                        [...this.buildings].forEach(b => {
                                             if (b.owner !== troop.owner && b.health > 0) {
                                                 const bdx = (b.gridX + BUILDINGS[b.type].width / 2) - troop.gridX;
                                                 const bdy = (b.gridY + BUILDINGS[b.type].height / 2) - troop.gridY;
                                                 const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
                                                 if (bdist <= aoeTiles) {
                                                     b.health -= stats.damage;
-                                                    this.showHitEffect(b.graphics);
                                                     this.updateHealthBar(b);
                                                     if (b.health <= 0) {
                                                         this.destroyBuilding(b);
@@ -2360,7 +3092,7 @@ export class MainScene extends Phaser.Scene {
 
                                 // ROTATE AFTER SHOT - delayed until cannonball is in flight
                                 const newAngle = currentAngle + Math.PI / 4;
-                                this.time.delayedCall(150, () => {
+                                this.scheduleBattleCall(150, () => {
                                     const rotationTarget = { angle: currentAngle };
                                     this.tweens.add({
                                         targets: rotationTarget,
@@ -2403,7 +3135,6 @@ export class MainScene extends Phaser.Scene {
                                         // DAMAGE APPLIED ON IMPACT
                                         if (targetRef && targetRef.health > 0) {
                                             targetRef.health -= damage;
-                                            this.showHitEffect(targetRef.graphics);
                                             this.updateHealthBar(targetRef);
 
                                             if (targetRef.health <= 0) {
@@ -2446,7 +3177,6 @@ export class MainScene extends Phaser.Scene {
 
                                 // Apply damage directly
                                 targetBuilding.health -= stats.damage;
-                                this.showHitEffect(targetBuilding.graphics);
                                 this.updateHealthBar(targetBuilding);
 
                                 if (targetBuilding.health <= 0) {
@@ -2460,7 +3190,7 @@ export class MainScene extends Phaser.Scene {
                                 const sRadius = (stats as any).splashRadius || 2.5;
 
                                 // Apply splash damage to all buildings in radius
-                                this.buildings.forEach(b => {
+                                [...this.buildings].forEach(b => {
                                     if (b.owner !== troop.owner && b.health > 0) {
                                         const bInfo = BUILDINGS[b.type];
                                         const bCenterX = b.gridX + bInfo.width / 2;
@@ -2470,7 +3200,6 @@ export class MainScene extends Phaser.Scene {
                                             const bMult = b.type === 'wall' ? wallMult : 1;
                                             const dmg = bdist < 0.5 ? stats.damage * bMult : stats.damage * bMult * 0.6;
                                             b.health -= dmg;
-                                            this.showHitEffect(b.graphics);
                                             this.updateHealthBar(b);
                                             if (b.health <= 0) {
                                                 this.destroyBuilding(b);
@@ -2490,7 +3219,6 @@ export class MainScene extends Phaser.Scene {
                                 }
 
                                 troop.target.health -= finalDamage;
-                                this.showHitEffect(troop.target.graphics);
                                 this.updateHealthBar(troop.target);
 
                                 // Giant uses renderer-driven lean, no separate punch tween
@@ -2695,7 +3423,7 @@ export class MainScene extends Phaser.Scene {
         });
 
         // Secondary shockwave (isometric oval)
-        this.time.delayedCall(50, () => {
+        this.scheduleBattleCall(50, () => {
             const shock2 = this.add.graphics();
             shock2.lineStyle(2, 0xffaa00, 0.5);
             shock2.strokeEllipse(x, y, 30 * scale, 15 * scale);
@@ -2738,7 +3466,7 @@ export class MainScene extends Phaser.Scene {
         // Smoke plume (pixelated rectangles)
         for (let i = 0; i < 8; i++) {
             const delay = i * 30;
-            this.time.delayedCall(delay, () => {
+            this.scheduleBattleCall(delay, () => {
                 const smokeColors = [0x444444, 0x555555, 0x666666];
                 const smokeSize = 8 + Math.floor(Math.random() * 12);
                 const smoke = this.add.graphics();
@@ -3003,7 +3731,7 @@ export class MainScene extends Phaser.Scene {
                         });
                     } else {
                         // Non-final bolts get destroyed when next bolt appears
-                        this.time.delayedCall(bolt * boltInterval + boltInterval, () => lightning.destroy());
+                        this.scheduleBattleCall(bolt * boltInterval + boltInterval, () => lightning.destroy());
                     }
                 }
 
@@ -3285,7 +4013,7 @@ export class MainScene extends Phaser.Scene {
         const baseHeight = 10;
 
         // Wait for the crystal to swing forward (renderer timeline: 4200ms after lastFireTime)
-        this.time.delayedCall(4200, () => {
+        this.scheduleBattleCall(4200, () => {
             // The crystal is now fully risen — LAUNCH it as the projectile!
             frostfall.frostfallProjectileActive = true; // Tell renderer to hide its crystal
 
@@ -3311,8 +4039,10 @@ export class MainScene extends Phaser.Scene {
                     frostfall.frostfallProjectileActive = false;
                     return; // No targets
                 }
-                targetX = fallback.gridX;
-                targetY = fallback.gridY;
+                // TS cannot see the assignment inside the forEach closure, so it
+                // narrows `fallback` to never here without the explicit type.
+                targetX = (fallback as Troop).gridX;
+                targetY = (fallback as Troop).gridY;
             }
 
             const start = IsoUtils.cartToIso(centerX, centerY);
@@ -3388,26 +4118,56 @@ export class MainScene extends Phaser.Scene {
                     shard.destroy();
                     frostfall.frostfallProjectileActive = false; // New crystal can rise on next cycle
 
-                    // === IMPACT ===
-                    this.cameras.main.shake(200, 0.004);
+                    // === IMPACT: a real cold snap ===
+                    this.cameras.main.shake(130, 0.0022);
 
-                    // Create the EMBEDDED crystal at impact point (sticks into ground)
+                    // Pale flash of the freeze.
+                    const iceFlash = this.add.graphics();
+                    iceFlash.setBlendMode(Phaser.BlendModes.ADD);
+                    iceFlash.fillStyle(0xdcf2ff, 0.85);
+                    iceFlash.fillEllipse(0, 0, 30, 15);
+                    iceFlash.setPosition(end.x, end.y);
+                    iceFlash.setDepth(10004);
+                    this.tweens.add({ targets: iceFlash, alpha: 0, scale: 2.1, duration: 130, onComplete: () => iceFlash.destroy() });
+
+                    // Frost rime rushes across the ground to the exact edge of
+                    // the slow zone — the debuff painted where it applies.
+                    const rime = this.add.graphics();
+                    const rimeR = 2.5 * 32; // AoE radius in iso px (half-width)
+                    rime.lineStyle(2, 0xcfeaff, 0.75);
+                    rime.strokeEllipse(0, 0, rimeR * 2, rimeR);
+                    rime.fillStyle(0xdcf2ff, 0.16);
+                    rime.fillEllipse(0, 0, rimeR * 2, rimeR);
+                    // Rime crystals sparkling inside the ring.
+                    for (let i = 0; i < 14; i++) {
+                        const a = (i / 14) * Math.PI * 2 + 0.4;
+                        const rr = rimeR * (0.35 + ((i * 37) % 10) / 16);
+                        rime.fillStyle(0xffffff, 0.55);
+                        rime.fillTriangle(
+                            Math.cos(a) * rr, Math.sin(a) * rr * 0.5 - 2,
+                            Math.cos(a) * rr - 1.6, Math.sin(a) * rr * 0.5 + 1.2,
+                            Math.cos(a) * rr + 1.6, Math.sin(a) * rr * 0.5 + 1.2
+                        );
+                    }
+                    rime.setPosition(end.x, end.y);
+                    rime.setDepth(7);
+                    rime.setScale(0.2);
+                    rime.setAlpha(0.9);
+                    this.tweens.add({ targets: rime, scaleX: 1, scaleY: 1, duration: 240, ease: 'Cubic.easeOut' });
+                    this.tweens.add({ targets: rime, alpha: 0, delay: 2600, duration: 1600, onComplete: () => rime.destroy() });
+
+                    // The EMBEDDED crystal, stuck tip-up in the ground.
                     const embedded = this.add.graphics();
                     const embedHeight = crystalHeight;
                     const embedWidth = crystalWidth;
-
-                    // Draw the crystal — only the top portion is visible above ground
-                    // Crystal body (diamond shape, tilted)
-                    embedded.fillStyle(0xaaddff, 0.9);
+                    embedded.fillStyle(0xaaddff, 0.92);
                     embedded.beginPath();
-                    embedded.moveTo(0, -embedHeight * 0.8); // Tip sticking up
+                    embedded.moveTo(0, -embedHeight * 0.8);
                     embedded.lineTo(embedWidth * 0.5, -embedHeight * 0.3);
-                    embedded.lineTo(0, embedHeight * 0.1);  // Goes into ground
+                    embedded.lineTo(0, embedHeight * 0.1);
                     embedded.lineTo(-embedWidth * 0.5, -embedHeight * 0.3);
                     embedded.closePath();
                     embedded.fillPath();
-
-                    // Left face shading
                     embedded.fillStyle(0x77bbee, 0.5);
                     embedded.beginPath();
                     embedded.moveTo(0, -embedHeight * 0.8);
@@ -3415,8 +4175,6 @@ export class MainScene extends Phaser.Scene {
                     embedded.lineTo(-embedWidth * 0.5, -embedHeight * 0.3);
                     embedded.closePath();
                     embedded.fillPath();
-
-                    // Highlight
                     embedded.fillStyle(0xcceeFF, 0.4);
                     embedded.beginPath();
                     embedded.moveTo(0, -embedHeight * 0.8);
@@ -3424,8 +4182,6 @@ export class MainScene extends Phaser.Scene {
                     embedded.lineTo(embedWidth * 0.15, -embedHeight * 0.5);
                     embedded.closePath();
                     embedded.fillPath();
-
-                    // Outline
                     embedded.lineStyle(1, 0x5599cc, 0.6);
                     embedded.beginPath();
                     embedded.moveTo(0, -embedHeight * 0.8);
@@ -3434,84 +4190,149 @@ export class MainScene extends Phaser.Scene {
                     embedded.lineTo(-embedWidth * 0.5, -embedHeight * 0.3);
                     embedded.closePath();
                     embedded.strokePath();
-
-
-                    embedded.setPosition(end.x, end.y);
-                    embedded.setRotation(0.12); // Slightly tilted
-                    embedded.setDepth(100);
-
-                    // === WATER PUDDLE that spreads as crystal melts ===
-                    const puddle = this.add.graphics();
-                    puddle.setPosition(end.x, end.y);
-                    puddle.setDepth(5);
-                    puddle.setAlpha(0);
-
-                    // Draw water puddle shape
-                    puddle.fillStyle(0x88ccff, 0.3);
-                    puddle.fillEllipse(0, 5, 60, 30);
-                    puddle.fillStyle(0xaaddff, 0.2);
-                    puddle.fillEllipse(0, 5, 40, 20);
-
-                    // Puddle fades in as crystal melts
+                    // Painter's order at its own tile — the crystal stands IN
+                    // the world (in front of walls behind it, behind troops
+                    // that walk past), instead of hiding under everything.
+                    const crystalDepth = 1000 + (targetX + targetY) * 100 + 60;
+                    embedded.setDepth(crystalDepth);
+                    // It EMBEDS: arrives above the dirt and rams itself in —
+                    // a hard drop, a squash, and a ring of broken earth.
+                    embedded.setPosition(end.x, end.y - 9);
+                    embedded.setRotation(0.12);
                     this.tweens.add({
-                        targets: puddle,
-                        alpha: 1,
-                        scaleX: { from: 0.3, to: 1.5 },
-                        scaleY: { from: 0.3, to: 1.5 },
-                        duration: 8000,
-                        ease: 'Quad.easeOut',
+                        targets: embedded,
+                        y: end.y + 3,
+                        duration: 90,
+                        ease: 'Quad.easeIn',
                         onComplete: () => {
-                            // Puddle slowly fades away
-                            this.tweens.add({
-                                targets: puddle,
-                                alpha: 0,
-                                duration: 3000,
-                                onComplete: () => puddle.destroy()
-                            });
+                            // Broken soil heaped around the shaft.
+                            const mound = this.add.graphics();
+                            mound.fillStyle(0x5c4c34, 0.8);
+                            mound.fillEllipse(0, 0, 16, 6);
+                            mound.fillStyle(0x6e5c3e, 0.9);
+                            mound.fillEllipse(-4, -1, 6, 2.6);
+                            mound.fillEllipse(5, 0.5, 5, 2.2);
+                            mound.setPosition(end.x, end.y + 3);
+                            mound.setDepth(crystalDepth - 1);
+                            this.tweens.add({ targets: mound, alpha: 0, delay: 6200, duration: 1200, onComplete: () => mound.destroy() });
+                            for (let d = 0; d < 4; d++) {
+                                const clod = this.add.graphics();
+                                clod.fillStyle(0x6e5c3e, 0.95);
+                                clod.fillEllipse(0, 0, 3, 2);
+                                clod.setPosition(end.x, end.y + 1);
+                                clod.setDepth(crystalDepth + 1);
+                                const ca = Math.random() * Math.PI * 2;
+                                this.tweens.add({
+                                    targets: clod,
+                                    x: end.x + Math.cos(ca) * (8 + Math.random() * 10),
+                                    y: end.y + Math.sin(ca) * 5 + 2,
+                                    alpha: 0,
+                                    duration: 260 + Math.random() * 140,
+                                    ease: 'Quad.easeOut',
+                                    onComplete: () => clod.destroy()
+                                });
+                            }
                         }
                     });
 
-                    // === CRYSTAL MELTS over 10 seconds ===
+                    // The MELT: one clock drives everything, so the crystal
+                    // visibly BECOMES the puddle — as it slumps, the water
+                    // spreads by exactly that much, streaks run down its
+                    // faces, drips fall from the tip, and at the end it
+                    // collapses with a splash and the puddle dries.
+                    const puddle = this.add.graphics();
+                    puddle.fillStyle(0x6fb4e8, 0.42);
+                    puddle.fillEllipse(0, 2, 44, 20);
+                    puddle.fillStyle(0xa8d8f8, 0.35);
+                    puddle.fillEllipse(-3, 1, 26, 11);
+                    puddle.fillStyle(0xe8f6ff, 0.5);
+                    puddle.fillEllipse(-7, -1, 7, 3);
+                    puddle.setPosition(end.x, end.y + 2);
+                    puddle.setDepth(6);
+                    puddle.setScale(0.1);
+                    puddle.setAlpha(0);
+
+                    const meltFx = this.add.graphics();
+                    meltFx.setPosition(end.x, end.y);
+                    meltFx.setDepth(crystalDepth + 1);
+
+                    const melt = { t: 0 };
+                    let lastDripAt = 0;
                     this.tweens.add({
-                        targets: embedded,
-                        scaleY: { from: 1.0, to: 0.0 },
-                        scaleX: { from: 1.0, to: 1.4 },
-                        alpha: { from: 1.0, to: 0.3 },
-                        y: end.y + 5,
-                        duration: 10000,
-                        ease: 'Quad.easeIn',
-                        onComplete: () => embedded.destroy()
+                        targets: melt,
+                        t: 1,
+                        duration: 6500,
+                        ease: 'Sine.easeIn',
+                        onUpdate: () => {
+                            const t = melt.t;
+                            // Crystal slumps: shorter, wider, leaning as it goes.
+                            embedded.setScale(1 + t * 0.4, Math.max(0.02, 1 - t * 0.98));
+                            embedded.setRotation(0.12 + t * 0.14);
+                            embedded.setAlpha(t < 0.8 ? 0.95 : 0.95 * (1 - (t - 0.8) / 0.22));
+                            // The puddle grows by exactly what the crystal loses.
+                            puddle.setAlpha(Math.min(1, t * 1.6));
+                            puddle.setScale(0.25 + t * 1.05);
+                            // Meltwater: a sheen line sliding down the faces +
+                            // streaks running off the tip.
+                            meltFx.clear();
+                            if (t < 0.94) {
+                                const topY = -embedHeight * 0.8 * (1 - t * 0.98);
+                                meltFx.lineStyle(1.2, 0xe8f6ff, 0.7 * (1 - t * 0.5));
+                                meltFx.lineBetween(-embedWidth * 0.4 * (1 + t * 0.4), topY * 0.45, embedWidth * 0.4 * (1 + t * 0.4), topY * 0.55);
+                                for (let s = 0; s < 3; s++) {
+                                    const run = ((t * 3.2 + s * 0.37) % 1);
+                                    const sx = (s - 1) * embedWidth * 0.24 * (1 + t * 0.4);
+                                    meltFx.lineStyle(1, 0xbfe4ff, 0.65 * (1 - run));
+                                    meltFx.lineBetween(sx, topY * (1 - run * 0.8), sx + 0.8, topY * (1 - run * 0.8) + 4.5);
+                                }
+                            }
+                            // Drips off the tip, steady as a thaw.
+                            const now = this.time.now;
+                            if (now - lastDripAt > 420 && melt.t > 0.08 && melt.t < 0.92) {
+                                lastDripAt = now;
+                                const drip = this.add.graphics();
+                                drip.fillStyle(0xbfe4ff, 0.85);
+                                drip.fillEllipse(0, 0, 2, 3);
+                                const tipY = end.y - embedHeight * 0.8 * (1 - melt.t * 0.98);
+                                drip.setPosition(end.x + (Math.random() - 0.5) * embedWidth * 0.5, tipY);
+                                drip.setDepth(crystalDepth + 2);
+                                this.tweens.add({
+                                    targets: drip,
+                                    y: end.y + 2,
+                                    alpha: 0.2,
+                                    duration: 300,
+                                    ease: 'Quad.easeIn',
+                                    onComplete: () => {
+                                        // A tiny ripple where it lands.
+                                        drip.clear();
+                                        drip.lineStyle(1, 0xd8eeff, 0.5);
+                                        drip.strokeEllipse(0, 0, 4, 2);
+                                        this.tweens.add({ targets: drip, alpha: 0, scale: 2, duration: 260, onComplete: () => drip.destroy() });
+                                    }
+                                });
+                            }
+                        },
+                        onComplete: () => {
+                            // The last of it collapses — one soft splash ring.
+                            meltFx.destroy();
+                            embedded.destroy();
+                            const splash = this.add.graphics();
+                            splash.lineStyle(1.4, 0xd8eeff, 0.7);
+                            splash.strokeEllipse(0, 0, 12, 6);
+                            splash.setPosition(end.x, end.y + 2);
+                            splash.setDepth(crystalDepth + 1);
+                            this.tweens.add({ targets: splash, alpha: 0, scale: 2.4, duration: 320, onComplete: () => splash.destroy() });
+                            this.tweens.add({ targets: puddle, scaleX: puddle.scaleX + 0.15, scaleY: puddle.scaleY + 0.15, duration: 300, ease: 'Quad.easeOut' });
+                            // ...and the sun takes the puddle back.
+                            this.tweens.add({ targets: puddle, alpha: 0, delay: 1500, duration: 2800, ease: 'Quad.easeIn', onComplete: () => puddle.destroy() });
+                        }
                     });
 
-                    // Water droplets dripping off the crystal as it melts
-                    const dripCount = 20;
-                    for (let i = 0; i < dripCount; i++) {
-                        this.time.delayedCall(500 + i * 450, () => {
-                            const drip = this.add.graphics();
-                            drip.fillStyle(0x88ccff, 0.6);
-                            drip.fillCircle(0, 0, 1.5);
-                            const dripX = end.x + (Math.random() - 0.5) * embedWidth;
-                            const dripStartY = end.y - embedHeight * 0.3 * Math.max(0, 1 - i / dripCount);
-                            drip.setPosition(dripX, dripStartY);
-                            drip.setDepth(101);
-
-                            this.tweens.add({
-                                targets: drip,
-                                y: end.y + 5 + Math.random() * 10,
-                                alpha: 0,
-                                duration: 400 + Math.random() * 300,
-                                ease: 'Quad.easeIn',
-                                onComplete: () => drip.destroy()
-                            });
-                        });
-                    }
-
                     // === ICE SHATTER FRAGMENTS on impact ===
-                    for (let i = 0; i < 10; i++) {
+                    for (let i = 0; i < 12; i++) {
                         const frag = this.add.graphics();
-                        frag.fillStyle(i % 3 === 0 ? 0xaaddff : (i % 3 === 1 ? 0x88ccff : 0x66bbff), 0.9);
-                        const fragSize = 2 + Math.random() * 5;
-                        // Diamond-shaped fragment
+                        frag.fillStyle(i % 3 === 0 ? 0xdcf2ff : (i % 3 === 1 ? 0xaaddff : 0x88ccff), 0.95);
+                        const fragSize = 2 + Math.random() * 4.4;
                         frag.beginPath();
                         frag.moveTo(0, -fragSize);
                         frag.lineTo(fragSize * 0.6, 0);
@@ -3519,11 +4340,10 @@ export class MainScene extends Phaser.Scene {
                         frag.lineTo(-fragSize * 0.6, 0);
                         frag.closePath();
                         frag.fillPath();
-
                         frag.setPosition(end.x, end.y - embedHeight * 0.3);
                         frag.setDepth(10001);
-                        const fragAngle = (i / 10) * Math.PI * 2;
-                        const fragDist = 15 + Math.random() * 50;
+                        const fragAngle = (i / 12) * Math.PI * 2;
+                        const fragDist = 15 + Math.random() * 46;
                         this.tweens.add({
                             targets: frag,
                             x: end.x + Math.cos(fragAngle) * fragDist,
@@ -3535,7 +4355,6 @@ export class MainScene extends Phaser.Scene {
                             onComplete: () => frag.destroy()
                         });
                     }
-
 
                     // === APPLY AOE DAMAGE AND DEBUFF ===
                     this.troops.forEach(troop => {
@@ -3574,176 +4393,17 @@ export class MainScene extends Phaser.Scene {
                         for (let i = 0; i < 30; i++) {
                             const angle = Math.random() * Math.PI * 2;
                             const r = Math.random() * 80;
-                            particleManager.emitSparkTracker(frostfall.id + '_chill_burst_' + i + '_' + time, end.x + Math.cos(angle) * r, end.y + Math.sin(angle) * r * 0.5 - 10, time, 1);
+                            particleManager.emitSparkTracker(
+                                `${frostfall.id}:chill-burst:${i}`,
+                                end.x + Math.cos(angle) * r,
+                                end.y + Math.sin(angle) * r * 0.5 - 10,
+                                time,
+                                10001
+                            );
                         }
                     }
                 }
             });
-        });
-    }
-
-    // === MAGMA VENT - MASSIVE VOLCANIC ERUPTION ===
-    // === MAGMA VENT - MASSIVE VOLCANIC ERUPTION ===
-    private shootMagmaEruption(magma: PlacedBuilding) {
-        const stats = this.getDefenseStats(magma);
-        const info = BUILDING_DEFINITIONS['magmavent'];
-        const center = IsoUtils.cartToIso(magma.gridX + info.width / 2, magma.gridY + info.height / 2);
-        center.y -= 30; // From crater
-
-        // Stronger screen shake for the volcano
-        this.cameras.main.shake(200, 0.0025);
-
-        const aoeRadius = stats.range || 4.2;
-
-        // Black billowing smoke that rises after firing
-        for (let i = 0; i < 3; i++) {
-            this.time.delayedCall(150 + i * 120, () => {
-                const smoke = this.add.graphics();
-                const size = 8 + Math.random() * 5;
-
-                // Dark black/charcoal smoke - small squares
-                smoke.fillStyle(0x111111, 0.55);
-                smoke.fillRect(-size / 2, -size / 2, size, size);
-
-                smoke.setPosition(center.x + (Math.random() - 0.5) * 20, center.y - 5);
-                smoke.setDepth(30000);
-
-                this.tweens.add({
-                    targets: smoke,
-                    y: center.y - 60 - Math.random() * 40,
-                    x: smoke.x + (Math.random() - 0.5) * 30,
-                    scale: { from: 1, to: 2 },
-                    alpha: 0,
-                    duration: 1400 + Math.random() * 600,
-                    onComplete: () => smoke.destroy()
-                });
-            });
-        }
-
-        // Central blast - NO huge circles off screen. Just a sharp local flash.
-        const flash = this.add.graphics();
-        flash.setPosition(center.x, center.y);
-        flash.fillStyle(0xffaa00, 0.9);
-        // Star/Spike shape for blast instead of big rect
-        flash.beginPath();
-        for (let j = 0; j < 8; j++) {
-            const angle = (j / 8) * Math.PI * 2;
-            const r = j % 2 === 0 ? 30 : 10;
-            flash.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
-        }
-        flash.closePath();
-        flash.fillPath();
-
-        flash.setDepth(30001);
-        this.tweens.add({
-            targets: flash,
-            scale: { from: 0.5, to: 1.5 },
-            alpha: 0,
-            duration: 200, // Very fast pop
-            onComplete: () => flash.destroy()
-        });
-
-        // === AOE INDICATOR - Shows damage radius ===
-        const aoePixelsX = aoeRadius * this.tileWidth * 0.5 * Math.SQRT2;
-        const aoePixelsY = aoeRadius * this.tileHeight * 0.5 * Math.SQRT2;
-
-        const aoeIndicator = this.add.graphics();
-        aoeIndicator.fillStyle(0xff4400, 0.15); // Lighter alpha
-        aoeIndicator.fillEllipse(center.x, center.y + 20, aoePixelsX * 2, aoePixelsY * 2);
-        aoeIndicator.lineStyle(2, 0xff6600, 0.5);
-        aoeIndicator.strokeEllipse(center.x, center.y + 20, aoePixelsX * 2, aoePixelsY * 2);
-        aoeIndicator.setDepth(5);
-        this.tweens.add({
-            targets: aoeIndicator,
-            alpha: 0,
-            duration: 1200,
-            ease: 'Quad.easeOut',
-            onComplete: () => aoeIndicator.destroy()
-        });
-
-        // Flying lava rocks
-        for (let i = 0; i < 20; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 30 + Math.random() * 70; // Varied range
-            const peakHeight = 40 + Math.random() * 50;
-
-            const rock = this.add.graphics();
-            const rockColors = [0xff2200, 0xff4400, 0xff6600, 0xff8800];
-            rock.fillStyle(rockColors[Math.floor(Math.random() * rockColors.length)], 1);
-            const rockSize = 3 + Math.floor(Math.random() * 3);
-            rock.fillRect(-rockSize / 2, -rockSize / 2, rockSize, rockSize);
-            rock.setPosition(center.x, center.y);
-            rock.setDepth(30002);
-
-            const endX = center.x + Math.cos(angle) * dist;
-            const endY = center.y + Math.sin(angle) * dist * 0.5 + 30;
-
-            this.tweens.add({
-                targets: rock,
-                x: endX,
-                duration: 600 + Math.random() * 400,
-                ease: 'Linear',
-                onUpdate: (tween) => {
-                    const t = tween.progress;
-                    rock.y = center.y - Math.sin(t * Math.PI) * peakHeight + t * (endY - center.y);
-
-                    // Reduced trail frequency
-                    if (Math.random() > 0.85) {
-                        const trail = this.add.graphics();
-                        trail.fillStyle(0xff4400, 0.6);
-                        trail.fillRect(-1, -1, 2, 2);
-                        trail.setPosition(rock.x, rock.y);
-                        trail.setDepth(30001);
-                        this.tweens.add({
-                            targets: trail, alpha: 0, scale: 0.1, duration: 200, onComplete: () => trail.destroy()
-                        });
-                    }
-                },
-                onComplete: () => {
-                    // Ground burn mark
-                    const scorch = this.add.graphics();
-                    scorch.fillStyle(0x331100, 0.6);
-                    scorch.fillEllipse(endX, endY, 10, 5);
-                    scorch.setDepth(4);
-
-                    this.tweens.add({ targets: scorch, alpha: 0, duration: 2000, onComplete: () => scorch.destroy() });
-                    rock.destroy();
-                }
-            });
-        }
-
-        // Area damage glow (subtle)
-        const aoeGlow = this.add.graphics();
-        aoeGlow.fillStyle(0xff4400, 0.1);
-        aoeGlow.fillEllipse(center.x, center.y + 25, aoePixelsX * 2, aoePixelsY * 2);
-        aoeGlow.setDepth(4);
-        this.tweens.add({ targets: aoeGlow, alpha: 0, duration: 600, onComplete: () => aoeGlow.destroy() });
-
-        // Light smoke (removed old one in favor of createSmokeEffect)
-
-
-        // Damage all troops in range with massive damage
-        this.troops.slice().forEach(t => {
-            if (t.owner === magma.owner || t.health <= 0) return;
-            const dist = Phaser.Math.Distance.Between(
-                magma.gridX + info.width / 2, magma.gridY + info.height / 2,
-                t.gridX, t.gridY
-            );
-            if (dist <= aoeRadius) {
-                // More damage at center (100% at center, 50% at edge)
-                const damage = stats.damage || 80;
-                const damageMult = 1 - (dist / aoeRadius * 0.5);
-                t.health -= damage * damageMult;
-                t.hasTakenDamage = true;
-
-                // Hit flash on troop - position the graphics at the troop, draw circle at origin
-                // so scaling animates from center instead of flying off-screen
-                const troopPos = IsoUtils.cartToIso(t.gridX, t.gridY);
-                particleManager.emitHitFlash(troopPos.x, troopPos.y, 10006);
-
-                this.updateHealthBar(t);
-                if (t.health <= 0) this.destroyTroop(t);
-            }
         });
     }
 
@@ -3769,17 +4429,18 @@ export class MainScene extends Phaser.Scene {
         });
 
 
-        // Arrow with proper orientation
+        // Arrow drawn identical to the nocked arrow in TroopRenderer (small,
+        // villager-scale) so the loosed shaft is the one we saw on the string.
         const arrow = this.add.graphics();
-        arrow.fillStyle(0x8b4513, 1);
-        arrow.fillRect(-8, -1, 16, 2);
-        arrow.fillStyle(0x888888, 1);
-        arrow.fillTriangle(8, 0, 4, -3, 4, 3);
-        arrow.fillStyle(0xcc6633, 1);
-        arrow.fillTriangle(-8, 0, -5, -3, -5, 3);
+        arrow.fillStyle(0x4a341f, 1);
+        arrow.fillRect(-4.5, -0.6, 9, 1.2);
+        arrow.fillStyle(0xaab0ba, 1);
+        arrow.fillTriangle(7, 0, 4.5, -1.4, 4.5, 1.4);
+        arrow.fillStyle(0x2e7d32, 1);
+        arrow.fillTriangle(-4.5, 0, -2.8, -1.6, -2.8, 1.6);
 
-        // Start from middle of the bow (center of archer, not top)
-        arrow.setPosition(start.x, start.y - 4);
+        // Leave from the bow itself (arm's reach toward the aim, chest high).
+        arrow.setPosition(start.x + Math.cos(angle) * 5.2, start.y - 4 + Math.sin(angle) * 2.6);
         arrow.setRotation(angle);
         arrow.setDepth(10000);
 
@@ -3798,7 +4459,6 @@ export class MainScene extends Phaser.Scene {
                 // Apply damage on hit
                 if (targetBuilding && targetBuilding.health > 0) {
                     targetBuilding.health -= damage;
-                    this.showHitEffect(targetBuilding.graphics);
                     this.updateHealthBar(targetBuilding);
 
                     if (targetBuilding.health <= 0) {
@@ -3846,113 +4506,67 @@ export class MainScene extends Phaser.Scene {
 
         troop.facingAngle = angle;
 
-        // Initialize bow draw if not set
-        if (troop.bowDrawProgress === undefined) {
-            troop.bowDrawProgress = 0;
-        }
-
-        // ANIMATED BOW DRAW SEQUENCE
-        // Phase 1: Draw the bow back
-        this.tweens.add({
-            targets: troop,
-            bowDrawProgress: 1,
-            duration: 300,
-            ease: 'Power2',
-            onUpdate: () => {
-                this.redrawTroop(troop);
-            },
-            onComplete: () => {
-                // Phase 2: Hold briefly then release
-                this.time.delayedCall(80, () => {
-                    // RELEASE!
-                    // Snap bow back with spring animation
-                    this.tweens.add({
-                        targets: troop,
-                        bowDrawProgress: 0,
-                        duration: 100,
-                        ease: 'Back.easeOut',
-                        onUpdate: () => {
-                            this.redrawTroop(troop);
-                        }
-                    });
-
-                    // Body reaction on release
-                    this.tweens.add({
-                        targets: troop.gameObject,
-                        scaleX: 0.9,
-                        scaleY: 1.05,
-                        duration: 50,
-                        yoyo: true,
-                        ease: 'Power2'
-                    });
-
-                    // Launch the arrow
-                    this.launchSharpshooterArrow(troop, start, end, angle, targetBuilding, damage);
+        // The sharpshooter is a musketeer now: the pose (shoulder the piece,
+        // aim, hammer-fall recoil, powder smoke) is animated inside
+        // TroopRenderer off attackAge. The ball leaves the muzzle exactly at
+        // MUSKET_FIRE_MS after the damage tick, so the renderer's flash and
+        // this projectile are one event and can never drift apart.
+        this.scheduleBattleCall(TroopRenderer.MUSKET_FIRE_MS, () => {
+            // Body recoil nudge the instant the piece fires.
+            const g = troop.gameObject;
+            if (g && g.active && g.scene) {
+                this.tweens.add({
+                    targets: g,
+                    scaleX: 0.94,
+                    duration: 45,
+                    yoyo: true,
+                    ease: 'Power2'
                 });
             }
+            this.launchSharpshooterArrow(troop, start, end, angle, targetBuilding, damage);
         });
     }
 
-    private launchSharpshooterArrow(_troop: Troop, start: Phaser.Math.Vector2, end: Phaser.Math.Vector2, angle: number, targetBuilding: PlacedBuilding, damage: number) {
-        // Large arrow with proper design
-        const arrow = this.add.graphics();
-        // Arrow shaft
-        arrow.fillStyle(0x5d4037, 1);
-        arrow.fillRect(-16, -2, 32, 4);
-        // Metal tip
-        arrow.fillStyle(0x888888, 1);
-        arrow.fillTriangle(18, 0, 12, -4, 12, 4);
-        arrow.fillStyle(0xcccccc, 1);
-        arrow.fillTriangle(18, 0, 14, -2, 14, 2);
-        // Green fletching
-        arrow.fillStyle(0x2e7d32, 1);
-        arrow.fillTriangle(-16, 0, -12, -5, -12, 5);
-        arrow.fillTriangle(-18, -3, -16, 0, -12, -3);
-        arrow.fillTriangle(-18, 3, -16, 0, -12, 3);
+    private launchSharpshooterArrow(troop: Troop, start: Phaser.Math.Vector2, end: Phaser.Math.Vector2, angle: number, targetBuilding: PlacedBuilding, damage: number) {
+        // Musket ball + a fading powder tracer. The ball spawns where the
+        // renderer draws the muzzle when the piece is shouldered.
+        const barrelLen = (troop.level || 1) >= 3 ? 12 : 10.8;
+        const mx = start.x + Math.cos(angle) * barrelLen;
+        const my = start.y - 7 + Math.sin(angle) * 0.5 * barrelLen;
 
-        arrow.setPosition(start.x, start.y - 12);
-        arrow.setRotation(angle);
-        arrow.setDepth(10000);
-        arrow.setAlpha(0); // Start invisible
+        const ball = this.add.graphics();
+        ball.fillStyle(0x2a2d33, 1);
+        ball.fillCircle(0, 0, 1.4);
+        ball.fillStyle(0x9aa0aa, 0.9);
+        ball.fillCircle(-0.4, -0.4, 0.5);
+        ball.setPosition(mx, my);
+        ball.setDepth(10000);
 
-        // Delay arrow visibility so it doesn't overlap with bow-held arrow
-        this.tweens.add({
-            targets: arrow,
-            alpha: 1,
-            delay: 50,
-            duration: 30,
-            ease: 'Linear'
-        });
-
-        // Trail effect
+        // Tracer line that fades behind the ball.
         const trail = this.add.graphics();
-        trail.lineStyle(2, 0x88ff88, 0.5);
-        trail.lineBetween(start.x, start.y - 12, start.x, start.y - 12);
         trail.setDepth(9999);
 
-        const endY = end.y - 25;
-        const dist = Math.sqrt((end.x - start.x) ** 2 + (endY - (start.y - 12)) ** 2);
-        const duration = Math.min(350, 80 + dist * 0.25); // Fast arrow
+        const endY = end.y - 14;
+        const dist = Math.sqrt((end.x - mx) ** 2 + (endY - my) ** 2);
+        const duration = Math.min(220, 40 + dist * 0.16); // near-instant shot
 
         this.tweens.add({
-            targets: arrow,
+            targets: ball,
             x: end.x,
             y: endY,
             duration: duration,
             ease: 'Linear',
             onUpdate: () => {
-                // Update trail
                 trail.clear();
-                trail.lineStyle(2, 0x88ff88, 0.3);
-                trail.lineBetween(start.x, start.y - 12, arrow.x, arrow.y);
+                trail.lineStyle(1.2, 0xe8e2d0, 0.35);
+                trail.lineBetween(mx, my, ball.x, ball.y);
             },
             onComplete: () => {
-                arrow.destroy();
+                ball.destroy();
                 trail.destroy();
 
                 if (targetBuilding && targetBuilding.health > 0) {
                     targetBuilding.health -= damage;
-                    this.showHitEffect(targetBuilding.graphics);
                     this.updateHealthBar(targetBuilding);
 
                     if (targetBuilding.health <= 0) {
@@ -3960,10 +4574,10 @@ export class MainScene extends Phaser.Scene {
                     }
                 }
 
-                // Bigger impact effect
-                const thud = this.add.circle(end.x, endY, 8, 0x2e7d32, 0.8);
+                // Stone-chip impact: a grey dust pop, no arrow thud.
+                const thud = this.add.circle(end.x, endY, 5, 0x8a8478, 0.7);
                 thud.setDepth(100);
-                this.tweens.add({ targets: thud, scale: 0.2, alpha: 0, duration: 180, onComplete: () => thud.destroy() });
+                this.tweens.add({ targets: thud, scale: 0.3, alpha: 0, duration: 150, onComplete: () => thud.destroy() });
             }
         });
     }
@@ -3980,10 +4594,11 @@ export class MainScene extends Phaser.Scene {
         troop.facingAngle = angle;
 
         // Mortar is offset relative to the troop based on facing direction
+        // (matches the cart position/tube top drawn in TroopRenderer).
         const facingLeft = Math.abs(angle) > Math.PI / 2;
         const flip = facingLeft ? -1 : 1;
-        const mortarX = start.x - (12 * flip);
-        const mortarY = start.y - 22;
+        const mortarX = start.x - (11 * flip);
+        const mortarY = start.y - 18;
 
         // MORTAR RECOIL - animates only the mortar, not the soldier
         // Initialize if needed
@@ -4021,7 +4636,7 @@ export class MainScene extends Phaser.Scene {
 
         // THIN BLACK SMOKE - rising slowly from mortar muzzle
         for (let i = 0; i < 6; i++) {
-            this.time.delayedCall(i * 80, () => {
+            this.scheduleBattleCall(i * 80, () => {
                 particleManager.emitDustBurst(mortarX, mortarY, 10002);
             });
         }
@@ -4052,7 +4667,7 @@ export class MainScene extends Phaser.Scene {
                         const tCenterY = target.gridY + targetInfo.height / 2;
                         const sRadius = stats.splashRadius || 2;
 
-                        this.buildings.forEach(b => {
+                        [...this.buildings].forEach(b => {
                             if (b.owner !== troop.owner && b.health > 0) {
                                 const bInfo = BUILDINGS[b.type];
                                 const bCenterX = b.gridX + bInfo.width / 2;
@@ -4065,7 +4680,6 @@ export class MainScene extends Phaser.Scene {
                                     // Full damage at center, half at edge
                                     const splashDamage = bdist < 0.5 ? damage : damage * 0.6;
                                     b.health -= splashDamage;
-                                    this.showHitEffect(b.graphics);
                                     this.updateHealthBar(b);
                                     if (b.health <= 0) {
                                         this.destroyBuilding(b);
@@ -4097,9 +4711,9 @@ export class MainScene extends Phaser.Scene {
         const targets = this.findChainTargets(target, chainCount, chainRange, troop.owner);
 
         // Initial Zap Visual (Troop -> First Target)
-        // Start from staff tip (offset)
-        const staffTipX = start.x + Math.cos(angle - Math.PI / 4) * 8;
-        const staffTipY = start.y + Math.sin(angle - Math.PI / 4) * 8 - 25;
+        // Start from the staff crystal (raised two-handed while casting).
+        const staffTipX = start.x + 3.5;
+        const staffTipY = start.y - 16;
         this.drawLightningBolt(staffTipX, staffTipY, end.x, end.y - 15, 0x00ffff);
 
         // Apply damage to primary
@@ -4111,7 +4725,7 @@ export class MainScene extends Phaser.Scene {
         let currentDamage = damage * 0.8;
 
         targets.forEach((nextTarget, index) => {
-            this.time.delayedCall(100 * (index + 1), () => {
+            this.scheduleBattleCall(100 * (index + 1), () => {
                 if (nextTarget.health > 0 && (previous.health > 0 || index === 0)) { // Allow chaining from dead primary
                     const pInfo = BUILDINGS[previous.type];
                     // Get center of previous, or its last known pos if dead (approx)
@@ -4238,7 +4852,6 @@ export class MainScene extends Phaser.Scene {
     private applyLightningDamage(target: PlacedBuilding, damage: number) {
         if (target && target.health > 0) {
             target.health -= damage;
-            this.showHitEffect(target.graphics, 0x00ffff); // Cyan hit flash
             this.updateHealthBar(target);
 
             if (target.health <= 0) {
@@ -4287,36 +4900,40 @@ export class MainScene extends Phaser.Scene {
                 // Create flying bolt projectile
                 const bolt = this.add.graphics();
 
-                // Draw bolt shape (narrower)
+                // Huge spear matching the loaded bolt on the machine
                 const bLevel = ballista.level ?? 1;
                 // L3: gold bolt, L2: grey, L1: wood
                 bolt.fillStyle(bLevel >= 3 ? 0xb8860b : 0x5d4e37, 1);
-                bolt.fillRect(-16, -1.5, 32, 3);
-                // Arrowhead
+                bolt.fillRect(-24, -2.8, 48, 5.6);
+                bolt.fillStyle(bLevel >= 3 ? 0xffd700 : (bLevel >= 2 ? 0x9a9aa6 : 0xa8845e), 0.8);
+                bolt.fillRect(-24, -2.8, 48, 2);
+                // Big leaf arrowhead
                 bolt.fillStyle(bLevel >= 3 ? 0xdaa520 : 0x3a3a3a, 1);
                 bolt.beginPath();
-                bolt.moveTo(20, 0);
-                bolt.lineTo(14, -4);
-                bolt.lineTo(14, 4);
+                bolt.moveTo(35, 0);
+                bolt.lineTo(27, -6);
+                bolt.lineTo(24, 0);
+                bolt.lineTo(27, 6);
                 bolt.closePath();
                 bolt.fillPath();
                 // Fletching - Gold for L3, Grey for L2, Red for L1
                 const fletchColor = bLevel >= 3 ? 0xffd700 : (bLevel >= 2 ? 0x444444 : 0xcc3333);
                 bolt.fillStyle(fletchColor, 1);
                 bolt.beginPath();
-                bolt.moveTo(-16, 0);
-                bolt.lineTo(-11, -5);
-                bolt.lineTo(-6, 0);
+                bolt.moveTo(-24, 0);
+                bolt.lineTo(-16, -8);
+                bolt.lineTo(-8, 0);
                 bolt.closePath();
                 bolt.fillPath();
                 bolt.beginPath();
-                bolt.moveTo(-16, 0);
-                bolt.lineTo(-11, 5);
-                bolt.lineTo(-6, 0);
+                bolt.moveTo(-24, 0);
+                bolt.lineTo(-16, 8);
+                bolt.lineTo(-8, 0);
                 bolt.closePath();
                 bolt.fillPath();
 
-                bolt.setPosition(start.x, start.y - 12);
+                // Exit exactly where the loaded bolt sits on the rail
+                bolt.setPosition(start.x + Math.cos(angle) * 14, start.y - 28 + Math.sin(angle) * 0.5 * 14);
                 bolt.setRotation(angle);
                 bolt.setDepth(20000);
 
@@ -4336,6 +4953,22 @@ export class MainScene extends Phaser.Scene {
                 // Animate bolt flying to target
                 const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
                 let lastTrailTime = 0;
+
+                // Ground shadow tracking under the bolt
+                const boltShadow = this.add.graphics();
+                boltShadow.fillStyle(0x18220f, 0.28);
+                boltShadow.fillEllipse(0, 0, 30, 9);
+                boltShadow.setPosition(start.x + Math.cos(angle) * 14, start.y + 3);
+                boltShadow.setRotation(angle);
+                boltShadow.setDepth(950);
+                this.tweens.add({
+                    targets: boltShadow,
+                    x: end.x,
+                    y: end.y + 3,
+                    duration: dist / 1.2,
+                    ease: 'Linear',
+                    onComplete: () => boltShadow.destroy()
+                });
 
                 this.tweens.add({
                     targets: bolt,
@@ -4457,7 +5090,7 @@ export class MainScene extends Phaser.Scene {
 
                 // Reload bolt based on configured fire cadence.
                 const reloadDelay = Math.max(300, (stats.fireRate ?? 1900) - 250);
-                this.time.delayedCall(reloadDelay, () => {
+                this.scheduleBattleCall(reloadDelay, () => {
                     ballista.ballistaBoltLoaded = true;
                 });
             }
@@ -4563,14 +5196,15 @@ export class MainScene extends Phaser.Scene {
         // Green for heal (negative damage), Cyan for attack
         const color = damage < 0 ? 0x00ff00 : 0x88ffcc;
 
+        // Beam leaves the staff orb (villager-scale ward: orb at ~(4.6,-12)).
         const laser = this.add.graphics();
-        laser.lineStyle(4, color, 0.9);
-        laser.lineBetween(start.x + 7, start.y - 17, end.x, end.y - 20);
-        laser.lineStyle(2, 0xffffff, 0.6);
-        laser.lineBetween(start.x + 7, start.y - 17, end.x, end.y - 20);
+        laser.lineStyle(3, color, 0.9);
+        laser.lineBetween(start.x + 4.6, start.y - 12, end.x, end.y - 20);
+        laser.lineStyle(1.5, 0xffffff, 0.6);
+        laser.lineBetween(start.x + 4.6, start.y - 12, end.x, end.y - 20);
         laser.setDepth(25000);
 
-        const orb = this.add.circle(start.x + 7, start.y - 17, 6, color, 0.8);
+        const orb = this.add.circle(start.x + 4.6, start.y - 12, 4.5, color, 0.8);
         orb.setDepth(25001);
 
         // DEAL DAMAGE IMMEDIATELY ON LASER SPAWN (Attack Mode Only)
@@ -4579,16 +5213,12 @@ export class MainScene extends Phaser.Scene {
 
             // Only buildings show hit effect/health bar update this way
             if ('graphics' in target) {
-                this.showHitEffect(target.graphics);
                 this.updateHealthBar(target);
 
                 if (target.health <= 0) {
                     // It's a building
                     if ('type' in target && BUILDINGS[target.type]) {
                         this.destroyBuilding(target as PlacedBuilding);
-                        this.troops.forEach(t => {
-                            if (t.target && t.target.id === target.id) t.target = null;
-                        });
                     } else {
                         // Troop death (if Ward attacks troops in future)
                         this.destroyTroop(target as unknown as Troop);
@@ -4622,14 +5252,37 @@ export class MainScene extends Phaser.Scene {
 
     private redrawTroop(troop: Troop) {
         const g = troop.gameObject;
+        // Attack animations tween plain objects whose callbacks outlive the
+        // troop (golem slam, tank rotation, phalanx thrust). Drawing on a
+        // destroyed Graphics throws inside Phaser's tween step and would kill
+        // the whole game loop — a dead troop just skips its redraw.
+        if (!g || !g.active || !g.scene) return;
         g.clear();
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1);
+        if (SpriteBank.syncTroop(this, troop, true, this.troopAttackAge(troop), this.time.now)) return;
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.time.now, this.troopAttackAge(troop), troop.attackDelay);
     }
 
     private redrawTroopWithMovement(troop: Troop, isMoving: boolean) {
         const g = troop.gameObject;
+        if (!g || !g.active || !g.scene) return; // see redrawTroop
         g.clear();
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1);
+        if (SpriteBank.syncTroop(this, troop, isMoving, this.troopAttackAge(troop), this.time.now)) return;
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.time.now, this.troopAttackAge(troop), troop.attackDelay);
+    }
+
+    /**
+     * ms since this troop's last damage tick — the renderer keys wind-up /
+     * strike animation off it so attacks land exactly when damage fires.
+     * Live troops whose tick is stale (not actually fighting: pathing pauses,
+     * wards trailing their leader) report -1 so idle stances stay idle;
+     * replay troops never update lastAttackTime, so in REPLAY mode the stale
+     * age passes through and the renderer free-runs the cycle instead.
+     */
+    private troopAttackAge(troop: Troop): number {
+        const age = this.time.now - troop.lastAttackTime;
+        if (age < 0) return -1; // chill effect pushes lastAttackTime ahead of the clock
+        if (this.mode !== 'REPLAY' && age > troop.attackDelay + 600) return -1;
+        return age;
     }
 
     private setTroopRetargetPause(troop: Troop, minMs: number = 70, maxMs: number = 180) {
@@ -4638,6 +5291,271 @@ export class MainScene extends Phaser.Scene {
         const scaledMax = Math.max(scaledMin, Math.round(maxMs * pauseScale));
         const until = this.time.now + Phaser.Math.Between(scaledMin, scaledMax);
         troop.retargetPauseUntil = Math.max(troop.retargetPauseUntil ?? 0, until);
+    }
+
+    private liveBuildingById(id: string | undefined): PlacedBuilding | null {
+        if (!id) return null;
+        return this.buildings.find(building =>
+            building.id === id && building.health > 0 && !building.isDestroyed
+        ) ?? null;
+    }
+
+    private isLiveTroopTarget(value: unknown): value is Troop {
+        if (!value || typeof value !== 'object') return false;
+        const candidate = value as Troop;
+        return candidate.health > 0 && this.troops.some(troop => troop.id === candidate.id);
+    }
+
+    private navigationSlot(troop: Troop, span: number): number {
+        let hash = 2166136261;
+        for (let i = 0; i < troop.id.length; i++) {
+            hash ^= troop.id.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0) % Math.max(1, span);
+    }
+
+    private nextNavigationDelay(troop: Troop): number {
+        // Stable staggering avoids pathfinding bursts without injecting
+        // per-frame randomness into AI decisions.
+        const base = troop.type === 'ward' ? 180 : 340;
+        return base + this.navigationSlot(troop, base);
+    }
+
+    private applyCombatNavigation(troop: Troop, selection: CombatNavigationSelection, now: number) {
+        const previousIntentId = troop.strategicTarget?.id;
+        const previousActiveId = (troop.target as { id?: string } | null)?.id;
+
+        troop.strategicTarget = selection.strategicTarget;
+        troop.navigationPlan = selection.plan ?? undefined;
+        troop.target = selection.activeTarget;
+        troop.path = selection.plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
+        troop.nextPathTime = now + this.nextNavigationDelay(troop);
+
+        const intentChanged = previousIntentId !== selection.strategicTarget?.id;
+        const activeChanged = previousActiveId !== selection.activeTarget?.id;
+        if (intentChanged || activeChanged) {
+            troop.lastTargetSwitchTime = now;
+            if (intentChanged) troop.lastOpportunityScanTime = now;
+            this.setTroopRetargetPause(troop, activeChanged ? 45 : 25, activeChanged ? 120 : 75);
+        }
+    }
+
+    /** Acquire a route-aware objective. The returned active target may be a
+     * required wall, while `strategicTarget` always remains the real building. */
+    private acquireTroopNavigation(troop: Troop, now: number) {
+        if (troop.type === 'ward') {
+            const followTarget = this.findWardTarget(troop);
+            const previousId = (troop.target as { id?: string } | null)?.id;
+            troop.target = followTarget;
+            troop.strategicTarget = followTarget && BUILDINGS[(followTarget as { type?: string }).type ?? '']
+                ? followTarget as PlacedBuilding
+                : null;
+
+            if (followTarget && this.isLiveTroopTarget(followTarget)) {
+                const followRange = Math.min(2.5, Math.max(1.25, this.getTroopCombatStats(troop).range));
+                const plan = CombatNavigationSystem.planToPoint(
+                    troop,
+                    { id: followTarget.id, gridX: followTarget.gridX, gridY: followTarget.gridY },
+                    followRange,
+                    this.buildings,
+                    this.troops,
+                    this.combatTopologyRevision,
+                    now
+                );
+                troop.navigationPlan = plan ?? undefined;
+                troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
+            } else if (troop.strategicTarget) {
+                const plan = CombatNavigationSystem.planToBuilding(
+                    troop,
+                    troop.strategicTarget,
+                    this.buildings,
+                    this.troops,
+                    this.combatTopologyRevision,
+                    now
+                );
+                const active = this.liveBuildingById(plan?.activeTargetId) ?? troop.strategicTarget;
+                troop.target = active;
+                troop.navigationPlan = plan ?? undefined;
+                troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
+            } else {
+                troop.navigationPlan = undefined;
+                troop.path = undefined;
+            }
+
+            troop.nextPathTime = now + this.nextNavigationDelay(troop);
+            if (previousId !== (troop.target as { id?: string } | null)?.id) {
+                troop.lastTargetSwitchTime = now;
+                this.setTroopRetargetPause(troop, 45, 110);
+            }
+            return;
+        }
+
+        const selection = CombatNavigationSystem.selectTargetAndPlan(
+            troop,
+            this.buildings,
+            this.troops,
+            this.combatTopologyRevision,
+            now,
+            troop.strategicTarget ?? undefined
+        );
+        this.applyCombatNavigation(troop, selection, now);
+    }
+
+    private refreshTroopNavigation(troop: Troop, now: number) {
+        if (troop.type === 'ward' && this.isLiveTroopTarget(troop.target)) {
+            const leader = troop.target as Troop;
+            const followRange = Math.min(2.5, Math.max(1.25, this.getTroopCombatStats(troop).range));
+            const plan = CombatNavigationSystem.planToPoint(
+                troop,
+                { id: leader.id, gridX: leader.gridX, gridY: leader.gridY },
+                followRange,
+                this.buildings,
+                this.troops,
+                this.combatTopologyRevision,
+                now
+            );
+            troop.navigationPlan = plan ?? undefined;
+            troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
+            troop.nextPathTime = now + this.nextNavigationDelay(troop);
+            return;
+        }
+
+        const strategic = this.liveBuildingById(troop.strategicTarget?.id);
+        if (!strategic) {
+            this.acquireTroopNavigation(troop, now);
+            return;
+        }
+
+        // Clash-style target lock with route-aware opportunity switching: a
+        // troop stays committed unless another same-tier objective beats the
+        // current route by the planner's hysteresis margin.
+        if (now >= (troop.lastOpportunityScanTime ?? 0) + 900) {
+            troop.lastOpportunityScanTime = now;
+            const selection = CombatNavigationSystem.selectTargetAndPlan(
+                troop,
+                this.buildings,
+                this.troops,
+                this.combatTopologyRevision,
+                now,
+                strategic
+            );
+            if (selection.plan) {
+                this.applyCombatNavigation(troop, selection, now);
+                return;
+            }
+        }
+
+        const plan = CombatNavigationSystem.planToBuilding(
+            troop,
+            strategic,
+            this.buildings,
+            this.troops,
+            this.combatTopologyRevision,
+            now
+        );
+        const activeTarget = this.liveBuildingById(plan?.activeTargetId);
+        this.applyCombatNavigation(troop, {
+            strategicTarget: plan ? strategic : null,
+            activeTarget,
+            plan
+        }, now);
+    }
+
+    private ensureTroopNavigation(troop: Troop, now: number) {
+        if (troop.type === 'ward' && this.isLiveTroopTarget(troop.target)) {
+            if (!troop.navigationPlan || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision) {
+                if (now >= (troop.nextPathTime ?? 0)) this.refreshTroopNavigation(troop, now);
+            }
+            return;
+        }
+
+        const strategic = this.liveBuildingById(troop.strategicTarget?.id);
+        const active = this.liveBuildingById((troop.target as { id?: string } | null)?.id);
+        const planIsCurrent = !!troop.navigationPlan
+            && troop.navigationPlan.topologyRevision === this.combatTopologyRevision
+            && troop.navigationPlan.strategicTargetId === strategic?.id
+            && troop.navigationPlan.activeTargetId === active?.id;
+
+        if (!strategic) {
+            if (now >= (troop.nextPathTime ?? 0)) this.acquireTroopNavigation(troop, now);
+        } else if (!planIsCurrent && now >= (troop.nextPathTime ?? 0)) {
+            this.refreshTroopNavigation(troop, now);
+        }
+    }
+
+    private invalidateCombatTopologyForRemoval(removed: PlacedBuilding) {
+        this.combatTopologyRevision++;
+        const nextRevision = this.combatTopologyRevision;
+        const now = this.time.now;
+
+        for (const troop of this.troops) {
+            const intentDestroyed = troop.strategicTarget?.id === removed.id;
+            const activeDestroyed = (troop.target as { id?: string } | null)?.id === removed.id;
+            const routeBlockerDestroyed = troop.navigationPlan?.blockerId === removed.id;
+
+            if (intentDestroyed) {
+                // This is the reported stale-wall case: losing the objective
+                // cancels all breach work undertaken solely for that objective.
+                troop.strategicTarget = null;
+                troop.target = null;
+            } else if (activeDestroyed) {
+                troop.target = this.liveBuildingById(troop.strategicTarget?.id);
+            }
+
+            const urgent = intentDestroyed || activeDestroyed || routeBlockerDestroyed;
+            if (urgent) {
+                troop.navigationPlan = undefined;
+                troop.path = undefined;
+            } else if (troop.navigationPlan) {
+                // Removing geometry can only open routes; it cannot make the
+                // existing collision-safe route invalid.  Promote that route
+                // to the new revision so unrelated destruction never freezes
+                // movement or attacks, then stagger an opportunistic shorter
+                // replan that may discover the new opening.
+                troop.navigationPlan.topologyRevision = nextRevision;
+            }
+            troop.nextPathTime = now + this.navigationSlot(troop, urgent ? 180 : 360);
+            if (urgent) {
+                this.setTroopRetargetPause(troop, 30, 90);
+            }
+        }
+    }
+
+    private invalidateWardFollowers(removedTroopId: string) {
+        for (const ward of this.troops) {
+            if (ward.type !== 'ward' || (ward.target as { id?: string } | null)?.id !== removedTroopId) continue;
+            ward.target = null;
+            ward.navigationPlan = undefined;
+            ward.path = undefined;
+            ward.nextPathTime = 0;
+        }
+    }
+
+    private nearestWalkableTroopPoint(
+        profile: Pick<Troop, 'type' | 'level'>,
+        gridX: number,
+        gridY: number
+    ): { x: number; y: number } {
+        if (CombatNavigationSystem.isPositionWalkable(profile, gridX, gridY, this.buildings, this.mapSize)) {
+            return { x: gridX, y: gridY };
+        }
+
+        // Split troops and area knock-backs can land inside newly-live geometry.
+        // Project to the nearest legal sample before rendering the first frame.
+        for (let ring = 1; ring <= 12; ring++) {
+            const radius = ring * 0.2;
+            const samples = Math.max(12, ring * 4);
+            for (let sample = 0; sample < samples; sample++) {
+                const angle = (sample / samples) * Math.PI * 2;
+                const x = gridX + Math.cos(angle) * radius;
+                const y = gridY + Math.sin(angle) * radius;
+                if (CombatNavigationSystem.isPositionWalkable(profile, x, y, this.buildings, this.mapSize)) {
+                    return { x, y };
+                }
+            }
+        }
+        return { x: gridX, y: gridY };
     }
 
     private rotateTroopToward(troop: Troop, desiredAngle: number, delta: number): boolean {
@@ -4649,56 +5567,16 @@ export class MainScene extends Phaser.Scene {
     }
 
     private getTargetEdgeDistance(troop: Troop, target: PlacedBuilding | Troop): number {
-        const isBuilding = !!((target as any).type && BUILDINGS[(target as any).type]);
-        const tw = isBuilding ? BUILDINGS[(target as any).type].width : 0.5;
-        const th = isBuilding ? BUILDINGS[(target as any).type].height : 0.5;
-        const bx = isBuilding ? (target as any).gridX : (target as any).gridX - tw / 2;
-        const by = isBuilding ? (target as any).gridY : (target as any).gridY - th / 2;
+        const isBuilding = !!BUILDINGS[target.type];
+        const tw = isBuilding ? BUILDINGS[target.type].width : 0.5;
+        const th = isBuilding ? BUILDINGS[target.type].height : 0.5;
+        const bx = isBuilding ? target.gridX : target.gridX - tw / 2;
+        const by = isBuilding ? target.gridY : target.gridY - th / 2;
         const dx = Math.max(bx - troop.gridX, 0, troop.gridX - (bx + tw));
         const dy = Math.max(by - troop.gridY, 0, troop.gridY - (by + th));
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    private findImmediateOpportunityTarget(troop: Troop, stats: any, currentDist: number, now: number): PlacedBuilding | null {
-        if (troop.type === 'ward') return null;
-        if (now < (troop.lastOpportunityScanTime ?? 0) + 220) return null;
-        troop.lastOpportunityScanTime = now;
-        if (now < (troop.lastTargetSwitchTime ?? 0) + 450) return null;
-
-        const priority = stats.targetPriority as ('town_hall' | 'defense' | 'wall' | undefined);
-        let candidates = this.buildings.filter(b => b.owner !== troop.owner && b.health > 0);
-
-        if (priority === 'wall') {
-            candidates = candidates.filter(b => b.type === 'wall');
-        } else if (priority === 'town_hall') {
-            candidates = candidates.filter(b => b.type === 'town_hall');
-        } else if (priority === 'defense') {
-            const defenses = candidates.filter(b => {
-                const info = BUILDINGS[b.type];
-                return info && info.category === 'defense' && b.type !== 'wall';
-            });
-            candidates = defenses.length > 0 ? defenses : candidates.filter(b => b.type !== 'wall');
-        } else {
-            candidates = candidates.filter(b => b.type !== 'wall');
-        }
-
-        const opportunityRange = stats.range + 1.4;
-        let best: PlacedBuilding | undefined;
-        let bestDist = Infinity;
-
-        for (const candidate of candidates) {
-            const d = this.getTargetEdgeDistance(troop, candidate);
-            if (d <= opportunityRange && d < bestDist) {
-                best = candidate;
-                bestDist = d;
-            }
-        }
-
-        if (!best) return null;
-        if (bestDist + 0.3 >= currentDist) return null;
-        if (troop.target && (troop.target as any).id === best.id) return null;
-        return best;
-    }
 
     private handleStuckTroop(troop: Troop, now: number, distToTarget: number): boolean {
         if (troop.lastProgressTime === undefined) {
@@ -4732,6 +5610,7 @@ export class MainScene extends Phaser.Scene {
 
         troop.stuckTicks = 0;
         troop.path = undefined;
+        troop.navigationPlan = undefined;
         troop.nextPathTime = now;
         this.setTroopRetargetPause(troop, 60, 140);
         return true;
@@ -4739,305 +5618,257 @@ export class MainScene extends Phaser.Scene {
 
     private updateTroops(delta: number) {
         const now = this.time.now;
+        const movementDelta = Math.min(delta, 250);
 
-        this.troops.forEach(troop => {
-            if (troop.health <= 0) return;
-
-            if (troop.target && troop.target.health <= 0) {
-                troop.target = null;
-                troop.path = undefined;
-                troop.nextPathTime = now;
-                this.setTroopRetargetPause(troop, 80, 160);
+        // Local avoidance remains deliberately separate from global planning.
+        // It makes a formation feel alive, while the collision resolver below
+        // remains authoritative over every final displacement.
+        const SEPARATION_CELL = 2;
+        const cellKey = (gx: number, gy: number) =>
+            (Math.floor(gx / SEPARATION_CELL) + 64) * 4096 + (Math.floor(gy / SEPARATION_CELL) + 64);
+        const separationGrid = new Map<number, Troop[]>();
+        for (const candidate of this.troops) {
+            if (candidate.health <= 0) continue;
+            const key = cellKey(candidate.gridX, candidate.gridY);
+            const bucket = separationGrid.get(key);
+            if (bucket) bucket.push(candidate);
+            else separationGrid.set(key, [candidate]);
+        }
+        const forEachNeighbor = (of: Troop, fn: (other: Troop) => void) => {
+            const cx = Math.floor(of.gridX / SEPARATION_CELL);
+            const cy = Math.floor(of.gridY / SEPARATION_CELL);
+            for (let ix = cx - 1; ix <= cx + 1; ix++) {
+                for (let iy = cy - 1; iy <= cy + 1; iy++) {
+                    const bucket = separationGrid.get((ix + 64) * 4096 + (iy + 64));
+                    if (!bucket) continue;
+                    for (const other of bucket) fn(other);
+                }
             }
+        };
+
+        const geometryFor = (troop: Troop, target: Troop | PlacedBuilding) => {
+            const isBuilding = !!BUILDINGS[(target as { type?: string }).type ?? ''];
+            const width = isBuilding ? BUILDINGS[(target as PlacedBuilding).type].width : 0.5;
+            const height = isBuilding ? BUILDINGS[(target as PlacedBuilding).type].height : 0.5;
+            const bx = isBuilding ? target.gridX : target.gridX - width / 2;
+            const by = isBuilding ? target.gridY : target.gridY - height / 2;
+            const dx = Math.max(bx - troop.gridX, 0, troop.gridX - (bx + width));
+            const dy = Math.max(by - troop.gridY, 0, troop.gridY - (by + height));
+            const stats = this.getTroopCombatStats(troop);
+            const followsAlly = troop.type === 'ward'
+                && !isBuilding
+                && target.owner === troop.owner;
+            const stopRange = followsAlly
+                ? Math.min(2.5, Math.max(1.25, stats.range))
+                : stats.range;
+            return {
+                centerX: bx + width / 2,
+                centerY: by + height / 2,
+                distance: Math.hypot(dx, dy),
+                stopRange,
+                stats
+            };
+        };
+
+        for (const troop of this.troops) {
+            if (troop.health <= 0) continue;
+
+            this.ensureTroopNavigation(troop, now);
 
             // --- CHILLED STATUS EFFECT ---
-            if ((troop as any).chillRemainingMs > 0) {
-                (troop as any).chillRemainingMs -= delta;
-                if ((troop as any).chillRemainingMs <= 0) {
-                    (troop as any).chillRemainingMs = 0;
-                    if (troop.gameObject && (troop.gameObject as any).clearTint) {
-                        (troop.gameObject as any).clearTint();
-                    }
+            if ((troop.chillRemainingMs ?? 0) > 0) {
+                troop.chillRemainingMs = (troop.chillRemainingMs ?? 0) - delta;
+                if (troop.chillRemainingMs <= 0) {
+                    troop.chillRemainingMs = 0;
+                    const tinted = troop.gameObject as Phaser.GameObjects.Graphics & { clearTint?: () => void };
+                    tinted.clearTint?.();
                 } else {
-                    if (troop.gameObject && (troop.gameObject as any).setTint) {
-                        (troop.gameObject as any).setTint(0x88ccff);
-                    }
-                    // 60% Attack Speed Reduction
-                    // By pushing lastAttackTime forward, we artificially extend the cooldown.
-                    if (troop.lastAttackTime) {
-                        troop.lastAttackTime += delta * 1.5;
-                    }
+                    const tinted = troop.gameObject as Phaser.GameObjects.Graphics & { setTint?: (color: number) => void };
+                    tinted.setTint?.(0x88ccff);
+                    if (troop.lastAttackTime) troop.lastAttackTime += delta * 1.5;
                 }
             }
 
-            // Redraw animated troops every frame
-            if (troop.type === 'warrior' || troop.type === 'archer' || troop.type === 'giant' || troop.type === 'ram' || troop.type === 'golem' || troop.type === 'sharpshooter' || troop.type === 'mobilemortar' || troop.type === 'davincitank' || troop.type === 'phalanx' || troop.type === 'romanwarrior' || troop.type === 'wallbreaker') {
-                // Determine if troop is actually moving (not in attack range)
-                let isActuallyMoving = true;
-                if (troop.target) {
-                    const b = troop.target;
-                    const isBuilding = ('type' in b && BUILDINGS[b.type]);
-                    const tw = isBuilding ? BUILDINGS[b.type].width : 0.5;
-                    const th = isBuilding ? BUILDINGS[b.type].height : 0.5;
-                    const bx = isBuilding ? b.gridX : b.gridX - tw / 2;
-                    const by = isBuilding ? b.gridY : b.gridY - th / 2;
-                    const edx = Math.max(bx - troop.gridX, 0, troop.gridX - (bx + tw));
-                    const edy = Math.max(by - troop.gridY, 0, troop.gridY - (by + th));
-                    const dist = Math.sqrt(edx * edx + edy * edy);
-                    const stats = this.getTroopCombatStats(troop);
-                    isActuallyMoving = dist > stats.range && now >= (troop.retargetPauseUntil ?? 0);
+            let movedThisFrame = false;
+            let target = troop.target as Troop | PlacedBuilding | null;
+            let geometry = target ? geometryFor(troop, target) : null;
+
+            if (target && geometry && now < (troop.retargetPauseUntil ?? 0)) {
+                const currentPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                const targetPos = IsoUtils.cartToIso(geometry.centerX, geometry.centerY);
+                this.rotateTroopToward(
+                    troop,
+                    Math.atan2(targetPos.y - currentPos.y, targetPos.x - currentPos.x),
+                    movementDelta
+                );
+                troop.velocityX = (troop.velocityX ?? 0) * 0.55;
+                troop.velocityY = (troop.velocityY ?? 0) * 0.55;
+            } else if (target && geometry && geometry.distance > geometry.stopRange) {
+                const routeIsStale = !troop.navigationPlan
+                    || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision
+                    || now >= (troop.nextPathTime ?? 0)
+                    || troop.path === undefined;
+
+                if (routeIsStale && now >= (troop.nextPathTime ?? 0)) {
+                    this.refreshTroopNavigation(troop, now);
+                    target = troop.target as Troop | PlacedBuilding | null;
+                    geometry = target ? geometryFor(troop, target) : null;
                 }
-                this.redrawTroopWithMovement(troop, isActuallyMoving);
-            }
-            if (troop.target) {
-                const b = troop.target;
-                const isBuilding = ('type' in b && BUILDINGS[b.type]);
-                const tw = isBuilding ? BUILDINGS[b.type].width : 0.5;
-                const th = isBuilding ? BUILDINGS[b.type].height : 0.5;
-                const bx = isBuilding ? b.gridX : b.gridX - tw / 2;
-                const by = isBuilding ? b.gridY : b.gridY - th / 2;
 
-                // Target center for direction
-                const tx = bx + tw / 2;
-                const ty = by + th / 2;
-                // Distance to edge
-                const edx = Math.max(bx - troop.gridX, 0, troop.gridX - (bx + tw));
-                const edy = Math.max(by - troop.gridY, 0, troop.gridY - (by + th));
-                const dist = Math.sqrt(edx * edx + edy * edy);
-                const stats = this.getTroopCombatStats(troop);
-
-                const opportunity = this.findImmediateOpportunityTarget(troop, stats, dist, now);
-                if (opportunity) {
-                    troop.target = opportunity;
+                // Topology additions (replay correction/spawned geometry) can
+                // invalidate a route.  Never consume stale waypoints while its
+                // deterministic replan slot is pending.  Removal-only changes
+                // are promoted to the current revision above and keep moving.
+                if (!troop.navigationPlan
+                    || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision) {
                     troop.path = undefined;
-                    troop.nextPathTime = now;
-                    troop.lastTargetSwitchTime = now;
-                    this.setTroopRetargetPause(troop, 40, 100);
-                    return;
                 }
 
-                if (now < (troop.retargetPauseUntil ?? 0)) {
-                    const currentPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-                    const targetPos = IsoUtils.cartToIso(tx, ty);
-                    this.rotateTroopToward(troop, Math.atan2(targetPos.y - currentPos.y, targetPos.x - currentPos.x), delta);
-                    troop.velocityX = (troop.velocityX ?? 0) * 0.55;
-                    troop.velocityY = (troop.velocityY ?? 0) * 0.55;
-                    return;
-                }
-
-                if (dist > stats.range) {
-                    // Pathfinding - Staggered updates & Fanning
-                    // Ram skips A* pathfinding to "charge straight"
-                    if (troop.type !== 'ram' && (!troop.path || now >= (troop.nextPathTime || 0))) {
-                        troop.path = PathfindingSystem.findPath(troop, troop.target, this.buildings, this.troops) || undefined;
-                        troop.lastPathTime = now;
-                        const interval = troop.type === 'ward' ? 180 : 300;
-                        troop.nextPathTime = now + interval + Math.random() * interval;
-                    } else if (troop.type === 'ram') {
-                        troop.path = undefined;
+                if (target && geometry && now >= (troop.retargetPauseUntil ?? 0)
+                    && geometry.distance > geometry.stopRange) {
+                    while (troop.path && troop.path.length > 0) {
+                        const waypoint = troop.path[0];
+                        if (Math.hypot(waypoint.x - troop.gridX, waypoint.y - troop.gridY) >= 0.04) break;
+                        troop.path.shift();
                     }
 
-                    let moveDir = new Phaser.Math.Vector2(0, 0);
-                    let validMove = false;
+                    const waypoint = troop.path?.[0];
+                    if (waypoint) {
+                        const moveDir = new Phaser.Math.Vector2(
+                            waypoint.x - troop.gridX,
+                            waypoint.y - troop.gridY
+                        );
+                        if (moveDir.lengthSq() > 0.0001) {
+                            const waypointDistance = moveDir.length();
+                            moveDir.normalize();
 
-                    if (troop.path && troop.path.length > 0) {
-                        const next = troop.path[0];
-                        const targetX = next.x + 0.5;
-                        const targetY = next.y + 0.5;
-
-                        // Calculate distance to next waypoint
-                        let dx = targetX - troop.gridX;
-                        let dy = targetY - troop.gridY;
-                        const d = Math.sqrt(dx * dx + dy * dy);
-
-                        // Check for Wall collision at next step
-                        if (d < 0.8) {
-                            const nodeB = this.buildings.find(bl => bl.health > 0 &&
-                                next.x >= bl.gridX && next.x < bl.gridX + BUILDINGS[bl.type].width &&
-                                next.y >= bl.gridY && next.y < bl.gridY + BUILDINGS[bl.type].height
-                            );
-
-                            if (nodeB && nodeB.type === 'wall' && nodeB.id !== troop.target.id && nodeB.owner !== troop.owner) {
-                                // Blocked by wall -> Check for coordinated attack
-                                const nearby = this.findNearbyWallTarget(troop, nodeB);
-                                troop.target = nearby || nodeB;
-                                troop.path = undefined;
-                                troop.nextPathTime = now;
-                                troop.lastTargetSwitchTime = now;
-                                this.setTroopRetargetPause(troop, 90, 220);
-                                return;
+                            const separation = new Phaser.Math.Vector2(0, 0);
+                            const sidestep = new Phaser.Math.Vector2(0, 0);
+                            const sideNormal = new Phaser.Math.Vector2(-moveDir.y, moveDir.x);
+                            let idHash = 0;
+                            for (let i = 0; i < troop.id.length; i++) {
+                                idHash = Math.imul(idHash ^ troop.id.charCodeAt(i), 16777619);
                             }
-                        }
+                            const stableSide = (idHash & 1) === 0 ? -1 : 1;
 
-                        if (d < 0.15) {
-                            troop.path.shift();
-                            if (troop.path.length > 0) {
-                                const n2 = troop.path[0];
-                                dx = (n2.x + 0.5) - troop.gridX;
-                                dy = (n2.y + 0.5) - troop.gridY;
-                            }
-                        }
+                            forEachNeighbor(troop, other => {
+                                if (other === troop || other.health <= 0) return;
+                                const ox = other.gridX - troop.gridX;
+                                const oy = other.gridY - troop.gridY;
+                                const distance = Math.hypot(ox, oy);
+                                if (distance <= 0.001 || distance >= 1.8) return;
 
-                        moveDir.set(dx, dy).normalize();
-                        validMove = true;
-                    } else {
-                        // Fallback steering (Direct to target)
-                        moveDir.set(tx - troop.gridX, ty - troop.gridY).normalize();
-                        validMove = true;
+                                const weight = (1.8 - distance) / 1.8;
+                                separation.x -= (ox / distance) * weight;
+                                separation.y -= (oy / distance) * weight;
 
-                        // RAM SPECIAL: Check for walls ahead in straight line
-                        if (troop.type === 'ram') {
-                            const lookAhead = 0.8;
-                            const checkX = Math.floor(troop.gridX + moveDir.x * lookAhead);
-                            const checkY = Math.floor(troop.gridY + moveDir.y * lookAhead);
-
-                            const wallAhead = this.buildings.find(b =>
-                                b.type === 'wall' && b.owner !== troop.owner && b.health > 0 &&
-                                checkX >= b.gridX && checkX < b.gridX + BUILDINGS[b.type].width &&
-                                checkY >= b.gridY && checkY < b.gridY + BUILDINGS[b.type].height
-                            );
-
-                            if (wallAhead) {
-                                troop.target = wallAhead;
-                                troop.path = undefined;
-                                troop.nextPathTime = now;
-                                troop.lastTargetSwitchTime = now;
-                                this.setTroopRetargetPause(troop, 70, 150);
-                                return; // Stop moving this frame, start attacking next frame (since now dist <= range usually)
-                            }
-                        }
-                    }
-
-                    if (validMove) {
-                        // Separation + sidestep steering to reduce clumping while preserving forward intent.
-                        const separation = new Phaser.Math.Vector2(0, 0);
-                        const sideStep = new Phaser.Math.Vector2(0, 0);
-                        const sideNormal = new Phaser.Math.Vector2(-moveDir.y, moveDir.x);
-
-                        this.troops.forEach(other => {
-                            if (other === troop || other.health <= 0) return;
-                            const d = Phaser.Math.Distance.Between(troop.gridX, troop.gridY, other.gridX, other.gridY);
-                            if (d < 1.8 && d > 0.001) {
-                                const awayX = (troop.gridX - other.gridX) / d;
-                                const awayY = (troop.gridY - other.gridY) / d;
-                                const weight = (1.8 - d) / 1.8;
-                                separation.x += awayX * weight;
-                                separation.y += awayY * weight;
-                            }
-
-                            if (d < 1.4 && d > 0.001) {
-                                const towardX = other.gridX - troop.gridX;
-                                const towardY = other.gridY - troop.gridY;
-                                const forwardDot = ((towardX * moveDir.x) + (towardY * moveDir.y)) / d;
-                                if (forwardDot > 0.25) {
-                                    const lateral = (sideNormal.x * towardX) + (sideNormal.y * towardY);
-                                    const sideSign = lateral >= 0 ? -1 : 1;
-                                    const sideWeight = (1.4 - d) / 1.4;
-                                    sideStep.x += sideNormal.x * sideSign * sideWeight;
-                                    sideStep.y += sideNormal.y * sideSign * sideWeight;
+                                if (distance < 1.4) {
+                                    const forwardDot = ((ox * moveDir.x) + (oy * moveDir.y)) / distance;
+                                    if (forwardDot > 0.25) {
+                                        const lateral = (sideNormal.x * ox) + (sideNormal.y * oy);
+                                        const side = Math.abs(lateral) < 0.03 ? stableSide : (lateral >= 0 ? -1 : 1);
+                                        const sideWeight = (1.4 - distance) / 1.4;
+                                        sidestep.x += sideNormal.x * side * sideWeight;
+                                        sidestep.y += sideNormal.y * side * sideWeight;
+                                    }
                                 }
+                            });
+
+                            const desiredMove = moveDir.clone()
+                                .add(separation.scale(0.5))
+                                .add(sidestep.scale(0.28));
+                            if (desiredMove.lengthSq() < 0.0001) desiredMove.copy(moveDir);
+                            else desiredMove.normalize();
+
+                            const chilled = (troop.chillRemainingMs ?? 0) > 0;
+                            const speed = geometry.stats.speed
+                                * troop.speedMult
+                                * movementDelta
+                                * 1.12
+                                * (chilled ? 0.4 : 1);
+                            const targetVx = ((desiredMove.x * 0.82) + (moveDir.x * 0.18)) * speed;
+                            const targetVy = ((desiredMove.y * 0.82) + (moveDir.y * 0.18)) * speed;
+                            troop.velocityX = Phaser.Math.Linear(troop.velocityX ?? targetVx, targetVx, 0.45);
+                            troop.velocityY = Phaser.Math.Linear(troop.velocityY ?? targetVy, targetVy, 0.45);
+
+                            const velocityMagnitude = Math.hypot(troop.velocityX, troop.velocityY);
+                            const maxVelocity = Math.min(speed * 1.3, waypointDistance);
+                            if (velocityMagnitude > maxVelocity && velocityMagnitude > 0.0001) {
+                                const scale = maxVelocity / velocityMagnitude;
+                                troop.velocityX *= scale;
+                                troop.velocityY *= scale;
                             }
-                        });
 
-                        const desiredMove = moveDir
-                            .clone()
-                            .add(separation.scale(0.55))
-                            .add(sideStep.scale(0.35));
+                            const fromX = troop.gridX;
+                            const fromY = troop.gridY;
+                            const motion = CombatNavigationSystem.resolveMovement(
+                                troop,
+                                troop.velocityX,
+                                troop.velocityY,
+                                moveDir.x * speed,
+                                moveDir.y * speed,
+                                this.buildings,
+                                this.mapSize
+                            );
 
-                        if (desiredMove.lengthSq() < 0.0001) {
-                            desiredMove.copy(moveDir);
-                        } else {
-                            desiredMove.normalize();
-                        }
+                            troop.gridX = motion.x;
+                            troop.gridY = motion.y;
+                            troop.velocityX = motion.dx;
+                            troop.velocityY = motion.dy;
+                            movedThisFrame = Math.hypot(motion.dx, motion.dy) > 0.001;
 
-                        // 60% Movement Slowdown if chilled
-                        const chillSlowdown = ((troop as any).chillRemainingMs || 0) > 0 ? 0.4 : 1.0;
-                        const speed = stats.speed * troop.speedMult * delta * 1.12 * chillSlowdown;
-                        const targetVx = ((desiredMove.x * 0.8) + (moveDir.x * 0.2)) * speed;
-                        const targetVy = ((desiredMove.y * 0.8) + (moveDir.y * 0.2)) * speed;
-                        troop.velocityX = Phaser.Math.Linear(troop.velocityX ?? targetVx, targetVx, 0.45);
-                        troop.velocityY = Phaser.Math.Linear(troop.velocityY ?? targetVy, targetVy, 0.45);
-
-                        const velMag = Math.hypot(troop.velocityX, troop.velocityY);
-                        const maxVel = speed * 1.35;
-                        if (velMag > maxVel && velMag > 0.0001) {
-                            const scale = maxVel / velMag;
-                            troop.velocityX *= scale;
-                            troop.velocityY *= scale;
-                        }
-
-                        troop.gridX += troop.velocityX;
-                        troop.gridY += troop.velocityY;
-
-                        const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-                        troop.gameObject.setPosition(pos.x, pos.y);
-                        this.updateHealthBar(troop);
-                        troop.gameObject.setDepth(depthForTroop(troop.gridX, troop.gridY, troop.type));
-
-                        if (this.handleStuckTroop(troop, now, dist)) return;
-
-                        // Update facing angle for troops that need it (facing movement direction)
-                        if (troop.type === 'archer' || troop.type === 'ram' || troop.type === 'golem' || troop.type === 'sharpshooter' || troop.type === 'mobilemortar' || troop.type === 'phalanx' || troop.type === 'romanwarrior') {
-                            const targetPos = IsoUtils.cartToIso(tx, ty);
-                            const desiredFacing = Math.atan2(targetPos.y - pos.y, targetPos.x - pos.x);
-                            const rotated = this.rotateTroopToward(troop, desiredFacing, delta);
-                            // Redraw troops that have direction-dependent visuals
-                            if (rotated && (troop.type === 'sharpshooter' || troop.type === 'mobilemortar' || troop.type === 'phalanx' || troop.type === 'romanwarrior')) {
-                                this.redrawTroop(troop);
+                            if (motion.blocked && !movedThisFrame) {
+                                troop.velocityX *= 0.35;
+                                troop.velocityY *= 0.35;
                             }
-                        }
-                    }
-                } else {
-                    troop.velocityX = (troop.velocityX ?? 0) * 0.7;
-                    troop.velocityY = (troop.velocityY ?? 0) * 0.7;
 
-                    // In range - update facing direction for ranged/directional troops
-                    if ((troop.type === 'archer' || troop.type === 'sharpshooter' || troop.type === 'mobilemortar' || troop.type === 'phalanx' || troop.type === 'romanwarrior') && troop.target) {
-                        const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-                        const targetPos = IsoUtils.cartToIso(tx, ty);
-                        const desiredFacing = Math.atan2(targetPos.y - pos.y, targetPos.x - pos.x);
-                        const rotated = this.rotateTroopToward(troop, desiredFacing, delta);
-                        if (rotated) {
-                            this.redrawTroop(troop);
+                            if (movedThisFrame) {
+                                const fromPos = IsoUtils.cartToIso(fromX, fromY);
+                                const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                                troop.gameObject.setPosition(pos.x, pos.y);
+                                this.updateHealthBar(troop);
+
+                                const troopDepth = Math.round(depthForTroop(troop.gridX, troop.gridY, troop.type));
+                                if (troopDepth !== troop.lastDepth) {
+                                    troop.lastDepth = troopDepth;
+                                    troop.gameObject.setDepth(troopDepth);
+                                }
+
+                                const facing = Math.atan2(pos.y - fromPos.y, pos.x - fromPos.x);
+                                this.rotateTroopToward(troop, facing, movementDelta);
+                            }
+
+                            this.handleStuckTroop(troop, now, geometry.distance);
                         }
+                    } else {
+                        // A failed or exhausted route never becomes permission to
+                        // walk directly through geometry. Stuck recovery replans
+                        // the retained objective instead.
+                        troop.velocityX = (troop.velocityX ?? 0) * 0.45;
+                        troop.velocityY = (troop.velocityY ?? 0) * 0.45;
+                        this.handleStuckTroop(troop, now, geometry.distance);
                     }
                 }
+            } else if (target && geometry) {
+                troop.velocityX = (troop.velocityX ?? 0) * 0.7;
+                troop.velocityY = (troop.velocityY ?? 0) * 0.7;
+                const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                const targetPos = IsoUtils.cartToIso(geometry.centerX, geometry.centerY);
+                this.rotateTroopToward(
+                    troop,
+                    Math.atan2(targetPos.y - pos.y, targetPos.x - pos.x),
+                    movementDelta
+                );
             } else {
                 troop.velocityX = (troop.velocityX ?? 0) * 0.65;
                 troop.velocityY = (troop.velocityY ?? 0) * 0.65;
             }
-        });
-    }
 
-
-
-
-    private findNearbyWallTarget(troop: Troop, blockedWall: PlacedBuilding): PlacedBuilding | null {
-        // Find existing wall targets being attacked by friends nearby (within 3 tiles)
-        const candidates = this.troops
-            .filter(t => t !== troop && t.owner === troop.owner && t.target && t.target.type === 'wall')
-            .map(t => t.target!)
-            .filter((value, index, self) => self.findIndex(v => v.id === value.id) === index)
-            .filter(wall => {
-                const dist = Phaser.Math.Distance.Between(blockedWall.gridX, blockedWall.gridY, wall.gridX, wall.gridY);
-                return dist < 4;
-            });
-
-        if (candidates.length > 0) {
-            // Sort by popularity (converge on single piece)
-            return candidates.sort((a, b) => {
-                const countA = this.troops.filter(t => t.target && t.target.id === a.id).length;
-                const countB = this.troops.filter(t => t.target && t.target.id === b.id).length;
-                return countB - countA;
-            })[0];
+            if (!this.isOffScreen(troop.gridX, troop.gridY)) {
+                this.redrawTroopWithMovement(troop, movedThisFrame);
+            }
         }
-        return null;
     }
-
-
-
-
-
 
 
     private destroyBuilding(b: PlacedBuilding) {
@@ -5060,6 +5891,10 @@ export class MainScene extends Phaser.Scene {
 
         if (b.isDestroyed) return;
         b.isDestroyed = true;
+        if (this.mode === 'ATTACK' && b.owner === 'ENEMY') {
+            this.replayDestroyedBuildings.set(b.id, { id: b.id, health: 0, isDestroyed: true });
+        }
+        soundSystem.play('destroy');
 
         const info = BUILDINGS[b.type];
         if (!info) {
@@ -5069,6 +5904,7 @@ export class MainScene extends Phaser.Scene {
             if (b.rangeIndicator) b.rangeIndicator.destroy();
             if (b.healthBar) b.healthBar.destroy();
             this.buildings.splice(index, 1);
+            this.invalidateCombatTopologyForRemoval(b);
             return;
         }
 
@@ -5131,7 +5967,7 @@ export class MainScene extends Phaser.Scene {
 
         // Dust cloud (pixelated rectangles)
         for (let i = 0; i < 6 + size * 2; i++) {
-            this.time.delayedCall(i * 30, () => {
+            this.scheduleBattleCall(i * 30, () => {
                 const dustColors = [0x8b7355, 0x9b8365, 0x7b6345];
                 const dustSize = 8 + Math.floor(Math.random() * 10);
                 const dust = this.add.graphics();
@@ -5155,7 +5991,7 @@ export class MainScene extends Phaser.Scene {
             // Massive fire and explosion (pixelated rectangles)
             for (let i = 0; i < 25; i++) {
                 const delay = i * 40;
-                this.time.delayedCall(delay, () => {
+                this.scheduleBattleCall(delay, () => {
                     const fireColors = [0xff4400, 0xff6600, 0xff8800, 0xffaa00];
                     const fireSize = 8 + Math.floor(Math.random() * 15);
                     const fire = this.add.graphics();
@@ -5191,191 +6027,25 @@ export class MainScene extends Phaser.Scene {
                     onComplete: () => spark.destroy()
                 });
             }
-        } else if (b.type === 'solana_collector' || b.type === 'mine' || b.type === 'elixir_collector') {
-            particleManager.emitDustBurst(pos.x, pos.y - 10, 29900);
-            particleManager.emitExplosion(pos.x, pos.y - 10, 29900);
-        } else if (b.type === 'magmavent') {
-            // === VOLCANIC DEATH ===
-
-            // Stronger screen shake
-            this.cameras.main.shake(300, 0.004 * (this.mode === 'HOME' ? 0.2 : 1.0));
-
-            // Bright orange-white flash expanding from center
-            const lavaFlash = this.add.circle(pos.x, pos.y - 15, 15, 0xffcc66, 0.9);
-            lavaFlash.setDepth(30002);
-            this.tweens.add({ targets: lavaFlash, scale: 4, alpha: 0, duration: 250, onComplete: () => lavaFlash.destroy() });
-
-            // Rock crumble: 7 basalt chunks tumbling outward
-            const rockPositions = [
-                { x: -35, y: -10, label: 'back-left' },
-                { x: -25, y: -25, label: 'back-left-top' },
-                { x: 35, y: -5, label: 'back-right' },
-                { x: 25, y: -20, label: 'back-right-top' },
-                { x: 10, y: 18, label: 'front' },
-                { x: -10, y: 15, label: 'front-left' },
-                { x: 0, y: -30, label: 'top' },
-            ];
-            for (const rp of rockPositions) {
-                const chunk = this.add.graphics();
-                const chunkSize = 10 + Math.random() * 8;
-                chunk.fillStyle(0x2a2a32, 1);
-                chunk.beginPath();
-                chunk.moveTo(0, -chunkSize * 0.6);
-                chunk.lineTo(chunkSize * 0.5, -chunkSize * 0.2);
-                chunk.lineTo(chunkSize * 0.3, chunkSize * 0.4);
-                chunk.lineTo(-chunkSize * 0.4, chunkSize * 0.3);
-                chunk.lineTo(-chunkSize * 0.5, -chunkSize * 0.1);
-                chunk.closePath();
-                chunk.fillPath();
-                // Highlight face
-                chunk.fillStyle(0x3a3a45, 0.7);
-                chunk.beginPath();
-                chunk.moveTo(0, -chunkSize * 0.6);
-                chunk.lineTo(chunkSize * 0.5, -chunkSize * 0.2);
-                chunk.lineTo(chunkSize * 0.1, -chunkSize * 0.1);
-                chunk.closePath();
-                chunk.fillPath();
-
-                chunk.setPosition(pos.x + rp.x, pos.y + rp.y);
-                chunk.setDepth(30001);
-
-                const outAngle = Math.atan2(rp.y, rp.x) + (Math.random() - 0.5) * 0.5;
-                const outDist = 40 + Math.random() * 30;
-                const peakY = pos.y + rp.y - 30 - Math.random() * 25;
-
-                this.tweens.add({
-                    targets: chunk,
-                    x: pos.x + rp.x + Math.cos(outAngle) * outDist,
-                    duration: 500 + Math.random() * 200,
-                    ease: 'Quad.easeOut'
-                });
-                this.tweens.add({
-                    targets: chunk,
-                    y: [peakY, pos.y + rp.y + 15],
-                    duration: 500 + Math.random() * 200,
-                    ease: 'Quad.easeIn'
-                });
-                this.tweens.add({
-                    targets: chunk,
-                    rotation: (Math.random() - 0.5) * 3,
-                    alpha: 0,
-                    duration: 700 + Math.random() * 200,
-                    delay: 200,
-                    onComplete: () => chunk.destroy()
-                });
-            }
-
-            // Lava eruption: lava glob particles
-            for (let i = 0; i < 18; i++) {
-                const delay = Math.random() * 100;
-                this.time.delayedCall(delay, () => {
-                    const globColors = [0xff5500, 0xff7700, 0xffaa00, 0xffdd66];
-                    const globSize = 3 + Math.random() * 7;
-                    const glob = this.add.graphics();
-                    glob.fillStyle(globColors[Math.floor(Math.random() * 4)], 1);
-                    glob.fillCircle(0, 0, globSize);
-                    // White-hot core on larger globs
-                    if (globSize > 5) {
-                        glob.fillStyle(0xffeecc, 0.8);
-                        glob.fillCircle(0, 0, globSize * 0.4);
-                    }
-                    glob.setPosition(pos.x + (Math.random() - 0.5) * 20, pos.y - 15);
-                    glob.setDepth(30002);
-
-                    const angle = Math.random() * Math.PI * 2;
-                    const dist = 30 + Math.random() * 60;
-                    const peakY = pos.y - 50 - Math.random() * 50;
-
-                    this.tweens.add({
-                        targets: glob,
-                        x: pos.x + Math.cos(angle) * dist,
-                        duration: 500 + Math.random() * 300,
-                        ease: 'Quad.easeOut'
-                    });
-                    this.tweens.add({
-                        targets: glob,
-                        y: [peakY, pos.y + 10 + Math.random() * 15],
-                        duration: 500 + Math.random() * 300,
-                        ease: 'Quad.easeIn',
-                        onComplete: () => {
-                            // Splat effect
-                            const splat = this.add.graphics();
-                            splat.fillStyle(0xff5500, 0.5);
-                            splat.fillCircle(0, 0, globSize * 1.5);
-                            splat.setPosition(glob.x, glob.y);
-                            splat.setDepth(29999);
-                            this.tweens.add({ targets: splat, alpha: 0, duration: 600, onComplete: () => splat.destroy() });
-                            glob.destroy();
-                        }
-                    });
-                });
-            }
-
-            // Black smoke plumes
-            for (let i = 0; i < 4; i++) {
-                this.time.delayedCall(i * 50, () => {
-                    const smoke = this.add.graphics();
-                    const smokeSize = 10 + Math.random() * 12;
-                    smoke.fillStyle(0x222222, 0.6);
-                    smoke.fillRect(-smokeSize / 2, -smokeSize / 2, smokeSize, smokeSize);
-                    smoke.setPosition(pos.x + (Math.random() - 0.5) * 50, pos.y - 10);
-                    smoke.setDepth(30000);
-                    this.tweens.add({
-                        targets: smoke,
-                        y: smoke.y - 60 - Math.random() * 30,
-                        x: smoke.x + (Math.random() - 0.5) * 30,
-                        scale: 2.5, alpha: 0,
-                        duration: 800 + Math.random() * 400,
-                        onComplete: () => smoke.destroy()
-                    });
-                });
-            }
         }
 
         // Create rubble at the building location (attack mode only)
         if (this.mode === 'ATTACK' || this.mode === 'REPLAY') {
             const info = BUILDINGS[b.type];
             if (info) {
-                if (b.type === 'magmavent') {
-                    this.createLavaPool(b.gridX, b.gridY, info.width, info.height, b.owner, b.level || 1);
-                } else {
-                    this.createRubble(b.gridX, b.gridY, info.width, info.height);
-                }
+                this.createRubble(b.gridX, b.gridY, info.width, info.height, b.type, b.level ?? 1);
             }
         }
 
         if (b.barrelGraphics) b.barrelGraphics.destroy();
         b.healthBar.destroy();
         this.buildings.splice(index, 1);
+        this.invalidateCombatTopologyForRemoval(b);
 
-        // Clear any troops still targeting this building
-        this.troops.forEach(t => {
-            if (t.target && t.target.id === b.id) {
-                t.target = null;
-                t.path = undefined;
-                t.nextPathTime = 0;
-                this.setTroopRetargetPause(t, 80, 180);
-            }
-        });
-
-        // If a wall is broken, force all troops to re-evaluate paths
-        // This allows them to switch from attacking a wall to using a new gap
+        // Wall visuals still need their neighbor joins refreshed; navigation
+        // invalidation above already preserves each troop's real objective and
+        // makes the new gap visible on the next plan.
         if (b.type === 'wall') {
-            const breachX = b.gridX + info.width / 2;
-            const breachY = b.gridY + info.height / 2;
-            this.troops.forEach(t => {
-                t.lastPathTime = 0;
-                t.nextPathTime = 0;
-                t.path = undefined;
-                if (t.target && t.target.type === 'wall') t.target = null;
-
-                // Nearby troops react instantly to fresh breaches.
-                const d = Phaser.Math.Distance.Between(t.gridX, t.gridY, breachX, breachY);
-                if (d < 6) {
-                    this.setTroopRetargetPause(t, 40, 120);
-                }
-            });
-            // Update neighbor walls to disconnect from destroyed wall
             this.refreshWallNeighbors(b.gridX, b.gridY, b.owner);
         }
 
@@ -5385,7 +6055,9 @@ export class MainScene extends Phaser.Scene {
 
             // Award loot if available
             if (b.loot) {
-                this.solLooted += b.loot.sol;
+                this.goldLooted += b.loot.gold;
+                this.oreLooted += b.loot.ore;
+                this.foodLooted += b.loot.food;
             }
 
             this.updateBattleStats();
@@ -5399,6 +6071,8 @@ export class MainScene extends Phaser.Scene {
             // Remove from backend when player building is deleted
             if (b.owner === 'PLAYER') {
                 Backend.removeBuilding(this.userId, b.id);
+                // The lane network may reclaim the freed ground.
+                this.villageLife.invalidateStonePaths();
             }
         }
     }
@@ -5409,7 +6083,7 @@ export class MainScene extends Phaser.Scene {
         const destruction = totalKnown > 0
             ? Math.min(100, Math.round((this.destroyedBuildings / totalKnown) * 100))
             : 0;
-        gameManager.updateBattleStats(destruction, this.solLooted);
+        gameManager.updateBattleStats(destruction, this.goldLooted, this.oreLooted, this.foodLooted);
     }
 
 
@@ -5424,6 +6098,11 @@ export class MainScene extends Phaser.Scene {
             this.updateHealthBar(t);
             return;
         }
+
+        // A troop can die mid attack/recoil tween — kill those before the game
+        // object is destroyed so no orphaned tween keeps driving a dead target
+        // (buildings already do this in their destroy path).
+        this.tweens.killTweensOf(t.gameObject);
 
         const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
 
@@ -5557,6 +6236,7 @@ export class MainScene extends Phaser.Scene {
 
             // Remove troop and skip default death effects
             this.troops = this.troops.filter(x => x.id !== t.id);
+            this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
             return;
@@ -5582,7 +6262,7 @@ export class MainScene extends Phaser.Scene {
             ];
             for (const off of offsets) {
                 this.pendingSpawnCount++;
-                this.time.delayedCall(50, () => {
+                this.scheduleBattleCall(50, () => {
                     this.spawnTroop(t.gridX + off.dx, t.gridY + off.dy, 'recursion', t.owner, nextGen, t.level || 1);
                     this.pendingSpawnCount--;
                 });
@@ -5601,6 +6281,7 @@ export class MainScene extends Phaser.Scene {
 
             // Remove the troop immediately but keep visual debris
             this.troops = this.troops.filter(x => x.id !== t.id);
+            this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
 
@@ -5784,7 +6465,7 @@ export class MainScene extends Phaser.Scene {
             for (let i = 0; i < offsets.length; i++) {
                 const off = offsets[i];
                 this.pendingSpawnCount++;
-                this.time.delayedCall(i * 30, () => { // Staggered spawn
+                this.scheduleBattleCall(i * 30, () => { // Staggered spawn
                     this.spawnTroop(t.gridX + off.dx, t.gridY + off.dy, 'romanwarrior', t.owner, 0, t.level || 1);
                     this.pendingSpawnCount--;
                 });
@@ -5812,6 +6493,7 @@ export class MainScene extends Phaser.Scene {
 
             // Remove the troop from active list
             this.troops = this.troops.filter(x => x.id !== t.id);
+            this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
 
@@ -5853,7 +6535,7 @@ export class MainScene extends Phaser.Scene {
             });
 
             // Create husk AFTER smoke starts (delayed slightly)
-            this.time.delayedCall(100, () => {
+            this.scheduleBattleCall(100, () => {
                 const husk = this.add.graphics();
                 husk.setPosition(pos.x, pos.y);
                 husk.setDepth(depthForTroop(t.gridX, t.gridY, t.type));
@@ -5933,17 +6615,9 @@ export class MainScene extends Phaser.Scene {
         });
 
         this.troops = this.troops.filter(x => x.id !== t.id);
+        this.invalidateWardFollowers(t.id);
         t.gameObject.destroy();
         t.healthBar.destroy();
-    }
-
-    private showHitEffect(_graphics: Phaser.GameObjects.Graphics, _color: number = 0xffffff) {
-        // Simple distinct tint flash if possible, or just ignore for now as requested by user previously
-        // But for lightning we might want a blue tint.
-        if (_color !== 0xffffff) {
-            // If we wanted to tint, we'd need to ensure the graphics object supports it nicely or overlay.
-            // For now, let's just leave it empty or minimal to avoid visual clutter as per previous preference.
-        }
     }
 
     private showGolemCrackEffect(x: number, y: number) {
@@ -6003,57 +6677,6 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
-    private updateResources(time: number) {
-        if (this.mode !== 'HOME') return;
-        if (time < this.lastResourceUpdate + this.resourceInterval) return;
-        this.lastResourceUpdate = time;
-
-        const intervalSeconds = this.resourceInterval / 1000;
-        let solPerSecond = 0;
-
-        this.buildings.forEach(b => {
-            if (b.owner !== 'PLAYER') return;
-            if (b.type !== 'solana_collector' && b.type !== 'mine' && b.type !== 'elixir_collector') return;
-            const statsType = b.type === 'mine' || b.type === 'elixir_collector' ? 'solana_collector' : b.type;
-            const stats = getBuildingStats(statsType as BuildingType, b.level || 1);
-            const rate = stats.productionRate || 0;
-            solPerSecond += rate;
-        });
-
-        const solToAdd = Math.floor(solPerSecond * intervalSeconds);
-
-        if (solToAdd > 0) {
-            gameManager.addSol(solToAdd);
-        }
-    }
-
-    private spawnSolCoinBurst(x: number, y: number, count: number = 14) {
-        if (!this.textures.exists('solanaCoin')) return;
-
-        for (let i = 0; i < count; i++) {
-            const coin = this.add.image(x, y, 'solanaCoin');
-            coin.setDepth(30000);
-            coin.setDisplaySize(16, 16);
-            coin.setAlpha(1);
-            coin.setAngle((Math.random() - 0.5) * 20);
-
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 18 + Math.random() * 26;
-            const rise = 18 + Math.random() * 20;
-
-            this.tweens.add({
-                targets: coin,
-                x: x + Math.cos(angle) * dist,
-                y: y - rise,
-                alpha: 0,
-                duration: 550 + Math.random() * 150,
-                ease: 'Quad.easeOut',
-                onComplete: () => coin.destroy()
-            });
-        }
-    }
-
-
     public spawnTroop(
         gx: number,
         gy: number,
@@ -6072,6 +6695,9 @@ export class MainScene extends Phaser.Scene {
         const attackDelay = stats.attackDelay ?? (700 + Math.random() * 300);
         const firstAttackDelay = stats.firstAttackDelay ?? 0;
         const spawnTime = this.time.now;
+        const legalSpawn = this.nearestWalkableTroopPoint({ type, level: troopLevel }, gx, gy);
+        gx = legalSpawn.x;
+        gy = legalSpawn.y;
         const pos = IsoUtils.cartToIso(gx, gy);
 
         // Scale factor for recursions based on generation (each split = 75% size)
@@ -6079,9 +6705,11 @@ export class MainScene extends Phaser.Scene {
 
         // Create detailed troop graphic
         const troopGraphic = this.add.graphics();
-        TroopRenderer.drawTroopVisual(troopGraphic, type, owner, 0, true, 0, 0, 0, false, 0, troopLevel);
         troopGraphic.setPosition(pos.x, pos.y);
         troopGraphic.setDepth(depthForTroop(gx, gy, type));
+        if (!SpriteBank.syncLooseTroop(this, troopGraphic, type, owner, troopLevel, 0, true, this.time.now)) {
+            TroopRenderer.drawTroopVisual(troopGraphic, type, owner, 0, true, 0, 0, 0, false, 0, troopLevel, this.time.now);
+        }
 
         // Spawn dust effect - depth just below troop for proper layering
         const troopDepth = depthForTroop(gx, gy, type);
@@ -6124,7 +6752,7 @@ export class MainScene extends Phaser.Scene {
             type: type,
             level: troopLevel,
             gameObject: troopGraphic,
-            healthBar: this.add.graphics(),
+            healthBar: this.createHealthBarGraphics(),
             gridX: gx, gridY: gy,
             health: troopHealth, maxHealth: troopHealth,
             target: null, owner: owner,
@@ -6138,12 +6766,32 @@ export class MainScene extends Phaser.Scene {
 
         this.troops.push(troop);
         this.hasDeployed = true;
+        if (owner === 'PLAYER' && this.mode === 'ATTACK' && type !== 'romanwarrior' && recursionGen === 0) {
+            // First-generation deploys leave the camp; splits are battlefield spawns.
+            this.deployedThisBattle[type] = (this.deployedThisBattle[type] ?? 0) + 1;
+            const attackId = this.currentEnemyWorld?.attackId;
+            if (attackId) {
+                void Backend.publishAttackDeployment(attackId, {
+                    id: troop.id,
+                    type: troop.type,
+                    gridX: troop.gridX,
+                    gridY: troop.gridY
+                }).catch(error => {
+                    console.warn('Authoritative troop deployment was rejected:', error);
+                });
+            }
+        }
+        if (owner === 'PLAYER') soundSystem.play('deploy');
+        if (owner === 'PLAYER' && this.mode === 'ATTACK') {
+            // First boots on the ground: the whole village sprints for the town hall.
+            this.villageLife.panic();
+        }
         if (owner === 'PLAYER' && this.mode === 'ATTACK' && !this.isScouting) {
             this.setVillageNameVisible(false);
             this.beginAttackReplayCapture();
         }
         this.updateHealthBar(troop);
-        troop.target = TargetingSystem.findTarget(troop, this.buildings);
+        this.acquireTroopNavigation(troop, spawnTime);
 
         if (this.mode === 'ATTACK') {
             // Alpha handled by lerp in updateDeploymentHighlight
@@ -6254,9 +6902,9 @@ export class MainScene extends Phaser.Scene {
 
         // Approximate visual center based on building type (most have some height)
         let heightOffset = 50;
-        if (building.type === 'wall' || building.type === 'bomb' || building.type === 'spring_trap') heightOffset = 10;
+        if (building.type === 'wall') heightOffset = 10;
         else if (building.type === 'army_camp') heightOffset = 20;
-        else if (building.type === 'tesla' || building.type === 'archer_tower' || building.type === 'wizard_tower') heightOffset = 80;
+        else if (building.type === 'tesla') heightOffset = 80;
 
         const centerX = groundCenter.x;
         const centerY = groundCenter.y - heightOffset / 2;
@@ -6515,9 +7163,9 @@ export class MainScene extends Phaser.Scene {
         }
     }
 
-    private async flushPendingSaveForTransition() {
+    private async flushPendingSaveForTransition(): Promise<boolean> {
         const userId = this.userId;
-        if (!Backend.hasPendingSave(userId)) return;
+        if (!Backend.hasPendingSave(userId)) return true;
 
         const maxWaitMs = 1200;
         let timeoutHandle: number | null = null;
@@ -6539,13 +7187,21 @@ export class MainScene extends Phaser.Scene {
                 void flushPromise.catch(error => {
                     console.warn('flushPendingSaveForTransition: background flush failed:', error);
                 });
+                gameManager.showToast('Your village is still saving. Try that journey again in a moment.');
+                return false;
             }
+            return true;
         } catch (error) {
             console.warn('Failed to flush pending save before transition:', error);
+            gameManager.showToast('Village save failed. Reconnect before leaving home.');
+            return false;
         }
     }
 
-    private showCloudTransition(onMidpoint: () => void | Promise<void>) {
+    private showCloudTransition(onMidpoint: (epoch: number) => void | Promise<void>) {
+        const epoch = this.beginExclusiveTransition('Another journey');
+        if (epoch === null) return;
+        this.forceFinishHomecoming();
         // Show React overlay to cover UI.
         gameManager.showCloudOverlay();
 
@@ -6555,14 +7211,18 @@ export class MainScene extends Phaser.Scene {
         const readyBufferMs = 90;
 
         this.time.delayedCall(cloudCloseMs, () => {
+            if (!this.isTransitionCurrent(epoch)) return;
             void Promise.resolve()
-                .then(() => onMidpoint())
+                .then(() => onMidpoint(epoch))
                 .catch(error => {
                     console.error('Cloud transition midpoint failed:', error);
                 })
                 .finally(() => {
+                    if (!this.isTransitionCurrent(epoch)) return;
                     this.time.delayedCall(readyBufferMs, () => {
+                        if (!this.isTransitionCurrent(epoch)) return;
                         gameManager.hideCloudOverlay();
+                        this.finishExclusiveTransition(epoch);
                     });
                 });
         });
@@ -6584,37 +7244,19 @@ export class MainScene extends Phaser.Scene {
                 }
             },
             startAttack: () => {
-                this.showCloudTransition(async () => {
-                    await this.flushPendingSaveForTransition();
-                    this.snapshotPlayerBarracksLevel();
-                    this.snapshotPlayerLabLevel();
-                    // Set UI immediately
-                    gameManager.setGameMode('ATTACK');
-                    this.mode = 'ATTACK';
-                    this.isScouting = false;
-
-                    this.clearScene();
-                    await this.generateEnemyVillage();
-                    this.centerCamera();
-                    // Initialize battle stats
-                    this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
-                    this.destroyedBuildings = 0;
-                    this.solLooted = 0;
-                    this.raidEndScheduled = false; // Reset for new raid
-                    this.updateBattleStats();
+                this.showCloudTransition(async epoch => {
+                    if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+                    const loaded = await this.generateEnemyVillage(epoch);
+                    if (!this.isTransitionCurrent(epoch)) return;
+                    if (!loaded) {
+                        await this.goHome();
+                        return;
+                    }
                 });
             },
             startPracticeAttack: () => {
-                this.showCloudTransition(async () => {
-                    await this.flushPendingSaveForTransition();
-                    this.snapshotPlayerBarracksLevel();
-                    this.snapshotPlayerLabLevel();
-                    // Set UI immediately
-                    gameManager.setGameMode('ATTACK');
-                    this.mode = 'ATTACK';
-                    this.isScouting = false;
-
-                    this.clearScene();
+                this.showCloudTransition(async epoch => {
+                    if (!await this.beginAttackSession(false, epoch)) return;
                     // Load player's own base as the enemy
                     let playerWorld: SerializedWorld | null = null;
                     try {
@@ -6622,10 +7264,13 @@ export class MainScene extends Phaser.Scene {
                     } catch (error) {
                         console.error('startPracticeAttack: failed to load player world', error);
                     }
+                    if (!this.isTransitionCurrent(epoch)) return;
 
                     let loadedPracticeBase = false;
                     if (playerWorld && Array.isArray(playerWorld.buildings) && playerWorld.buildings.length > 0) {
-                        const summary = this.instantiateEnemyWorld(playerWorld, {
+                        // Drills pay nothing: zero the loot so the battle HUD is honest.
+                        const drillWorld = { ...playerWorld, resources: { gold: 0, ore: 0, food: 0 } };
+                        const summary = this.instantiateEnemyWorld(drillWorld, {
                             id: 'practice',
                             username: 'Your Base',
                             isBot: true
@@ -6650,11 +7295,10 @@ export class MainScene extends Phaser.Scene {
                                 { id: Phaser.Utils.String.UUID(), type: 'town_hall', gridX: 11, gridY: 11, level: 1 },
                                 { id: Phaser.Utils.String.UUID(), type: 'cannon', gridX: 8, gridY: 11, level: 1 },
                                 { id: Phaser.Utils.String.UUID(), type: 'barracks', gridX: 15, gridY: 11, level: 1 },
-                                { id: Phaser.Utils.String.UUID(), type: 'army_camp', gridX: 11, gridY: 15, level: 1 },
-                                { id: Phaser.Utils.String.UUID(), type: 'solana_collector', gridX: 14, gridY: 14, level: 1 }
+                                { id: Phaser.Utils.String.UUID(), type: 'army_camp', gridX: 11, gridY: 15, level: 1 }
                             ],
                             obstacles: [],
-                            resources: { sol: 0 },
+                            resources: { gold: 0 },
                             army: {},
                             wallLevel: 1,
                             lastSaveTime: Date.now(),
@@ -6677,94 +7321,66 @@ export class MainScene extends Phaser.Scene {
                     }
                     this.updateVillageName();
                     this.centerCamera();
-                    // Initialize battle stats
-                    this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
-                    this.destroyedBuildings = 0;
-                    this.solLooted = 0;
-                    this.raidEndScheduled = false;
-                    this.updateBattleStats();
+                    this.resetBattleStats();
                 });
             },
             startOnlineAttack: () => {
-                this.showCloudTransition(async () => {
-                    await this.flushPendingSaveForTransition();
-                    this.snapshotPlayerBarracksLevel();
-                    this.snapshotPlayerLabLevel();
-                    // Set UI immediately
-                    gameManager.setGameMode('ATTACK');
-                    this.mode = 'ATTACK';
-                    this.isScouting = false;
-
-                    this.clearScene();
-                    // Load a random online player's base
-                    await this.generateOnlineEnemyVillage();
-                    this.centerCamera();
-                    // Initialize battle stats
-                    this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
-                    this.destroyedBuildings = 0;
-                    this.solLooted = 0;
-                    this.raidEndScheduled = false;
-                    this.updateBattleStats();
+                this.showCloudTransition(async epoch => {
+                    if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+                    // Matchmaking selects a real world plot; the shared focus
+                    // path below installs that neighborhood and enters the
+                    // same battle-in-place flow as a nearby road attack.
+                    const loaded = await this.generateOnlineEnemyVillage(epoch);
+                    if (!this.isTransitionCurrent(epoch)) return;
+                    if (!loaded) {
+                        await this.goHome();
+                        return;
+                    }
                 });
             },
             startAttackOnUser: (userId: string, username: string) => {
-                this.showCloudTransition(async () => {
-                    await this.flushPendingSaveForTransition();
-                    this.snapshotPlayerBarracksLevel();
-                    this.snapshotPlayerLabLevel();
-                    // Set UI immediately
-                    gameManager.setGameMode('ATTACK');
-                    this.mode = 'ATTACK';
-                    this.isScouting = false;
-
-                    this.clearScene();
-                    // Load the specific user's base
-                    const success = await this.generateEnemyVillageFromUser(userId, username);
+                this.showCloudTransition(async epoch => {
+                    if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+                    const success = await this.generateEnemyVillageFromUser(userId, username, true, epoch);
+                    if (!this.isTransitionCurrent(epoch)) return;
                     if (!success) {
-                        // Fallback to random if user has no base
-                        await this.generateOnlineEnemyVillage();
+                        gameManager.showToast(`${username}'s village cannot be attacked right now.`);
+                        await this.goHome();
+                        return;
                     }
-                    this.centerCamera();
-                    // Initialize battle stats
-                    this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
-                    this.destroyedBuildings = 0;
-                    this.solLooted = 0;
-                    this.raidEndScheduled = false;
-                    this.updateBattleStats();
                 });
             },
             startScoutOnUser: (userId: string, username: string) => {
-                this.showCloudTransition(async () => {
-                    await this.flushPendingSaveForTransition();
-                    this.snapshotPlayerBarracksLevel();
-                    this.snapshotPlayerLabLevel();
-                    gameManager.setGameMode('ATTACK');
-                    this.mode = 'ATTACK';
-                    this.isScouting = true;
-
-                    this.clearScene();
-                    const success = await this.generateEnemyVillageFromUser(userId, username);
+                this.showCloudTransition(async epoch => {
+                    if (!await this.beginAttackSession(true, epoch)) return;
+                    const success = await this.generateEnemyVillageFromUser(userId, username, false, epoch);
+                    if (!this.isTransitionCurrent(epoch)) return;
                     if (!success) {
-                        await this.generateOnlineEnemyVillage();
+                        await this.goHome();
+                        return;
                     }
                     this.centerCamera();
-                    this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
-                    this.destroyedBuildings = 0;
-                    this.solLooted = 0;
-                    this.raidEndScheduled = false;
-                    this.updateBattleStats();
+                    this.resetBattleStats();
                 });
             },
             watchLiveAttack: (attackId: string) => {
-                this.showCloudTransition(async () => {
-                    await this.flushPendingSaveForTransition();
+                this.showCloudTransition(async epoch => {
+                    if (!await this.flushPendingSaveForTransition()) return;
+                    if (!this.isTransitionCurrent(epoch)) return;
                     gameManager.setGameMode('REPLAY');
                     this.mode = 'REPLAY';
                     this.isScouting = true;
                     this.clearScene();
 
-                    const loaded = await this.startReplayWatch(attackId, 'live');
+                    let loaded = false;
+                    try {
+                        loaded = await this.startReplayWatch(attackId, 'live');
+                    } catch (error) {
+                        console.warn('Unable to watch live attack:', error);
+                    }
+                    if (!this.isTransitionCurrent(epoch)) return;
                     if (!loaded) {
+                        gameManager.showToast('That live battle is unavailable.');
                         await this.goHome();
                         return;
                     }
@@ -6772,15 +7388,23 @@ export class MainScene extends Phaser.Scene {
                 });
             },
             watchReplay: (attackId: string) => {
-                this.showCloudTransition(async () => {
-                    await this.flushPendingSaveForTransition();
+                this.showCloudTransition(async epoch => {
+                    if (!await this.flushPendingSaveForTransition()) return;
+                    if (!this.isTransitionCurrent(epoch)) return;
                     gameManager.setGameMode('REPLAY');
                     this.mode = 'REPLAY';
                     this.isScouting = true;
                     this.clearScene();
 
-                    const loaded = await this.startReplayWatch(attackId, 'replay');
+                    let loaded = false;
+                    try {
+                        loaded = await this.startReplayWatch(attackId, 'replay');
+                    } catch (error) {
+                        console.warn('Unable to load replay:', error);
+                    }
+                    if (!this.isTransitionCurrent(epoch)) return;
                     if (!loaded) {
+                        gameManager.showToast('That replay is unavailable.');
                         await this.goHome();
                         return;
                     }
@@ -6788,28 +7412,54 @@ export class MainScene extends Phaser.Scene {
                 });
             },
             findNewMap: () => {
-                // Only allow if no troops have been deployed yet
-                const deployedTroops = this.troops.filter(t => t.owner === 'PLAYER').length;
-                if (deployedTroops > 0) {
+                // Only allow before the first deployment. Gate on hasDeployed (not the
+                // live troop count) so a raid whose troops all died can't slip through
+                // and leave its replay capture leaking.
+                if (this.hasDeployed) {
                     // Could show feedback here, but for now just don't do anything
                     return;
                 }
 
-                this.showCloudTransition(async () => {
+                this.showCloudTransition(async epoch => {
+                    // End any live capture, then settle the registered online attack as an abort.
+                    await this.endAttackReplayCapture('aborted')?.catch(() => undefined);
+                    await this.abandonCurrentAttack();
+                    if (this.currentEnemyWorld?.isBot && !this.botRaidSettled) {
+                        try {
+                            await this.settleBotRaid();
+                        } catch (error) {
+                            console.warn('Could not close the previous bot raid before NEXT:', error);
+                            gameManager.showToast('The previous raid is still settling. Try NEXT again in a moment.');
+                            return;
+                        }
+                    }
+                    if (!this.isTransitionCurrent(epoch)) return;
                     // Clear and regenerate enemy village
                     this.clearScene();
-                    await this.generateEnemyVillage();
+                    this.currentEnemyWorld = null;
+                    const loaded = await this.generateEnemyVillage(epoch);
+                    if (!this.isTransitionCurrent(epoch)) return;
+                    if (!loaded) {
+                        await this.goHome();
+                        return;
+                    }
                     this.centerCamera();
                     // Reset battle stats for new village
                     this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
                     this.destroyedBuildings = 0;
-                    this.solLooted = 0;
+                    this.goldLooted = 0;
+        this.oreLooted = 0;
+        this.foodLooted = 0;
                     this.updateBattleStats();
                 });
             },
             deleteSelectedBuilding: () => {
-                if (this.selectedInWorld) this.destroyBuilding(this.selectedInWorld);
-                this.selectedInWorld = null;
+                const selected = this.selectedInWorld;
+                if (!selected) return false;
+                this.destroyBuilding(selected);
+                const deleted = !this.buildings.some(building => building.id === selected.id);
+                if (deleted) this.selectedInWorld = null;
+                return deleted;
             },
             moveSelectedBuilding: () => {
                 if (this.selectedInWorld) {
@@ -6818,68 +7468,56 @@ export class MainScene extends Phaser.Scene {
                 }
                 this.isMoving = true;
                 this.selectedBuildingType = null;
+                // Hide the info popup while carrying the building — it sits
+                // right where you're dragging and steals the pointer. The
+                // drop handler re-emits the selection at the new spot.
+                gameManager.onBuildingSelected(null);
                 // Immediate visual feedback
                 this.inputController.onPointerMove(this.input.activePointer);
-            },
-            toggleDummyTroop: () => {
-                this.toggleDummyTroop();
             },
             upgradeSelectedBuilding: () => {
                 if (this.selectedInWorld) {
                     const prevLevel = this.selectedInWorld.level || 1;
                     const maxLvl = BUILDINGS[this.selectedInWorld.type]?.maxLevel ?? 1;
                     if (prevLevel >= maxLvl) return null;
-                    this.selectedInWorld.level = prevLevel + 1;
-                    const stats = getBuildingStats(this.selectedInWorld.type as BuildingType, this.selectedInWorld.level);
-                    this.selectedInWorld.maxHealth = stats.maxHealth;
-                    this.selectedInWorld.health = stats.maxHealth;
-                    this.selectedInWorld.graphics.clear();
-                    if (this.selectedInWorld.baseGraphics) this.selectedInWorld.baseGraphics.clear();
-                    this.drawBuildingVisuals(this.selectedInWorld.graphics, this.selectedInWorld.gridX, this.selectedInWorld.gridY, this.selectedInWorld.type, 1, null, this.selectedInWorld, this.selectedInWorld.baseGraphics);
-                    this.updateHealthBar(this.selectedInWorld);
+                    if (this.selectedInWorld.upgradingTo) return null; // clock already running
 
-                    // Re-bake base at new level
-                    this.unbakeBuildingFromGround(this.selectedInWorld);
-                    this.bakeBuildingToGround(this.selectedInWorld);
-
-                    // Play effect for the main building
-                    this.playUpgradeEffect(this.selectedInWorld);
-
-                    // COHERENT UPDATE: If Wall, upgrade ALL other walls of the previous level
+                    // Walls stay instant (the cohort levels as one, and the
+                    // server applies wall levels without a timer).
                     if (this.selectedInWorld.type === 'wall') {
+                        this.selectedInWorld.level = prevLevel + 1;
+                        const stats = getBuildingStats('wall' as BuildingType, this.selectedInWorld.level);
                         this.preferredWallLevel = Math.max(this.preferredWallLevel, this.selectedInWorld.level || 1);
                         this.buildings.forEach(b => {
-                            if (b.type === 'wall' && b.id !== this.selectedInWorld!.id && (b.level || 1) === prevLevel) {
+                            if (b.type === 'wall' && (b.level || 1) === prevLevel && b.id !== this.selectedInWorld!.id) {
                                 b.level = this.selectedInWorld!.level;
-                                b.maxHealth = stats.maxHealth;
-                                b.health = b.maxHealth;
-                                b.graphics.clear();
-                                if (b.baseGraphics) b.baseGraphics.clear();
-                                this.drawBuildingVisuals(b.graphics, b.gridX, b.gridY, b.type, 1, null, b, b.baseGraphics);
-                                // Play effect for each wall
-                                this.playUpgradeEffect(b);
                             }
+                            if (b.type !== 'wall' || (b.level || 1) !== this.selectedInWorld!.level) return;
+                            b.maxHealth = stats.maxHealth;
+                            b.health = b.maxHealth;
+                            b.graphics.clear();
+                            if (b.baseGraphics) b.baseGraphics.clear();
+                            this.drawBuildingVisuals(b.graphics, b.gridX, b.gridY, b.type, 1, null, b, b.baseGraphics);
+                            this.playUpgradeEffect(b);
                         });
+                        return this.selectedInWorld.level;
                     }
 
-                    // Refresh camp capacity if an army camp was upgraded
-                    if (this.selectedInWorld.type === 'army_camp') {
-                        const campLevels = this.buildings.filter(b => b.type === 'army_camp').map(b => b.level ?? 1);
-                        gameManager.refreshCampCapacity(campLevels);
-                    }
-                    if (this.selectedInWorld.type === 'barracks' && this.selectedInWorld.owner === 'PLAYER') {
-                        this.playerBarracksLevel = Math.max(this.playerBarracksLevel, this.selectedInWorld.level || 1);
-                    }
-                    if (this.selectedInWorld.type === 'lab' && this.selectedInWorld.owner === 'PLAYER') {
-                        this.playerLabLevel = Math.max(this.playerLabLevel, this.selectedInWorld.level || 1);
-                    }
+                    // Everything else buys a TIMED upgrade: the level stays
+                    // put (and the building goes offline) until the server's
+                    // clock — mirrored here — matures in resolveLocalUpgrades.
+                    const targetLevel = prevLevel + 1;
+                    this.selectedInWorld.upgradingTo = targetLevel;
+                    this.selectedInWorld.upgradeEndsAt = Date.now() + upgradeDurationMs(this.selectedInWorld.type, targetLevel);
+                    this.villageLife.onConstruction(this.selectedInWorld, 'upgrade');
+                    this.updateHealthBar(this.selectedInWorld);
 
                     // NOTE: Do NOT call Backend.upgradeBuilding here.
                     // App.tsx handleUpgradeBuilding already calls it before
                     // invoking this scene command. Calling it twice would
                     // double-increment the building level in the cached world.
 
-                    return this.selectedInWorld.level;
+                    return targetLevel;
                 }
                 return null;
             }
@@ -6887,9 +7525,36 @@ export class MainScene extends Phaser.Scene {
     }
 
     public async goHome() {
+        // Retreat owns the scene now. Cancel delayed split spawns and the
+        // scheduled natural-end handoff before they can fire against home.
+        this.cancelBattleAsyncWork();
+        this.hasDeployed = false;
+        this.raidEndScheduled = true;
         if (this.mode === 'ATTACK') {
-            this.endAttackReplayCapture('aborted');
+            const settlement = this.endAttackReplayCapture('aborted');
+            if (settlement) {
+                await settlement.catch(error => {
+                    console.warn('Attack settlement failed before home reload:', error);
+                });
+            } else {
+                // If the attack was registered but no troop ever deployed,
+                // settle it as a zero-result abort before reading home truth.
+                await this.abandonCurrentAttack();
+            }
+            // A retreat from a bot camp still consumed the troops that marched
+            // (and banks whatever loot the destruction so far earned).
+            await this.settleBotRaid().catch(() => undefined);
         }
+        this.currentEnemyWorld = null;
+        // A next-door battle retreats the way it came: the column marches
+        // home on screen and the home frame swaps in silently mid-glide.
+        if (this.battleInPlace && this.beginHomecomingMarch()) return;
+        this.forceFinishHomecoming(); // a second goHome mid-march completes it
+        this.worldMap.endFocus();
+        this.battleInPlace = false;
+        // Back on our own lawn (and our name back over the gate).
+        this.rebakeGround(this.userId || 'village');
+        this.setVillageNameVisible(true);
         this.clearReplayWatchState();
         this.cancelPlacement();
         gameManager.setGameMode('HOME');
@@ -6899,40 +7564,170 @@ export class MainScene extends Phaser.Scene {
         await this.reloadHomeBase({ refreshOnline: true });
     }
 
+    /**
+     * The seamless half of the retreat, mirroring the invasion: the battle
+     * frame stays up, the flag bearer leads the undeployed troops home down
+     * the roads, and the home frame renders hidden while they walk. Returns
+     * false when a silent swap is impossible (fall back to the hard cut).
+     */
+    private beginHomecomingMarch(): boolean {
+        if (!this.userId || !this.worldMap.inBattleFrame()) return false;
+        const home = Backend.getCachedWorld(this.userId);
+        if (!home || !Array.isArray(home.buildings) || home.buildings.length === 0) return false;
+        this.battleInPlace = false;
+        this.clearReplayWatchState();
+        this.cancelPlacement();
+        this.clearBattleActors();
+        gameManager.setGameMode('HOME');
+        this.mode = 'HOME';
+        this.isScouting = false;
+        this.hasDeployed = false;
+        this.pendingHomecoming = { world: home };
+        // Hidden preparation, exactly like the outbound march.
+        this.worldMap.prepareFocus(this.worldMap.homePlot());
+        this.prepareGroundBake(this.userId);
+        this.worldMap.marchHome(
+            this.armyFigures(),
+            () => void this.finishHomecoming(),
+            () => this.forceFinishHomecoming()
+        );
+        return true;
+    }
+
+    private async finishHomecoming() {
+        await this.worldMap.waitForFocusReady();
+        this.forceFinishHomecoming();
+    }
+
+    /**
+     * Commit whatever home frame is prepared RIGHT NOW. Normally fires from
+     * the marching column near the home gate; interrupts (a new attack, a
+     * cloud transition) call it early so the world is never left anchored on
+     * a neighbour's plot.
+     */
+    private forceFinishHomecoming() {
+        const pending = this.pendingHomecoming;
+        if (!pending) return;
+        this.pendingHomecoming = null;
+        if (this.mode !== 'HOME') {
+            // A cloud transition (replay, scout, far raid) owns the scene now:
+            // drop the battle frame quietly; its goHome rebuilds the long way.
+            this.worldMap.abortHomecoming();
+            this.worldMap.endFocus();
+            this.dropGroundBake();
+            return;
+        }
+        // ---- the swap home: a single frame ----
+        const shift = this.worldMap.commitFocus();
+        this.commitGroundBake(this.userId || 'village');
+        this.applyWorldToScene(pending.world);
+        this.setVillageNameVisible(true);
+        this.updateVillageName();
+        this.dayNight?.resyncLights();
+        if (shift) {
+            // The world re-anchored home by (dx, dy) plots; the camera moves
+            // by the same world-space delta so nothing under the lens jumps.
+            const delta = IsoUtils.cartToIso(shift.dx * PLOT_PITCH, shift.dy * PLOT_PITCH);
+            const cam = this.cameras.main;
+            cam.scrollX -= delta.x;
+            cam.scrollY -= delta.y;
+        } else {
+            // No prepared frame to commit (dropped mid-flight): hard fallback.
+            this.worldMap.endFocus();
+            this.centerCamera();
+        }
+    }
+
+    /** One figure per troop for the marching column, actual army composition. */
+    private armyFigures(cap = 24): string[] {
+        const army = gameManager.getArmy();
+        return Object.entries(army)
+            .filter(([, count]) => Number(count) > 0)
+            .sort((a, b) => Number(b[1]) - Number(a[1]))
+            .flatMap(([type, count]) => new Array<string>(Math.max(0, Math.floor(Number(count)))).fill(type))
+            .slice(0, cap);
+    }
+
+    /** Drop a pending hidden lawn bake (homecoming aborted mid-flight). */
+    private dropGroundBake() {
+        this.pendingGroundRT?.destroy();
+        this.pendingGroundRT = null;
+        this.pendingGroundKey = null;
+    }
+
+
+    /**
+     * Clear only the fighting pieces (troops, spike zones, the ghost troop) —
+     * buildings stay. The homecoming march uses this so the wrecked village
+     * remains on view while the column walks away from it.
+     */
+    private clearBattleActors() {
+        this.troops.forEach(t => {
+            this.tweens.killTweensOf(t.gameObject);
+            this.tweens.killTweensOf(t);
+            this.tweens.killTweensOf(t.healthBar);
+            t.gameObject.destroy();
+            t.healthBar.destroy();
+        });
+        this.troops = [];
+        this.spikeZones.forEach(zone => {
+            this.tweens.killTweensOf(zone.graphics);
+            zone.graphics.destroy();
+        });
+        this.spikeZones = [];
+    }
 
     private clearScene() {
         this.clearReplayWatchState();
+        // MainScene is reused across villages. Cancel only battle-owned async
+        // work; ambient/world systems retain their own timers and tweens.
+        this.cancelBattleAsyncWork();
+        this.villageLife.clear();
+        this.dayNight.clearLights();
+
+        // Drop particle emitter trackers from the finished battle; their keys are
+        // per-entity, so without this the tracker map grows across every raid.
+        particleManager.clearAll();
 
         // Clear all buildings and their associated graphics
         this.buildings.forEach(b => {
+            this.tweens.killTweensOf(b);
+            this.tweens.killTweensOf(b.graphics);
             b.graphics.destroy();
-            if (b.baseGraphics) b.baseGraphics.destroy();
-            if (b.barrelGraphics) b.barrelGraphics.destroy();
-            if (b.prismLaserGraphics) b.prismLaserGraphics.destroy();
-            if (b.prismLaserCore) b.prismLaserCore.destroy();
-            if (b.rangeIndicator) b.rangeIndicator.destroy();
+            if (b.baseGraphics) {
+                this.tweens.killTweensOf(b.baseGraphics);
+                b.baseGraphics.destroy();
+            }
+            if (b.barrelGraphics) {
+                this.tweens.killTweensOf(b.barrelGraphics);
+                b.barrelGraphics.destroy();
+            }
+            if (b.prismLaserGraphics) {
+                this.tweens.killTweensOf(b.prismLaserGraphics);
+                b.prismLaserGraphics.destroy();
+            }
+            if (b.prismLaserCore) {
+                this.tweens.killTweensOf(b.prismLaserCore);
+                b.prismLaserCore.destroy();
+            }
+            if (b.rangeIndicator) {
+                this.tweens.killTweensOf(b.rangeIndicator);
+                b.rangeIndicator.destroy();
+            }
+            this.tweens.killTweensOf(b.healthBar);
             b.healthBar.destroy();
         });
         this.buildings = [];
+        this.combatTopologyRevision++;
 
-        // Clear all troops
-        this.troops.forEach(t => { t.gameObject.destroy(); t.healthBar.destroy(); });
-        this.troops = [];
+        this.clearBattleActors();
 
-        // Clear spike zones
-        this.spikeZones.forEach(zone => zone.graphics.destroy());
-        this.spikeZones = [];
-
-        // Clear lava zones
-        this.lavaZones.forEach(zone => zone.graphics.destroy());
-        this.lavaZones = [];
 
         // Clear rubble and obstacles
         this.clearRubble();
         this.clearObstacles();
 
         // Reset selection state
-        this.dummyTroop = null;
         this.attackModeSelectedBuilding = null;
         this.selectedInWorld = null;
         this.selectedBuildingType = null;
@@ -6941,6 +7736,9 @@ export class MainScene extends Phaser.Scene {
         this.hasDeployed = false;
         this.lastDeployTime = 0;
         this.deployStartTime = 0;
+        this.replayDestroyedBuildings.clear();
+        this.pendingSpawnCount = 0;
+        this.raidEndScheduled = false;
 
         // Clear all UI overlay graphics
         this.ghostBuilding.clear();
@@ -6982,7 +7780,7 @@ export class MainScene extends Phaser.Scene {
 
     private instantiateEnemyWorld(
         world: SerializedWorld,
-        meta: { id: string; username: string; isBot: boolean; attackId?: string }
+        meta: EnemyWorldMeta
     ): EnemyInstantiationSummary {
         const enemyBuildings = Array.isArray(world.buildings) ? world.buildings : [];
         const summary: EnemyInstantiationSummary = {
@@ -7044,8 +7842,16 @@ export class MainScene extends Phaser.Scene {
         }
 
         this.currentEnemyWorld = meta;
-        const lootAmount = Math.max(0, Math.floor(world.resources?.sol ?? 0));
-        const lootMap = LootSystem.calculateLootDistribution(preparedBuildings, lootAmount);
+        const lootAmount = Math.max(0, Math.floor(world.resources?.gold ?? 0));
+        const lootOre = Math.max(0, Math.floor(world.resources?.ore ?? 0));
+        const lootFood = Math.max(0, Math.floor(world.resources?.food ?? 0));
+        const lootMap = LootSystem.calculateLootDistribution(
+            preparedBuildings,
+            lootAmount,
+            lootOre,
+            lootFood,
+            meta.lootPreCapped === true
+        );
 
         preparedBuildings.forEach(building => {
             try {
@@ -7073,6 +7879,14 @@ export class MainScene extends Phaser.Scene {
         if (summary.playablePlaced > 0) {
             this.setVillageNameVisible(true);
             this.updateVillageName();
+            // The enemy village goes about its day until the first troop lands.
+            if (this.mode === 'ATTACK') {
+                this.villageLife.populate('ENEMY', {
+                    population: world.population?.count ?? world.life?.population,
+                    identity: world.life?.identity || world.ownerId || meta.id,
+                    bornAt: world.population?.bornAt ?? world.life?.bornAt
+                });
+            }
         } else {
             console.warn('instantiateEnemyWorld: enemy world had no playable buildings after instantiation', {
                 worldId: world.id,
@@ -7084,121 +7898,133 @@ export class MainScene extends Phaser.Scene {
         return summary;
     }
 
-    private spawnEmergencyEnemyVillage() {
-        const cx = 11;
-        const cy = 11;
-        const fallbackWorld: SerializedWorld = {
-            id: `bot_fallback_${Date.now()}`,
-            ownerId: 'bot',
-            username: 'Bot Base',
-            buildings: [
-                { id: Phaser.Utils.String.UUID(), type: 'town_hall', gridX: cx, gridY: cy, level: 1 },
-                { id: Phaser.Utils.String.UUID(), type: 'cannon', gridX: cx - 3, gridY: cy, level: 1 },
-                { id: Phaser.Utils.String.UUID(), type: 'barracks', gridX: cx + 4, gridY: cy, level: 1 },
-                { id: Phaser.Utils.String.UUID(), type: 'army_camp', gridX: cx, gridY: cy + 4, level: 1 },
-                { id: Phaser.Utils.String.UUID(), type: 'solana_collector', gridX: cx + 3, gridY: cy + 3, level: 1 }
-            ],
-            obstacles: [],
-            resources: { sol: 30000 },
-            army: {},
-            lastSaveTime: Date.now(),
-            revision: 1
+    /** Ask for a bot camp, focus its real plot, then use the local battle swap. */
+    private async generateEnemyVillage(epoch?: number): Promise<boolean> {
+        const started = await Backend.botStart();
+        if (!started) {
+            gameManager.showToast('No bot camp is available right now.');
+            return false;
+        }
+        const username = started.world.username || 'Bot clan';
+        const meta = {
+            id: `bot_${started.seed >>> 0}`,
+            username,
+            isBot: true,
+            attackId: started.raidId,
+            botRaidId: started.raidId,
+            botPlot: { x: started.x, y: started.y }
         };
-
-        const fallbackSummary = this.instantiateEnemyWorld(fallbackWorld, {
-            id: fallbackWorld.id,
-            username: fallbackWorld.username || 'Bot Base',
-            isBot: true
+        if (epoch === undefined || !this.isTransitionCurrent(epoch)) {
+            await this.abortBotSession(meta);
+            return false;
+        }
+        const plot = { x: started.x, y: started.y };
+        this.worldMap.prepareFocus(plot);
+        this.prepareGroundBake(meta.id);
+        await this.arriveAndFight(plot, started.world, meta, epoch, {
+            cameraArrivedAtGate: false,
+            finishTransition: false
         });
-        if (fallbackSummary.playablePlaced === 0) {
-            console.error('spawnEmergencyEnemyVillage: fallback world failed to instantiate playable structures', fallbackSummary);
-        }
+        return this.mode === 'ATTACK' && this.currentEnemyWorld?.botRaidId === started.raidId;
     }
 
-    private async generateEnemyVillage() {
-        const maxAttempts = 4;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            try {
-                const enemyWorld = await Backend.generateEnemyWorld();
-                // Give fake resources for loot
-                enemyWorld.resources = {
-                    sol: Math.floor(20000 + Math.random() * 80000)
-                };
-
-                const summary = this.instantiateEnemyWorld(enemyWorld, {
-                    id: enemyWorld.id,
-                    username: enemyWorld.username || 'Bot Base',
-                    isBot: true
-                });
-
-                if (summary.playablePlaced > 0) return;
-                console.warn('generateEnemyVillage: generated world had no playable buildings', {
-                    attempt: attempt + 1,
-                    worldId: enemyWorld.id,
-                    summary
-                });
-            } catch (error) {
-                console.error('generateEnemyVillage: enemy generation attempt failed', {
-                    attempt: attempt + 1,
-                    error
-                });
-            }
-            this.clearScene();
+    // Matchmake against a random online player. The server snapshots the
+    // defender's base and issues the attackId, so the fight is registered
+    // before the first troop drops.
+    public async generateOnlineEnemyVillage(epoch?: number): Promise<boolean> {
+        const started = await Backend.startMatchedAttack();
+        if (epoch !== undefined && !this.isTransitionCurrent(epoch)) {
+            if (started?.attackId) void Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
+            return false;
         }
-
-        this.spawnEmergencyEnemyVillage();
-    }
-
-    // Load an online player's base for attack
-    public async generateOnlineEnemyVillage(): Promise<boolean> {
-        let onlineBase: SerializedWorld | null = null;
-        try {
-            onlineBase = await Backend.getOnlineBase(this.userId);
-        } catch (error) {
-            console.error('generateOnlineEnemyVillage: failed to load online base', error);
-        }
-        if (!onlineBase || !Array.isArray(onlineBase.buildings) || onlineBase.buildings.length === 0) {
-            // Fallback to procedural generation if no online bases
-            await this.generateEnemyVillage();
+        if (!started || !Array.isArray(started.world.buildings) || started.world.buildings.length === 0) {
+            if (started?.attackId) await Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
             return false;
         }
 
-        const summary = this.instantiateEnemyWorld(onlineBase, {
-            id: onlineBase.ownerId,
-            username: onlineBase.username || 'Unknown Player',
-            isBot: Boolean((onlineBase as { isBot?: boolean }).isBot),
-            attackId: Phaser.Utils.String.UUID()
-        });
-        if (summary.playablePlaced === 0) {
-            console.warn('generateOnlineEnemyVillage: online world had no playable buildings, falling back to bot base', {
-                worldId: onlineBase.id,
-                ownerId: onlineBase.ownerId,
-                summary
-            });
-            this.clearScene();
-            await this.generateEnemyVillage();
+        if (epoch === undefined) {
+            await Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
             return false;
         }
-        return true;
+        const plot = { x: started.target.x, y: started.target.y };
+        const meta: EnemyWorldMeta = {
+            id: started.world.ownerId,
+            username: started.world.username || 'Unknown Player',
+            isBot: false,
+            attackId: started.attackId,
+            lootPreCapped: true
+        };
+        this.worldMap.prepareFocus(plot);
+        this.prepareGroundBake(meta.id);
+        await this.arriveAndFight(plot, started.world, meta, epoch, {
+            // Matchmade travel is covered by the cloud, but the destination is
+            // still the canonical map plot and uses the local attack swap.
+            cameraArrivedAtGate: false,
+            finishTransition: false
+        });
+        return this.mode === 'ATTACK' && this.currentEnemyWorld?.attackId === started.attackId;
     }
 
-    // Load a specific user's base for attack (from leaderboard)
-    public async generateEnemyVillageFromUser(userId: string, username: string): Promise<boolean> {
+    // Load a specific user's base (from leaderboard). When attacking, the
+    // server opens the attack and returns its snapshot; when scouting it is a
+    // plain read-only fetch.
+    public async generateEnemyVillageFromUser(userId: string, username: string, forAttack: boolean, epoch?: number): Promise<boolean> {
         let userBase: SerializedWorld | null = null;
+        let attackId: string | undefined;
+        let startedAttack: Awaited<ReturnType<typeof Backend.startAttackOnUser>> = null;
         try {
-            userBase = await Backend.loadFromCloud(userId);
+            if (forAttack) {
+                startedAttack = await Backend.startAttackOnUser(userId);
+                userBase = startedAttack?.world ?? null;
+                attackId = startedAttack?.attackId;
+            } else {
+                userBase = await Backend.loadFromCloud(userId);
+            }
         } catch (error) {
             console.error('generateEnemyVillageFromUser: failed to load user base', { userId, error });
         }
-        if (!userBase || !Array.isArray(userBase.buildings) || userBase.buildings.length === 0) {
+        if (epoch !== undefined && !this.isTransitionCurrent(epoch)) {
+            if (attackId) void Backend.endAttack(attackId, 'aborted', 0, 0).catch(() => undefined);
             return false;
+        }
+        if (!userBase || !Array.isArray(userBase.buildings) || userBase.buildings.length === 0) {
+            // An explicit/revenge start is already live server-side at this
+            // point. Never leave it orphaned just because its snapshot cannot
+            // be presented locally.
+            if (attackId) {
+                await Backend.endAttack(attackId, 'aborted', 0, 0).catch(() => undefined);
+            }
+            return false;
+        }
+
+        if (forAttack) {
+            if (!startedAttack || epoch === undefined) {
+                if (attackId) await Backend.endAttack(attackId, 'aborted', 0, 0).catch(() => undefined);
+                return false;
+            }
+            const plot = { x: startedAttack.target.x, y: startedAttack.target.y };
+            const meta: EnemyWorldMeta = {
+                id: userId,
+                username: userBase.username || username,
+                isBot: false,
+                attackId: startedAttack.attackId,
+                lootPreCapped: true
+            };
+            this.worldMap.prepareFocus(plot);
+            this.prepareGroundBake(meta.id);
+            await this.arriveAndFight(plot, userBase, meta, epoch, {
+                cameraArrivedAtGate: false,
+                finishTransition: false
+            });
+            return this.mode === 'ATTACK' && this.currentEnemyWorld?.attackId === startedAttack.attackId;
         }
 
         const summary = this.instantiateEnemyWorld(userBase, {
             id: userId,
             username: username,
             isBot: false,
-            attackId: Phaser.Utils.String.UUID()
+            attackId: undefined,
+            lootPreCapped: false
         });
         if (summary.playablePlaced === 0) {
             console.warn('generateEnemyVillageFromUser: loaded user base had no playable buildings', {
@@ -7206,8 +8032,27 @@ export class MainScene extends Phaser.Scene {
                 worldId: userBase.id,
                 summary
             });
+            await this.abandonCurrentAttack();
         }
         return summary.playablePlaced > 0;
+    }
+
+    /**
+     * Settle a server-registered attack that ends without a battle (leaving,
+     * NEXT button, failed load). No-op for bots, scouting, or attacks already
+     * being resolved through the replay capture path.
+     */
+    private async abandonCurrentAttack(): Promise<void> {
+        const attackId = this.currentEnemyWorld?.attackId;
+        if (!attackId || this.currentEnemyWorld?.isBot) return;
+        // A battle in progress, or one already settled by its end, must not be aborted.
+        if (this.replayCaptureState && this.replayCaptureState.attackId === attackId) return;
+        if (this.settledAttackIds.has(attackId)) return;
+        this.settledAttackIds.add(attackId);
+        this.currentEnemyWorld = this.currentEnemyWorld ? { ...this.currentEnemyWorld, attackId: undefined } : null;
+        await Backend.endAttack(attackId, 'aborted', 0, 0).catch(error => {
+            console.warn('Failed to abort attack:', error);
+        });
     }
 
     private getReplayTroopType(type: string): TroopType | null {
@@ -7279,51 +8124,34 @@ export class MainScene extends Phaser.Scene {
         }
     }
 
-    private buildReplayEnemyWorldSnapshot(victimId: string, victimName: string): SerializedWorld | null {
-        const enemyBuildings = this.buildings
-            .filter(building => building.owner === 'ENEMY')
-            .map(building => ({
-                id: building.id,
-                type: building.type as BuildingType,
-                gridX: Math.floor(building.gridX),
-                gridY: Math.floor(building.gridY),
-                level: Math.max(1, Math.floor(building.level || 1))
-            }));
-
-        if (enemyBuildings.length === 0) return null;
-
-        return {
-            id: `replay_${victimId}_${Date.now().toString(36)}`,
-            ownerId: victimId,
-            username: victimName || 'Enemy',
-            buildings: enemyBuildings,
-            obstacles: [],
-            resources: { sol: 0 },
-            army: {},
-            wallLevel: Math.max(1, this.preferredWallLevel || 1),
-            lastSaveTime: Date.now(),
-            revision: 1
-        };
-    }
-
     private buildReplayFrameSnapshot(): ReplayFrameSnapshot {
         const startedAt = this.replayCaptureState?.startedAt ?? this.time.now;
         const { totalKnown } = this.getBattleTotals();
         const destruction = totalKnown > 0
             ? Math.min(100, Math.round((this.destroyedBuildings / totalKnown) * 100))
             : 0;
+        const buildingStates = new Map<string, { id: string; health: number; isDestroyed: boolean }>();
+        for (const building of this.buildings) {
+            if (building.owner !== 'ENEMY') continue;
+            buildingStates.set(building.id, {
+                id: building.id,
+                health: Math.max(0, Math.floor(building.health)),
+                isDestroyed: Boolean(building.isDestroyed || building.health <= 0)
+            });
+        }
+        // Terminal states remain present after their live Phaser objects were
+        // removed, making destruction monotonic and visible to the server.
+        for (const destroyed of this.replayDestroyedBuildings.values()) {
+            buildingStates.set(destroyed.id, destroyed);
+        }
 
         return {
             t: Math.max(0, Math.floor(this.time.now - startedAt)),
             destruction,
-            solLooted: Math.max(0, Math.floor(this.solLooted)),
-            buildings: this.buildings
-                .filter(building => building.owner === 'ENEMY')
-                .map(building => ({
-                    id: building.id,
-                    health: Math.max(0, Math.floor(building.health)),
-                    isDestroyed: Boolean(building.isDestroyed || building.health <= 0)
-                })),
+            goldLooted: Math.max(0, Math.floor(this.goldLooted)),
+            oreLooted: Math.max(0, Math.floor(this.oreLooted)),
+            foodLooted: Math.max(0, Math.floor(this.foodLooted)),
+            buildings: Array.from(buildingStates.values()),
             troops: this.troops
                 .filter(troop => troop.health > 0)
                 .map(troop => ({
@@ -7348,78 +8176,56 @@ export class MainScene extends Phaser.Scene {
         if (!this.currentEnemyWorld || this.currentEnemyWorld.isBot || !this.currentEnemyWorld.attackId) return;
         if (this.replayCaptureState && this.replayCaptureState.attackId === this.currentEnemyWorld.attackId) return;
 
-        const user = Auth.getCurrentUser();
-        if (!user) return;
-
-        const replayWorld = this.buildReplayEnemyWorldSnapshot(this.currentEnemyWorld.id, this.currentEnemyWorld.username);
-        if (!replayWorld) return;
-
-        const captureState: ReplayCaptureState = {
+        // The server registered the attack (and snapshotted the base) when it
+        // was loaded, so capture just means streaming frames from here on.
+        Backend.beginReplayCapture(this.currentEnemyWorld.attackId);
+        this.replayCaptureState = {
             attackId: this.currentEnemyWorld.attackId,
             victimId: this.currentEnemyWorld.id,
             startedAt: this.time.now,
-            startedRemotely: false,
+            startedRemotely: true,
             framePushInFlight: false,
             lastFramePushAt: -Infinity,
             ended: false
         };
-        this.replayCaptureState = captureState;
-
-        void Backend.startAttackReplaySession(
-            captureState.attackId,
-            captureState.victimId,
-            user.id,
-            user.username,
-            replayWorld
-        ).then(() => {
-            if (!this.replayCaptureState || this.replayCaptureState.attackId !== captureState.attackId) return;
-            this.replayCaptureState.startedRemotely = true;
-            this.maybePushReplayFrame(true);
-        }).catch(error => {
-            console.warn('Replay capture start failed:', error);
-        });
+        this.maybePushReplayFrame(true);
     }
 
     private maybePushReplayFrame(force: boolean = false) {
         const state = this.replayCaptureState;
-        if (!state || state.ended || !state.startedRemotely) return;
-        if (state.framePushInFlight) return;
+        if (!state || state.ended) return;
 
         const now = this.time.now;
-        if (!force && now - state.lastFramePushAt < this.REPLAY_PUSH_INTERVAL_MS) return;
-
-        state.framePushInFlight = true;
+        // Live viewers interpolate between samples, so long battles do not
+        // benefit from publishing multi-kilobyte snapshots at a fixed 6fps.
+        // Thin the routine stream as it ages; forced destruction/final frames
+        // still bypass this cadence and preserve important state changes.
+        const battleAge = Math.max(0, now - state.startedAt);
+        const interval = battleAge < 30_000 ? 500 : battleAge < 90_000 ? 1000 : 2000;
+        if (!force && now - state.lastFramePushAt < interval) return;
         state.lastFramePushAt = now;
-        const frame = this.buildReplayFrameSnapshot();
 
-        void Backend.pushAttackReplayFrame(state.attackId, frame)
-            .catch(error => {
-                console.warn('Replay frame push failed:', error);
-            })
-            .finally(() => {
-                if (this.replayCaptureState && this.replayCaptureState.attackId === state.attackId) {
-                    this.replayCaptureState.framePushInFlight = false;
-                }
-            });
+        // Frames are buffered client-side and shipped in ~1s batches.
+        Backend.pushAttackReplayFrame(state.attackId, this.buildReplayFrameSnapshot());
     }
 
-    private endAttackReplayCapture(status: 'finished' | 'aborted') {
+    private endAttackReplayCapture(status: 'finished' | 'aborted'): Promise<AttackEndResult | null> | null {
         const state = this.replayCaptureState;
-        if (!state || state.ended) return;
+        if (!state || state.ended) return this.pendingAttackSettlement;
         state.ended = true;
         const finalFrame = this.buildReplayFrameSnapshot();
         this.replayCaptureState = null;
 
-        if (!state.startedRemotely) return;
-
-        void Promise.resolve()
-            .then(async () => {
-                await Backend.pushAttackReplayFrame(state.attackId, finalFrame).catch(() => undefined);
-                await Backend.endAttackReplaySession(state.attackId, status, finalFrame.destruction, finalFrame.solLooted);
-            })
-            .catch(error => {
-                console.warn('Replay capture end failed:', error);
-            });
+        // This attack is now settled; block any later abandon from re-settling it.
+        this.settledAttackIds.add(state.attackId);
+        Backend.pushAttackReplayFrame(state.attackId, finalFrame);
+        // Settles loot + trophies and notifies the defender, exactly once.
+        const settlement = Backend.endAttack(state.attackId, status, finalFrame.destruction, finalFrame.goldLooted, finalFrame.oreLooted ?? 0, finalFrame.foodLooted ?? 0);
+        this.pendingAttackSettlement = settlement;
+        void settlement.finally(() => {
+            if (this.pendingAttackSettlement === settlement) this.pendingAttackSettlement = null;
+        }).catch(() => undefined);
+        return settlement;
     }
 
     private createReplayTroop(snapshot: ReplayTroopSnapshot): Troop | undefined {
@@ -7431,28 +8237,31 @@ export class MainScene extends Phaser.Scene {
 
         const pos = IsoUtils.cartToIso(snapshot.gridX, snapshot.gridY);
         const troopGraphic = this.add.graphics();
-        TroopRenderer.drawTroopVisual(
-            troopGraphic,
-            troopType,
-            snapshot.owner,
-            this.time.now,
-            true,
-            0,
-            0,
-            0,
-            false,
-            snapshot.facingAngle ?? 0,
-            snapshot.level
-        );
         troopGraphic.setPosition(pos.x, pos.y);
         troopGraphic.setDepth(depthForTroop(snapshot.gridX, snapshot.gridY, troopType));
+        if (!SpriteBank.syncLooseTroop(this, troopGraphic, troopType, snapshot.owner, troopLevel, snapshot.facingAngle ?? 0, true, this.time.now)) {
+            TroopRenderer.drawTroopVisual(
+                troopGraphic,
+                troopType,
+                snapshot.owner,
+                snapshot.facingAngle ?? 0,
+                true,
+                0,
+                0,
+                0,
+                false,
+                0,
+                snapshot.level,
+                this.time.now
+            );
+        }
 
         const troop: Troop = {
             id: snapshot.id,
             type: troopType,
             level: troopLevel,
             gameObject: troopGraphic,
-            healthBar: this.add.graphics(),
+            healthBar: this.createHealthBarGraphics(),
             gridX: snapshot.gridX,
             gridY: snapshot.gridY,
             health: Math.max(0, snapshot.health),
@@ -7465,17 +8274,12 @@ export class MainScene extends Phaser.Scene {
             hasTakenDamage: Boolean(snapshot.hasTakenDamage),
             facingAngle: snapshot.facingAngle ?? 0,
             recursionGen: snapshot.recursionGen,
-            replaySyncX: snapshot.gridX,
-            replaySyncY: snapshot.gridY,
-            replaySyncHealth: Math.max(0, snapshot.health),
             replayPrevSampleX: snapshot.gridX,
             replayPrevSampleY: snapshot.gridY,
             replayPrevSampleT: 0,
             replaySampleX: snapshot.gridX,
             replaySampleY: snapshot.gridY,
             replaySampleT: 0,
-            replayVelX: 0,
-            replayVelY: 0
         };
         return troop;
     }
@@ -7548,48 +8352,16 @@ export class MainScene extends Phaser.Scene {
                     troop.replaySampleX = sampleX;
                     troop.replaySampleY = sampleY;
                     troop.replaySampleT = frameT;
-                    troop.replayVelX = 0;
-                    troop.replayVelY = 0;
                 } else {
-                    const prevSampleX = Number.isFinite(troop.replaySampleX) ? Number(troop.replaySampleX) : troop.gridX;
-                    const prevSampleY = Number.isFinite(troop.replaySampleY) ? Number(troop.replaySampleY) : troop.gridY;
-                    const dt = frameT - prevSampleT;
-
-                    troop.replayPrevSampleX = prevSampleX;
-                    troop.replayPrevSampleY = prevSampleY;
+                    // Slide the bracketing pair forward: the smoothing loop
+                    // interpolates between these two samples on the stream clock.
+                    troop.replayPrevSampleX = Number.isFinite(troop.replaySampleX) ? Number(troop.replaySampleX) : troop.gridX;
+                    troop.replayPrevSampleY = Number.isFinite(troop.replaySampleY) ? Number(troop.replaySampleY) : troop.gridY;
                     troop.replayPrevSampleT = prevSampleT;
                     troop.replaySampleX = sampleX;
                     troop.replaySampleY = sampleY;
                     troop.replaySampleT = frameT;
-
-                    if (dt > 8) {
-                        const maxTilesPerMs = 6.5 / 1000;
-                        const instVelX = Phaser.Math.Clamp((sampleX - prevSampleX) / dt, -maxTilesPerMs, maxTilesPerMs);
-                        const instVelY = Phaser.Math.Clamp((sampleY - prevSampleY) / dt, -maxTilesPerMs, maxTilesPerMs);
-                        const prevVelX = Number.isFinite(troop.replayVelX) ? Number(troop.replayVelX) : instVelX;
-                        const prevVelY = Number.isFinite(troop.replayVelY) ? Number(troop.replayVelY) : instVelY;
-                        troop.replayVelX = Phaser.Math.Linear(prevVelX, instVelX, 0.82);
-                        troop.replayVelY = Phaser.Math.Linear(prevVelY, instVelY, 0.82);
-                    }
-
-                    const hardError = Phaser.Math.Distance.Between(troop.gridX, troop.gridY, sampleX, sampleY);
-                    if (hardError > 6.5) {
-                        troop.gridX = sampleX;
-                        troop.gridY = sampleY;
-                        troop.replayPrevSampleX = sampleX;
-                        troop.replayPrevSampleY = sampleY;
-                        troop.replayPrevSampleT = frameT;
-                        troop.replaySampleX = sampleX;
-                        troop.replaySampleY = sampleY;
-                        troop.replaySampleT = frameT;
-                        troop.replayVelX = 0;
-                        troop.replayVelY = 0;
-                    }
                 }
-
-                troop.replaySyncX = sampleX;
-                troop.replaySyncY = sampleY;
-                troop.replaySyncHealth = troop.health;
 
                 if (!wasExisting) {
                     const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
@@ -7616,56 +8388,58 @@ export class MainScene extends Phaser.Scene {
         }
 
         const destruction = Math.max(0, Math.min(100, Math.floor(frame.destruction)));
-        this.solLooted = Math.max(0, Math.floor(frame.solLooted));
+        this.goldLooted = Math.max(0, Math.floor(frame.goldLooted));
+        this.oreLooted = Math.max(0, Math.floor(frame.oreLooted ?? 0));
+        this.foodLooted = Math.max(0, Math.floor(frame.foodLooted ?? 0));
         this.destroyedBuildings = Math.max(0, Math.round((destruction / 100) * Math.max(1, this.initialEnemyBuildings)));
-        gameManager.updateBattleStats(destruction, this.solLooted);
+        gameManager.updateBattleStats(destruction, this.goldLooted, this.oreLooted, this.foodLooted);
     }
 
+    /**
+     * Troop motion between stream frames: a pure interpolation between the
+     * two samples that bracket the render clock. If the clock reaches the
+     * newest sample (buffer dry), troops HOLD there — never extrapolated,
+     * never snapped back. A short exponential smoothing eats sub-tile
+     * correction noise; a genuinely new position (teleport in the data) is
+     * trusted immediately.
+     */
     private updateReplayTroopSmoothing(delta: number) {
         if (this.mode !== 'REPLAY') return;
         const replay = this.replayWatchState;
         if (!replay) return;
+        const renderT = replay.renderClockT;
 
         for (const troop of this.troops) {
             if (troop.health <= 0) continue;
 
-            const sampleX = troop.replaySampleX;
-            const sampleY = troop.replaySampleY;
-            const sampleT = troop.replaySampleT;
+            const sampleX = Number(troop.replaySampleX);
+            const sampleY = Number(troop.replaySampleY);
+            const sampleT = Number(troop.replaySampleT);
             if (!Number.isFinite(sampleX) || !Number.isFinite(sampleY) || !Number.isFinite(sampleT)) continue;
 
-            const prevSampleX = Number.isFinite(troop.replayPrevSampleX) ? Number(troop.replayPrevSampleX) : Number(sampleX);
-            const prevSampleY = Number.isFinite(troop.replayPrevSampleY) ? Number(troop.replayPrevSampleY) : Number(sampleY);
-            const prevSampleT = Number.isFinite(troop.replayPrevSampleT) ? Number(troop.replayPrevSampleT) : Number(sampleT);
+            const prevX = Number.isFinite(troop.replayPrevSampleX) ? Number(troop.replayPrevSampleX) : sampleX;
+            const prevY = Number.isFinite(troop.replayPrevSampleY) ? Number(troop.replayPrevSampleY) : sampleY;
+            const prevT = Number.isFinite(troop.replayPrevSampleT) ? Number(troop.replayPrevSampleT) : sampleT;
 
-            let targetX = Number(sampleX);
-            let targetY = Number(sampleY);
-            const renderT = replay.renderClockT;
-
-            if (Number(sampleT) > prevSampleT + 1 && renderT <= Number(sampleT)) {
-                const alpha = Phaser.Math.Clamp((renderT - prevSampleT) / (Number(sampleT) - prevSampleT), 0, 1);
-                targetX = Phaser.Math.Linear(prevSampleX, Number(sampleX), alpha);
-                targetY = Phaser.Math.Linear(prevSampleY, Number(sampleY), alpha);
-            } else {
-                const aheadMs = Phaser.Math.Clamp(renderT - Number(sampleT), 0, replay.maxExtrapolationMs);
-                const velX = Number.isFinite(troop.replayVelX) ? Number(troop.replayVelX) : 0;
-                const velY = Number.isFinite(troop.replayVelY) ? Number(troop.replayVelY) : 0;
-                targetX = Number(sampleX) + velX * aheadMs;
-                targetY = Number(sampleY) + velY * aheadMs;
+            let targetX = sampleX;
+            let targetY = sampleY;
+            if (renderT < sampleT && sampleT > prevT + 0.5) {
+                const alphaT = Phaser.Math.Clamp((renderT - prevT) / (sampleT - prevT), 0, 1);
+                targetX = Phaser.Math.Linear(prevX, sampleX, alphaT);
+                targetY = Phaser.Math.Linear(prevY, sampleY, alphaT);
             }
 
             const prevRenderX = troop.gridX;
             const prevRenderY = troop.gridY;
             const errorDist = Phaser.Math.Distance.Between(prevRenderX, prevRenderY, targetX, targetY);
-            if (errorDist > 5.8) {
+            if (errorDist > 2.5) {
+                // The data really moved (spawn reposition / scripted jump): trust it.
                 troop.gridX = targetX;
                 troop.gridY = targetY;
             } else if (errorDist > 0.0001) {
-                const baseFollow = 1 - Math.exp(-delta / 58);
-                const catchup = Phaser.Math.Clamp(errorDist / 1.8, 0, 0.75);
-                const t = Phaser.Math.Clamp(baseFollow + catchup * 0.18, 0.08, 0.9);
-                troop.gridX = Phaser.Math.Linear(prevRenderX, targetX, t);
-                troop.gridY = Phaser.Math.Linear(prevRenderY, targetY, t);
+                const follow = 1 - Math.exp(-delta / 70);
+                troop.gridX = Phaser.Math.Linear(prevRenderX, targetX, follow);
+                troop.gridY = Phaser.Math.Linear(prevRenderY, targetY, follow);
             }
 
             const motionDx = troop.gridX - prevRenderX;
@@ -7682,10 +8456,15 @@ export class MainScene extends Phaser.Scene {
 
             const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
             troop.gameObject.setPosition(pos.x, pos.y);
-            troop.gameObject.setDepth(depthForTroop(troop.gridX, troop.gridY, troop.type));
+            const troopDepth = Math.round(depthForTroop(troop.gridX, troop.gridY, troop.type));
+            if (troopDepth !== troop.lastDepth) {
+                troop.lastDepth = troopDepth;
+                troop.gameObject.setDepth(troopDepth);
+            }
 
             const moving = errorDist > 0.05 || motionDist > 0.001;
-            if (
+            const onScreen = !this.isOffScreen(troop.gridX, troop.gridY);
+            if (onScreen && (
                 troop.type === 'warrior' ||
                 troop.type === 'archer' ||
                 troop.type === 'giant' ||
@@ -7696,10 +8475,13 @@ export class MainScene extends Phaser.Scene {
                 troop.type === 'davincitank' ||
                 troop.type === 'phalanx' ||
                 troop.type === 'romanwarrior' ||
-                troop.type === 'wallbreaker'
-            ) {
+                troop.type === 'wallbreaker' ||
+                troop.type === 'stormmage' ||
+                troop.type === 'ward' ||
+                troop.type === 'recursion'
+            )) {
                 this.redrawTroopWithMovement(troop, moving);
-            } else if (moving) {
+            } else if (onScreen && moving) {
                 this.redrawTroop(troop);
             }
 
@@ -7726,7 +8508,8 @@ export class MainScene extends Phaser.Scene {
             id: replay.victimId,
             username: replay.victimName || replay.enemyWorld.username || 'Village',
             isBot: true,
-            attackId: replay.attackId
+            attackId: replay.attackId,
+            lootPreCapped: true
         });
         if (summary.playablePlaced === 0) return false;
 
@@ -7737,7 +8520,9 @@ export class MainScene extends Phaser.Scene {
         this.pendingSpawnCount = 0;
         this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
         this.destroyedBuildings = 0;
-        this.solLooted = 0;
+        this.goldLooted = 0;
+        this.oreLooted = 0;
+        this.foodLooted = 0;
         gameManager.updateBattleStats(0, 0);
         this.setVillageNameVisible(true);
         this.updateVillageName();
@@ -7746,14 +8531,12 @@ export class MainScene extends Phaser.Scene {
         const watchState: ReplayWatchState = {
             attackId: replay.attackId,
             mode,
-            playbackStartTime: this.replaySimulationTime,
             renderClockT: 0,
+            clockStarted: false,
             nextFrameIndex: 0,
             lastAppliedFrameT: -1,
             lastFetchedFrameT: -1,
             status: replay.status,
-            liveRenderDelayMs: mode === 'live' ? this.REPLAY_LIVE_RENDER_DELAY_MS : 0,
-            maxExtrapolationMs: mode === 'live' ? this.REPLAY_MAX_EXTRAPOLATION_MS : 220,
             pollInFlight: false,
             frames: []
         };
@@ -7773,6 +8556,7 @@ export class MainScene extends Phaser.Scene {
                 watchState.nextFrameIndex = 1;
                 watchState.lastAppliedFrameT = watchState.frames[0].t;
                 watchState.renderClockT = watchState.frames[0].t;
+                watchState.clockStarted = true;
             } else {
                 this.queueReplayReturnHome(700);
             }
@@ -7789,10 +8573,18 @@ export class MainScene extends Phaser.Scene {
         this.ingestReplayFrames(watchState, initialFrames);
 
         if (watchState.frames.length > 0) {
-            this.applyReplayFrame(watchState.frames[0]);
-            watchState.lastAppliedFrameT = watchState.frames[0].t;
-            watchState.nextFrameIndex = 1;
-            watchState.renderClockT = watchState.frames[0].t;
+            // Join at the live edge minus the jitter buffer: apply the newest
+            // frame at or before the join point as the baseline and play on
+            // from there — never race the whole battle to catch up.
+            const headT = watchState.frames[watchState.frames.length - 1].t;
+            const joinT = Math.max(watchState.frames[0].t, headT - this.REPLAY_LIVE_DELAY_MS);
+            let baseline = 0;
+            while (baseline + 1 < watchState.frames.length && watchState.frames[baseline + 1].t <= joinT) baseline += 1;
+            this.applyReplayFrame(watchState.frames[baseline]);
+            watchState.lastAppliedFrameT = watchState.frames[baseline].t;
+            watchState.nextFrameIndex = baseline + 1;
+            watchState.renderClockT = joinT;
+            watchState.clockStarted = true;
         } else if (watchState.status !== 'live') {
             this.queueReplayReturnHome(700);
         }
@@ -7806,7 +8598,7 @@ export class MainScene extends Phaser.Scene {
                 if (current.pollInFlight) return;
                 current.pollInFlight = true;
 
-                void Backend.getLiveAttackState(current.attackId, current.lastFetchedFrameT, 64)
+                void Backend.getLiveAttackState(current.attackId, current.lastFetchedFrameT)
                     .then(next => {
                         const active = this.replayWatchState;
                         if (!active || active.attackId !== current.attackId || active.mode !== 'live') return;
@@ -7848,77 +8640,71 @@ export class MainScene extends Phaser.Scene {
         return true;
     }
 
-    private updateReplayWatchPlayback(time: number, replayDelta: number) {
+    /**
+     * The stream clock. Live spectating rides a fixed jitter buffer behind
+     * the newest frame: the clock never races ahead (no extrapolation, ever)
+     * and never rubber-bands — it adapts its rate within ±15%, and if the
+     * buffer runs dry (a network stall) it eases into a clean hold on the
+     * last frame until data arrives. Recorded replays run the same pipeline
+     * at a fixed speed. Defences, animations and combat visuals all share
+     * this one clock, so nothing in the scene can drift apart.
+     */
+    private updateReplayWatchPlayback(time: number, delta: number) {
         const replay = this.replayWatchState;
         if (!replay) return;
         void time;
 
-        if (replay.mode === 'replay') {
-            const elapsed = Math.max(0, this.replaySimulationTime - replay.playbackStartTime);
-            replay.renderClockT = elapsed;
-            while (replay.nextFrameIndex < replay.frames.length) {
-                const frame = replay.frames[replay.nextFrameIndex];
-                if (frame.t > replay.renderClockT) break;
-                this.applyReplayFrame(frame);
-                replay.lastAppliedFrameT = frame.t;
-                replay.nextFrameIndex += 1;
-            }
-
-            if (replay.nextFrameIndex >= replay.frames.length && replay.frames.length > 0) {
-                this.queueReplayReturnHome(1200);
-            }
+        const frames = replay.frames;
+        if (frames.length === 0) {
+            if (replay.status !== 'live') this.queueReplayReturnHome(900);
             return;
         }
 
-        if (replay.frames.length > 0) {
-            const headT = replay.frames[replay.frames.length - 1].t;
-            const floorT = replay.lastAppliedFrameT >= 0 ? replay.lastAppliedFrameT : replay.frames[0].t;
-            replay.renderClockT = Math.max(floorT, replay.renderClockT + replayDelta);
+        if (!replay.clockStarted) {
+            replay.renderClockT = frames[0].t;
+            replay.clockStarted = true;
+        }
 
-            // Softly steer toward desired render delay, while allowing controlled extrapolation.
-            const desiredRenderT = Math.max(0, headT - replay.liveRenderDelayMs);
-            const correction = Phaser.Math.Clamp(desiredRenderT - replay.renderClockT, -replayDelta * 0.38, replayDelta * 0.38);
-            replay.renderClockT += correction;
-
-            const maxRenderT = headT + replay.maxExtrapolationMs;
-            if (replay.renderClockT > maxRenderT) {
-                replay.renderClockT = maxRenderT;
-            }
+        const headT = frames[frames.length - 1].t;
+        if (replay.mode === 'live' && replay.status === 'live') {
+            const lead = headT - replay.renderClockT;
+            // Gentle rate control toward the target buffer depth...
+            let rate = Phaser.Math.Clamp(1 + (lead - this.REPLAY_LIVE_DELAY_MS) / 4000, 0.85, 1.15);
+            // ...and a smooth-stepped hold when the buffer is nearly dry.
+            const fuel = Phaser.Math.Clamp(lead / 350, 0, 1);
+            rate *= fuel * fuel * (3 - 2 * fuel);
+            replay.renderClockT += delta * rate;
         } else {
-            replay.renderClockT += replayDelta;
+            replay.renderClockT = Math.min(headT, replay.renderClockT + delta * this.REPLAY_SPEED);
         }
 
-        if (replay.frames.length === 0) {
-            if (replay.status !== 'live') {
-                this.queueReplayReturnHome(900);
-            }
-            return;
-        }
-
-        while (replay.nextFrameIndex < replay.frames.length) {
-            const frame = replay.frames[replay.nextFrameIndex];
+        while (replay.nextFrameIndex < frames.length) {
+            const frame = frames[replay.nextFrameIndex];
             if (frame.t > replay.renderClockT) break;
             this.applyReplayFrame(frame);
             replay.lastAppliedFrameT = frame.t;
             replay.nextFrameIndex += 1;
         }
 
-        if (replay.lastAppliedFrameT < 0 && replay.frames.length > 0) {
-            this.applyReplayFrame(replay.frames[0]);
-            replay.lastAppliedFrameT = replay.frames[0].t;
-            replay.nextFrameIndex = Math.max(replay.nextFrameIndex, 1);
-            replay.renderClockT = Math.max(replay.renderClockT, replay.frames[0].t);
-        }
+        // One clock for everything that moves during a replay.
+        this.replaySimulationTime = replay.renderClockT;
 
-        if (replay.status !== 'live' && replay.nextFrameIndex >= replay.frames.length) {
-            this.queueReplayReturnHome(900);
+        if (replay.status !== 'live' && replay.renderClockT >= headT && replay.nextFrameIndex >= frames.length) {
+            this.queueReplayReturnHome(1100);
         }
     }
 
 
     private findWardTarget(ward: Troop): Troop | PlacedBuilding | null {
+        // Wards support combat troops, never other wards. If the healers are
+        // all that remain they must fall through to an enemy building instead
+        // of selecting each other as permanent follow targets.
+        const allies = this.troops.filter(t =>
+            t.owner === ward.owner && t !== ward && t.type !== 'ward' && t.health > 0
+        );
+
         // 1. Closest INJURED ally (Priority)
-        const injured = this.troops.filter(t => t.owner === ward.owner && t !== ward && t.health < t.maxHealth && t.health > 0);
+        const injured = allies.filter(t => t.health < t.maxHealth);
         if (injured.length > 0) {
             injured.sort((a, b) => {
                 const da = Phaser.Math.Distance.Between(ward.gridX, ward.gridY, a.gridX, a.gridY);
@@ -7929,7 +8715,6 @@ export class MainScene extends Phaser.Scene {
         }
 
         // 2. Closest Ally (to follow)
-        const allies = this.troops.filter(t => t.owner === ward.owner && t !== ward && t.health > 0);
         if (allies.length > 0) {
             allies.sort((a, b) => {
                 const da = Phaser.Math.Distance.Between(ward.gridX, ward.gridY, a.gridX, a.gridY);
@@ -7947,8 +8732,6 @@ export class MainScene extends Phaser.Scene {
     }
 
     private shootDragonsBreathAt(db: PlacedBuilding, troop: Troop) {
-        const info = BUILDING_DEFINITIONS['dragons_breath'];
-        const start = IsoUtils.cartToIso(db.gridX + info.width / 2, db.gridY + info.height / 2);
         const stats = this.getDefenseStats(db);
         const range = stats.range || 13;
 
@@ -7959,11 +8742,11 @@ export class MainScene extends Phaser.Scene {
             Phaser.Math.Distance.Between(db.gridX, db.gridY, t.gridX, t.gridY) <= range
         );
 
-        // Screenshake for the start of the massive salvo
-        this.cameras.main.shake(75, 0.002);
+        // A soft rumble as the salvo begins
+        this.cameras.main.shake(60, 0.0012);
 
         for (let i = 0; i < 16; i++) {
-            this.time.delayedCall(i * 50, () => {
+            this.scheduleBattleCall(i * 50, () => {
                 if (!db || db.health <= 0) return;
 
                 // Cycle through targets if we have them, otherwise fallback to the primary target
@@ -7974,7 +8757,13 @@ export class MainScene extends Phaser.Scene {
                 if (target && target.health > 0) {
                     const jitterX = (Math.random() - 0.5) * 2.0;
                     const jitterY = (Math.random() - 0.5) * 2.0;
-                    this.shootDragonPod(db, start, target.gridX + jitterX, target.gridY + jitterY, stats.damage || 25);
+                    // Launch from this pod's actual silo so the standing rocket
+                    // (hidden by the renderer at this exact moment) visibly
+                    // becomes the projectile — no teleporting.
+                    const col = i % 4;
+                    const row = Math.floor(i / 4);
+                    const silo = IsoUtils.cartToIso(db.gridX + col + 0.5, db.gridY + row + 0.5);
+                    this.shootDragonPod(db, { x: silo.x, y: silo.y + 2 - 14 }, target.gridX + jitterX, target.gridY + jitterY, stats.damage || 25);
                 }
             });
         }
@@ -7984,60 +8773,109 @@ export class MainScene extends Phaser.Scene {
         const end = IsoUtils.cartToIso(targetGridX, targetGridY);
         const dbLevel = db.level ?? 1;
 
-        // Create firecracker rocket graphics
+        // Create firecracker rocket graphics, standing exactly where the
+        // silo's rocket was drawn.
         const pod = this.add.graphics();
-        const startX = start.x + (Math.random() - 0.5) * 60; // Spread out launch positions
-        const startY = start.y - 30;
+        const startX = start.x;
+        const startY = start.y;
         pod.setPosition(startX, startY);
         pod.setDepth(5000);
 
-        // Draw the firecracker rocket shape (drawn vertically, then rotated via setRotation)
+        // Draw the rocket EXACTLY like the pod standing in the silo (see
+        // BuildingRenderer.drawDragonsBreath), so launch is seamless.
         const drawRocket = () => {
             pod.clear();
 
-            // Rocket body — L2: white/gold, L1: red/gold
-            pod.fillStyle(dbLevel >= 2 ? 0xeeeedd : 0xcc2222, 1);
-            pod.fillRect(-4, -10, 8, 18);
+            // Body with a lit flank
+            pod.fillStyle(dbLevel >= 2 ? 0x9c1f1f : 0xa03028, 1);
+            pod.fillRect(-5, -8, 10, 20);
+            pod.fillStyle(dbLevel >= 2 ? 0xc22e2e : 0xb84438, 1);
+            pod.fillRect(-5, -8, 4, 20);
 
-            // Gold bands
-            pod.fillStyle(0xffd700, 1);
-            pod.fillRect(-5, -10, 10, 3);
-            pod.fillRect(-5, 5, 10, 3);
+            // Rune band + stud
+            pod.lineStyle(1.3, dbLevel >= 2 ? 0xe6dcc2 : 0xd8c49a, 1);
+            pod.lineBetween(-5, 6, 5, 6);
+            if (dbLevel >= 2) {
+                pod.fillStyle(0xffd700, 0.9);
+                pod.fillCircle(0, 6, 1.4);
+            }
 
-            // Gold tip
-            pod.fillStyle(dbLevel >= 2 ? 0xdaa520 : 0xb8860b, 1);
+            // Nose cone
+            pod.fillStyle(dbLevel >= 2 ? 0xdaa520 : 0x8a6a2a, 1);
             pod.beginPath();
-            pod.moveTo(0, -14);
-            pod.lineTo(-4, -10);
-            pod.lineTo(4, -10);
+            pod.moveTo(0, -16);
+            pod.lineTo(-5, -8);
+            pod.lineTo(5, -8);
             pod.closePath();
             pod.fillPath();
+
+            // Fin tails (max level)
+            if (dbLevel >= 2) {
+                pod.fillStyle(0xb8860b, 1);
+                pod.beginPath();
+                pod.moveTo(-5, 8);
+                pod.lineTo(-8, 13);
+                pod.lineTo(-5, 12.5);
+                pod.closePath();
+                pod.fillPath();
+                pod.beginPath();
+                pod.moveTo(5, 8);
+                pod.lineTo(8, 13);
+                pod.lineTo(5, 12.5);
+                pod.closePath();
+                pod.fillPath();
+            }
 
             // Exhaust flame
             pod.fillStyle(0xff6600, 0.9);
             pod.beginPath();
-            pod.moveTo(-3, 8);
-            pod.lineTo(0, 16);
-            pod.lineTo(3, 8);
+            pod.moveTo(-3, 12);
+            pod.lineTo(0, 20);
+            pod.lineTo(3, 12);
             pod.closePath();
             pod.fillPath();
-
-            pod.fillStyle(0xffff00, 0.8);
+            pod.fillStyle(0xffd25e, 0.85);
             pod.beginPath();
-            pod.moveTo(-2, 8);
-            pod.lineTo(0, 12);
-            pod.lineTo(2, 8);
+            pod.moveTo(-1.8, 12);
+            pod.lineTo(0, 16.5);
+            pod.lineTo(1.8, 12);
             pod.closePath();
             pod.fillPath();
         };
 
-        // Initial draw
+        // Initial draw: upright on the pad
         drawRocket();
+        pod.setRotation(0);
 
-        const midY = (start.y + end.y) / 2 - 200; // Arc height
-        const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
+        // PHASE 1 — LIFTOFF: the rocket climbs straight out of its silo on a
+        // building flame before tipping over into its arc.
+        const riseY = startY - 52;
+        this.tweens.add({
+            targets: pod,
+            y: riseY,
+            duration: 230,
+            ease: 'Quad.easeIn',
+            onUpdate: () => {
+                drawRocket();
+                if (Math.random() > 0.5) {
+                    const blast = this.add.graphics();
+                    blast.fillStyle(0xffaa33, 0.7);
+                    blast.fillCircle(0, 0, 2 + Math.random() * 2);
+                    blast.setPosition(pod.x + (Math.random() - 0.5) * 5, pod.y + 14);
+                    blast.setDepth(4999);
+                    this.tweens.add({ targets: blast, alpha: 0, y: blast.y + 8, duration: 180, onComplete: () => blast.destroy() });
+                }
+            },
+            onComplete: () => flyArc()
+        });
+
+        const flyArc = () => {
+        const arcStartY = riseY;
+        const midY = (arcStartY + end.y) / 2 - 200; // Arc height
+        const dist = Phaser.Math.Distance.Between(startX, arcStartY, end.x, end.y);
         let lastX = startX;
-        let lastY = startY;
+        let lastY = arcStartY;
+        let lastEmberAt = 0;
 
         this.tweens.add({
             targets: pod,
@@ -8047,48 +8885,32 @@ export class MainScene extends Phaser.Scene {
             onUpdate: (tween) => {
                 const t = tween.progress;
                 // Bezier curve for arc
-                pod.y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * midY + t * t * end.y;
+                pod.y = (1 - t) * (1 - t) * arcStartY + 2 * (1 - t) * t * midY + t * t * end.y;
 
-                // Calculate angle for rocket orientation and rotate the graphics object
+                void t;
+                // The rocket stays a rocket all the way down its arc.
                 const angle = Math.atan2(pod.y - lastY, pod.x - lastX);
                 pod.setRotation(angle + Math.PI / 2);
                 drawRocket();
 
-                // Dense smoke trail
-                if (Math.random() > 0.4) {
-                    const smoke = this.add.graphics();
-                    const smokeSize = 3 + Math.random() * 4;
-                    smoke.fillStyle(0x666666, 0.5);
-                    smoke.fillCircle(0, 0, smokeSize);
-                    smoke.setPosition(pod.x + (Math.random() - 0.5) * 6, pod.y + 8);
-                    smoke.setDepth(4998);
-
+                // A tight ember ribbon — uniform glowing motes, no grey smog.
+                const now = this.time.now;
+                if (now - lastEmberAt > 26) {
+                    lastEmberAt = now;
+                    const ember = this.add.graphics();
+                    ember.setBlendMode(Phaser.BlendModes.ADD);
+                    ember.fillStyle(0xffa14a, 0.8);
+                    ember.fillCircle(0, 0, 2.2);
+                    ember.setPosition(pod.x, pod.y + 4);
+                    ember.setDepth(4998);
                     this.tweens.add({
-                        targets: smoke,
-                        y: smoke.y + 15,
-                        x: smoke.x + (Math.random() - 0.5) * 20,
+                        targets: ember,
+                        y: ember.y - 5,
                         alpha: 0,
-                        scale: 2.5,
-                        duration: 400,
+                        scale: 0.2,
+                        duration: 240,
                         ease: 'Quad.easeOut',
-                        onComplete: () => smoke.destroy()
-                    });
-                }
-
-                // Fire sparks
-                if (Math.random() > 0.7) {
-                    const spark = this.add.graphics();
-                    spark.fillStyle(0xffaa00, 0.9);
-                    spark.fillRect(-1, -1, 2, 2);
-                    spark.setPosition(pod.x + (Math.random() - 0.5) * 4, pod.y + 10);
-                    spark.setDepth(4999);
-                    this.tweens.add({
-                        targets: spark,
-                        alpha: 0,
-                        y: spark.y + 10,
-                        scale: 0.5,
-                        duration: 150,
-                        onComplete: () => spark.destroy()
+                        onComplete: () => ember.destroy()
                     });
                 }
 
@@ -8097,42 +8919,107 @@ export class MainScene extends Phaser.Scene {
             },
             onComplete: () => {
                 pod.destroy();
+                this.cameras.main.shake(85, 0.0016);
 
-                // Explosion effect (isometric oval)
-                const boom = this.add.graphics();
-                boom.fillStyle(0xff4400, 0.8);
-                boom.fillEllipse(0, 0, 24, 12);
-                boom.setPosition(end.x, end.y);
-                boom.setDepth(5001);
-                this.tweens.add({ targets: boom, alpha: 0, scale: 2.5, duration: 200, onComplete: () => boom.destroy() });
-
-                // Inner flash
+                // 1 — the white-hot flash.
                 const flash = this.add.graphics();
-                flash.fillStyle(0xffff00, 0.9);
-                flash.fillEllipse(0, 0, 12, 6);
+                flash.setBlendMode(Phaser.BlendModes.ADD);
+                flash.fillStyle(0xfff6d8, 0.95);
+                flash.fillEllipse(0, 0, 26, 13);
                 flash.setPosition(end.x, end.y);
-                flash.setDepth(5002);
-                this.tweens.add({ targets: flash, alpha: 0, scale: 2, duration: 100, onComplete: () => flash.destroy() });
+                flash.setDepth(5003);
+                this.tweens.add({ targets: flash, alpha: 0, scale: 2.3, duration: 110, onComplete: () => flash.destroy() });
 
-                // Debris sparks
-                for (let i = 0; i < 6; i++) {
-                    const debris = this.add.graphics();
-                    debris.fillStyle(0xff6600, 0.8);
-                    debris.fillRect(-1, -1, 2, 2);
-                    debris.setPosition(end.x, end.y);
-                    debris.setDepth(5000);
-
-                    const angle = Math.random() * Math.PI * 2;
-                    const dist = 15 + Math.random() * 20;
+                // 2 — the bloom: three stacked fire tongues, hottest inside.
+                const bloomSpec: Array<[number, number, number]> = [
+                    [0xd8481e, 46, 420],
+                    [0xffb545, 34, 330],
+                    [0xfff3c4, 22, 240]
+                ];
+                bloomSpec.forEach(([color, size, dur], i) => {
+                    const bloom = this.add.graphics();
+                    bloom.fillStyle(color, 0.88);
+                    bloom.fillEllipse(0, 0, size, size * 0.5);
+                    bloom.setPosition(end.x, end.y);
+                    bloom.setDepth(5001 + i);
+                    bloom.setScale(0.35);
                     this.tweens.add({
-                        targets: debris,
-                        x: end.x + Math.cos(angle) * dist,
-                        y: end.y + Math.sin(angle) * dist * 0.5,
+                        targets: bloom,
                         alpha: 0,
-                        duration: 300,
-                        onComplete: () => debris.destroy()
+                        scale: 1.75,
+                        duration: dur,
+                        ease: 'Cubic.easeOut',
+                        onComplete: () => bloom.destroy()
+                    });
+                });
+
+                // 3 — the shockwave: one iso ring racing outward along the ground.
+                const ring = this.add.graphics();
+                ring.lineStyle(2.4, 0xffd9a0, 0.85);
+                ring.strokeEllipse(0, 0, 18, 9);
+                ring.setPosition(end.x, end.y);
+                ring.setDepth(5000);
+                this.tweens.add({
+                    targets: ring,
+                    alpha: 0,
+                    scaleX: 5.2,
+                    scaleY: 5.2,
+                    duration: 380,
+                    ease: 'Cubic.easeOut',
+                    onComplete: () => ring.destroy()
+                });
+
+                // 4 — embers thrown out, arcing and dying.
+                for (let i = 0; i < 10; i++) {
+                    const ember = this.add.graphics();
+                    ember.setBlendMode(Phaser.BlendModes.ADD);
+                    ember.fillStyle(i % 2 === 0 ? 0xffc35a : 0xff7a22, 0.95);
+                    ember.fillCircle(0, 0, 1.6 + Math.random() * 1.4);
+                    ember.setPosition(end.x, end.y - 4);
+                    ember.setDepth(5002);
+                    const angle = Math.random() * Math.PI * 2;
+                    const throwDist = 18 + Math.random() * 30;
+                    this.tweens.add({
+                        targets: ember,
+                        x: end.x + Math.cos(angle) * throwDist,
+                        y: end.y + Math.sin(angle) * throwDist * 0.5 - 8 + Math.random() * 16,
+                        alpha: 0,
+                        scale: 0.3,
+                        duration: 320 + Math.random() * 220,
+                        ease: 'Quad.easeOut',
+                        onComplete: () => ember.destroy()
                     });
                 }
+
+                // 5 — dark smoke rolling up after the fire.
+                for (let i = 0; i < 3; i++) {
+                    this.scheduleBattleCall(70 + i * 90, () => {
+                        const smoke = this.add.graphics();
+                        smoke.fillStyle(0x4a4038, 0.4);
+                        smoke.fillCircle(0, 0, 5 + i * 2);
+                        smoke.setPosition(end.x + (Math.random() - 0.5) * 10, end.y - 6);
+                        smoke.setDepth(5004);
+                        this.tweens.add({
+                            targets: smoke,
+                            y: smoke.y - 20,
+                            alpha: 0,
+                            scale: 2.1,
+                            duration: 680,
+                            ease: 'Quad.easeOut',
+                            onComplete: () => smoke.destroy()
+                        });
+                    });
+                }
+
+                // 6 — the ground remembers: a scorch that slowly fades.
+                const scorch = this.add.graphics();
+                scorch.fillStyle(0x2b241c, 0.38);
+                scorch.fillEllipse(0, 0, 24, 11);
+                scorch.fillStyle(0x1c1712, 0.3);
+                scorch.fillEllipse(2, 1, 12, 5.5);
+                scorch.setPosition(end.x, end.y + 1);
+                scorch.setDepth(6);
+                this.tweens.add({ targets: scorch, alpha: 0, duration: 3800, ease: 'Quad.easeIn', onComplete: () => scorch.destroy() });
 
                 this.troops.slice().forEach(t => {
                     if (t.owner !== db.owner && t.health > 0) {
@@ -8147,16 +9034,12 @@ export class MainScene extends Phaser.Scene {
                 });
             }
         });
+        };
     }
 
     // ===== SPIKE LAUNCHER =====
     public spikeZones: { x: number; y: number; gridX: number; gridY: number; radius: number; damage: number; owner: 'PLAYER' | 'ENEMY'; endTime: number; graphics: Phaser.GameObjects.Graphics; lastTickTime: number }[] = [];
 
-    public lavaZones: {
-        gridX: number; gridY: number; width: number; height: number;
-        damage: number; owner: 'PLAYER' | 'ENEMY'; endTime: number;
-        graphics: Phaser.GameObjects.Graphics; lastTickTime: number; createdAt: number
-    }[] = [];
 
     private shootSpikeLauncherAt(launcher: PlacedBuilding, troop: Troop) {
         const info = BUILDINGS['spike_launcher'];
@@ -8243,6 +9126,28 @@ export class MainScene extends Phaser.Scene {
         // Spike trail effect
         let lastTrailTime = 0;
 
+        // Ground shadow tracking under the arcing ball
+        const bagShadow = this.add.graphics();
+        bagShadow.fillStyle(0x18220f, 0.26);
+        bagShadow.fillEllipse(0, 0, 16, 7);
+        bagShadow.setPosition(start.x, start.y + 2);
+        bagShadow.setDepth(950);
+        bagShadow.setAlpha(0);
+        this.tweens.add({ targets: bagShadow, alpha: 1, delay: 300, duration: 80, ease: 'Linear' });
+        this.tweens.add({
+            targets: bagShadow,
+            x: end.x,
+            y: end.y + 2,
+            delay: 150,
+            duration: dist / 0.45,
+            ease: 'Linear',
+            onUpdate: (tw: Phaser.Tweens.Tween) => {
+                // Slimmer while the ball is high at the arc's apex
+                bagShadow.setScale(1 - (1 - Math.abs(tw.progress - 0.5) * 2) * 0.35);
+            },
+            onComplete: () => bagShadow.destroy()
+        });
+
         // Delay projectile movement to sync with trebuchet release animation
         this.tweens.add({
             targets: bag,
@@ -8303,11 +9208,108 @@ export class MainScene extends Phaser.Scene {
         duration: number,
         impactDamage: number = Math.round(damage * 1.45)
     ) {
-        // Camera shake on impact
-        this.cameras.main.shake(25, 0.00075);
+        // A heavy iron THUD — felt, not deafening.
+        this.cameras.main.shake(70, 0.0012);
 
-        // IMPACT SMOKE EFFECT (small puffs)
-        this.createSmokeEffect(x, y - 5);
+        // 1 — dull metal-on-earth flash (no fire: this is weight, not heat).
+        const slamFlash = this.add.graphics();
+        slamFlash.fillStyle(0xd8b878, 0.7);
+        slamFlash.fillEllipse(0, 0, 20, 10);
+        slamFlash.setPosition(x, y);
+        slamFlash.setDepth(5002);
+        this.tweens.add({ targets: slamFlash, alpha: 0, scale: 1.9, duration: 130, onComplete: () => slamFlash.destroy() });
+
+        // 2 — the dust shock: one iso ring of thrown earth racing outward.
+        const dustRing = this.add.graphics();
+        dustRing.lineStyle(3, 0xc9b593, 0.8);
+        dustRing.strokeEllipse(0, 0, 16, 8);
+        dustRing.setPosition(x, y + 1);
+        dustRing.setDepth(5000);
+        this.tweens.add({
+            targets: dustRing,
+            alpha: 0,
+            scaleX: 4.4,
+            scaleY: 4.4,
+            duration: 340,
+            ease: 'Cubic.easeOut',
+            onComplete: () => dustRing.destroy()
+        });
+
+        // 3 — the ground CRACKS under the blow: jagged lines that fade.
+        const cracks = this.add.graphics();
+        cracks.setPosition(x, y);
+        cracks.setDepth(7);
+        cracks.lineStyle(1.6, 0x3a3020, 0.85);
+        for (let c = 0; c < 5; c++) {
+            const baseAngle = (c / 5) * Math.PI * 2 + 0.35;
+            let cx = 0;
+            let cy = 0;
+            cracks.beginPath();
+            cracks.moveTo(0, 0);
+            for (let seg = 0; seg < 3; seg++) {
+                const jag = baseAngle + (Math.random() - 0.5) * 0.7;
+                const len = 7 + Math.random() * 9;
+                cx += Math.cos(jag) * len;
+                cy += Math.sin(jag) * len * 0.5;
+                cracks.lineTo(cx, cy);
+            }
+            cracks.strokePath();
+        }
+        this.tweens.add({ targets: cracks, alpha: 0, duration: 950, ease: 'Quad.easeIn', onComplete: () => cracks.destroy() });
+
+        // 4 — the ball's quills BURST outward and land as the zone's caltrops:
+        // the ejecta visually becomes the hazard the launcher leaves behind.
+        const quillCount = 9;
+        for (let q = 0; q < quillCount; q++) {
+            const quill = this.add.graphics();
+            quill.fillStyle(0x777777, 1);
+            quill.fillTriangle(0, -5, -2.2, 3, 2.2, 3);
+            quill.fillStyle(0xaaaaaa, 0.9);
+            quill.fillTriangle(0, -5, -0.9, -1, 0.9, -1);
+            quill.setPosition(x, y - 6);
+            quill.setDepth(5001);
+            const qa = (q / quillCount) * Math.PI * 2 + 0.2;
+            const qd = 12 + Math.random() * (radius * 14);
+            const landX = x + Math.cos(qa) * qd;
+            const landY = y + Math.sin(qa) * qd * 0.5;
+            this.tweens.add({
+                targets: quill,
+                x: landX,
+                duration: 240 + Math.random() * 120,
+                ease: 'Quad.easeOut',
+                onUpdate: (tw: Phaser.Tweens.Tween) => {
+                    // A little hop: up then embed.
+                    const t = tw.progress;
+                    quill.y = (y - 6) + (landY - (y - 6)) * t - Math.sin(t * Math.PI) * 12;
+                    quill.setRotation((t - 0.5) * 1.2 * (q % 2 === 0 ? 1 : -1));
+                },
+                onComplete: () => {
+                    // Stuck fast for a beat, then the persistent zone owns the look.
+                    this.tweens.add({ targets: quill, alpha: 0, delay: 500, duration: 400, onComplete: () => quill.destroy() });
+                }
+            });
+        }
+
+        // 5 — clods of earth kicked loose.
+        for (let d = 0; d < 6; d++) {
+            const clod = this.add.graphics();
+            clod.fillStyle(d % 2 === 0 ? 0x8a744e : 0x6e5c3e, 0.95);
+            clod.fillEllipse(0, 0, 3.4, 2.2);
+            clod.setPosition(x, y - 3);
+            clod.setDepth(5001);
+            const da = Math.random() * Math.PI * 2;
+            const dd = 10 + Math.random() * 22;
+            this.tweens.add({
+                targets: clod,
+                x: x + Math.cos(da) * dd,
+                y: y + Math.sin(da) * dd * 0.5 - 4 + Math.random() * 8,
+                alpha: 0,
+                rotation: Math.random() * 2,
+                duration: 300 + Math.random() * 200,
+                ease: 'Quad.easeOut',
+                onComplete: () => clod.destroy()
+            });
+        }
 
         // IMPACT DAMAGE - immediate damage to troops in zone
         this.troops.forEach(t => {
@@ -8466,95 +9468,4 @@ export class MainScene extends Phaser.Scene {
         }
     }
 
-    // ===== LAVA POOL (Magma Vent death zone) =====
-
-    private createLavaPool(gridX: number, gridY: number, width: number, height: number, owner: 'PLAYER' | 'ENEMY', sourceLevel: number = 1) {
-        const duration = 8000;
-        const ventStats = getBuildingStats('magmavent', sourceLevel);
-        const damage = Math.max(20, Math.round((ventStats.damage ?? 96) * 0.45));
-
-        const zoneGraphics = this.add.graphics();
-        zoneGraphics.setDepth(depthForRubble(gridX, gridY, width, height));
-
-        // Initial draw
-        RubbleRenderer.drawLavaPool(zoneGraphics, gridX, gridY, width, height, this.time.now, 1);
-
-        const zone = {
-            gridX, gridY, width, height,
-            damage,
-            owner,
-            endTime: this.time.now + duration,
-            graphics: zoneGraphics,
-            lastTickTime: this.time.now,
-            createdAt: this.time.now
-        };
-
-        this.lavaZones.push(zone);
-    }
-
-    public updateLavaZones() {
-        const now = this.time.now;
-        const toRemove: number[] = [];
-
-        this.lavaZones.forEach((zone, index) => {
-            // Check expiration
-            if (now >= zone.endTime) {
-                zone.graphics.destroy();
-                toRemove.push(index);
-                return;
-            }
-
-            // Damage tick (every 500ms)
-            if (now >= zone.lastTickTime + 500) {
-                zone.lastTickTime = now;
-
-                // Damage troops standing in the building footprint
-                this.troops.forEach(t => {
-                    if (t.owner !== zone.owner && t.health > 0) {
-                        if (t.gridX >= zone.gridX && t.gridX <= zone.gridX + zone.width &&
-                            t.gridY >= zone.gridY && t.gridY <= zone.gridY + zone.height) {
-                            t.health -= zone.damage;
-                            t.hasTakenDamage = true;
-                            this.updateHealthBar(t);
-
-                            // Lava burn effect
-                            const tPos = IsoUtils.cartToIso(t.gridX, t.gridY);
-                            const burn = this.add.graphics();
-                            burn.fillStyle(0xff5500, 0.8);
-                            burn.fillCircle(0, 0, 4);
-                            burn.fillStyle(0xffaa00, 0.6);
-                            burn.fillCircle(0, -2, 2);
-                            burn.setPosition(tPos.x, tPos.y - 8);
-                            burn.setDepth(t.gameObject.depth + 1);
-                            this.tweens.add({
-                                targets: burn,
-                                y: tPos.y - 25,
-                                alpha: 0,
-                                duration: 300,
-                                onComplete: () => burn.destroy()
-                            });
-
-                            if (t.health <= 0) {
-                                this.destroyTroop(t);
-                            }
-                        }
-                    }
-                });
-            }
-
-            // Calculate intensity for fade-out (last 1.5s)
-            const remaining = zone.endTime - now;
-            const intensity = remaining < 1500 ? remaining / 1500 : 1;
-
-            // Redraw every frame for animation
-            zone.graphics.clear();
-            zone.graphics.setAlpha(intensity);
-            RubbleRenderer.drawLavaPool(zone.graphics, zone.gridX, zone.gridY, zone.width, zone.height, now, intensity);
-        });
-
-        // Remove expired zones (reverse order)
-        for (let i = toRemove.length - 1; i >= 0; i--) {
-            this.lavaZones.splice(toRemove[i], 1);
-        }
-    }
 }

@@ -1,0 +1,1318 @@
+{
+  "cellWorldPx": 1.35,
+  "angles": 1,
+  "levels": {
+    "1": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L1_idle0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "frostfall_L1_idle1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "frostfall_L1_idle2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "frostfall_L1_idle3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "frostfall_L1_idle4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "frostfall_L1_idle5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1625
+                }
+              },
+              {
+                "file": "frostfall_L1_idle6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1750
+                }
+              },
+              {
+                "file": "frostfall_L1_idle7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1875
+                }
+              },
+              {
+                "file": "frostfall_L1_idle8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2000
+                }
+              },
+              {
+                "file": "frostfall_L1_idle9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2125
+                }
+              },
+              {
+                "file": "frostfall_L1_idle10.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2250
+                }
+              },
+              {
+                "file": "frostfall_L1_idle11.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "frostfall_L1_idle12.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L1_idle13.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2625
+                }
+              },
+              {
+                "file": "frostfall_L1_idle14.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2750
+                }
+              },
+              {
+                "file": "frostfall_L1_idle15.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2875
+                }
+              },
+              {
+                "file": "frostfall_L1_idle16.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "frostfall_L1_idle17.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3125
+                }
+              },
+              {
+                "file": "frostfall_L1_idle18.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "frostfall_L1_idle19.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3375
+                }
+              },
+              {
+                "file": "frostfall_L1_idle20.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "frostfall_L1_idle21.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3625
+                }
+              },
+              {
+                "file": "frostfall_L1_idle22.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "frostfall_L1_idle23.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3875
+                }
+              }
+            ]
+          ],
+          "loopMs": 3000,
+          "loopExact": false
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L1_fire0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 0,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L1_fire1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 300,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L1_fire2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 800,
+                  "projectileActive": false
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "frostfall_L1_ground.png",
+        "texelW": 50,
+        "texelH": 28,
+        "cellWorldPx": 1.35,
+        "originX": 0.5037037037037037,
+        "originY": 0.4576719576719564
+      }
+    },
+    "2": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L2_idle0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "frostfall_L2_idle1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "frostfall_L2_idle2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "frostfall_L2_idle3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "frostfall_L2_idle4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "frostfall_L2_idle5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1625
+                }
+              },
+              {
+                "file": "frostfall_L2_idle6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1750
+                }
+              },
+              {
+                "file": "frostfall_L2_idle7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1875
+                }
+              },
+              {
+                "file": "frostfall_L2_idle8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2000
+                }
+              },
+              {
+                "file": "frostfall_L2_idle9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2125
+                }
+              },
+              {
+                "file": "frostfall_L2_idle10.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2250
+                }
+              },
+              {
+                "file": "frostfall_L2_idle11.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "frostfall_L2_idle12.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L2_idle13.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2625
+                }
+              },
+              {
+                "file": "frostfall_L2_idle14.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2750
+                }
+              },
+              {
+                "file": "frostfall_L2_idle15.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2875
+                }
+              },
+              {
+                "file": "frostfall_L2_idle16.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "frostfall_L2_idle17.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3125
+                }
+              },
+              {
+                "file": "frostfall_L2_idle18.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "frostfall_L2_idle19.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3375
+                }
+              },
+              {
+                "file": "frostfall_L2_idle20.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "frostfall_L2_idle21.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3625
+                }
+              },
+              {
+                "file": "frostfall_L2_idle22.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "frostfall_L2_idle23.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3875
+                }
+              }
+            ]
+          ],
+          "loopMs": 3000,
+          "loopExact": false
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L2_fire0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 0,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L2_fire1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 300,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L2_fire2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 800,
+                  "projectileActive": false
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "frostfall_L2_ground.png",
+        "texelW": 50,
+        "texelH": 28,
+        "cellWorldPx": 1.35,
+        "originX": 0.5037037037037037,
+        "originY": 0.4576719576719564
+      }
+    },
+    "3": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L3_idle0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "frostfall_L3_idle1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "frostfall_L3_idle2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "frostfall_L3_idle3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "frostfall_L3_idle4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "frostfall_L3_idle5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1625
+                }
+              },
+              {
+                "file": "frostfall_L3_idle6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1750
+                }
+              },
+              {
+                "file": "frostfall_L3_idle7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1875
+                }
+              },
+              {
+                "file": "frostfall_L3_idle8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2000
+                }
+              },
+              {
+                "file": "frostfall_L3_idle9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2125
+                }
+              },
+              {
+                "file": "frostfall_L3_idle10.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2250
+                }
+              },
+              {
+                "file": "frostfall_L3_idle11.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "frostfall_L3_idle12.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L3_idle13.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2625
+                }
+              },
+              {
+                "file": "frostfall_L3_idle14.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2750
+                }
+              },
+              {
+                "file": "frostfall_L3_idle15.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2875
+                }
+              },
+              {
+                "file": "frostfall_L3_idle16.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "frostfall_L3_idle17.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3125
+                }
+              },
+              {
+                "file": "frostfall_L3_idle18.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "frostfall_L3_idle19.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3375
+                }
+              },
+              {
+                "file": "frostfall_L3_idle20.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "frostfall_L3_idle21.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3625
+                }
+              },
+              {
+                "file": "frostfall_L3_idle22.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "frostfall_L3_idle23.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3875
+                }
+              }
+            ]
+          ],
+          "loopMs": 3000,
+          "loopExact": false
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L3_fire0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 0,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L3_fire1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 300,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L3_fire2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 800,
+                  "projectileActive": false
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "frostfall_L3_ground.png",
+        "texelW": 50,
+        "texelH": 28,
+        "cellWorldPx": 1.35,
+        "originX": 0.5037037037037037,
+        "originY": 0.4576719576719564
+      }
+    },
+    "4": {
+      "states": {
+        "idle": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L4_idle0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1000
+                }
+              },
+              {
+                "file": "frostfall_L4_idle1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1125
+                }
+              },
+              {
+                "file": "frostfall_L4_idle2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1250
+                }
+              },
+              {
+                "file": "frostfall_L4_idle3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1375
+                }
+              },
+              {
+                "file": "frostfall_L4_idle4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "frostfall_L4_idle5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1625
+                }
+              },
+              {
+                "file": "frostfall_L4_idle6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1750
+                }
+              },
+              {
+                "file": "frostfall_L4_idle7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 1875
+                }
+              },
+              {
+                "file": "frostfall_L4_idle8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2000
+                }
+              },
+              {
+                "file": "frostfall_L4_idle9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2125
+                }
+              },
+              {
+                "file": "frostfall_L4_idle10.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2250
+                }
+              },
+              {
+                "file": "frostfall_L4_idle11.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2375
+                }
+              },
+              {
+                "file": "frostfall_L4_idle12.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L4_idle13.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2625
+                }
+              },
+              {
+                "file": "frostfall_L4_idle14.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2750
+                }
+              },
+              {
+                "file": "frostfall_L4_idle15.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2875
+                }
+              },
+              {
+                "file": "frostfall_L4_idle16.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "frostfall_L4_idle17.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3125
+                }
+              },
+              {
+                "file": "frostfall_L4_idle18.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "frostfall_L4_idle19.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3375
+                }
+              },
+              {
+                "file": "frostfall_L4_idle20.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "frostfall_L4_idle21.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3625
+                }
+              },
+              {
+                "file": "frostfall_L4_idle22.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "frostfall_L4_idle23.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 3875
+                }
+              }
+            ]
+          ],
+          "loopMs": 3000,
+          "loopExact": false
+        },
+        "fire": {
+          "angles": 1,
+          "frames": [
+            [
+              {
+                "file": "frostfall_L4_fire0.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 0,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L4_fire1.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 300,
+                  "projectileActive": true
+                }
+              },
+              {
+                "file": "frostfall_L4_fire2.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 800,
+                  "projectileActive": false
+                }
+              }
+            ]
+          ]
+        }
+      },
+      "ground": {
+        "file": "frostfall_L4_ground.png",
+        "texelW": 52,
+        "texelH": 29,
+        "cellWorldPx": 1.35,
+        "originX": 0.5035612535612535,
+        "originY": 0.47637292464878606
+      }
+    }
+  }
+}
