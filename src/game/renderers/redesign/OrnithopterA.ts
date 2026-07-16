@@ -90,6 +90,14 @@ function poly(g: G, color: number, pts: Array<readonly [number, number]>): void 
     g.fillPath();
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): the flap
+ *  stride 500 matches the TROOP_PARAMS row, but THIS slot's hover idles on
+ *  the declared IDLE_MS = 2000 loop — not the table's 500 ms hover clock
+ *  (slots B/C share one 500 ms clock for both axes; A does not). */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    ornithopter: { idleMs: 2000 },
+};
+
 export function drawOrnithopterA(
     g: G,
     isPlayer: boolean,

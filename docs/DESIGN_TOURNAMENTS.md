@@ -64,8 +64,53 @@ for.
    `setActiveSlot(unit, slot)` → `clash:design-changed` → cache-bust +
    re-stamp. SpriteBank resolves every unit through
    `resolveVariantUnit(...)` so 'cannon' transparently means
-   `cannon@<active>`. Winner promotion = change the default slot; losers can
-   be deleted later without touching call sites.
+   `cannon@<active>`. Judged defaults live in `DEFAULT_DESIGN_SLOTS`
+   (DesignRegistry) — the vector dispatch and SpriteBank's variant resolver
+   both read that ONE map, so the two paths can never disagree. Winner
+   promotion = change the unit's entry there; losers can be deleted later
+   without touching call sites.
+
+## Per-slot bake params — the `PARAMS` export
+
+`TROOP_PARAMS` (in `tools/art-preview/bake-sprites.mjs`) is per-UNIT, but
+design slots legitimately author different periods (pavisebearer B walks a
+600 ms stride where the table pins 500; clockworkbeetle B's arming overwind
+covers the whole 500 ms cycle where the table pins windup 240). Baking a slot
+with the unit table's values mis-samples its loops — the classic stride bug.
+
+A design file may therefore export a module-level **`PARAMS`** constant, keyed
+by unit (so paired units like necromancer + skeleton each get their own row in
+their shared file), listing ONLY the values that differ from the table:
+
+```ts
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    clockworkbeetle: { windup: 500, idleMs: 2000 },
+};
+```
+
+Fields: `stride` / `delay` / `windup` / `strike` / `idleMs` / `dirs` (see
+`DesignBakeParams` in `DesignRegistry.ts`). Resolution:
+`DesignRegistry.designBakeParams(unit, slot)` reads the export lazily off a
+namespace-import map (cycle-safe; files without the export resolve to null),
+the BakeBridge exposes it, and a `DESIGN=<slot>` bake overlays it on the
+unit's `TROOP_PARAMS` row for that run. The merged values (plus a
+`designParamsOverride` provenance key) are written into the variant's baked
+`manifest.json` — the ONLY place SpriteBank reads playback periods from, so
+the runtime needs no change. It supersedes the older golem-only
+`designStride` table (`PARAMS.stride` wins over `designStride` if both exist).
+
+Two rules artists must respect when authoring `PARAMS`:
+
+- **`delay` must equal the runtime TroopDefinitions `attackDelay`.**
+  SpriteBank matches baked `attackAge` by NEAREST VALUE against runtime ages;
+  ages baked against a wrong delay pair windup ages with the wrong frames
+  (necromancer precedent: ages baked at the table's pinned 5000 could never
+  match runtime windup ages at delay 1600 — the windup displayed strike
+  frames).
+- **`idleMs` is required whenever the idle loop closes on its own exact
+  period** (a 250 ms multiple, terms exact harmonics). Without it the bake
+  samples the default 2π·640 ≈ 4021 ms breath window, which does NOT close a
+  2000 ms loop — the seam pops.
 
 ## Winner promotion (the finals) — proven procedure
 

@@ -58,6 +58,13 @@ const CH_H0 = 5.0;         // chest floor height
 const CH_H1 = 13.6;        // chest lid height
 const DOC_D = -14.5;       // the doctor's ground anchor along -travel
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (800/400, no idleMs) —
+ *  WINDUP_MS 1400 / STRIKE_MS 450, idle closes on IDLE_MS = 2000. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    physicianscart: { windup: 1400, strike: 450, idleMs: 2000 },
+};
+
 export function drawPhysicianscartC(
     graphics: Phaser.GameObjects.Graphics,
     isPlayer: boolean,

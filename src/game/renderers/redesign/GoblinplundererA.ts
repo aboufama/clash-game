@@ -43,6 +43,14 @@ const IDLE_P_MS = 2000;  // declared idle period (250 ms multiple)
 const WINDUP_MS = 260;   // attack anticipation before the damage tick
 const STRIKE_MS = 140;   // sack-swat follow-through after the tick
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (600/200/120, no idleMs).
+ *  delay 700 = the runtime TroopDefinitions attackDelay this draw locks to;
+ *  windup/strike per WINDUP_MS/STRIKE_MS; idle closes on IDLE_P_MS = 2000. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    goblinplunderer: { delay: 700, windup: 260, strike: 140, idleMs: 2000 },
+};
+
 export function drawGoblinplundererA(
     g: G,
     isPlayer: boolean,

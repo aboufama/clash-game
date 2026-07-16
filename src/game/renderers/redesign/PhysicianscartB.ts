@@ -69,6 +69,14 @@ function pcbLerpColor(a: number, b: number, t: number): number {
     return (r << 16) | (gg << 8) | bb;
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (800/400, no idleMs). The
+ *  heal choreography winds up over WINDUP = 1400 ms and snaps skyward for
+ *  STRIKE = 420 ms; idle closes on IDLE_P = 2000. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    physicianscart: { windup: 1400, strike: 420, idleMs: 2000 },
+};
+
 export function drawPhysicianscartB(
     g: G,
     isPlayer: boolean,

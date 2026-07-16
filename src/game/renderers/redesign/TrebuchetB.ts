@@ -77,6 +77,15 @@ function ratchetB(k: number): number {
     return Math.min(1, (i + e) / n);
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (700/900/400, no idleMs).
+ *  stride = 600 ms walk; the attack cycle animates the whole 4000 ms delay —
+ *  windup spans crank + hold + whip (delay − FT_MS_B = 3570), strike is the
+ *  post-tick follow-through (FT_MS_B = 430); idle closes on 2000 ms. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    trebuchet: { stride: 600, windup: 3570, strike: 430, idleMs: 2000 },
+};
+
 export function drawTrebuchetB(
     g: G,
     isPlayer: boolean,

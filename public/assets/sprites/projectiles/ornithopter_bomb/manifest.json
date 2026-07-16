@@ -1,0 +1,23 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "ornithopter_bomb",
+  "variants": {
+    "l1": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ornithopter_bomb_l1_idle0.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.585185185185185
+            }
+          ]
+        }
+      }
+    }
+  }
+}

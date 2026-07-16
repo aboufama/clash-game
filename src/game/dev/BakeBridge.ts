@@ -12,6 +12,7 @@ import { WorldFigureRenderer } from '../renderers/WorldFigureRenderer';
 import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
 import { setWindBoost } from '../systems/Wind';
 import { SpriteBank } from '../render/SpriteBank';
+import { designBakeParams } from '../renderers/redesign/DesignRegistry';
 
 /**
  * Asset-pipeline entry point (see docs/AGENTS_SPRITE_PIPELINE.md).
@@ -57,6 +58,11 @@ export function installBakeBridge(scene: Phaser.Scene) {
         setWindBoost,
         // Bank introspection for variant tooling: which atlases loaded, and
         // how a plain unit name resolves to its '@slot' design-variant bake.
-        SpriteBank
+        SpriteBank,
+        // Per-slot bake-param overrides: a design file's hoisted PARAMS export
+        // (authored stride/delay/windup/strike/idleMs/dirs), overlaid by
+        // DESIGN=<slot> bakes on the unit's TROOP_PARAMS row so the bake
+        // samples the slot's exact authored periods.
+        designBakeParams
     };
 }

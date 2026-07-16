@@ -108,6 +108,19 @@ function wispA(g: G, x: number, y: number, s: number, pulse: number): void {
 
 // ============================ NECROMANCER ============================
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams). BAKE
+ *  DELAY MATTERS: SpriteBank matches baked attackAge by NEAREST VALUE against
+ *  runtime ages, so the necromancer must be sampled against the runtime
+ *  TroopDefinitions attackDelay 1600 — the table's pinned 5000 would bake
+ *  windup ages ~4300..4965 that runtime windup ages (~900..1600) never reach
+ *  (strike frames would display instead). windup 700 / strike 400 match the
+ *  table; both idles close on their declared exact periods (necromancer
+ *  2000 ms, skeleton 1000 ms), not the default 4021 ms breath window. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    necromancer: { delay: 1600, idleMs: 2000 },
+    skeleton: { idleMs: 1000 },
+};
+
 export function drawNecromancerA(
     g: G,
     isPlayer: boolean,

@@ -80,6 +80,15 @@ interface CrewPose {
     stone?: [number, number] | null;    // a stone carried at the hands
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (700/900/400, no idleMs).
+ *  stride = 600 ms walk; windup = min(2600, delay·0.65) = 2600 at the 4000 ms
+ *  delay; strike 0 — the pose holds through the tick (post-tick ages 1/40
+ *  read the held release); idle closes on IDLE_P = 2000. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    trebuchet: { stride: 600, windup: 2600, strike: 0, idleMs: 2000 },
+};
+
 export function drawTrebuchetC(
     graphics: G,
     isPlayer: boolean,

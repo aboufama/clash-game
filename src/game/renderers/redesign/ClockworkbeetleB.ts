@@ -62,6 +62,15 @@ function mix(c1: number, c2: number, t: number): number {
     return (r << 16) | (g << 8) | b;
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row. The arming overwind covers
+ *  the WHOLE 500 ms attack cycle (WINDUP_MS = 500; table pins 240 — baking
+ *  with 240 samples only the tail of the overwind); idle closes on
+ *  IDLE_MS = 2000. strike stays 0 (suicide unit). */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    clockworkbeetle: { windup: 500, idleMs: 2000 },
+};
+
 export function drawClockworkbeetleB(
     g: G,
     isPlayer: boolean,

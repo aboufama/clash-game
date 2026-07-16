@@ -55,6 +55,13 @@ function mixC(a: number, b: number, t: number): number {
     return (r << 16) | (g << 8) | bl;
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): stride
+ *  700 matches the TROOP_PARAMS row, but the idle loop closes on the exact
+ *  IDLE_P = 2000 ms period — not the default 4021 ms breath window. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    siegetower: { idleMs: 2000 },
+};
+
 export function drawSiegetowerA(
     graphics: G,
     isPlayer: boolean,

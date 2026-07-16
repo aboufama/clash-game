@@ -69,6 +69,15 @@ const IDLE_P = 2000;  // ms — the ONE declared idle period (250 ms multiple)
 const WINDUP = 340;   // ms of mace cock before the damage tick
 const STRIKE = 170;   // ms of jab decay after the tick
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (1200/350/180, no idleMs).
+ *  delay 1300 = the runtime TroopDefinitions attackDelay; windup/strike per
+ *  WINDUP/STRIKE (340/170); idle closes on IDLE_P = 2000. stride 500 matches
+ *  the table. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    pavisebearer: { delay: 1300, windup: 340, strike: 170, idleMs: 2000 },
+};
+
 export function drawPavisebearerA(
     g: G,
     isPlayer: boolean,

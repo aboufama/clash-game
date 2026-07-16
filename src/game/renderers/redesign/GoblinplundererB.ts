@@ -100,6 +100,15 @@ function dartCurve(p: number): number {
     return v;
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row. delay 700 = the runtime
+ *  TroopDefinitions attackDelay (table pins 600); idle closes on IDLE_MS =
+ *  2000, not the default 4021 ms breath window. WINDUP_MS/STRIKE_MS match
+ *  the table (200/120). */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    goblinplunderer: { delay: 700, idleMs: 2000 },
+};
+
 export function drawGoblinplundererB(
     graphics: Phaser.GameObjects.Graphics,
     isPlayer: boolean,

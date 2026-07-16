@@ -98,6 +98,14 @@ function atkState(time: number, attackAge: number, attackDelay: number, windupMs
     return { windup, strike, age, inCombat: true };
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (600/200/120, no idleMs).
+ *  delay 700 = the runtime TroopDefinitions attackDelay; windup/strike per
+ *  the atkState(…, 260, 160) call; idle closes on IDLE_MS = 2000. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    goblinplunderer: { delay: 700, windup: 260, strike: 160, idleMs: 2000 },
+};
+
 export function drawGoblinplundererC(
     graphics: Phaser.GameObjects.Graphics,
     isPlayer: boolean,

@@ -79,9 +79,11 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   panic, cheer, sleep, lantern, rock/pack carries), dogs, chickens, all
   birds, the dragon shadow (16 headings), merchant, stall, thief, owl.
   `figures/` (10 units): the 8 road-traveller kinds (walk + camp), caravan
-  soldiers (one palette per troop; four are stale since the 2026-07
-  troop deletion, pruned on the next figures bake), the postcard fish. `projectiles/` (10
-  units, 326 frames): every RIGID projectile at 16 rotation variants ×
+  soldiers (one palette per troop, refreshed by the 2026-07-16 figures
+  re-bake after the roster change), the postcard fish. `projectiles/`
+  (originally 10 units, 326 frames; now 11 units / 374 frames —
+  trebuchet_stone + ornithopter_bomb joined, musket_ball removed):
+  every RIGID projectile at 16 rotation variants ×
   material levels (arrow, bolts, shells, cannonball, crystal, rocket, spike
   ball) — runtime picks the nearest baked angle, never rotates the sprite.
   Wiring: `SpriteBank.syncFigure`/`pickFigureFrame` (variant + state +
@@ -139,10 +141,10 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   90°-per-P repeat + magazine glint chase (1500 ms), mortar bore shell +
   fuse ember + rim glint (1750 ms), spike launcher breathing loader +
   4-site spike-tip glint gated off during combat (2000 ms), dragons_breath
-  vein surge + fuse sputter + L2 head breath (2000 ms). Roster now
-  **23,788 frames / 84 manifests** after the 2026-07 troop deletion
-  (ward/recursion/giant/sharpshooter + musket_ball removed; the
-  regression enforces the exact counts). Harness upgrades: `shoot-defenses.mjs` gained
+  vein surge + fuse sputter + L2 head breath (2000 ms). Roster at that
+  point: 23,788 frames / 84 manifests after the 2026-07 troop deletion
+  (ward/recursion/giant/sharpshooter + musket_ball removed; counts since
+  superseded — see the troop-overhaul bullet below). Harness upgrades: `shoot-defenses.mjs` gained
   `VECTOR=1` (sprites-off authoring shots), `ONLY=<types>`, `BURST=<n>`/
   `BURST_MS` (idle-motion series); both harnesses resume ONE shared
   identity from `tools/art-preview/.shared-device-token.json` (guest
@@ -151,6 +153,32 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   when :8788 is down. Idle terms in draw fns must be exact harmonics of a
   250 ms-multiple period and survive quantization (≥1.5 world px or
   ≥16/255 RGB over ≥1% of texels — see the probe thresholds).
+- **DONE — the troop overhaul + design tournaments (2026-07-16):** the
+  trainable roster is **21 troops** (`PLAYER_TROOP_TYPES` in
+  `src/game/config/definitions/TroopDefinitions.ts` — that tuple IS the
+  unlock and display order; consumers must not restate it). 11 new units
+  joined: goblinplunderer, clockworkbeetle, physicianscart, pavisebearer,
+  quartermaster, siegetower, necromancer (whose skeleton summons are
+  generated-only, like phalanx's romanwarrior), trebuchet, hawkeyeassassin,
+  warelephant, ornithopter; ward/recursion/giant/sharpshooter were DELETED
+  end-to-end (with their musket_ball projectile — saves/replays
+  self-clean). TWO troops unlock per barracks level
+  (`getTroopUnlockLevel` = `floor(index/2)+1`; barracks maxLevel 11).
+  Client kits + server settlement shipped under ONE
+  `ATTACK_SIMULATION_VERSION` **3→4** bump (v3 replays preserved
+  verbatim). Tournament state: every tournament unit is baked AND
+  live-switchable in the Design Lab — frostfall@A/B/C building slots plus
+  35 troop variant dirs (11 units × @A/@B/@C incl. skeleton;
+  hawkeyeassassin @A/@B only) — with judge-panel defaults live in
+  `DEFAULT_DESIGN_SLOTS` (`src/game/renderers/redesign/DesignRegistry.ts`;
+  clockworkbeetle's verdict still in flight) and per-slot authored periods
+  baked via the `PARAMS` export (docs/DESIGN_TOURNAMENTS.md). AWAITING THE
+  OWNER: the frostfall A/B/C pick and per-troop winner confirmation vs the
+  judge defaults — never promote winners or delete variant dirs before
+  those picks (docs/TROOP_OVERHAUL_HANDOFF.md tracks the remainder).
+  Roster now **56,889 frames / 123 manifests** (~71 MB loose frames +
+  ~29 MB packed atlases; `scripts/render-quality-regression.mjs` enforces
+  the exact counts).
 - The vector draw functions remain in the bundle as the AUTHORING source and
   per-unit fallback. Iron rules still govern them — they are what gets baked.
   See `docs/AGENTS_SPRITE_PIPELINE.md` for the full architecture and the

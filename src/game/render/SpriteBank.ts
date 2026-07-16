@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
 import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitions';
 import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
+import { defaultDesignSlot } from '../renderers/redesign/DesignRegistry';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 
 /**
@@ -234,11 +235,13 @@ class SpriteBankImpl {
      * '@slot'-tagged bake. When variant atlases exist for `kind:unit` (baked
      * into sibling '<unit>@<slot>' dirs), the plain name transparently means
      * the ACTIVE variant: localStorage['clash.design.<unit>'] when that slot
-     * is baked, else 'A', else the first baked slot. The key is re-read per
-     * call — the exact semantics of the vector path's DesignRegistry, so the
-     * baked and fallback art always agree (and a console localStorage poke
-     * takes effect on the next stamp). Units with no variant bakes (wrecks,
-     * figures, every non-tournament unit) resolve to themselves.
+     * is baked, else the unit's judged default slot (DesignRegistry's
+     * DEFAULT_DESIGN_SLOTS via defaultDesignSlot) when baked, else 'A', else
+     * the first baked slot. The key is re-read per call — the exact semantics
+     * of the vector path's DesignRegistry, so the baked and fallback art
+     * always agree (and a console localStorage poke takes effect on the next
+     * stamp). Units with no variant bakes (wrecks, figures, every
+     * non-tournament unit) resolve to themselves.
      */
     resolveVariantUnit(kind: string, unit: string): string {
         if (unit.indexOf('@') >= 0) return unit; // already slot-qualified
@@ -252,6 +255,10 @@ class SpriteBankImpl {
             }
         } catch {
             // Storage unavailable — fall through to the default slot.
+        }
+        if (picked === null) {
+            const judged = defaultDesignSlot(unit);
+            if (judged && slots.includes(judged)) picked = judged;
         }
         return `${unit}@${picked ?? (slots.includes('A') ? 'A' : slots[0])}`;
     }

@@ -83,6 +83,14 @@ function atkAnim(time: number, attackAge: number, attackDelay: number): Atk {
     return { windup, strike, age, inCombat: true };
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (420/0, no idleMs).
+ *  WINDUP_MS 520 / STRIKE_MS 200 (this slot authors a real 200 ms release
+ *  decay); idle closes on IDLE_MS = 2000. stride 340 and delay 1300 match. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    hawkeyeassassin: { windup: 520, strike: 200, idleMs: 2000 },
+};
+
 export function drawHawkeyeassassinA(
     g: G,
     isPlayer: boolean,

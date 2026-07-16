@@ -148,9 +148,9 @@ for (const manifestFile of manifestFiles) {
   manifestsByKind[kindOf(manifestFile)] = (manifestsByKind[kindOf(manifestFile)] ?? 0) + 1;
 }
 assert.deepEqual(manifestsByKind,
-  { buildings: 21, figures: 10, obstacles: 5, projectiles: 9, troops: 11, villagers: 11, wrecks: 19 },
-  'expected manifests for 21 buildings (tournament resolved: plain cannon + plain mortar; frostfall pending as @A/@B/@C variant slots), 11 troops (plain golem + icegolem; ward/recursion/giant/sharpshooter deleted with their musket_ball projectile), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 9 projectiles');
-assert.equal(manifestFiles.length, 86, 'the baked unit roster changed size');
+  { buildings: 21, figures: 10, obstacles: 5, projectiles: 11, troops: 47, villagers: 11, wrecks: 19 },
+  'expected manifests for 21 buildings (tournament resolved: plain cannon + plain mortar; frostfall pending as @A/@B/@C variant slots), 46 troops (11 plain — golem + icegolem; ward/recursion/giant/sharpshooter deleted with their musket_ball projectile — plus 35 tournament variant dirs: 10 units × @A/@B/@C incl. skeleton, hawkeyeassassin at @A/@B only), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 11 projectiles (trebuchet_stone + ornithopter_bomb joined 2026-07)');
+assert.equal(manifestFiles.length, 124, 'the baked unit roster changed size');
 
 const referencedPngs = new Set();
 const framesByKind = {};
@@ -166,9 +166,14 @@ for (const manifestFile of manifestFiles) {
     assert.ok(Number.isSafeInteger(frame.texelH) && frame.texelH > 0, `${label} has invalid texelH`);
     // Origins are frame-relative; anchors may overhang a trimmed frame slightly
     // (obstacle bases), but anything past +/-0.5 of the frame is bake garbage.
+    // EXCEPTION: flying troops (ornithopter) anchor at the GROUND point below
+    // the airborne body, so a trimmed hover frame legitimately carries an
+    // originY well past 1.5 (observed max 2.815 at hover apex) — SpriteBank
+    // feeds it to setOrigin verbatim and Phaser handles out-of-frame origins.
+    const maxOriginY = kindOf(manifestFile) === 'troops' ? 3.0 : 1.5;
     assert.ok(Number.isFinite(frame.originX) && frame.originX >= -0.5 && frame.originX <= 1.5,
       `${label} has invalid originX`);
-    assert.ok(Number.isFinite(frame.originY) && frame.originY >= -0.5 && frame.originY <= 1.5,
+    assert.ok(Number.isFinite(frame.originY) && frame.originY >= -0.5 && frame.originY <= maxOriginY,
       `${label} has invalid originY`);
     assert.equal(frame.cellWorldPx, manifestScale, `${label} disagrees with its manifest scale`);
 
@@ -212,10 +217,10 @@ assert.equal(Object.keys(wallAtlas.frames).some(name => /_gate_/.test(name)), fa
 assert.equal(emittedPngs.some(file => /^buildings\/wall\/.*_gate_/.test(file)), false,
   'a removed loose wall-gate PNG is still committed');
 assert.deepEqual(framesByKind,
-  { buildings: 8_224, figures: 144, obstacles: 872, projectiles: 325, troops: 11_664, villagers: 2_924, wrecks: 71 },
+  { buildings: 8_224, figures: 180, obstacles: 872, projectiles: 374, troops: 45_396, villagers: 2_924, wrecks: 71 },
   'the baked roster is incomplete');
-assert.equal(frameCount, 24_224,
-  '8,224 building (incl. frostfall@A/B/C tournament variants, 208 frames each, old frostfall retired) + 11,664 troop (ward/recursion/giant/sharpshooter deleted 2026-07; caravan_soldier keeps its four stale escort palettes until the next figures bake) + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 144 figure + 325 projectile frames '
+assert.equal(frameCount, 58_041,
+  '8,224 building (incl. frostfall@A/B/C tournament variants, 208 frames each, old frostfall retired) + 44,244 troop (11,664 plain — ward/recursion/giant/sharpshooter deleted 2026-07 — plus 32,580 tournament @-variant frames: goblinplunderer/clockworkbeetle/physicianscart/pavisebearer/quartermaster/siegetower/necromancer/trebuchet/warelephant/ornithopter/skeleton slots, hawkeyeassassin @A/@B only) + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 180 figure (caravan_soldier escort palettes refreshed by the 2026-07 figures re-bake) + 374 projectile frames (trebuchet_stone 48 + ornithopter_bomb 1 joined) '
   + '(dense ambient/idle loops; every defense idles — turrets bake per-angle idle loops; tournament finals resolved the @-variant slots: plain cannon (ex-@B) and reverted plain mortar rebaked, plain golem (ex-@C) plus the new icegolem troop; '
   + 'walls carry a per-topology GROUND decal now — the contact shadow stamped under the body by SpriteBank\'s wall-ground slot, 64 frames)');
 assert.deepEqual(emittedPngs.sort(), [...atlasPackedPngs].sort(),

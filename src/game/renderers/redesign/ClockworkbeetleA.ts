@@ -104,6 +104,15 @@ function fillPoly(g: G, pts: number[][], color: number): void {
     g.fillPath();
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row. windup = WINDUP_MS 450
+ *  (table pins 240); idle closes on IDLE_P_MS = 1000, not the default
+ *  4021 ms breath window. strike stays 0 — suicide unit, the burst reads
+ *  from the post-tick ages 1/40. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    clockworkbeetle: { windup: 450, idleMs: 1000 },
+};
+
 export function drawClockworkbeetleA(
     graphics: Phaser.GameObjects.Graphics,
     isPlayer: boolean,

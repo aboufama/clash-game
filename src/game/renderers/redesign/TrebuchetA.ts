@@ -62,6 +62,16 @@ const TH_COCKED = 2.08;           // long end down at the rear trough
 const TH_STOWED = 2.02;           // march: arm lashed low along the bed
 const CHAIN = 4.2;                // counterweight chain drop
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (700/900/400, no idleMs).
+ *  stride = STRIDE_MS 800; the attack cycle animates the WHOLE 4000 ms delay,
+ *  so windup spans the crank + hold (delay − 650 = 3350) and strike covers
+ *  the post-tick whip + wobble (WHIP_MS 150 → WOBBLE_END_MS 650); idle
+ *  closes on IDLE_MS = 2000. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    trebuchet: { stride: 800, windup: 3350, strike: 650, idleMs: 2000 },
+};
+
 export function drawTrebuchetA(
     g: G,
     isPlayer: boolean,

@@ -124,6 +124,16 @@ function atkState(time: number, attackAge: number, attackDelay: number, windupMs
     return { windup, strike, age, inCombat: true };
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): authored
+ *  periods that differ from the TROOP_PARAMS row (3000/900/500, no idleMs).
+ *  delay 2000 = the runtime TroopDefinitions attackDelay (baking against
+ *  3000 would mis-pair windup ages under SpriteBank's nearest-value match);
+ *  WINDUP_MS 620 / STRIKE_MS 240; idle closes on IDLE_MS = 2000. stride
+ *  1200 matches the table. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    warelephant: { delay: 2000, windup: 620, strike: 240, idleMs: 2000 },
+};
+
 export function drawWarelephantA(
     g: G,
     isPlayer: boolean,

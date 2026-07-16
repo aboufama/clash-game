@@ -1072,8 +1072,20 @@ try {
     }, type, level, owner, params, frames, dirs, CELL)
 
   for (const type of troopList) {
-    const params = TROOP_PARAMS[type]
-    if (!params) { console.warn(`skip troop ${type}: no params`); continue }
+    const baseParams = TROOP_PARAMS[type]
+    if (!baseParams) { console.warn(`skip troop ${type}: no params`); continue }
+    // DESIGN runs overlay the slot's authored bake-params — the design file's
+    // hoisted `PARAMS` export (DesignRegistry.designBakeParams, read through
+    // the BakeBridge) — on the unit's TROOP_PARAMS row. Design slots may
+    // re-author stride/delay/windup/strike/idleMs/dirs, and baking a slot
+    // with the table's values mis-samples its loops (the classic stride
+    // bug). The merged values land in the manifest, the ONLY place
+    // SpriteBank reads playback periods from.
+    const override = DESIGN
+      ? await page.evaluate((t, slot) => window.__clashBake.designBakeParams?.(t, slot) ?? null, type, DESIGN)
+      : null
+    if (override) console.log(`${type}@${DESIGN} PARAMS override: ${JSON.stringify(override)}`)
+    const params = { ...baseParams, ...override }
     // Design-variant bakes land in a sibling '<type>@<slot>' dir.
     const dir = join(OUT_ROOT, 'troops', type + VTAG)
     mkdirSync(dir, { recursive: true })
@@ -1081,10 +1093,11 @@ try {
     // Troops with their own exact idle period (params.idleMs) sample that
     // window instead — the golems' slam-class idles close every 2000 ms.
     const idleMs = params.idleMs ?? IDLE_BREATH_MS
-    // Design variants may re-author the walk period — resolve THIS slot's true
-    // stride so the baked walk samples one exact cycle in order, and write the
-    // resolved value into the manifest (SpriteBank plays walk at params.stride).
-    const stride = (DESIGN && params.designStride?.[DESIGN]) || params.stride
+    // Design variants may re-author the walk period — the slot's PARAMS
+    // export wins, then the legacy designStride table (golem B), then the
+    // unit stride. The resolved value is written into the manifest
+    // (SpriteBank plays walk at params.stride).
+    const stride = override?.stride ?? ((DESIGN && params.designStride?.[DESIGN]) || params.stride)
     const frames = Array.from({ length: IDLE_FRAMES }, (_, k) => ({
       state: 'idle', frame: k, time: 1000 + Math.round(k * idleMs / IDLE_FRAMES), attackAge: -1, isMoving: false
     }))
@@ -1107,7 +1120,14 @@ try {
       frames.push({ state: 'deactivated', frame: 0, time: 1000, attackAge: -1, isMoving: false, deactivated: true })
     }
     const dirs = Array.from({ length: params.dirs }, (_, i) => i)
-    const troopManifest = { cellWorldPx: CELL, params: { ...params, stride, idleLoopMs: idleMs }, levels: {} }
+    const troopManifest = {
+      cellWorldPx: CELL,
+      params: { ...params, stride, idleLoopMs: idleMs },
+      // Provenance: the slot's PARAMS override as authored (already merged
+      // into params above) — lets regressions spot a stale variant bake.
+      ...(override ? { designParamsOverride: override } : {}),
+      levels: {}
+    }
     for (const level of TROOP_LEVELS) {
       troopManifest.levels[level] = {}
       for (const owner of ['PLAYER', 'ENEMY']) {
@@ -1159,7 +1179,14 @@ try {
       projRot('xbow_bolt', 'drawXbowBolt', [1, 2, 3], 16),
       projRot('frostfall_shard', 'drawFrostfallShard', [1, 2, 3], 16),
       projRot('dragon_rocket', 'drawDragonRocket', [1, 2], 16),
-      projRot('spike_ball', 'drawSpikeBall', [1, 2, 3, 4], 16)
+      projRot('spike_ball', 'drawSpikeBall', [1, 2, 3, 4], 16),
+      // 2026-07 troop overhaul projectiles: the trebuchet boulder tumbles
+      // (nearest of 16 rotations, troop levels 1-3 = material tiers) and the
+      // ornithopter's iron bomb is radially-stable mm_shell class (1 level,
+      // 1 angle — MainScene passes angles=1). Hawk-eye fires NO projectile:
+      // its kit is instant-hit, the muzzle flash lives in the troop art.
+      projRot('trebuchet_stone', 'drawTrebuchetStone', [1, 2, 3], 16),
+      projRot('ornithopter_bomb', 'drawOrnithopterBomb', [1], 1)
     ])
     const VILLAGER_ROLES = ['peasant', 'builder', 'miner', 'farmer']
     const villagerStates = (role, elder, child) => {

@@ -85,6 +85,14 @@ function limbA(g: G, color: number, x0: number, y0: number, x1: number, y1: numb
     ], color);
 }
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): stride/
+ *  windup/strike match the TROOP_PARAMS row (500/800/400), but the idle loop
+ *  closes on the declared 2000 ms period — not the default 4021 ms breath
+ *  window. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    physicianscart: { idleMs: 2000 },
+};
+
 export function drawPhysicianscartA(
     g: Phaser.GameObjects.Graphics,
     isPlayer: boolean,

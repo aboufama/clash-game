@@ -84,47 +84,6 @@
         }
       }
     },
-    "giant": {
-      "states": {
-        "walk": {
-          "loopMs": 349,
-          "frames": [
-            {
-              "file": "caravan_soldier_giant_walk0.png",
-              "texelW": 13,
-              "texelH": 23,
-              "cellWorldPx": 1.35,
-              "originX": 0.4017094017094015,
-              "originY": 0.8518518518518519
-            },
-            {
-              "file": "caravan_soldier_giant_walk1.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            },
-            {
-              "file": "caravan_soldier_giant_walk2.png",
-              "texelW": 12,
-              "texelH": 25,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8637037037037036
-            },
-            {
-              "file": "caravan_soldier_giant_walk3.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            }
-          ]
-        }
-      }
-    },
     "golem": {
       "states": {
         "walk": {
@@ -166,42 +125,42 @@
         }
       }
     },
-    "sharpshooter": {
+    "icegolem": {
       "states": {
         "walk": {
           "loopMs": 349,
           "frames": [
             {
-              "file": "caravan_soldier_sharpshooter_walk0.png",
-              "texelW": 10,
-              "texelH": 18,
+              "file": "caravan_soldier_icegolem_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
               "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8106995884773662
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
             },
             {
-              "file": "caravan_soldier_sharpshooter_walk1.png",
-              "texelW": 10,
-              "texelH": 20,
+              "file": "caravan_soldier_icegolem_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
               "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8296296296296296
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
             },
             {
-              "file": "caravan_soldier_sharpshooter_walk2.png",
-              "texelW": 10,
-              "texelH": 20,
+              "file": "caravan_soldier_icegolem_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
               "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8296296296296296
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
             },
             {
-              "file": "caravan_soldier_sharpshooter_walk3.png",
-              "texelW": 10,
-              "texelH": 20,
+              "file": "caravan_soldier_icegolem_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
               "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8296296296296296
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
             }
           ]
         }
@@ -243,88 +202,6 @@
               "cellWorldPx": 1.35,
               "originX": 0.43518518518518495,
               "originY": 0.8580246913580245
-            }
-          ]
-        }
-      }
-    },
-    "ward": {
-      "states": {
-        "walk": {
-          "loopMs": 349,
-          "frames": [
-            {
-              "file": "caravan_soldier_ward_walk0.png",
-              "texelW": 13,
-              "texelH": 23,
-              "cellWorldPx": 1.35,
-              "originX": 0.4017094017094015,
-              "originY": 0.8518518518518519
-            },
-            {
-              "file": "caravan_soldier_ward_walk1.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            },
-            {
-              "file": "caravan_soldier_ward_walk2.png",
-              "texelW": 12,
-              "texelH": 25,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8637037037037036
-            },
-            {
-              "file": "caravan_soldier_ward_walk3.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            }
-          ]
-        }
-      }
-    },
-    "recursion": {
-      "states": {
-        "walk": {
-          "loopMs": 349,
-          "frames": [
-            {
-              "file": "caravan_soldier_recursion_walk0.png",
-              "texelW": 10,
-              "texelH": 18,
-              "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8106995884773662
-            },
-            {
-              "file": "caravan_soldier_recursion_walk1.png",
-              "texelW": 10,
-              "texelH": 20,
-              "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8296296296296296
-            },
-            {
-              "file": "caravan_soldier_recursion_walk2.png",
-              "texelW": 10,
-              "texelH": 20,
-              "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8296296296296296
-            },
-            {
-              "file": "caravan_soldier_recursion_walk3.png",
-              "texelW": 10,
-              "texelH": 20,
-              "cellWorldPx": 1.35,
-              "originX": 0.42222222222222217,
-              "originY": 0.8296296296296296
             }
           ]
         }
@@ -571,6 +448,498 @@
               "cellWorldPx": 1.35,
               "originX": 0.42222222222222217,
               "originY": 0.8296296296296296
+            }
+          ]
+        }
+      }
+    },
+    "goblinplunderer": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_goblinplunderer_walk0.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            },
+            {
+              "file": "caravan_soldier_goblinplunderer_walk1.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            },
+            {
+              "file": "caravan_soldier_goblinplunderer_walk2.png",
+              "texelW": 8,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.85838779956427
+            },
+            {
+              "file": "caravan_soldier_goblinplunderer_walk3.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            }
+          ]
+        }
+      }
+    },
+    "clockworkbeetle": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_clockworkbeetle_walk0.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            },
+            {
+              "file": "caravan_soldier_clockworkbeetle_walk1.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            },
+            {
+              "file": "caravan_soldier_clockworkbeetle_walk2.png",
+              "texelW": 8,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.85838779956427
+            },
+            {
+              "file": "caravan_soldier_clockworkbeetle_walk3.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            }
+          ]
+        }
+      }
+    },
+    "physicianscart": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_physicianscart_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_physicianscart_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_physicianscart_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_physicianscart_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "pavisebearer": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_pavisebearer_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_pavisebearer_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_pavisebearer_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_pavisebearer_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "quartermaster": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_quartermaster_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_quartermaster_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_quartermaster_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_quartermaster_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "siegetower": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_siegetower_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_siegetower_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_siegetower_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_siegetower_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "necromancer": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_necromancer_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_necromancer_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_necromancer_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_necromancer_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "trebuchet": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_trebuchet_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_trebuchet_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_trebuchet_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_trebuchet_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "hawkeyeassassin": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_hawkeyeassassin_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_hawkeyeassassin_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_hawkeyeassassin_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_hawkeyeassassin_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "warelephant": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_warelephant_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_warelephant_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_warelephant_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_warelephant_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "ornithopter": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_ornithopter_walk0.png",
+              "texelW": 13,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4017094017094015,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "caravan_soldier_ornithopter_walk1.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            },
+            {
+              "file": "caravan_soldier_ornithopter_walk2.png",
+              "texelW": 12,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8637037037037036
+            },
+            {
+              "file": "caravan_soldier_ornithopter_walk3.png",
+              "texelW": 12,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.43518518518518495,
+              "originY": 0.8580246913580245
+            }
+          ]
+        }
+      }
+    },
+    "skeleton": {
+      "states": {
+        "walk": {
+          "loopMs": 349,
+          "frames": [
+            {
+              "file": "caravan_soldier_skeleton_walk0.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            },
+            {
+              "file": "caravan_soldier_skeleton_walk1.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
+            },
+            {
+              "file": "caravan_soldier_skeleton_walk2.png",
+              "texelW": 8,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.85838779956427
+            },
+            {
+              "file": "caravan_soldier_skeleton_walk3.png",
+              "texelW": 8,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.40277777777777757,
+              "originY": 0.8495370370370369
             }
           ]
         }

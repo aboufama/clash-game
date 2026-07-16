@@ -98,6 +98,17 @@ function attackState(time: number, attackAge: number, attackDelay: number, windu
 
 // ============================ NECROMANCER B ============================
 
+/** Per-slot bake-param overrides (DesignRegistry.designBakeParams). delay
+ *  1600 = the runtime TroopDefinitions attackDelay (the table's pinned 5000
+ *  would bake windup ages runtime windup never reaches — nearest-value
+ *  matching would display strike frames through the windup). This slot's
+ *  attackState call authors windup 620 / strike 300 (table pins 700/400);
+ *  idles close on NECRO_IDLE_P = 2000 / SKEL_IDLE_P = 1000. */
+export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
+    necromancer: { delay: 1600, windup: 620, strike: 300, idleMs: 2000 },
+    skeleton: { idleMs: 1000 },
+};
+
 export function drawNecromancerB(
     g: G,
     isPlayer: boolean,
