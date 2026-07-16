@@ -32,30 +32,30 @@ import type Phaser from 'phaser';
 import { drawFrostfallA } from './FrostfallA'; // IMPORT frostfall A
 import { drawFrostfallB } from './FrostfallB'; // IMPORT frostfall B
 import { drawFrostfallC } from './FrostfallC'; // IMPORT frostfall C
-// IMPORT goblinplunderer A
-// IMPORT goblinplunderer B
-// IMPORT goblinplunderer C
-// IMPORT clockworkbeetle A
+import { drawGoblinplundererA } from './GoblinplundererA'; // IMPORT goblinplunderer A
+import { drawGoblinplundererB } from './GoblinplundererB'; // IMPORT goblinplunderer B
+import { drawGoblinplundererC } from './GoblinplundererC'; // IMPORT goblinplunderer C
+import { drawClockworkbeetleA } from './ClockworkbeetleA'; // IMPORT clockworkbeetle A
 // IMPORT clockworkbeetle B
 // IMPORT clockworkbeetle C
-// IMPORT physicianscart A
-// IMPORT physicianscart B
-// IMPORT physicianscart C
+import { drawPhysicianscartA } from './PhysicianscartA'; // IMPORT physicianscart A
+import { drawPhysicianscartB } from './PhysicianscartB'; // IMPORT physicianscart B
+import { drawPhysicianscartC } from './PhysicianscartC'; // IMPORT physicianscart C
 // IMPORT pavisebearer A
 // IMPORT pavisebearer B
 // IMPORT pavisebearer C
-// IMPORT quartermaster A
+import { drawQuartermasterA } from './QuartermasterA'; // IMPORT quartermaster A
 // IMPORT quartermaster B
 // IMPORT quartermaster C
-// IMPORT siegetower A
-// IMPORT siegetower B
+import { drawSiegetowerA } from './SiegetowerA'; // IMPORT siegetower A
+import { drawSiegetowerB } from './SiegetowerB'; // IMPORT siegetower B
 // IMPORT siegetower C
-// IMPORT necromancer A
+import { drawNecromancerA } from './NecromancerA'; // IMPORT necromancer A
 // IMPORT necromancer B
 // IMPORT necromancer C
-// IMPORT trebuchet A
-// IMPORT trebuchet B
-// IMPORT trebuchet C
+import { drawTrebuchetA } from './TrebuchetA'; // IMPORT trebuchet A
+import { drawTrebuchetB } from './TrebuchetB'; // IMPORT trebuchet B
+import { drawTrebuchetC } from './TrebuchetC'; // IMPORT trebuchet C
 // IMPORT hawkeyeassassin A
 // IMPORT hawkeyeassassin B
 // IMPORT hawkeyeassassin C
@@ -65,7 +65,7 @@ import { drawFrostfallC } from './FrostfallC'; // IMPORT frostfall C
 // IMPORT ornithopter A
 // IMPORT ornithopter B
 // IMPORT ornithopter C
-// IMPORT skeleton A
+import { drawSkeletonA } from './NecromancerA'; // IMPORT skeleton A
 // IMPORT skeleton B
 // IMPORT skeleton C
 
@@ -153,19 +153,19 @@ export const DESIGN_SLOTS: DesignSlots = {
         C: drawFrostfallC, // SLOT frostfall C
     },
     goblinplunderer: {
-        A: null, // SLOT goblinplunderer A
-        B: null, // SLOT goblinplunderer B
-        C: null, // SLOT goblinplunderer C
+        A: drawGoblinplundererA, // SLOT goblinplunderer A
+        B: drawGoblinplundererB, // SLOT goblinplunderer B
+        C: drawGoblinplundererC, // SLOT goblinplunderer C
     },
     clockworkbeetle: {
-        A: null, // SLOT clockworkbeetle A
+        A: drawClockworkbeetleA, // SLOT clockworkbeetle A
         B: null, // SLOT clockworkbeetle B
         C: null, // SLOT clockworkbeetle C
     },
     physicianscart: {
-        A: null, // SLOT physicianscart A
-        B: null, // SLOT physicianscart B
-        C: null, // SLOT physicianscart C
+        A: drawPhysicianscartA, // SLOT physicianscart A
+        B: drawPhysicianscartB, // SLOT physicianscart B
+        C: drawPhysicianscartC, // SLOT physicianscart C
     },
     pavisebearer: {
         A: null, // SLOT pavisebearer A
@@ -173,24 +173,24 @@ export const DESIGN_SLOTS: DesignSlots = {
         C: null, // SLOT pavisebearer C
     },
     quartermaster: {
-        A: null, // SLOT quartermaster A
+        A: drawQuartermasterA, // SLOT quartermaster A
         B: null, // SLOT quartermaster B
         C: null, // SLOT quartermaster C
     },
     siegetower: {
-        A: null, // SLOT siegetower A
-        B: null, // SLOT siegetower B
+        A: drawSiegetowerA, // SLOT siegetower A
+        B: drawSiegetowerB, // SLOT siegetower B
         C: null, // SLOT siegetower C
     },
     necromancer: {
-        A: null, // SLOT necromancer A
+        A: drawNecromancerA, // SLOT necromancer A
         B: null, // SLOT necromancer B
         C: null, // SLOT necromancer C
     },
     trebuchet: {
-        A: null, // SLOT trebuchet A
-        B: null, // SLOT trebuchet B
-        C: null, // SLOT trebuchet C
+        A: drawTrebuchetA, // SLOT trebuchet A
+        B: drawTrebuchetB, // SLOT trebuchet B
+        C: drawTrebuchetC, // SLOT trebuchet C
     },
     hawkeyeassassin: {
         A: null, // SLOT hawkeyeassassin A
@@ -211,7 +211,7 @@ export const DESIGN_SLOTS: DesignSlots = {
     // skeleton ships in the same design file as its summoner so the pair
     // always matches visually.
     skeleton: {
-        A: null, // SLOT skeleton A
+        A: drawSkeletonA, // SLOT skeleton A
         B: null, // SLOT skeleton B
         C: null, // SLOT skeleton C
     },

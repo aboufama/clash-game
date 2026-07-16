@@ -20,6 +20,7 @@ import {
   type TargetObservation,
   type WorldAttackTarget
 } from '../server/attack-domain/index'
+import { getBuildingStats, getTroopStats } from '../src/game/config/GameDefinitions'
 
 let checks = 0
 
@@ -128,7 +129,7 @@ function deployGolem(engaged: AttackAggregate, now = T0 + 200): AttackAggregate 
 function run(): void {
   const prepared = prepareAttack(playerInput(), { reserveArmy })
   check(prepared.phase === 'PREPARING' && prepared.version === 1, 'preparation starts at PREPARING v1')
-  check(prepared.rules.simulationVersion === 3, 'new attacks pin the current combat simulation version')
+  check(prepared.rules.simulationVersion === 4, 'new attacks pin the current combat simulation version')
   check(prepared.reservation.state === 'HELD' && prepared.reservation.reserved.golem === 1, 'preparation holds an exact army reservation')
   check(prepared.target.kind === 'PLAYER' && prepared.target.plot.x === 7, 'matchmade PLAYER target retains its real world plot')
 
@@ -247,15 +248,23 @@ function run(): void {
     'simulation v1 remains replayable while v2 credits deterministic partial structural damage')
   // v3 attrition: against the snapshot's cannon, a lone warrior only earns
   // credit for its expected survival window instead of the full 75s budget.
-  const longFightV3 = simulateCombat(partialActive, 75_000)
+  const partialV3Pinned = {
+    ...partialActive,
+    rules: { ...partialActive.rules, simulationVersion: 3 }
+  }
+  const longFightV3 = simulateCombat(partialV3Pinned, 75_000)
   const longFightV2 = simulateCombat({
     ...partialActive,
     rules: { ...partialActive.rules, simulationVersion: 2 }
   }, 75_000)
   check(longFightV3.damageDealt > 0 && longFightV3.damageDealt < longFightV2.damageDealt,
     'simulation v3 attrition banks materially less for a wiped army while v2 replays keep full credit')
-  check(simulateCombat(partialActive, 75_000).resultHash === longFightV3.resultHash,
+  check(simulateCombat(partialV3Pinned, 75_000).resultHash === longFightV3.resultHash,
     'v3 attrition stays a deterministic function of snapshot, seed and events')
+  const longFightV4 = simulateCombat(partialActive, 75_000)
+  check(longFightV4.simulationVersion === 4 && longFightV4.damageDealt === longFightV3.damageDealt
+    && longFightV4.destruction === longFightV3.destruction,
+    'v4 credits troops without v4 kit fields exactly like v3 (only the pinned version differs)')
   check(finalizedA.finalization?.settlement.resourceMode === 'TRANSFER' && Boolean(finalizedA.finalization.settlement.defender), 'PLAYER outcome creates one self-contained transfer plan')
   check(finalizedA.finalization?.settlement.consumeArmy.golem === 1 && finalizedA.finalization.settlement.releaseArmy.warrior === 2, 'settlement consumes deployed troops and releases unused reservation')
 
@@ -322,6 +331,185 @@ function run(): void {
   const botFinal = finalizeAttack(botActive, cas(botActive), 'OBJECTIVE_COMPLETE', finalizeAt)
   check(botFinal.finalization?.settlement.resourceMode === 'MINT' && !botFinal.finalization.settlement.defender, 'BOT uses the same attack machine with bounded mint settlement')
   check(botFinal.finalization?.result.requestedTrophyDelta === 0, 'non-player targets never mutate rating')
+
+  // =========================================================================
+  // Rules v4 kit-credit fixtures (2026-07 troop rework). Each branch of the
+  // v4 model is exercised against a v3-pinned run of the SAME aggregate, so
+  // these double as v3 replay-stability goldens: the v3 branch must keep
+  // producing its pre-v4 numbers under the new code.
+  // =========================================================================
+
+  function kitSnapshot(id: string, buildings: CombatVillageSnapshot['buildings']): CombatVillageSnapshot {
+    return { schemaVersion: 1, snapshotId: id, villageVersion: `kit-${id}`, buildings }
+  }
+
+  function kitAttack(
+    attackId: string,
+    combat: CombatVillageSnapshot,
+    army: PrepareAttackInput['requestedArmy'],
+    deploys: Array<{ id: string; type: keyof PrepareAttackInput['requestedArmy'] }>,
+    rules?: PrepareAttackInput['rules']
+  ): AttackAggregate {
+    const target: WorldAttackTarget = {
+      kind: 'PLAYER',
+      targetId: 'defender_kit',
+      playerId: 'defender_kit',
+      shieldBypass: 'NONE',
+      plot: { worldId: 'world_main', x: 4, y: 9, version: 'plot-kit' },
+      villageVersion: combat.villageVersion,
+      snapshotId: combat.snapshotId,
+      snapshotHash: combatSnapshotHash(combat)
+    }
+    const engaged = prepareAndEngage(playerInput({
+      attackId, target, snapshot: combat, requestedArmy: army, ...(rules ? { rules } : {})
+    }))
+    let attack = engaged
+    deploys.forEach((deploy, index) => {
+      attack = applyAttackCommand(attack, cas(attack), {
+        type: 'DEPLOY',
+        commandId: `cmd_${attackId}_${deploy.id}`,
+        sequence: index + 1,
+        troopInstanceId: `${attackId}_${deploy.id}`,
+        troopType: deploy.type,
+        gridX: -1,
+        gridY: 12
+      }, T0 + 200 + index * 100).attack
+    })
+    return attack
+  }
+
+  function atVersion(attack: AttackAggregate, version: number): AttackAggregate {
+    return { ...attack, rules: { ...attack.rules, simulationVersion: version } }
+  }
+
+  // Defenseless economy base: with zero defense DPS every troop keeps the full
+  // credit window, so v4 credit formulas can be asserted exactly.
+  const econSnapshot = kitSnapshot('snap_kit_econ', [
+    { id: 'kit_econ_hall', type: 'town_hall', level: 1, gridX: 11, gridY: 11 },
+    { id: 'kit_econ_farm', type: 'farm', level: 1, gridX: 2, gridY: 2 },
+    { id: 'kit_econ_storage', type: 'storage', level: 1, gridX: 6, gridY: 2 },
+    { id: 'kit_econ_mine', type: 'mine', level: 1, gridX: 2, gridY: 6 }
+  ])
+  // One max-level cannon: enough defense DPS that attrition windows bind
+  // (per-troop DPS 50 solo / 25 with a two-troop deploy) without wiping the
+  // support fixtures' overlap windows.
+  const defSnapshot = kitSnapshot('snap_kit_def', [
+    { id: 'kit_def_hall', type: 'town_hall', level: 1, gridX: 11, gridY: 11 },
+    { id: 'kit_def_cannon', type: 'cannon', level: 4, gridX: 4, gridY: 4 },
+    { id: 'kit_def_farm', type: 'farm', level: 1, gridX: 16, gridY: 15 },
+    { id: 'kit_def_storage', type: 'storage', level: 1, gridX: 16, gridY: 5 }
+  ])
+
+  // --- (a) resource raider: multiplier + resource-first target tier --------
+  const goblinStats = getTroopStats('goblinplunderer', 1)
+  const goblinAttack = kitAttack('attack_kit_goblin', econSnapshot, { goblinplunderer: 1 }, [
+    { id: 'g1', type: 'goblinplunderer' }
+  ])
+  const goblinBudget = (1 + Math.floor(10_000 / Math.max(150, Math.floor(goblinStats.attackDelay ?? 1_000))))
+    * Math.max(0, Math.floor(goblinStats.damage))
+  const goblinV4 = simulateCombat(goblinAttack, 10_000)
+  const goblinV3 = simulateCombat(atVersion(goblinAttack, 3), 10_000)
+  check(goblinV3.damageDealt === goblinBudget,
+    'v3-pinned goblin plunderer still earns its plain unmultiplied budget (replay stability)')
+  check(goblinV4.damageDealt === goblinBudget * (goblinStats.resourceDamageMultiplier ?? 1),
+    'v4 resource raider converts its whole budget at resourceDamageMultiplier against the economy')
+  const hallState = goblinV4.buildings.find(building => building.id === 'kit_econ_hall')
+  const hallHitPoints = Math.max(1, Math.floor(getBuildingStats('town_hall', 1).maxHealth))
+  check(hallState?.remainingHitPoints === hallHitPoints,
+    'v4 resource tier spends the goblin budget on resource buildings first (town hall untouched)')
+
+  // --- (b) summoner wave credit -------------------------------------------
+  const necroStats = getTroopStats('necromancer', 1)
+  const summonStats = getTroopStats(necroStats.summonType as Parameters<typeof getTroopStats>[0], 1)
+  const summonCredit = (windowMs: number): number => {
+    const dps = Math.max(0, summonStats.damage) * 1_000 / Math.max(150, Math.floor(summonStats.attackDelay ?? 1_000))
+    const waves = Math.min(
+      necroStats.summonCap ?? Number.MAX_SAFE_INTEGER,
+      Math.max(3, Math.floor(windowMs / (necroStats.summonIntervalMs ?? 1)))
+    )
+    return Math.floor((necroStats.summonCount ?? 0) * waves * dps * (necroStats.summonIntervalMs ?? 0) / 1_000)
+  }
+  const necroAttack = kitAttack('attack_kit_necro', econSnapshot, { necromancer: 1 }, [
+    { id: 'n1', type: 'necromancer' }
+  ])
+  for (const [durationMs, label] of [
+    [20_000, 'interval-counted waves'],
+    [6_000, 'the 3-wave floor'],
+    [75_000, 'the summonCap ceiling']
+  ] as const) {
+    const necroV4 = simulateCombat(necroAttack, durationMs)
+    const necroV3 = simulateCombat(atVersion(necroAttack, 3), durationMs)
+    check(necroV4.damageDealt - necroV3.damageDealt === summonCredit(durationMs),
+      `v4 summoner credit adds exactly the documented wave formula (${label})`)
+  }
+
+  // --- (c) untargetable deploy window --------------------------------------
+  const hawkAttack = kitAttack('attack_kit_hawk', defSnapshot, { hawkeyeassassin: 1 }, [
+    { id: 'h1', type: 'hawkeyeassassin' }
+  ])
+  const hawkV4 = simulateCombat(hawkAttack, 75_000)
+  const hawkV3 = simulateCombat(atVersion(hawkAttack, 3), 75_000)
+  check(hawkV4.damageDealt > hawkV3.damageDealt,
+    'v4 untargetable window extends the assassin attrition lifetime and banks extra strikes')
+  check(simulateCombat(hawkAttack, 75_000).resultHash === hawkV4.resultHash,
+    'v4 untargetable credit stays deterministic across re-simulation')
+
+  // --- (d) quartermaster cadence aura --------------------------------------
+  const qmAttack = kitAttack('attack_kit_qm', defSnapshot, { quartermaster: 1, warrior: 1 }, [
+    { id: 'q1', type: 'quartermaster' },
+    { id: 'w1', type: 'warrior' }
+  ])
+  const qmV4 = simulateCombat(qmAttack, 75_000)
+  const qmV3 = simulateCombat(atVersion(qmAttack, 3), 75_000)
+  check(qmV4.damageDealt > qmV3.damageDealt,
+    'v4 quartermaster aura credits allied strikes inside its window at the faster cadence')
+
+  // --- (e) support window extensions ---------------------------------------
+  const cartAttack = kitAttack('attack_kit_cart', defSnapshot, { physicianscart: 1, stormmage: 1 }, [
+    { id: 'c1', type: 'physicianscart' },
+    { id: 'm1', type: 'stormmage' }
+  ])
+  const cartV4 = simulateCombat(cartAttack, 75_000)
+  const cartV3 = simulateCombat(atVersion(cartAttack, 3), 75_000)
+  check(cartV4.damageDealt > cartV3.damageDealt,
+    "v4 physician's cart heal pulses extend an overlapping ally's credit window")
+
+  const paviseAttack = kitAttack('attack_kit_pavise', defSnapshot, { pavisebearer: 1, archer: 1 }, [
+    { id: 'p1', type: 'pavisebearer' },
+    { id: 'a1', type: 'archer' }
+  ])
+  const paviseV4 = simulateCombat(paviseAttack, 75_000)
+  const paviseV3 = simulateCombat(atVersion(paviseAttack, 3), 75_000)
+  check(paviseV4.damageDealt > paviseV3.damageDealt,
+    'v4 pavise bearer redistribution extends a RANGED ally credit window')
+
+  const paviseMeleeAttack = kitAttack('attack_kit_pavise_melee', defSnapshot, { pavisebearer: 1, warrior: 1 }, [
+    { id: 'p1', type: 'pavisebearer' },
+    { id: 'w1', type: 'warrior' }
+  ])
+  check(simulateCombat(paviseMeleeAttack, 75_000).damageDealt === simulateCombat(atVersion(paviseMeleeAttack, 3), 75_000).damageDealt,
+    'v4 pavise bearer never extends melee allies (the client redirect rule is ranged-only)')
+
+  const towerAttack = kitAttack('attack_kit_tower', defSnapshot, { siegetower: 1, warrior: 1 }, [
+    { id: 't1', type: 'siegetower' },
+    { id: 'w1', type: 'warrior' }
+  ])
+  const towerV4 = simulateCombat(towerAttack, 75_000)
+  const towerV3 = simulateCombat(atVersion(towerAttack, 3), 75_000)
+  check(towerV4.damageDealt > towerV3.damageDealt,
+    'v4 siege tower grants overlapping allies the flat pathing-time credit')
+
+  // --- v3-pinned aggregate with a v4-kit troop: rules stay pinned ----------
+  const pinnedV3Attack = kitAttack('attack_kit_pinned3', econSnapshot, { goblinplunderer: 1 }, [
+    { id: 'g1', type: 'goblinplunderer' }
+  ], { simulationVersion: 3 })
+  check(pinnedV3Attack.rules.simulationVersion === 3,
+    'an aggregate prepared under pinned v3 rules keeps v3 at preparation')
+  const pinnedV3Result = simulateCombat(pinnedV3Attack, 10_000)
+  check(pinnedV3Result.simulationVersion === 3 && pinnedV3Result.damageDealt === goblinBudget,
+    'a stored v3 attack with a v4-kit troop still takes the v3 branches (no multiplier, no tiering)')
+  check(simulateCombat(pinnedV3Attack, 10_000).resultHash === pinnedV3Result.resultHash,
+    'pinned v3 results regenerate hash-identically under the v4 code')
 
   console.log(`attack-domain regression: ${checks} checks passed`)
 }

@@ -1,9 +1,12 @@
 import {
     BUILDING_DEFINITIONS,
     MAP_SIZE,
+    getBuildingStats,
     getTroopStats,
+    type BuildingType,
     type TroopDef
 } from '../config/GameDefinitions';
+import { defenseDps } from './DefenseBehaviorCatalog';
 import type { PlacedBuilding, Troop } from '../types/GameTypes';
 
 export interface CombatPoint {
@@ -55,6 +58,10 @@ interface TraversalContext {
     occupied: Uint8Array;
     wallAt: Array<PlacedBuilding | null>;
     canBypassStructures: boolean;
+    /** Enemy wall ids a parked allied siege tower has turned into ramps:
+     *  crossable at COST_OPEN+12 (never free), never a goal/attack slot,
+     *  never a blocker. The deliberate, scoped exception to invariant 1. */
+    rampWalls?: ReadonlySet<string>;
     /** Every live, defined structure — straight-charge ray geometry needs
      * the full set even where the cost grid abstracts it away. */
     solids: PlacedBuilding[];
@@ -145,7 +152,8 @@ export class CombatNavigationSystem {
         allTroops: Troop[],
         topologyRevision: number,
         plannedAt: number,
-        preferredTarget?: PlacedBuilding
+        preferredTarget?: PlacedBuilding,
+        rampWallIds?: ReadonlySet<string>
     ): CombatNavigationSelection {
         const enemies = buildings.filter(building =>
             building.owner !== troop.owner
@@ -169,6 +177,10 @@ export class CombatNavigationSystem {
             priorityCandidates = nonWalls.filter(building => building.type === 'town_hall');
         } else if (stats.targetPriority === 'wall') {
             priorityCandidates = enemies.filter(building => building.type === 'wall');
+        } else if (stats.targetPriority === 'resource') {
+            priorityCandidates = nonWalls.filter(building =>
+                BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS]?.category === 'resource'
+            );
         } else {
             priorityCandidates = nonWalls;
         }
@@ -186,7 +198,7 @@ export class CombatNavigationSystem {
             return { strategicTarget: null, activeTarget: null, plan: null };
         }
 
-        const context = this.buildContext(troop, buildings, allTroops, stats);
+        const context = this.buildContext(troop, buildings, allTroops, stats, rampWallIds);
         let bestTarget: PlacedBuilding | null = null;
         let bestPlan: CombatNavigationPlan | null = null;
 
@@ -194,6 +206,37 @@ export class CombatNavigationSystem {
             if (tier.length === 0) continue;
             bestTarget = null;
             bestPlan = null;
+
+            // Threat-ordered tier (hawk-eye): the PRIORITY tier is ranked by
+            // sustained defense DPS (desc, deterministic id tie-break) and the
+            // first REACHABLE candidate wins outright — route cost never
+            // reorders a threat hunt, so no hysteresis is needed. Lower tiers
+            // keep the standard nearest/route scoring.
+            if (stats.targetOrdering === 'defenseDps' && tier === priorityCandidates) {
+                const ranked = [...tier].sort((a, b) => {
+                    const dpsA = defenseDps(a.type, getBuildingStats(a.type as BuildingType, a.level || 1)) ?? 0;
+                    const dpsB = defenseDps(b.type, getBuildingStats(b.type as BuildingType, b.level || 1)) ?? 0;
+                    return (dpsB - dpsA) || a.id.localeCompare(b.id);
+                });
+                for (const candidate of ranked) {
+                    const plan = this.planToBuildingWithContext(
+                        troop,
+                        candidate,
+                        context,
+                        topologyRevision,
+                        plannedAt,
+                        stats
+                    );
+                    if (plan) {
+                        bestTarget = candidate;
+                        bestPlan = plan;
+                        break;
+                    }
+                }
+                if (bestTarget && bestPlan) break;
+                continue;
+            }
+
             let bestScore = Number.POSITIVE_INFINITY;
             const sorted = [...tier].sort((a, b) => {
                 const distanceDelta = this.edgeDistance(troop.gridX, troop.gridY, a)
@@ -267,13 +310,47 @@ export class CombatNavigationSystem {
         buildings: PlacedBuilding[],
         allTroops: Troop[],
         topologyRevision: number,
-        plannedAt: number
+        plannedAt: number,
+        rampWallIds?: ReadonlySet<string>
     ): CombatNavigationPlan | null {
         const stats = getTroopStats(troop.type, troop.level || 1);
-        const context = this.buildContext(troop, buildings, allTroops, stats);
+        const context = this.buildContext(troop, buildings, allTroops, stats, rampWallIds);
         return this.planToBuildingWithContext(
             troop,
             target,
+            context,
+            topologyRevision,
+            plannedAt,
+            stats
+        );
+    }
+
+    /** Route to a moving point (the support-follower lane: physician's cart
+     *  trailing an ally). The point is a zero-size region reached at
+     *  `followRange`; everything else is the standard planner. */
+    static planToPoint(
+        troop: Troop,
+        point: { id?: string; gridX: number; gridY: number },
+        followRange: number,
+        buildings: PlacedBuilding[],
+        allTroops: Troop[],
+        topologyRevision: number,
+        plannedAt: number,
+        rampWallIds?: ReadonlySet<string>
+    ): CombatNavigationPlan | null {
+        const stats = getTroopStats(troop.type, troop.level || 1);
+        const context = this.buildContext(troop, buildings, allTroops, stats, rampWallIds);
+        const id = point.id ?? `point:${point.gridX.toFixed(2)},${point.gridY.toFixed(2)}`;
+        return this.planToRegion(
+            troop,
+            {
+                id,
+                minX: point.gridX,
+                minY: point.gridY,
+                maxX: point.gridX,
+                maxY: point.gridY,
+                range: Math.max(0.2, followRange)
+            },
             context,
             topologyRevision,
             plannedAt,
@@ -286,12 +363,13 @@ export class CombatNavigationSystem {
         x: number,
         y: number,
         buildings: PlacedBuilding[],
-        mapSize: number = MAP_SIZE
+        mapSize: number = MAP_SIZE,
+        rampWallIds?: ReadonlySet<string>
     ): boolean {
         if (!this.isGroundTroop(troop)) {
             return x >= -2.25 && y >= -2.25 && x <= mapSize + 2.25 && y <= mapSize + 2.25;
         }
-        return this.penetrationScore(troop, x, y, buildings, mapSize) <= 0;
+        return this.penetrationScore(troop, x, y, buildings, mapSize, rampWallIds) <= 0;
     }
 
     static resolveMovement(
@@ -301,7 +379,8 @@ export class CombatNavigationSystem {
         fallbackDx: number,
         fallbackDy: number,
         buildings: PlacedBuilding[],
-        mapSize: number = MAP_SIZE
+        mapSize: number = MAP_SIZE,
+        rampWallIds?: ReadonlySet<string>
     ): CombatMovementResult {
         const startX = troop.gridX;
         const startY = troop.gridY;
@@ -328,8 +407,8 @@ export class CombatNavigationSystem {
         const tryStep = (stepX: number, stepY: number): boolean => {
             const nextX = x + stepX;
             const nextY = y + stepY;
-            const before = this.penetrationScore(troop, x, y, buildings, mapSize);
-            const after = this.penetrationScore(troop, nextX, nextY, buildings, mapSize);
+            const before = this.penetrationScore(troop, x, y, buildings, mapSize, rampWallIds);
+            const after = this.penetrationScore(troop, nextX, nextY, buildings, mapSize, rampWallIds);
             if (after <= 0 || (before > 0 && after < before - 0.000_001)) {
                 x = nextX;
                 y = nextY;
@@ -761,7 +840,8 @@ export class CombatNavigationSystem {
         troop: Troop,
         buildings: PlacedBuilding[],
         allTroops: Troop[],
-        stats: TroopDef
+        stats: TroopDef,
+        rampWallIds?: ReadonlySet<string>
     ): TraversalContext {
         const grid = this.gridScratch;
         const occupied = this.occupiedScratch;
@@ -787,10 +867,18 @@ export class CombatNavigationSystem {
                 if (!info) continue;
 
                 const enemyWall = building.type === 'wall' && building.owner !== troop.owner;
+                // Ally ramp (parked siege tower): the wall is crossable at a
+                // small toll — COST_OPEN+12, never free or ramps would beat
+                // open ground. occupied stays 1 (never a goal/attack slot);
+                // wallAt stays null (never a blocker, so the physical route
+                // is NOT truncated at it).
+                const isRamp = enemyWall && !!rampWallIds?.has(building.id);
                 const baseWallCost = stats.wallTraversalCost ?? 220;
-                const wallCost = enemyWall
-                    ? this.COST_OPEN + baseWallCost + (building.health / wallDps) * 35
-                    : this.COST_IMPASSABLE;
+                const wallCost = isRamp
+                    ? this.COST_OPEN + 12
+                    : enemyWall
+                        ? this.COST_OPEN + baseWallCost + (building.health / wallDps) * 35
+                        : this.COST_IMPASSABLE;
 
                 for (let x = building.gridX; x < building.gridX + info.width; x++) {
                     for (let y = building.gridY; y < building.gridY + info.height; y++) {
@@ -800,7 +888,7 @@ export class CombatNavigationSystem {
                         const index = gridY * this.GRID_SIZE + gridX;
                         occupied[index] = 1;
                         grid[index] = Math.max(grid[index], wallCost);
-                        if (enemyWall) wallAt[index] = building;
+                        if (enemyWall && !isRamp) wallAt[index] = building;
                     }
                 }
             }
@@ -874,7 +962,7 @@ export class CombatNavigationSystem {
             cells.set(index, (cells.get(index) ?? 0) + 1);
         }
 
-        return { grid, occupied, wallAt, canBypassStructures, solids, breachAffinity, goalClaims };
+        return { grid, occupied, wallAt, canBypassStructures, solids, breachAffinity, goalClaims, rampWalls: rampWallIds };
     }
 
     /** Stable per-troop approach preference derived from the id hash — the
@@ -1004,7 +1092,8 @@ export class CombatNavigationSystem {
         x: number,
         y: number,
         buildings: PlacedBuilding[],
-        mapSize: number
+        mapSize: number,
+        rampWallIds?: ReadonlySet<string>
     ): number {
         let score = 0;
         if (x < -2.25) score += -2.25 - x;
@@ -1015,6 +1104,10 @@ export class CombatNavigationSystem {
         const radius = this.agentRadius(troop);
         for (const building of buildings) {
             if (building.health <= 0 || building.isDestroyed) continue;
+            // Ramped wall (parked allied siege tower): physically crossable —
+            // the cost model above keeps it priced, this keeps it passable.
+            // Both layers must agree or troops plan through and bounce off.
+            if (rampWallIds?.has(building.id)) continue;
             const info = BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS];
             if (!info) continue;
             const minX = building.gridX - radius;

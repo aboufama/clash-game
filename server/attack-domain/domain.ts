@@ -39,7 +39,13 @@ import type {
 // credit is capped by its expected survival time against the snapshot's
 // defense DPS. Attacks pin the rules version at preparation, so replays and
 // settlements recorded under v1/v2 keep reproducing their original results.
-export const ATTACK_SIMULATION_VERSION = 3
+// v4 (2026-07, troop rework): declarative kit credit on top of v3 —
+// resource-raider damage multipliers, summoner wave credit, untargetable
+// deploy windows, quartermaster cadence auras and support-window lifetime
+// extensions (healer/guard/siege tower). Every v4 branch in simulation.ts is
+// guarded by rules.simulationVersion >= 4; stored v1–v3 attacks keep taking
+// their original branches byte-identically.
+export const ATTACK_SIMULATION_VERSION = 4
 
 export const DEFAULT_ATTACK_RULES: Readonly<AttackRulesSnapshot> = Object.freeze({
   simulationVersion: ATTACK_SIMULATION_VERSION,

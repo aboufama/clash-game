@@ -255,6 +255,60 @@ export class ProjectileRenderer {
         g.fillPath();
     }
 
+    /** Ornithopter bomb — a simple iron sphere with a strap band and a lit
+     *  fuse nub, dropped from the flying machine (mm_shell class, 1 level). */
+    static drawOrnithopterBomb(g: Phaser.GameObjects.Graphics) {
+        // Iron body
+        g.fillStyle(0x23262b, 1);
+        g.fillCircle(0, 0, 5.5);
+        // Riveted strap band across the equator
+        g.fillStyle(0x3c414a, 1);
+        g.fillRect(-5.5, -1.2, 11, 2.4);
+        g.fillStyle(0x565d68, 1);
+        g.fillRect(-4.5, -1.2, 1.4, 1.2);
+        g.fillRect(1.6, -1.2, 1.4, 1.2);
+        // Top highlight
+        g.fillStyle(0x4a5058, 1);
+        g.fillCircle(-1.8, -2.2, 1.8);
+        // Fuse collar + spark
+        g.fillStyle(0x6b5a35, 1);
+        g.fillRect(-1.2, -7, 2.4, 2.2);
+        g.fillStyle(0xffb347, 0.95);
+        g.fillCircle(0.6, -7.4, 1.1);
+        g.fillStyle(0xfff3b0, 0.9);
+        g.fillCircle(0.9, -7.7, 0.5);
+    }
+
+    /** Trebuchet stone — a round-hewn boulder, 3 material levels (field
+     *  stone → dressed granite → pale marble with gold flecks). */
+    static drawTrebuchetStone(g: Phaser.GameObjects.Graphics, level: number) {
+        const body = level >= 3 ? 0xd9d2c0 : level >= 2 ? 0x8f8f96 : 0x8a7a64;
+        const shade = level >= 3 ? 0xb4ad9a : level >= 2 ? 0x6b6b72 : 0x685c4a;
+        const lit = level >= 3 ? 0xefe9d8 : level >= 2 ? 0xb0b0b8 : 0xa8967c;
+        // Boulder body
+        g.fillStyle(body, 1);
+        g.fillCircle(0, 0, 8);
+        // Under-shade (SE) + lit crown (NW light)
+        g.fillStyle(shade, 1);
+        g.fillCircle(2.2, 2.4, 5);
+        g.fillStyle(body, 1);
+        g.fillCircle(-0.6, -0.6, 6.2);
+        g.fillStyle(lit, 1);
+        g.fillCircle(-2.6, -2.8, 3.2);
+        // Chisel facets
+        g.fillStyle(shade, 0.85);
+        g.fillRect(-1.5, 1.5, 4, 1.4);
+        g.fillRect(3, -2.5, 2.4, 1.2);
+        g.fillStyle(lit, 0.7);
+        g.fillRect(-4.8, 0.5, 2.2, 1.2);
+        if (level >= 3) {
+            // Gold flecks — accents only (max-level rule)
+            g.fillStyle(0xd4af37, 0.9);
+            g.fillRect(1.6, -4.2, 1.2, 1.2);
+            g.fillRect(-3.4, 2.6, 1.2, 1.2);
+        }
+    }
+
     /** Spike launcher ball — spiked boulder, 4 level material tiers. */
     static drawSpikeBall(g: Phaser.GameObjects.Graphics, level: number) {
         const spikeScale = level >= 4 ? 1.3 : (level >= 3 ? 1.2 : 1.0);

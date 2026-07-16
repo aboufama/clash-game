@@ -3003,9 +3003,10 @@ export class GameService {
     const elapsed = clamp(activeMs, 0, MAX_COMBAT_CREDIT_MS)
     const firstDelay = Math.max(0, stats.firstAttackDelay ?? 0)
     if (elapsed < firstDelay) return 0
-    // Most troops may strike on their first client combat tick. The suicidal
-    // wall breaker can do so only once; every other troop follows its cadence.
-    if (type === 'wallbreaker') return 1
+    // Most troops may strike on their first client combat tick. Suicide
+    // detonators (wall breaker, clockwork beetle) can do so only once; every
+    // other troop follows its cadence.
+    if (stats.detonateOnAttack) return 1
     const delay = Math.max(150, stats.attackDelay ?? 1000)
     return 1 + Math.floor((elapsed - firstDelay) / delay)
   }
@@ -3024,6 +3025,15 @@ export class GameService {
       return stats.damage * attacks + 9 * soldier.damage * soldierAttacks
     }
 
+    if (stats.summonType && (stats.summonCount ?? 0) > 0 && hasOwn(TROOP_DEFINITIONS, stats.summonType)) {
+      // A summoner (necromancer) can keep its full alive-cap of summons
+      // fighting beside it for its whole window (phalanx-pattern generosity).
+      const summon = getTroopStats(stats.summonType, level)
+      const summonAttacks = this.attackCountCeiling(stats.summonType, level, activeMs)
+      const summonPeak = Math.max(stats.summonCount ?? 1, stats.summonCap ?? 1)
+      return stats.damage * attacks + summonPeak * summon.damage * summonAttacks
+    }
+
     let perVolley = stats.damage
     if (type === 'stormmage') {
       const targets = this.destructibleTargets(world).length
@@ -3036,10 +3046,23 @@ export class GameService {
       perVolley *= 1 + Math.max(0, hits - 1) * 0.6
     } else if (type === 'golem' || type === 'icegolem') {
       perVolley *= this.splashTargetCeiling(world, 3, false)
-    } else if (type === 'wallbreaker') {
+    } else if (stats.detonateOnAttack) {
+      // Wall breaker and clockwork beetle: one detonation with splash reach.
       const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2.5, false)
       perVolley *= 1 + Math.max(0, hits - 1) * 0.6
+    } else if (type === 'trebuchet' || type === 'ornithopter') {
+      // Arcing shot / dropped bomb: splash centers on a struck building
+      // (mobile-mortar pattern).
+      const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2, true)
+      perVolley *= 1 + Math.max(0, hits - 1) * 0.6
+    } else if ((stats.resourceDamageMultiplier ?? 1) > 1) {
+      // Resource raider (goblin plunderer): worst honest case lands every
+      // strike on a resource building at the full multiplier.
+      perVolley *= stats.resourceDamageMultiplier ?? 1
     }
+    // Pure supports (physician's cart, quartermaster, siege tower) declare
+    // damage 0, so their own ceiling contribution is intentionally zero; the
+    // quartermaster's aura is credited army-wide in timedCombatPowerCeiling.
     return perVolley * attacks
   }
 
@@ -3096,6 +3119,17 @@ export class GameService {
       const contribution = this.rootDamageCeiling(replay.enemyWorld, type, level, now - deployedAt + DEPLOYMENT_RECEIPT_ALLOWANCE_MS)
       if (Number.isFinite(contribution) && contribution > 0) damage += contribution
     }
+    // A deployed quartermaster's war drums let every ally strike at a faster
+    // cadence (−boostCadence effective attack delay); the honest ceiling
+    // grows by the full-aura uplift, capped at one aura.
+    let cadence = 0
+    for (const rawType of Object.values(replay.validatedDeployments ?? {})) {
+      const type = rawType as TroopType
+      if (!hasOwn(TROOP_DEFINITIONS, type)) continue
+      const boost = getTroopStats(type, level).boostCadence ?? 0
+      if (boost > cadence && boost < 1) cadence = boost
+    }
+    if (cadence > 0) damage /= 1 - cadence
     return this.destructionCeilingFromDamage(replay.enemyWorld, damage)
   }
 
@@ -3613,6 +3647,13 @@ export class GameService {
         if (troop.owner !== 'PLAYER') return true
         if (troop.type === 'romanwarrior') {
           if ((deployedCounts.phalanx ?? 0) <= 0) return false
+          troop.level = normalizeTroopLevel(replay.troopLevel ?? 1)
+          return true
+        }
+        if (troop.type === 'skeleton') {
+          // Generated-only summon: allowed in presentation frames only while
+          // a necromancer was actually deployed (romanwarrior pattern).
+          if ((deployedCounts.necromancer ?? 0) <= 0) return false
           troop.level = normalizeTroopLevel(replay.troopLevel ?? 1)
           return true
         }

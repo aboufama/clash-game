@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { Backend, type AttackEndResult, type AttackReplayState, type ReplayFrameSnapshot, type ReplayTroopSnapshot } from '../backend/GameBackend';
 import type { SerializedBuilding, SerializedWorld, VillageBanner } from '../data/Models';
 import { bannerDesignFor, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
-import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
+import { BUILDING_DEFINITIONS, GENERATED_ONLY, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
 import { LootSystem } from '../systems/LootSystem';
 import type { PlacedBuilding, Troop, PlacedObstacle } from '../types/GameTypes';
 import { drawBuildingVisual, type WallNeighborTopology } from '../renderers/BuildingVisualDispatcher';
@@ -12,6 +12,7 @@ import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
 import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
 import { DefenseSystem } from '../systems/DefenseSystem';
+import { TargetingSystem } from '../systems/TargetingSystem';
 import { DEFENSE_BEHAVIOR_CATALOG } from '../systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
 import { depthForBuilding, depthForGroundEffect, depthForGroundPlane, depthForObstacle, depthForProjectile, depthForRubble, depthForTroop } from '../systems/DepthSystem';
@@ -186,6 +187,28 @@ export class MainScene extends Phaser.Scene {
     /** Incremented whenever live structure geometry changes. Combat plans are
      * never followed across revisions; their strategic intent is replanned. */
     private combatTopologyRevision = 0;
+
+    /** Enemy wall ids serving as ALLY RAMPS (a parked siege tower), keyed by
+     *  the tower's owner. Threaded into CombatNavigationSystem only for
+     *  same-owner ground troops; lifecycle: park → add + plain revision bump,
+     *  tower death / wall destruction → delete + plain revision bump (NEVER
+     *  the removal-promotion path — losing a ramp CLOSES routes). */
+    private readonly rampedWallsByOwner: Record<'PLAYER' | 'ENEMY', Set<string>> = {
+        PLAYER: new Set<string>(),
+        ENEMY: new Set<string>()
+    };
+
+    /** Shared per-combat-frame graphics for the support-kit auras (physician
+     *  heal ring, quartermaster drum ring) — redrawn every frame as a
+     *  deterministic f(time, troop id), like the old ward aura. */
+    private kitAuraGfx: Phaser.GameObjects.Graphics | null = null;
+
+    /** Deterministic skeleton spawn offsets around a summoner — rotated by
+     *  wave index so waves fan out without Math.random. */
+    private static readonly SUMMON_OFFSETS = [
+        { dx: -0.7, dy: 0.4 }, { dx: 0.7, dy: 0.4 }, { dx: -0.4, dy: -0.8 },
+        { dx: 0.4, dy: -0.8 }, { dx: -1.0, dy: -0.2 }, { dx: 1.0, dy: -0.2 }
+    ] as const;
 
     // Battle stats tracking
     public initialEnemyBuildings = 0;
@@ -3223,6 +3246,204 @@ export class MainScene extends Phaser.Scene {
         return this.mode === 'REPLAY' ? this.replaySimulationTime : this.time.now;
     }
 
+    /** A troop whose kit heals allies (physician's cart) — the support-
+     *  follower predicate that generalizes the deleted ward lane. */
+    private isSupportHealer(troop: Pick<Troop, 'type' | 'level'>): boolean {
+        const stats = getTroopStats(troop.type, troop.level || 1);
+        return (stats.healRadius ?? 0) > 0 && (stats.healAmount ?? 0) > 0;
+    }
+
+    /**
+     * The support kits' shared per-frame pass. Runs in ATTACK and REPLAY
+     * watch (auras + pulse FX show while spectating) but never mutates
+     * health during replay — the frame stream owns it. All ring motion is a
+     * deterministic f(time, troop id); the pulse FX + heals fire on the
+     * cart's 6s cadence (its attackDelay) from a deploy-anchored clock.
+     */
+    private updateSupportKits(time: number, isReplayWatch: boolean) {
+        let hasSupport = false;
+        for (const troop of this.troops) {
+            if (troop.health <= 0) continue;
+            const stats = this.getTroopCombatStats(troop);
+            if ((stats.healRadius ?? 0) > 0 || (stats.boostRadius ?? 0) > 0) {
+                hasSupport = true;
+                break;
+            }
+        }
+        if (!hasSupport) {
+            if (this.kitAuraGfx?.active) this.kitAuraGfx.clear();
+            return;
+        }
+
+        if (!this.kitAuraGfx || !this.kitAuraGfx.active) {
+            this.kitAuraGfx = this.trackBattleFx(this.add.graphics());
+            this.kitAuraGfx.setDepth(7);
+        }
+        const gfx = this.kitAuraGfx;
+        gfx.clear();
+
+        for (const troop of this.troops) {
+            if (troop.health <= 0) continue;
+            const stats = this.getTroopCombatStats(troop);
+
+            // --- PHYSICIAN'S CART: heal aura + 6s burst heal ---------------
+            if ((stats.healRadius ?? 0) > 0 && (stats.healAmount ?? 0) > 0) {
+                const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                const aura = this.gridRangeToIsoRadii(stats.healRadius ?? 5.5);
+                const glow = troop.owner === 'PLAYER' ? 0x58d68d : 0x45b39d;
+                const seed = hashString(`${troop.id}:aura`) % 1000;
+                const pulse = 0.5 + 0.5 * Math.sin((time + seed) / 420);
+                this.pixelRing(gfx, pos.x, pos.y + 5, aura.rx, aura.ry, 2, glow, 0.14 + 0.1 * pulse);
+
+                const cadence = stats.attackDelay ?? 6000;
+                if (troop.lastHealPulseAt === undefined) troop.lastHealPulseAt = time;
+                if (time > troop.lastHealPulseAt + cadence) {
+                    troop.lastHealPulseAt = time;
+
+                    // (a) The heal wave — an expanding iso ring to the radius.
+                    this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 5, {
+                        r0: 8, r1: aura.rx, squash: aura.ry / Math.max(1, aura.rx),
+                        thick0: 3, thick1: 1, color: 0x8ef5b6, alpha: 0.85,
+                        life: 460, ease: 'Quad.easeOut',
+                        depth: depthForGroundEffect(troop.gridX, troop.gridY) + 1
+                    }));
+
+                    // (b) Burst-heal ALL allies in radius (+ floating green
+                    // numbers) — battle sim only; replay frames own health.
+                    if (!isReplayWatch) {
+                        let seq = 0;
+                        for (const other of this.troops) {
+                            if (other.owner !== troop.owner || other.health <= 0 || other.id === troop.id) continue;
+                            if (other.health >= other.maxHealth) continue;
+                            const d = Phaser.Math.Distance.Between(troop.gridX, troop.gridY, other.gridX, other.gridY);
+                            if (d > (stats.healRadius ?? 0)) continue;
+                            const healed = Math.min(other.maxHealth - other.health, stats.healAmount ?? 0);
+                            if (healed <= 0) continue;
+                            other.health += healed;
+                            this.updateHealthBar(other);
+                            this.showHealNumber(other, healed, seq++);
+                        }
+                    }
+                }
+            }
+
+            // --- QUARTERMASTER: drum-ring aura + beat pulse ----------------
+            if ((stats.boostRadius ?? 0) > 0) {
+                const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                const aura = this.gridRangeToIsoRadii(stats.boostRadius ?? 6);
+                const seed = hashString(`${troop.id}:drums`) % 1000;
+                // Steady rim on an exact 2000ms harmonic...
+                const rim = 0.5 + 0.5 * Math.sin(((time + seed) % 2000) / 2000 * Math.PI * 2);
+                this.pixelRing(gfx, pos.x, pos.y + 5, aura.rx, aura.ry, 2, 0xd4a017, 0.12 + 0.08 * rim);
+                // ...and a subtle beat ring rolling out every 1000ms.
+                const beat = ((time + seed) % 1000) / 1000;
+                const sf = 0.18 + beat * 0.82;
+                this.pixelRing(gfx, pos.x, pos.y + 5, aura.rx * sf, aura.ry * sf, 1, 0xe8bd54, 0.22 * (1 - beat));
+            }
+        }
+    }
+
+    /** Floating heal number (BattleOverlay DIGITS_5X7 texture, NEAREST-
+     *  sampled, world-anchored): rises 13px and fades — the plus-sign tween
+     *  recipe. `seq` staggers side-by-side numbers in one pulse. */
+    private showHealNumber(troop: Troop, amount: number, seq: number) {
+        const overlay = this.scene.get('BattleOverlay') as BattleOverlayScene | null;
+        if (!overlay || !overlay.sys.displayList) return;
+        const key = overlay.ensureHealNumberTexture(amount);
+        const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        const img = overlay.add.image(pos.x + ((seq % 3) - 1) * 5, pos.y - 24, key);
+        img.setDepth(30002);
+        this.trackBattleFx(img);
+        this.tweens.add({
+            targets: img,
+            y: img.y - 13,
+            alpha: 0,
+            duration: 500,
+            ease: 'Quad.easeOut',
+            onComplete: () => img.destroy()
+        });
+    }
+
+    /** Necromancer cast flourish, keyed to the summon tick: grave-light
+     *  flash at the staff + a rolling ground ring. */
+    private showSummonFlourish(troop: Troop) {
+        const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        const groundDepth = depthForGroundEffect(troop.gridX, troop.gridY);
+        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 16, {
+            r: 7, color: 0xb08aff, alpha: 0.9, scaleTo: 1.8, life: 220,
+            depth: depthForTroop(troop.gridX, troop.gridY, troop.type) + 0.5
+        }));
+        this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 5, {
+            r0: 6, r1: 34, squash: 0.5, thick0: 2, thick1: 1,
+            color: 0x8a63cc, alpha: 0.7, life: 380, ease: 'Quad.easeOut',
+            depth: groundDepth + 1
+        }));
+        this.redrawTroopWithMovement(troop, false);
+    }
+
+    /**
+     * SIEGE TOWER PARKING. The tower becomes stationary (still targetable),
+     * tweens its parked01 driver 0→1 through the redraw path (the
+     * TroopDesignFn `driver` arg / the baked 'deactivated' pose), and — when
+     * its charge line stopped at an enemy wall — marks that wall as an ALLY
+     * RAMP: same-owner ground troops path over it at COST_OPEN+12. Plain
+     * topology bump (never the removal-promotion path) so affected troops
+     * replan into the opening.
+     */
+    private parkSiegeTower(troop: Troop, time: number) {
+        void time;
+        troop.parked01 = 0.0001; // parked marker; the tween carries it to 1
+        troop.path = undefined;
+        troop.navigationPlan = undefined;
+        troop.velocityX = 0;
+        troop.velocityY = 0;
+
+        const target = troop.target as PlacedBuilding | null;
+        if (target && target.type === 'wall' && target.owner !== troop.owner
+            && target.health > 0 && !target.isDestroyed) {
+            troop.parkedWallId = target.id;
+            this.rampedWallsByOwner[troop.owner].add(target.id);
+            this.combatTopologyRevision++; // plain bump — replans discover the ramp
+        }
+        troop.target = null;
+        troop.strategicTarget = null;
+
+        const driver = { p: 0 };
+        this.trackBattleFxTween(this.tweens.add({
+            targets: driver,
+            p: 1,
+            duration: 700,
+            ease: 'Sine.easeOut',
+            onUpdate: () => {
+                if (troop.health <= 0) return;
+                troop.parked01 = driver.p;
+                this.redrawTroopWithMovement(troop, false);
+            },
+            onComplete: () => {
+                if (troop.health <= 0) return;
+                troop.parked01 = 1;
+                this.redrawTroopWithMovement(troop, false);
+            }
+        }));
+
+        // Settling dust as the ramp drops.
+        const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        PixelFx.burst(this, pos.x, pos.y + 6, {
+            count: 6, colors: [0x8b7355, 0x9b8365], alpha: 0.55,
+            r: 2, rJitter: 1.5, spread: 14, up: 6, upJitter: 4,
+            life: 320, lifeJitter: 120, scaleTo: 1.6,
+            depth: depthForGroundEffect(troop.gridX, troop.gridY)
+        });
+        this.cameras.main.shake(30, 0.001);
+    }
+
+    /** The ally-ramp set threaded into navigation for THIS troop — only
+     *  same-owner troops ride a tower's ramp; undefined when none exist. */
+    private rampSetFor(troop: Pick<Troop, 'owner'>): ReadonlySet<string> | undefined {
+        const set = this.rampedWallsByOwner[troop.owner];
+        return set.size > 0 ? set : undefined;
+    }
+
     private updateCombat(time: number) {
         const isReplayWatch = this.mode === 'REPLAY';
         if (this.mode !== 'ATTACK' && !isReplayWatch) return;
@@ -3232,6 +3453,11 @@ export class MainScene extends Phaser.Scene {
         this.updateFrozenDefenses(time);
 
         this.defenseSystem.update(time, this.buildings, this.troops);
+
+        // Support-kit presentation + (outside replay) the burst heals: runs in
+        // BOTH modes so auras/pulse FX show while spectating, but never
+        // mutates health during replay watch (the frame stream owns it).
+        this.updateSupportKits(time, isReplayWatch);
 
         // Replay watch: the frame stream owns troop state. Defenses above still
         // aim/fire (their shots and recoil are presentation, stamped on the
@@ -3247,8 +3473,48 @@ export class MainScene extends Phaser.Scene {
 
             // Validate strategic intent before the active damage target. A wall
             // may be the current interaction target, but never replaces the
-            // building this troop is actually trying to reach.
-            this.ensureTroopNavigation(troop, time);
+            // building this troop is actually trying to reach. A parked siege
+            // tower is terminal: it never renavigates.
+            if (troop.parked01 === undefined) this.ensureTroopNavigation(troop, time);
+
+            // NECROMANCER — summon waves ride a deploy-anchored timer (NOT the
+            // attack clock): every summonIntervalMs raise summonCount
+            // generated units at deterministic offsets, capped to summonCap
+            // ALIVE per summoner (summonedBy === troop.id). Skipped waves
+            // (at cap) keep the cadence. Skeletons die permanently.
+            const kitStats = this.getTroopCombatStats(troop);
+            if (kitStats.summonType && (kitStats.summonIntervalMs ?? 0) > 0) {
+                if (troop.lastSummonTime === undefined) troop.lastSummonTime = time;
+                if (time > troop.lastSummonTime + (kitStats.summonIntervalMs ?? 5000)) {
+                    troop.lastSummonTime = time;
+                    const alive = this.troops.filter(other =>
+                        other.summonedBy === troop.id && other.health > 0).length;
+                    const room = Math.min(
+                        kitStats.summonCount ?? 0,
+                        Math.max(0, (kitStats.summonCap ?? Number.POSITIVE_INFINITY) - alive)
+                    );
+                    if (room > 0) {
+                        const wave = troop.summonWaves = (troop.summonWaves ?? 0) + 1;
+                        this.showSummonFlourish(troop);
+                        const summonType = kitStats.summonType;
+                        const summonerId = troop.id;
+                        const owner = troop.owner;
+                        const level = troop.level || 1;
+                        for (let i = 0; i < room; i++) {
+                            const off = MainScene.SUMMON_OFFSETS[
+                                (wave * (kitStats.summonCount ?? 1) + i) % MainScene.SUMMON_OFFSETS.length];
+                            const sx = troop.gridX + off.dx;
+                            const sy = troop.gridY + off.dy;
+                            this.pendingSpawnCount++;
+                            this.scheduleBattleCall(i * 40, () => {
+                                const spawned = this.spawnTroop(sx, sy, summonType, owner, level);
+                                if (spawned) spawned.summonedBy = summonerId;
+                                this.pendingSpawnCount--;
+                            });
+                        }
+                    }
+                }
+            }
             // A missing/stale plan must not silence the attack tick: a troop
             // already standing in range keeps swinging while its staggered
             // replan slot is pending (the range gates below stay in force).
@@ -3281,6 +3547,14 @@ export class MainScene extends Phaser.Scene {
                             } else if (troop.type === 'mobilemortar') {
                                 // Mobile Mortar - arcing splash attack like mortar building
                                 this.showMobileMortarShot(troop, troop.target, stats.damage);
+                            } else if (troop.type === 'trebuchet') {
+                                // TREBUCHET — r11 artillery on the mobile-mortar
+                                // pattern: high boulder arc, splash on impact,
+                                // never moves while firing (in-range hold).
+                                this.showTrebuchetShot(troop, troop.target, stats.damage);
+                            } else if (troop.type === 'ornithopter') {
+                                // ORNITHOPTER — lobs an iron bomb from altitude.
+                                this.showOrnithopterBomb(troop, troop.target, stats.damage);
                             } else if (troop.type === 'stormmage') {
                                 this.showStormLightning(troop, troop.target, stats.damage);
                             } else if (troop.type === 'golem' || troop.type === 'icegolem') {
@@ -3524,10 +3798,15 @@ export class MainScene extends Phaser.Scene {
                                     this.destroyBuilding(targetBuilding);
                                     troop.target = null;
                                 }
-                            } else if (troop.type === 'wallbreaker') {
-                                // WALL BREAKER — Suicide explosion on first attack
+                            } else if (stats.detonateOnAttack) {
+                                // SHARED DETONATION MODEL (wallbreaker, clockwork
+                                // beetle) — one strike delivered as an
+                                // edge-measured splash, then the troop dies
+                                // through the REAL death path (destroyTroop keys
+                                // the per-type boom FX). Behavior-identical to
+                                // the old bespoke wallbreaker suicide.
                                 troop.lastAttackTime = time;
-                                const wallMult = troop.target.type === 'wall' ? ((stats as any).wallDamageMultiplier || 3) : 1;
+                                const wallMult = troop.target.type === 'wall' ? ((stats as any).wallDamageMultiplier ?? 1) : 1;
                                 const sRadius = (stats as any).splashRadius || 2.5;
 
                                 // Apply splash damage to all buildings in radius.
@@ -3553,11 +3832,30 @@ export class MainScene extends Phaser.Scene {
                                 // Kill itself and trigger explosion visual
                                 troop.health = 0;
                                 this.destroyTroop(troop);
+                            } else if (troop.type === 'siegetower') {
+                                // SIEGE TOWER — never fights. On reaching what
+                                // its charge line stopped at, it PARKS; a wall
+                                // target becomes the ally ramp.
+                                if (troop.parked01 === undefined) {
+                                    this.parkSiegeTower(troop, time);
+                                }
+                            } else if (stats.damage <= 0) {
+                                // Pure support (physician's cart, quartermaster):
+                                // no attack — their kits run outside this tick.
                             } else {
-                                // Melee: immediate damage (Warrior, Ram)
+                                // Melee: immediate damage (Warrior, Ram, Elephant)
                                 let finalDamage = stats.damage;
-                                if (troop.type === 'ram' && troop.target.type === 'wall') {
+                                const isWallStrike = troop.target.type === 'wall';
+                                if (isWallStrike) {
+                                    // Data-driven wall multiplier (ram ×4 —
+                                    // unchanged — war elephant ×20: one instant
+                                    // strike fells up to an L4 wall).
                                     finalDamage *= (stats as any).wallDamageMultiplier || 1;
+                                }
+                                if ((stats as any).resourceDamageMultiplier
+                                    && BUILDINGS[troop.target.type]?.category === 'resource') {
+                                    // Goblin plunderer: resource-class bonus.
+                                    finalDamage *= (stats as any).resourceDamageMultiplier;
                                 }
 
                                 troop.target.health -= finalDamage;
@@ -3567,19 +3865,37 @@ export class MainScene extends Phaser.Scene {
                                 const targetPos = IsoUtils.cartToIso(bx + tw / 2, by + th / 2);
                                 const angle = Math.atan2(targetPos.y - currentPos.y, targetPos.x - currentPos.x);
 
-                                // Ram gets a bigger punch animation
-                                const punchDist = troop.type === 'ram' ? 18 : 10;
-                                this.tweens.add({
-                                    targets: troop.gameObject,
-                                    x: currentPos.x + Math.cos(angle) * punchDist,
-                                    y: currentPos.y + Math.sin(angle) * (punchDist * 0.5),
-                                    duration: troop.type === 'ram' ? 100 : 50,
-                                    yoyo: true
-                                });
+                                if (troop.type === 'warelephant' && isWallStrike) {
+                                    // WAR ELEPHANT TRAMPLE — the wall strike is
+                                    // movement-inline: no punch tween, keep the
+                                    // walk cycle so it reads as trampling
+                                    // straight through, plus a dust burst at the
+                                    // wall. One strike kills the wall; the
+                                    // topology invalidation below replans it
+                                    // onward with minimal stop.
+                                    this.cameras.main.shake(50, 0.0022);
+                                    PixelFx.burst(this, targetPos.x, targetPos.y + 4, {
+                                        count: 8, colors: [0x8b7355, 0x9b8365, 0x6b5344], alpha: 0.7,
+                                        r: 2.2, rJitter: 1.6, spread: 14, up: 9, upJitter: 6,
+                                        life: 320, lifeJitter: 120, scaleTo: 1.6,
+                                        depth: depthForGroundEffect(bx + tw / 2, by + th / 2)
+                                    });
+                                    this.redrawTroopWithMovement(troop, true);
+                                } else {
+                                    // Ram gets a bigger punch animation
+                                    const punchDist = troop.type === 'ram' ? 18 : 10;
+                                    this.tweens.add({
+                                        targets: troop.gameObject,
+                                        x: currentPos.x + Math.cos(angle) * punchDist,
+                                        y: currentPos.y + Math.sin(angle) * (punchDist * 0.5),
+                                        duration: troop.type === 'ram' ? 100 : 50,
+                                        yoyo: true
+                                    });
 
-                                // Screen shake for Ram impact
-                                if (troop.type === 'ram') {
-                                    this.cameras.main.shake(40, 0.002);
+                                    // Screen shake for Ram impact
+                                    if (troop.type === 'ram') {
+                                        this.cameras.main.shake(40, 0.002);
+                                    }
                                 }
 
                                 if (troop.target.health <= 0) {
@@ -4961,6 +5277,169 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
+    /**
+     * TREBUCHET — r11 artillery on the mobile-mortar pattern: two chained
+     * tweens (up: Quad.easeOut / down: Quad.easeIn) with the projectile depth
+     * lerped along the GRID ground track, a much higher apex, a tumbling
+     * baked boulder (nearest of 16 baked rotations, never setRotation), and
+     * splash measured to FOOTPRINT EDGES on impact (wallbreaker precedent).
+     */
+    private showTrebuchetShot(troop: Troop, target: PlacedBuilding, damage: number) {
+        const stats = this.getTroopCombatStats(troop);
+        const start = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        const info = BUILDINGS[target.type];
+        const end = IsoUtils.cartToIso(target.gridX + info.width / 2, target.gridY + info.height / 2);
+
+        // Face target; the arm swing itself rides attackAge in the troop art.
+        troop.facingAngle = Math.atan2(end.y - start.y, end.x - start.x);
+        this.redrawTroopWithMovement(troop, false);
+
+        const launchGX = troop.gridX;
+        const launchGY = troop.gridY;
+        const shotTargetGX = target.gridX + info.width / 2;
+        const shotTargetGY = target.gridY + info.height / 2;
+        const level = Math.min(troop.level || 1, 3);
+
+        const stone = this.trackBattleFx(this.add.graphics());
+        stone.setPosition(start.x, start.y - 30); // sling release height
+        stone.setDepth(depthForProjectile(launchGX, launchGY));
+        const rotFor = (t: number) => t * Math.PI * 4; // tumble (mortar-shell precedent)
+        const stoneBaked = this.syncProjectileSprite(stone, 'trebuchet_stone', level, 0);
+        if (!stoneBaked) ProjectileRenderer.drawTrebuchetStone(stone, level);
+
+        particleManager.emitDustBurst(start.x, start.y - 6, depthForGroundEffect(launchGX, launchGY) + 1);
+
+        const flightMs = 900; // slow counterweight lob
+        const midY = Math.min(start.y, end.y) - 200; // high apex
+
+        this.tweens.add({
+            targets: stone,
+            x: { value: (start.x + end.x) / 2, duration: flightMs / 2, ease: 'Linear' },
+            y: { value: midY, duration: flightMs / 2, ease: 'Quad.easeOut' },
+            onUpdate: (tween) => {
+                const t = tween.progress * 0.5; // first half of the ground track
+                stone.setDepth(depthForProjectile(
+                    launchGX + (shotTargetGX - launchGX) * t,
+                    launchGY + (shotTargetGY - launchGY) * t));
+                if (stoneBaked) this.syncProjectileSprite(stone, 'trebuchet_stone', level, rotFor(t));
+            },
+            onComplete: () => {
+                this.tweens.add({
+                    targets: stone,
+                    x: { value: end.x, duration: flightMs / 2, ease: 'Linear' },
+                    y: { value: end.y, duration: flightMs / 2, ease: 'Quad.easeIn' },
+                    onUpdate: (tween) => {
+                        const t = 0.5 + tween.progress * 0.5; // second half
+                        stone.setDepth(depthForProjectile(
+                            launchGX + (shotTargetGX - launchGX) * t,
+                            launchGY + (shotTargetGY - launchGY) * t));
+                        if (stoneBaked) this.syncProjectileSprite(stone, 'trebuchet_stone', level, rotFor(t));
+                    },
+                    onComplete: () => {
+                        stone.destroy();
+
+                        this.cameras.main.shake(45, 0.0018);
+                        particleManager.emitExplosion(end.x, end.y, depthForGroundEffect(shotTargetGX, shotTargetGY));
+
+                        // Splash to FOOTPRINT EDGES around the impact point —
+                        // the center measure starves large buildings' corners.
+                        const sRadius = stats.splashRadius || 2;
+                        [...this.buildings].forEach(b => {
+                            if (b.owner !== troop.owner && b.health > 0) {
+                                const bInfo = BUILDINGS[b.type];
+                                const bdx = Math.max(b.gridX - shotTargetGX, 0, shotTargetGX - (b.gridX + bInfo.width));
+                                const bdy = Math.max(b.gridY - shotTargetGY, 0, shotTargetGY - (b.gridY + bInfo.height));
+                                const bdist = Math.hypot(bdx, bdy);
+                                if (bdist <= sRadius) {
+                                    const splashDamage = bdist < 0.5 ? damage : damage * 0.6;
+                                    b.health -= splashDamage;
+                                    this.updateHealthBar(b);
+                                    if (b.health <= 0) this.destroyBuilding(b);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    /**
+     * ORNITHOPTER — lobs an iron bomb from flight height: a short mm_shell-
+     * style two-phase arc with the depth lerped along the ground track, then
+     * a splash on impact (center-distance, mobile-mortar model).
+     */
+    private showOrnithopterBomb(troop: Troop, target: PlacedBuilding, damage: number) {
+        const stats = this.getTroopCombatStats(troop);
+        const start = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        const info = BUILDINGS[target.type];
+        const end = IsoUtils.cartToIso(target.gridX + info.width / 2, target.gridY + info.height / 2);
+        troop.facingAngle = Math.atan2(end.y - start.y, end.x - start.x);
+
+        const launchGX = troop.gridX;
+        const launchGY = troop.gridY;
+        const shotTargetGX = target.gridX + info.width / 2;
+        const shotTargetGY = target.gridY + info.height / 2;
+
+        const bomb = this.trackBattleFx(this.add.graphics());
+        bomb.setPosition(start.x, start.y - 34); // released from altitude
+        bomb.setDepth(depthForProjectile(launchGX, launchGY));
+        const bombBaked = this.syncProjectileSprite(bomb, 'ornithopter_bomb', 1, 0, 1);
+        if (!bombBaked) ProjectileRenderer.drawOrnithopterBomb(bomb);
+
+        const flightMs = 420;
+        const midY = Math.min(start.y - 34, end.y - 20) - 24;
+
+        this.tweens.add({
+            targets: bomb,
+            x: { value: (start.x + end.x) / 2, duration: flightMs / 2, ease: 'Linear' },
+            y: { value: midY, duration: flightMs / 2, ease: 'Quad.easeOut' },
+            onUpdate: (tween) => {
+                const t = tween.progress * 0.5;
+                bomb.setDepth(depthForProjectile(
+                    launchGX + (shotTargetGX - launchGX) * t,
+                    launchGY + (shotTargetGY - launchGY) * t));
+                if (bombBaked) this.syncProjectileSprite(bomb, 'ornithopter_bomb', 1, 0, 1);
+            },
+            onComplete: () => {
+                this.tweens.add({
+                    targets: bomb,
+                    x: { value: end.x, duration: flightMs / 2, ease: 'Linear' },
+                    y: { value: end.y, duration: flightMs / 2, ease: 'Quad.easeIn' },
+                    onUpdate: (tween) => {
+                        const t = 0.5 + tween.progress * 0.5;
+                        bomb.setDepth(depthForProjectile(
+                            launchGX + (shotTargetGX - launchGX) * t,
+                            launchGY + (shotTargetGY - launchGY) * t));
+                        if (bombBaked) this.syncProjectileSprite(bomb, 'ornithopter_bomb', 1, 0, 1);
+                    },
+                    onComplete: () => {
+                        bomb.destroy();
+
+                        this.cameras.main.shake(20, 0.0008);
+                        particleManager.emitExplosion(end.x, end.y, depthForGroundEffect(shotTargetGX, shotTargetGY));
+
+                        const sRadius = stats.splashRadius || 1.2;
+                        [...this.buildings].forEach(b => {
+                            if (b.owner !== troop.owner && b.health > 0) {
+                                const bInfo = BUILDINGS[b.type];
+                                const bCenterX = b.gridX + bInfo.width / 2;
+                                const bCenterY = b.gridY + bInfo.height / 2;
+                                const bdist = Math.hypot(bCenterX - shotTargetGX, bCenterY - shotTargetGY);
+                                if (bdist <= sRadius) {
+                                    const splashDamage = bdist < 0.5 ? damage : damage * 0.6;
+                                    b.health -= splashDamage;
+                                    this.updateHealthBar(b);
+                                    if (b.health <= 0) this.destroyBuilding(b);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
     private showStormLightning(troop: Troop, target: PlacedBuilding, damage: number) {
         // Redraw to show attack pose (could be facing change or effect)
         const start = IsoUtils.cartToIso(troop.gridX, troop.gridY);
@@ -5432,16 +5911,22 @@ export class MainScene extends Phaser.Scene {
         // the whole game loop — a dead troop just skips its redraw.
         if (!g || !g.active || !g.scene) return;
         g.clear();
+        // Parked siege tower: the baked 'deactivated' (ramp-down) pose wins;
+        // the vector path below carries the continuous parked01 driver.
+        if (troop.type === 'siegetower' && (troop.parked01 ?? 0) >= 0.5
+            && SpriteBank.syncTroopPose(this, g, 'siegetower', troop.owner, troop.level || 1, troop.facingAngle || 0, 'deactivated')) return;
         if (SpriteBank.syncTroop(this, troop, true, this.troopAttackAge(troop), this.animClockNow())) return;
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.mortarRecoil || 0, troop.parked01 ?? 0, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
     }
 
     private redrawTroopWithMovement(troop: Troop, isMoving: boolean) {
         const g = troop.gameObject;
         if (!g || !g.active || !g.scene) return; // see redrawTroop
         g.clear();
+        if (troop.type === 'siegetower' && (troop.parked01 ?? 0) >= 0.5
+            && SpriteBank.syncTroopPose(this, g, 'siegetower', troop.owner, troop.level || 1, troop.facingAngle || 0, 'deactivated')) return;
         if (SpriteBank.syncTroop(this, troop, isMoving, this.troopAttackAge(troop), this.animClockNow())) return;
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.mortarRecoil || 0, troop.parked01 ?? 0, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
     }
 
     /**
@@ -5488,6 +5973,52 @@ export class MainScene extends Phaser.Scene {
         ) ?? null;
     }
 
+    private isLiveTroopTarget(value: unknown): value is Troop {
+        if (!value || typeof value !== 'object') return false;
+        const candidate = value as Troop;
+        return candidate.health > 0 && this.troops.some(troop => troop.id === candidate.id);
+    }
+
+    /** Follow-target pick for support healers (physician's cart): closest
+     *  INJURED combat ally first, else the closest combat ally, else an
+     *  enemy building so the last cart standing still advances. Healers
+     *  never follow other healers — the last two would orbit each other. */
+    private findHealerFollowTarget(healer: Troop): Troop | PlacedBuilding | null {
+        const allies = this.troops.filter(t =>
+            t.owner === healer.owner && t.id !== healer.id && t.health > 0
+            && !this.isSupportHealer(t)
+        );
+
+        const byDistance = (a: Troop, b: Troop) => {
+            const da = Phaser.Math.Distance.Between(healer.gridX, healer.gridY, a.gridX, a.gridY);
+            const db = Phaser.Math.Distance.Between(healer.gridX, healer.gridY, b.gridX, b.gridY);
+            return da - db || a.id.localeCompare(b.id);
+        };
+
+        const injured = allies.filter(t => t.health < t.maxHealth);
+        if (injured.length > 0) {
+            injured.sort(byDistance);
+            return injured[0];
+        }
+        if (allies.length > 0) {
+            allies.sort(byDistance);
+            return allies[0];
+        }
+        return TargetingSystem.findTarget(healer, this.buildings);
+    }
+
+    /** A followed leader died: its healers re-pick immediately. */
+    private invalidateSupportFollowers(removedTroopId: string) {
+        for (const follower of this.troops) {
+            if (!this.isSupportHealer(follower)) continue;
+            if ((follower.target as { id?: string } | null)?.id !== removedTroopId) continue;
+            follower.target = null;
+            follower.navigationPlan = undefined;
+            follower.path = undefined;
+            follower.nextPathTime = 0;
+        }
+    }
+
     private navigationSlot(troop: Troop, span: number): number {
         let hash = 2166136261;
         for (let i = 0; i < troop.id.length; i++) {
@@ -5499,8 +6030,9 @@ export class MainScene extends Phaser.Scene {
 
     private nextNavigationDelay(troop: Troop): number {
         // Stable staggering avoids pathfinding bursts without injecting
-        // per-frame randomness into AI decisions.
-        const base = 340;
+        // per-frame randomness into AI decisions. Support followers track a
+        // moving ally, so they replan on a tighter cadence (ward precedent).
+        const base = this.isSupportHealer(troop) ? 180 : 340;
         return base + this.navigationSlot(troop, base);
     }
 
@@ -5534,18 +6066,96 @@ export class MainScene extends Phaser.Scene {
     /** Acquire a route-aware objective. The returned active target may be a
      * required wall, while `strategicTarget` always remains the real building. */
     private acquireTroopNavigation(troop: Troop, now: number) {
+        if (this.isSupportHealer(troop)) {
+            this.acquireHealerNavigation(troop, now);
+            return;
+        }
         const selection = CombatNavigationSystem.selectTargetAndPlan(
             troop,
             this.buildings,
             this.troops,
             this.combatTopologyRevision,
             now,
-            troop.strategicTarget ?? undefined
+            troop.strategicTarget ?? undefined,
+            this.rampSetFor(troop)
         );
         this.applyCombatNavigation(troop, selection, now);
     }
 
+    /**
+     * PHYSICIAN'S CART follow lane (the deleted ward lane, generalized by
+     * the healer predicate): follow the nearest damaged ally, else the
+     * nearest ally — advancing with the push — else fall through to a
+     * building objective so the cart never idles alone on the field.
+     */
+    private acquireHealerNavigation(troop: Troop, now: number) {
+        const followTarget = this.findHealerFollowTarget(troop);
+        const previousId = (troop.target as { id?: string } | null)?.id;
+        troop.target = followTarget;
+        troop.strategicTarget = followTarget && BUILDINGS[(followTarget as { type?: string }).type ?? '']
+            ? followTarget as PlacedBuilding
+            : null;
+
+        if (followTarget && this.isLiveTroopTarget(followTarget)) {
+            const followRange = Math.min(2.5, Math.max(1.25, this.getTroopCombatStats(troop).range));
+            const plan = CombatNavigationSystem.planToPoint(
+                troop,
+                { id: followTarget.id, gridX: followTarget.gridX, gridY: followTarget.gridY },
+                followRange,
+                this.buildings,
+                this.troops,
+                this.combatTopologyRevision,
+                now,
+                this.rampSetFor(troop)
+            );
+            troop.navigationPlan = plan ?? undefined;
+            troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
+        } else if (troop.strategicTarget) {
+            const plan = CombatNavigationSystem.planToBuilding(
+                troop,
+                troop.strategicTarget,
+                this.buildings,
+                this.troops,
+                this.combatTopologyRevision,
+                now,
+                this.rampSetFor(troop)
+            );
+            const active = this.liveBuildingById(plan?.activeTargetId) ?? troop.strategicTarget;
+            troop.target = active;
+            troop.navigationPlan = plan ?? undefined;
+            troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
+        } else {
+            troop.navigationPlan = undefined;
+            troop.path = undefined;
+        }
+
+        troop.nextPathTime = now + this.nextNavigationDelay(troop);
+        if (previousId !== (troop.target as { id?: string } | null)?.id) {
+            troop.lastTargetSwitchTime = now;
+            this.setTroopRetargetPause(troop, 45, 110);
+        }
+    }
+
     private refreshTroopNavigation(troop: Troop, now: number) {
+        if (this.isSupportHealer(troop) && this.isLiveTroopTarget(troop.target)) {
+            const leader = troop.target as Troop;
+            const followRange = Math.min(2.5, Math.max(1.25, this.getTroopCombatStats(troop).range));
+            const plan = CombatNavigationSystem.planToPoint(
+                troop,
+                { id: leader.id, gridX: leader.gridX, gridY: leader.gridY },
+                followRange,
+                this.buildings,
+                this.troops,
+                this.combatTopologyRevision,
+                now,
+                this.rampSetFor(troop)
+            );
+            troop.navigationPlan = plan ?? undefined;
+            troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
+            troop.nextPathTime = now + this.nextNavigationDelay(troop);
+            return;
+        }
+
         const strategic = this.liveBuildingById(troop.strategicTarget?.id);
         if (!strategic) {
             this.acquireTroopNavigation(troop, now);
@@ -5563,7 +6173,8 @@ export class MainScene extends Phaser.Scene {
                 this.troops,
                 this.combatTopologyRevision,
                 now,
-                strategic
+                strategic,
+                this.rampSetFor(troop)
             );
             if (selection.plan) {
                 this.applyCombatNavigation(troop, selection, now);
@@ -5577,7 +6188,8 @@ export class MainScene extends Phaser.Scene {
             this.buildings,
             this.troops,
             this.combatTopologyRevision,
-            now
+            now,
+            this.rampSetFor(troop)
         );
         const activeTarget = this.liveBuildingById(plan?.activeTargetId);
         this.applyCombatNavigation(troop, {
@@ -5588,6 +6200,13 @@ export class MainScene extends Phaser.Scene {
     }
 
     private ensureTroopNavigation(troop: Troop, now: number) {
+        if (this.isSupportHealer(troop) && this.isLiveTroopTarget(troop.target)) {
+            if (!troop.navigationPlan || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision) {
+                if (now >= (troop.nextPathTime ?? 0)) this.refreshTroopNavigation(troop, now);
+            }
+            return;
+        }
+
         const strategic = this.liveBuildingById(troop.strategicTarget?.id);
         const active = this.liveBuildingById((troop.target as { id?: string } | null)?.id);
         const planIsCurrent = !!troop.navigationPlan
@@ -5763,11 +6382,18 @@ export class MainScene extends Phaser.Scene {
             const dx = Math.max(bx - troop.gridX, 0, troop.gridX - (bx + width));
             const dy = Math.max(by - troop.gridY, 0, troop.gridY - (by + height));
             const stats = this.getTroopCombatStats(troop);
+            // Support healers trailing an ALLY hold a follow distance instead
+            // of their (tiny) attack range — the ward-follow contract.
+            const followsAlly = !isBuilding
+                && (target as Troop).owner === troop.owner
+                && this.isSupportHealer(troop);
             // The planner accepts attack slots out to range+0.08; movement
             // must accept the same verdict, or a troop parked in
             // (range, range+0.08] replan-thrashes forever without attacking.
             // The attack tick's own gate is range+0.1, so it still fires.
-            const stopRange = stats.range + 0.08;
+            const stopRange = (followsAlly
+                ? Math.min(2.5, Math.max(1.25, stats.range))
+                : stats.range) + 0.08;
             return {
                 centerX: bx + width / 2,
                 centerY: by + height / 2,
@@ -5777,10 +6403,32 @@ export class MainScene extends Phaser.Scene {
             };
         };
 
+        // QUARTERMASTER WAR DRUMS — the deterministic aura lookup (drummers
+        // sorted by id; the FIRST in-radius drummer applies, so multiple
+        // quartermasters never stack). Consumed at the march-speed formula
+        // and the attack-clock adjust below (chill precedent, sign-flipped).
+        const drummers = this.troops
+            .filter(t => {
+                if (t.health <= 0) return false;
+                const s = this.getTroopCombatStats(t);
+                return (s.boostRadius ?? 0) > 0
+                    && (((s.boostAmount ?? 1) > 1) || ((s.boostCadence ?? 0) > 0));
+            })
+            .sort((a, b) => a.id.localeCompare(b.id));
+        const boostFor = (unit: Troop) => {
+            for (const drummer of drummers) {
+                if (drummer.id === unit.id || drummer.owner !== unit.owner) continue;
+                const s = this.getTroopCombatStats(drummer);
+                const d = Math.hypot(drummer.gridX - unit.gridX, drummer.gridY - unit.gridY);
+                if (d <= (s.boostRadius ?? 0)) return s;
+            }
+            return null;
+        };
+
         for (const troop of this.troops) {
             if (troop.health <= 0) continue;
 
-            this.ensureTroopNavigation(troop, now);
+            if (troop.parked01 === undefined) this.ensureTroopNavigation(troop, now);
 
             // --- CHILLED STATUS EFFECT ---
             // Graphics carriers have no tint of their own — the frost blue
@@ -5794,6 +6442,53 @@ export class MainScene extends Phaser.Scene {
                     SpriteBank.setCarrierTint(troop.gameObject, 0x88ccff);
                     if (troop.lastAttackTime) troop.lastAttackTime += delta * 1.5;
                 }
+            }
+
+            // --- HAWK-EYE CLOAK SHIMMER --- (carrier-level alpha; SpriteBank
+            // reconciliation copies it onto the baked shadow sprite)
+            if (troop.untargetableUntil !== undefined) {
+                if (now < troop.untargetableUntil) {
+                    troop.gameObject.setAlpha(0.55 + 0.07 * Math.sin(now / 150));
+                } else {
+                    troop.untargetableUntil = undefined;
+                    troop.gameObject.setAlpha(1);
+                }
+            }
+
+            // --- QUARTERMASTER AURA (one application max) ---
+            let marchBoost = 1;
+            const drum = drummers.length > 0 ? boostFor(troop) : null;
+            if (drum) {
+                marchBoost = drum.boostAmount ?? 1;
+                const cadence = drum.boostCadence ?? 0;
+                if (cadence > 0 && troop.lastAttackTime) {
+                    // Effective attack delay × (1 − cadence): pull the attack
+                    // clock back so its age accrues at 1/(1−cadence) rate —
+                    // the chill slow (+delta·1.5) inverted.
+                    troop.lastAttackTime -= delta * (1 / (1 - cadence) - 1);
+                }
+                const newlyBuffed = (troop.lastBoostedAt ?? -Infinity) < now - 250;
+                troop.lastBoostedAt = now;
+                if (newlyBuffed) troop.boostTintUntil = now + 320;
+            }
+            // Brief gold flash on newly buffed allies (chill's frost wins).
+            if (troop.boostTintUntil !== undefined && (troop.chillRemainingMs ?? 0) <= 0) {
+                if (now < troop.boostTintUntil) {
+                    SpriteBank.setCarrierTint(troop.gameObject, 0xffd27a);
+                } else {
+                    troop.boostTintUntil = undefined;
+                    SpriteBank.setCarrierTint(troop.gameObject, null);
+                }
+            }
+
+            // --- PARKED SIEGE TOWER: stationary (still targetable) ---
+            if (troop.parked01 !== undefined) {
+                troop.velocityX = 0;
+                troop.velocityY = 0;
+                if (!this.isOffScreen(troop.gridX, troop.gridY)) {
+                    this.redrawTroopWithMovement(troop, false);
+                }
+                continue;
             }
 
             let movedThisFrame = false;
@@ -5813,7 +6508,8 @@ export class MainScene extends Phaser.Scene {
                     0,
                     0,
                     this.buildings,
-                    this.mapSize
+                    this.mapSize,
+                    this.rampSetFor(troop)
                 );
                 troop.gridX = shove.x;
                 troop.gridY = shove.y;
@@ -5928,7 +6624,8 @@ export class MainScene extends Phaser.Scene {
                                 * troop.speedMult
                                 * movementDelta
                                 * 1.12
-                                * (chilled ? 0.4 : 1);
+                                * (chilled ? 0.4 : 1)
+                                * marchBoost; // quartermaster war drums (×1 unbuffed)
                             const targetVx = ((desiredMove.x * 0.82) + (moveDir.x * 0.18)) * speed;
                             const targetVy = ((desiredMove.y * 0.82) + (moveDir.y * 0.18)) * speed;
                             troop.velocityX = Phaser.Math.Linear(troop.velocityX ?? targetVx, targetVx, 0.45);
@@ -5951,7 +6648,8 @@ export class MainScene extends Phaser.Scene {
                                 moveDir.x * speed,
                                 moveDir.y * speed,
                                 this.buildings,
-                                this.mapSize
+                                this.mapSize,
+                                this.rampSetFor(troop)
                             );
 
                             troop.gridX = motion.x;
@@ -6036,7 +6734,8 @@ export class MainScene extends Phaser.Scene {
                         0,
                         0,
                         this.buildings,
-                        this.mapSize
+                        this.mapSize,
+                        this.rampSetFor(troop)
                     );
                     if (Math.hypot(micro.dx, micro.dy) > 0.0005) {
                         const prevX = troop.gridX;
@@ -6145,6 +6844,14 @@ export class MainScene extends Phaser.Scene {
         // makes the new gap visible on the next plan.
         if (b.type === 'wall') {
             this.refreshWallNeighbors(b.gridX, b.gridY, b.owner);
+            // A ramped wall going down releases the siege-tower ramp. The
+            // tile is now fully open, so this is a pure removal — the
+            // invalidation above already covers the replans.
+            if (this.rampedWallsByOwner.PLAYER.delete(b.id) || this.rampedWallsByOwner.ENEMY.delete(b.id)) {
+                for (const tower of this.troops) {
+                    if (tower.parkedWallId === b.id) tower.parkedWallId = undefined;
+                }
+            }
         }
 
         const pos = IsoUtils.cartToIso(b.gridX + info.width / 2, b.gridY + info.height / 2);
@@ -6327,6 +7034,21 @@ export class MainScene extends Phaser.Scene {
         if (t.type === 'golem' && t.health > 0) this.showStoneGolemHitFx(t);
         // Ice golem hit reaction (throttled inside): chips of ice + frost puff.
         if (t.type === 'icegolem' && t.health > 0) this.emitIceGolemHitFx(t);
+        // Pavise-redirected impact: the soak lands with a shield spark
+        // (DefenseSystem armed guardFlareUntil when it swung the shot).
+        if (t.health > 0 && (t.guardFlareUntil ?? 0) > this.time.now) {
+            t.guardFlareUntil = 0;
+            const sparkPos = IsoUtils.cartToIso(t.gridX, t.gridY);
+            const sparkDepth = depthForTroop(t.gridX, t.gridY, t.type) + 0.5;
+            this.trackBattleFx(PixelFx.flash(this, sparkPos.x - 3, sparkPos.y - 12, {
+                r: 5, color: 0x9fd4ff, alpha: 0.9, scaleTo: 1.6, life: 160, depth: sparkDepth
+            }));
+            PixelFx.burst(this, sparkPos.x - 3, sparkPos.y - 12, {
+                count: 4, colors: [0xcfe8ff, 0x2e6e8e], alpha: 0.9,
+                r: 1.2, rJitter: 0.6, spread: 8, up: 5, upJitter: 3,
+                life: 200, lifeJitter: 60, depth: sparkDepth + 0.1
+            });
+        }
         if (t.health <= 0) this.destroyTroop(t);
         return true;
     }
@@ -6356,10 +7078,26 @@ export class MainScene extends Phaser.Scene {
         this.troops = this.troops.filter(x => x.id !== t.id);
         t.healthBar.destroy();
 
+        // Kit bookkeeping (all death branches): healers tracking this troop
+        // re-pick a leader; a parked siege tower RELEASES its ramp with a
+        // PLAIN revision bump — losing a ramp CLOSES routes, so it must never
+        // ride the removal-promotion path.
+        this.invalidateSupportFollowers(t.id);
+        if (t.parkedWallId) {
+            this.rampedWallsByOwner[t.owner].delete(t.parkedWallId);
+            t.parkedWallId = undefined;
+            this.combatTopologyRevision++;
+        }
+
         const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
 
-        // WALL BREAKER EXPLOSION: Detailed boom with smoke, debris, and area ring
-        if (t.type === 'wallbreaker') {
+        // SHARED DETONATION BOOM (wallbreaker powder barrel / clockwork
+        // beetle brass burst): one FX skeleton, per-type palette + scale.
+        if (t.type === 'wallbreaker' || t.type === 'clockworkbeetle') {
+            const isBeetle = t.type === 'clockworkbeetle';
+            const ringMax = isBeetle ? 22 : 30;
+            const ringColor = isBeetle ? 0xc9973a : 0xff6600;
+            const washColor = isBeetle ? 0x8a6420 : 0xff4400;
             const ex = pos.x;
             const ey = pos.y - 5;
 
@@ -6371,10 +7109,10 @@ export class MainScene extends Phaser.Scene {
             ring.setDepth(29999);
             const drawBlast = (p: number) => {
                 ring.clear();
-                const r = 10 + 30 * p;
+                const r = 10 + ringMax * p;
                 const fade = 1 - p;
-                this.pixelRing(ring, 0, 0, r, r / 2, 2, 0xff6600, 0.7 * fade); // isometric ellipse
-                pixelEllipse(ring, 0, 0, r, r / 2, 0xff4400, 0.15 * fade);
+                this.pixelRing(ring, 0, 0, r, r / 2, 2, ringColor, 0.7 * fade); // isometric ellipse
+                pixelEllipse(ring, 0, 0, r, r / 2, washColor, 0.15 * fade);
             };
             drawBlast(0);
             const blastState = { p: 0 };
@@ -6404,19 +7142,27 @@ export class MainScene extends Phaser.Scene {
             // 4. Screen shake
             this.cameras.main.shake(60, 0.003);
 
-            // 5. Debris — barrel chunks, wood splinters, stone bits
-            for (let i = 0; i < 14; i++) {
+            // 5. Debris — barrel chunks + splinters (wallbreaker) or brass
+            // gears + cogs (clockwork beetle)
+            for (let i = 0; i < (isBeetle ? 10 : 14); i++) {
                 const debrisAngle = Math.random() * Math.PI * 2;
                 const debrisDist = 15 + Math.random() * 35;
                 const debris = this.trackBattleFx(this.add.graphics());
-                const isWood = Math.random() > 0.4;
-                if (isWood) {
-                    // Wood/barrel chunk
-                    pixelRect(debris, -1.5, -1, 3, 2 + Math.random() * 2, [0x5a3a1a, 0x6b4a2a, 0x8b6b4a][Math.floor(Math.random() * 3)], 0.9);
+                const isChunk = Math.random() > 0.4;
+                if (isChunk) {
+                    // Wood/barrel chunk — or a brass plate off the beetle
+                    const chunkColors = isBeetle
+                        ? [0x7a5c20, 0x9a7a30, 0xb08d3a]
+                        : [0x5a3a1a, 0x6b4a2a, 0x8b6b4a];
+                    pixelRect(debris, -1.5, -1, 3, 2 + Math.random() * 2, chunkColors[Math.floor(Math.random() * 3)], 0.9);
                 } else {
-                    // Metal band / stone bit
+                    // Metal band / stone bit — or a flying gear
                     const debrisR = 1 + Math.random() * 1.5;
-                    pixelEllipse(debris, 0, 0, debrisR, debrisR, [0x555555, 0x777777, 0x993300][Math.floor(Math.random() * 3)], 0.9);
+                    const bitColors = isBeetle
+                        ? [0xb08d3a, 0x7a5c20, 0x555555]
+                        : [0x555555, 0x777777, 0x993300];
+                    pixelEllipse(debris, 0, 0, debrisR, debrisR, bitColors[Math.floor(Math.random() * 3)], 0.9);
+                    if (isBeetle) pixelRect(debris, -0.7, -0.7, 1.4, 1.4, 0x3a2c10, 0.9); // gear hub
                 }
                 debris.setPosition(ex, ey);
                 debris.setDepth(30001);
@@ -7380,11 +8126,11 @@ export class MainScene extends Phaser.Scene {
         type: TroopType = 'warrior',
         owner: 'PLAYER' | 'ENEMY' = 'PLAYER',
         troopLevelOverride?: number
-    ) {
+    ): Troop | null {
         // Bounds check - Relaxed for deployment margin
         const margin = 2;
         if (gx < -margin || gy < -margin || gx >= this.mapSize + margin || gy >= this.mapSize + margin) {
-            return;
+            return null;
         }
         const troopLevel = Math.max(1, Math.floor(troopLevelOverride ?? this.getTroopLevelForOwner(owner)));
         const stats = getTroopStats(type, troopLevel);
@@ -7443,10 +8189,16 @@ export class MainScene extends Phaser.Scene {
             facingAngle: 0
         };
 
+        // Kit clocks anchor at deploy time (deterministic, never per-frame).
+        if (stats.untargetableMs) troop.untargetableUntil = spawnTime + stats.untargetableMs;
+        if (stats.summonType) troop.lastSummonTime = spawnTime;
+        if ((stats.healRadius ?? 0) > 0 && (stats.healAmount ?? 0) > 0) troop.lastHealPulseAt = spawnTime;
+
         this.troops.push(troop);
         this.hasDeployed = true;
-        if (owner === 'PLAYER' && this.mode === 'ATTACK' && type !== 'romanwarrior') {
-            // Deploys leave the camp; split spawns (romanwarrior) never publish.
+        if (owner === 'PLAYER' && this.mode === 'ATTACK' && !GENERATED_ONLY.has(type)) {
+            // Deploys leave the camp; generated spawns (romanwarrior split,
+            // necromancer skeletons) never publish.
             this.deployedThisBattle[type] = (this.deployedThisBattle[type] ?? 0) + 1;
             const attackId = this.currentEnemyWorld?.attackId;
             if (attackId) {
@@ -7475,6 +8227,7 @@ export class MainScene extends Phaser.Scene {
         if (this.mode === 'ATTACK') {
             // Alpha handled by lerp in updateDeploymentHighlight
         }
+        return troop;
     }
 
 
@@ -8553,6 +9306,10 @@ export class MainScene extends Phaser.Scene {
         this.replayDestroyedBuildings.clear();
         this.pendingSpawnCount = 0;
         this.raidEndScheduled = false;
+        // Siege-tower ramps and the shared aura layer never outlive a battle.
+        this.rampedWallsByOwner.PLAYER.clear();
+        this.rampedWallsByOwner.ENEMY.clear();
+        this.kitAuraGfx = null; // destroyed with the battle-FX sweep above
 
         // Clear all UI overlay graphics
         this.ghostBuilding.clear();
@@ -9114,6 +9871,12 @@ export class MainScene extends Phaser.Scene {
             replaySampleY: snapshot.gridY,
             replaySampleT: 0,
         };
+        // Kit visual parity: the frame stream carries no kit state, so the
+        // hawk-eye cloak window re-derives from first appearance (a deploy
+        // shows up within a frame of its real time). Health stays authorial.
+        if (stats.untargetableMs) {
+            troop.untargetableUntil = this.replaySimulationTime + stats.untargetableMs;
+        }
         return troop;
     }
 
@@ -9252,6 +10015,14 @@ export class MainScene extends Phaser.Scene {
                     const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
                     troop.gameObject.setPosition(pos.x, pos.y);
                     troop.gameObject.setDepth(depthForTroop(troop.gridX, troop.gridY, troop.type));
+                    // Summon parity: a skeleton materializing mid-stream gets
+                    // the necromancer grave-light poof (baseline joins silent).
+                    if (troop.type === 'skeleton' && !this.isApplyingReplayBaseline
+                        && !this.isOffScreen(troop.gridX, troop.gridY)) {
+                        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 8, {
+                            r: 5, color: 0xb08aff, alpha: 0.85, scaleTo: 1.6, life: 200, depth: 30001
+                        }));
+                    }
                 }
                 troop.gameObject.setVisible(troop.health > 0);
 
@@ -9387,24 +10158,38 @@ export class MainScene extends Phaser.Scene {
                 troop.gameObject.setDepth(troopDepth);
             }
 
+            // Kit visual parity in replay watch (the stream carries no kit
+            // state): hawk-eye cloak shimmer on the replay clock, and the
+            // siege tower eases into its parked pose once its samples go
+            // still — both purely presentational, frames own everything else.
+            const replayClock = this.animClockNow();
+            if (troop.untargetableUntil !== undefined) {
+                if (replayClock < troop.untargetableUntil) {
+                    troop.gameObject.setAlpha(0.55 + 0.07 * Math.sin(replayClock / 150));
+                } else {
+                    troop.untargetableUntil = undefined;
+                    troop.gameObject.setAlpha(1);
+                }
+            }
+            if (troop.type === 'siegetower') {
+                if (motionDist > 0.004) {
+                    troop.replayStillSince = undefined;
+                    troop.parked01 = undefined;
+                } else {
+                    if (troop.replayStillSince === undefined) troop.replayStillSince = replayClock;
+                    if (replayClock - troop.replayStillSince > 900) {
+                        troop.parked01 = Math.min(1, (troop.parked01 ?? 0) + delta / 700);
+                    }
+                }
+            }
+
             const moving = errorDist > 0.05 || motionDist > 0.001;
             const onScreen = !this.isOffScreen(troop.gridX, troop.gridY);
-            if (onScreen && (
-                troop.type === 'warrior' ||
-                troop.type === 'archer' ||
-                troop.type === 'ram' ||
-                troop.type === 'golem' ||
-                troop.type === 'icegolem' ||
-                troop.type === 'mobilemortar' ||
-                troop.type === 'davincitank' ||
-                troop.type === 'phalanx' ||
-                troop.type === 'romanwarrior' ||
-                troop.type === 'wallbreaker' ||
-                troop.type === 'stormmage'
-            )) {
+            if (onScreen) {
+                // Every troop type carries per-frame kit/walk/idle animation
+                // now — the old handwritten whitelist silently froze any type
+                // it missed, so it repaints unconditionally.
                 this.redrawTroopWithMovement(troop, moving);
-            } else if (onScreen && moving) {
-                this.redrawTroop(troop);
             }
 
             this.updateHealthBar(troop);

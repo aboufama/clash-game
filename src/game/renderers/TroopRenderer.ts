@@ -54,7 +54,9 @@ export class TroopRenderer {
         isMoving: boolean = true,
         slamOffset: number = 0,
         mortarRecoil: number = 0,
-        isDeactivated: boolean = false,
+        // Boolean for the da-vinci husk; the siege tower rides the same slot
+        // as its continuous parked01 driver (0 rolling → 1 parked).
+        isDeactivated: boolean | number = false,
         phalanxSpearOffset: number = 0,
         troopLevel: number = 1,
         // Callers MUST pass sim/scene time; the default is a deterministic
@@ -89,7 +91,7 @@ export class TroopRenderer {
                 TroopRenderer.drawStormMage(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'davincitank':
-                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, isDeactivated, facingAngle, troopLevel, time);
+                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, !!isDeactivated, facingAngle, troopLevel, time);
                 break;
             case 'phalanx':
                 TroopRenderer.drawPhalanx(graphics, isPlayer, isMoving, facingAngle, phalanxSpearOffset, troopLevel, time);
@@ -118,8 +120,10 @@ export class TroopRenderer {
                 TroopRenderer.drawNewTroop(graphics, 'quartermaster', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'siegetower':
-                // driver = parked01 (the davincitank isDeactivated plumbing).
-                TroopRenderer.drawNewTroop(graphics, 'siegetower', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, isDeactivated ? 1 : 0);
+                // driver = parked01 (the davincitank isDeactivated plumbing);
+                // MainScene tweens it 0→1 through the redraw path on parking.
+                TroopRenderer.drawNewTroop(graphics, 'siegetower', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay,
+                    typeof isDeactivated === 'number' ? Math.max(0, Math.min(1, isDeactivated)) : (isDeactivated ? 1 : 0));
                 break;
             case 'necromancer':
                 TroopRenderer.drawNewTroop(graphics, 'necromancer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);

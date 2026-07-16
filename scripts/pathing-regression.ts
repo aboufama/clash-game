@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { getBuildingStats, getTroopStats, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions';
+import { defenseDps } from '../src/game/systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem } from '../src/game/systems/CombatNavigationSystem';
 import { PathfindingSystem } from '../src/game/systems/PathfindingSystem';
 import type { PlacedBuilding, Troop } from '../src/game/types/GameTypes';
@@ -372,6 +373,100 @@ for (const unit of cohort) {
 }
 assert(routesThroughGap >= Math.ceil(cohort.length * 0.9),
     'cohort kept attacking adjacent walls after a shared gap opened');
+
+// SIEGE-TOWER ALLY RAMP: a ramped wall becomes crossable for allied plans at
+// a TOLL (COST_OPEN+12, never free), is never a blocker or an attack slot,
+// and both layers (cost model + collision) agree so nothing plans through
+// and then bounces. Without the set the wall stays fully solid.
+const rampWallId = closedPlan.blockerId!;
+const rampWall = closed.find(item => item.id === rampWallId)!;
+const rampSet = new Set([rampWallId]);
+const rampPlan = CombatNavigationSystem.planToBuilding(warrior, inside, closed, [warrior], 3, 2, rampSet);
+assert(rampPlan, 'ramped wall loop should produce a through-plan');
+assert.equal(rampPlan.blockerId, undefined, 'a ramped wall must never be a blocker');
+assert.equal(rampPlan.activeTargetId, inside.id, 'ramp route must keep the real objective active');
+// Waypoints are compressed collinear — sample the route's SEGMENTS to prove
+// it physically crosses the ramped wall tile (no other loop wall is passable).
+const rampRouteCrosses = (() => {
+    const points = [{ x: warrior.gridX, y: warrior.gridY }, ...rampPlan.waypoints];
+    for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1];
+        const b = points[i];
+        const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.05));
+        for (let s = 0; s <= steps; s++) {
+            const x = a.x + ((b.x - a.x) * s) / steps;
+            const y = a.y + ((b.y - a.y) * s) / steps;
+            if (contains(rampWall, x, y)) return true;
+        }
+    }
+    return false;
+})();
+assert(rampRouteCrosses, 'ramp route should cross the ramped wall tile');
+assert(!contains(rampWall, rampPlan.goal.x, rampPlan.goal.y),
+    'a ramp cell must never become an attack slot/goal');
+assert(
+    CombatNavigationSystem.isPositionWalkable(warrior, rampWall.gridX + 0.5, rampWall.gridY + 0.5, closed, 25, rampSet),
+    'ramp tile must be physically walkable for allied troops'
+);
+assert(
+    !CombatNavigationSystem.isPositionWalkable(warrior, rampWall.gridX + 0.5, rampWall.gridY + 0.5, closed, 25),
+    'without the ramp set the wall must stay solid'
+);
+const rampWalker = troop('ramp-walker', 'warrior', rampWall.gridX - 0.7, rampWall.gridY + 0.5);
+const rampMove = CombatNavigationSystem.resolveMovement(rampWalker, 1.6, 0, 1.6, 0, closed, 25, rampSet);
+assert(!rampMove.blocked && rampMove.x > rampWall.gridX + 0.2,
+    'allied movement should pass over the ramp tile');
+const solidMove = CombatNavigationSystem.resolveMovement(rampWalker, 1.6, 0, 1.6, 0, closed, 25);
+assert(solidMove.blocked && solidMove.x < rampWall.gridX,
+    'movement without the ramp set must still stop at the wall');
+// The toll: strictly costlier than the same route through a genuinely open gap.
+const rampGapPlan = CombatNavigationSystem.planToBuilding(
+    warrior, inside, closed.filter(item => item.id !== rampWallId), [warrior], 4, 3);
+assert(rampGapPlan && rampPlan.routeCost > rampGapPlan.routeCost,
+    'ramp crossing must carry a toll over genuinely open ground');
+
+// WAR ELEPHANT: plans into the wall on its route, one trample strike fells
+// up to an L4 wall (data invariant), and the very next plan after the wall
+// falls continues to the objective with no residual blocker.
+const elephant = troop('elephant-trample', 'warelephant', 4.5, 11.5);
+const elephantSelection = CombatNavigationSystem.selectTargetAndPlan(elephant, closed, [elephant], 1, 0);
+assert.equal(elephantSelection.strategicTarget?.id, inside.id, 'elephant lost its objective to a wall');
+assert(elephantSelection.plan?.blockerId, 'elephant must fight the wall on its route');
+const elephantStats = getTroopStats('warelephant', 1);
+const l4Wall = getBuildingStats('wall', 4);
+assert(
+    elephantStats.damage * (elephantStats.wallDamageMultiplier ?? 1) >= (l4Wall.maxHealth || 0),
+    `one trample strike must fell an L4 wall (${elephantStats.damage} x ${elephantStats.wallDamageMultiplier} < ${l4Wall.maxHealth})`
+);
+const trampled = closed.filter(item => item.id !== elephantSelection.plan?.blockerId);
+const elephantContinue = CombatNavigationSystem.selectTargetAndPlan(
+    elephant, trampled, [elephant], 2, 1, elephantSelection.strategicTarget ?? undefined);
+assert.equal(elephantContinue.strategicTarget?.id, inside.id, 'elephant dropped its objective after trampling');
+assert.equal(elephantContinue.plan?.blockerId, undefined, 'elephant kept a blocker after the wall fell');
+
+// HAWK-EYE ASSASSIN: hunts the highest-DPS standing defense (deterministic
+// id tie-break), NOT the nearest one, and retargets to the next-highest
+// once it falls.
+const hkCannon = building('hk-cannon', 'cannon', 6, 6);
+const hkXbow = building('hk-xbow', 'xbow', 18, 18);
+const hkDecoy = building('hk-storage', 'storage', 3, 6);
+const dpsOf = (b: PlacedBuilding) => defenseDps(b.type, getBuildingStats(b.type as BuildingType, 1)) ?? 0;
+const [hkHigh, hkLow] = dpsOf(hkXbow) >= dpsOf(hkCannon) ? [hkXbow, hkCannon] : [hkCannon, hkXbow];
+// Stand the assassin right next to the LOW-DPS defense so distance would pick it.
+const hawkeye = troop('hawkeye-priority', 'hawkeyeassassin', hkLow.gridX - 2, hkLow.gridY + 0.5);
+const hkSelection = CombatNavigationSystem.selectTargetAndPlan(
+    hawkeye, [hkCannon, hkXbow, hkDecoy], [hawkeye], 1, 0);
+assert.equal(hkSelection.strategicTarget?.id, hkHigh.id,
+    'hawk-eye must hunt the highest-DPS defense, not the nearest');
+for (let attempt = 0; attempt < 20; attempt++) {
+    const repeated = CombatNavigationSystem.selectTargetAndPlan(
+        hawkeye, [hkCannon, hkXbow, hkDecoy], [hawkeye], 1, 0);
+    assert.equal(repeated.strategicTarget?.id, hkHigh.id, 'hawk-eye threat hunt is not deterministic');
+}
+const hkAfterKill = CombatNavigationSystem.selectTargetAndPlan(
+    hawkeye, [hkLow, hkDecoy], [hawkeye], 2, 1);
+assert.equal(hkAfterKill.strategicTarget?.id, hkLow.id,
+    'hawk-eye must retarget the next-highest defense after a kill');
 
 const performanceTroops = Array.from({ length: 150 }, (_, index) =>
     troop(`perf-${index}`, 'warrior', 2.5 + (index % 5) * 0.08, 10.5 + (index % 7) * 0.06)

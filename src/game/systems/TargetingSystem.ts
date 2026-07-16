@@ -40,6 +40,15 @@ export class TargetingSystem {
             if (walls.length > 0) {
                 candidates = walls;
             }
+        } else if (def.targetPriority === 'resource') {
+            // Prioritize Resource buildings (mine/farm/storage)
+            const resources = nonWalls.filter(b => {
+                const info = BUILDING_DEFINITIONS[b.type as keyof typeof BUILDING_DEFINITIONS];
+                return info?.category === 'resource';
+            });
+            if (resources.length > 0) {
+                candidates = resources;
+            }
         }
 
         // 2. Fallback to General Targets (Non-Walls for non-wall-targeting, all for wall-targeting)

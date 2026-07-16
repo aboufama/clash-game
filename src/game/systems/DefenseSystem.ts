@@ -1,4 +1,4 @@
-import { getBuildingStats, type BuildingType } from '../config/GameDefinitions';
+import { getBuildingStats, getTroopStats, type BuildingType } from '../config/GameDefinitions';
 import type { PlacedBuilding, Troop } from '../types/GameTypes';
 import {
     getDefenseBehavior,
@@ -55,6 +55,10 @@ export class DefenseSystem {
 
             const isTargetInRange = (troop: Troop | null | undefined): troop is Troop => {
                 if (!troop || troop.health <= 0 || troop.owner === defense.owner) return false;
+                // Hawk-eye cloak: the ONE acquisition gate — covers standard
+                // fire, target locks, mortar/nearest reselection AND the tesla
+                // charge validity re-check.
+                if (troop.untargetableUntil !== undefined && time < troop.untargetableUntil) return false;
                 const distance = gridDistance(centerX, centerY, troop.gridX, troop.gridY);
                 if (distance > maxRange) return false;
                 if (stats.minRange && distance < stats.minRange) return false;
@@ -113,10 +117,16 @@ export class DefenseSystem {
 
             const target = lockedTarget ?? findNearestTarget();
             if (target) {
+                // The LOCK stays on the original ally (or the 50% redirect
+                // share silently becomes 100% via lock persistence); only the
+                // fired shot — projectile art and damage together, every
+                // shoot*At handler damages the troop it is PASSED — may swing
+                // to a guarding pavise bearer.
                 if (usesTargetLock) defense.lockedTargetId = target.id;
+                const firedTarget = this.resolveFiredTarget(defense, target, troops, time);
                 // Fire first: a swallowed shot (handler returned false) must
                 // not consume the cooldown window.
-                const fired = this.effects.fire[behavior.fireEffect](defense, target, time);
+                const fired = this.effects.fire[behavior.fireEffect](defense, firedTarget, time);
                 if (fired !== false) defense.lastFireTime = time;
             } else {
                 if (usesTargetLock) defense.lockedTargetId = undefined;
@@ -172,10 +182,66 @@ export class DefenseSystem {
         if (target) {
             defense.teslaCharging = true;
             defense.teslaChargeStart = time;
-            defense.teslaChargeTarget = target;
+            // Second acquisition point (charged/tesla): the CHARGE swings to
+            // the pavise; the lock below stays on the original ally.
+            defense.teslaChargeTarget = this.resolveFiredTarget(defense, target, troops, time);
             if (usesTargetLock) defense.lockedTargetId = target.id;
         } else if (usesTargetLock) {
             defense.lockedTargetId = undefined;
         }
+    }
+
+    /**
+     * Pavise-bearer redirect. When the acquired target is a RANGED ally
+     * (range ≥ 1.5) guarded by a live pavise bearer — within his guardRadius
+     * AND standing nearer the defense than the ally ("behind the shield") —
+     * a deterministic guardRedirectShare of the eligible shots swings to the
+     * bearer: shot n redirects iff floor(n·share) > floor((n−1)·share), a
+     * per-defense counter, never Math.random (replay determinism). Returns
+     * the troop the shot must actually hit.
+     */
+    private resolveFiredTarget(
+        defense: PlacedBuilding,
+        target: Troop,
+        troops: readonly Troop[],
+        time: number
+    ): Troop {
+        const targetStats = getTroopStats(target.type, target.level || 1);
+        if ((targetStats.range ?? 0) < 1.5) return target; // melee allies are never redirected
+
+        const defenseStats = getBuildingStats(defense.type as BuildingType, defense.level || 1);
+        const centerX = defense.gridX + (defenseStats.width || 1) / 2;
+        const centerY = defense.gridY + (defenseStats.height || 1) / 2;
+
+        const targetDistance = gridDistance(centerX, centerY, target.gridX, target.gridY);
+        let bearer: Troop | null = null;
+        let bearerShare = 0;
+        let bearerDistance = Number.POSITIVE_INFINITY;
+        for (const candidate of troops) {
+            if (candidate.health <= 0 || candidate.owner !== target.owner || candidate.id === target.id) continue;
+            const stats = getTroopStats(candidate.type, candidate.level || 1);
+            const guardRadius = stats.guardRadius ?? 0;
+            const share = stats.guardRedirectShare ?? 0;
+            if (guardRadius <= 0 || share <= 0) continue;
+            if (gridDistance(candidate.gridX, candidate.gridY, target.gridX, target.gridY) > guardRadius) continue;
+            const defenseDistance = gridDistance(centerX, centerY, candidate.gridX, candidate.gridY);
+            if (defenseDistance >= targetDistance) continue; // must stand between ally and defense
+            if (defenseDistance < bearerDistance
+                || (defenseDistance === bearerDistance && candidate.id < (bearer?.id ?? ''))) {
+                bearer = candidate;
+                bearerShare = share;
+                bearerDistance = defenseDistance;
+            }
+        }
+        if (!bearer) return target;
+
+        const counter = (defense.redirectShotCounter ?? 0) + 1;
+        defense.redirectShotCounter = counter;
+        const redirect = Math.floor(counter * bearerShare) > Math.floor((counter - 1) * bearerShare);
+        if (!redirect) return target;
+        // Arm the shield-spark cue: the scene flashes it when the redirected
+        // impact actually lands damage on the bearer.
+        bearer.guardFlareUntil = time + 1500;
+        return bearer;
     }
 }
