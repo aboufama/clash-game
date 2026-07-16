@@ -231,6 +231,83 @@ const ramSelection = CombatNavigationSystem.selectTargetAndPlan(ram, closed, [ra
 assert.equal(ramSelection.strategicTarget?.id, inside.id, 'ram must retain Town Hall as strategic objective');
 assert(ramSelection.plan?.blockerId, 'ram must use the required wall instead of phasing through it');
 
+// Straight charge: every waypoint sits ON the deploy→objective segment
+// (zero cross product, inside the segment) and outside live footprints.
+const assertOnChargeLine = (
+    plan: { waypoints: Array<{ x: number; y: number }> } | null | undefined,
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    live: PlacedBuilding[]
+) => {
+    assert(plan, 'expected a straight-charge plan');
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    for (const waypoint of plan.waypoints) {
+        const cross = dx * (waypoint.y - from.y) - dy * (waypoint.x - from.x);
+        assert(Math.abs(cross) < 0.001,
+            `charge waypoint ${JSON.stringify(waypoint)} left the straight line`);
+        const along = (dx * (waypoint.x - from.x) + dy * (waypoint.y - from.y)) / (dx * dx + dy * dy);
+        assert(along >= 0 && along <= 1, 'charge waypoint overshot the deploy→objective segment');
+        assert(!live.some(item => contains(item, waypoint.x, waypoint.y)),
+            'charge waypoint entered a live structure');
+    }
+};
+
+// The ray (4.5,11.5) → town-hall center (11.5,11.5) crosses exactly
+// wall-w-11: the ram fights the wall ON its line, not the cheapest breach.
+const townHallCenter = { x: 11.5, y: 11.5 };
+assert.equal(ramSelection.plan.blockerId, 'wall-w-11', 'ram did not attack the wall on its charge line');
+assert.equal(ramSelection.plan.activeTargetId, 'wall-w-11');
+assertOnChargeLine(ramSelection.plan, { x: ram.gridX, y: ram.gridY }, townHallCenter, closed);
+
+// Identical inputs must produce the byte-identical charge plan.
+const ramSignature = JSON.stringify({
+    blocker: ramSelection.plan.blockerId,
+    path: ramSelection.plan.waypoints
+});
+for (let attempt = 0; attempt < 20; attempt++) {
+    const repeated = CombatNavigationSystem.selectTargetAndPlan(ram, closed, [ram], 1, 0);
+    assert(repeated.plan);
+    assert.equal(
+        JSON.stringify({ blocker: repeated.plan.blockerId, path: repeated.plan.waypoints }),
+        ramSignature,
+        'straight-charge plan is not deterministic'
+    );
+}
+
+// A non-wall building straddling the line is fought, not circumnavigated.
+const chargeObstacle = building('charge-storage', 'storage', 6, 11);
+const chargeThrough = CombatNavigationSystem.selectTargetAndPlan(
+    ram,
+    [chargeObstacle, ...closed],
+    [ram],
+    1,
+    0
+);
+assert.equal(chargeThrough.strategicTarget?.id, inside.id);
+assert.equal(chargeThrough.plan?.activeTargetId, chargeObstacle.id,
+    'ram routed around a building on its charge line');
+assert.equal(chargeThrough.plan?.blockerId, chargeObstacle.id);
+assertOnChargeLine(chargeThrough.plan, { x: ram.gridX, y: ram.gridY }, townHallCenter, [chargeObstacle, ...closed]);
+
+// Destroying the ray blocker continues the charge on the now-clear line.
+const ramOpened = closed.filter(item => item.id !== 'wall-w-11');
+const ramContinue = CombatNavigationSystem.selectTargetAndPlan(ram, ramOpened, [ram], 2, 1);
+assert.equal(ramContinue.strategicTarget?.id, inside.id);
+assert.equal(ramContinue.plan?.blockerId, undefined, 'ram kept a blocker after its charge line opened');
+assert.equal(ramContinue.plan?.activeTargetId, inside.id);
+assertOnChargeLine(ramContinue.plan, { x: ram.gridX, y: ram.gridY }, townHallCenter, ramOpened);
+
+// Town Hall already destroyed: the ram falls back to the normal non-wall
+// tier and still emits a straight-line plan toward the survivor.
+const chargeSurvivor = building('charge-survivor', 'storage', 10, 10);
+const ramFallback = CombatNavigationSystem.selectTargetAndPlan(ram, [chargeSurvivor], [ram], 1, 0);
+assert.equal(ramFallback.strategicTarget?.id, chargeSurvivor.id,
+    'ram with no Town Hall must fall back to non-wall targeting');
+assert.equal(ramFallback.plan?.blockerId, undefined);
+assert.equal(ramFallback.plan?.waypoints.length, 1, 'fallback charge should be one straight-line waypoint');
+assertOnChargeLine(ramFallback.plan, { x: ram.gridX, y: ram.gridY }, { x: 11, y: 11 }, [chargeSurvivor]);
+
 const wallbreaker = troop('wallbreaker-priority', 'wallbreaker', 4.5, 11.5);
 const wallbreakerSelection = CombatNavigationSystem.selectTargetAndPlan(wallbreaker, closed, [wallbreaker], 1, 0);
 assert.equal(wallbreakerSelection.strategicTarget?.type, 'wall', 'wall breaker lost explicit wall priority');

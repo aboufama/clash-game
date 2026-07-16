@@ -33,6 +33,17 @@ temporary blocker. Air/ghost movement bypasses structures explicitly.
 `wallTraversalCost` changes a troop's willingness to breach; it is not
 permission to walk through a live wall.
 
+Straight-charge units (`straightCharge`, e.g. the Battering Ram) do not
+route: they ray-cast from their position to the objective's footprint center
+and take the first structure standing on the ray — wall or any building — as
+the active target, stopping at attack range on the line. Each replan re-aims
+the ray from the current position, so destroying the obstruction continues
+the charge toward the objective. A* remains their fallback whenever the ray
+has no legal stop (friendly geometry on the line, a corner-clipped stop
+point). A charge plan's blocker may therefore be any structure, not only a
+wall; it still never replaces `strategicTarget`, and chargers move through
+the same collision resolver as everyone else.
+
 Nearby allies committed to the same objective apply a bounded affinity to a
 popular breach. This keeps a cohort from wasting damage across adjacent wall
 segments, but the affinity is intentionally weaker than wall break cost, so a

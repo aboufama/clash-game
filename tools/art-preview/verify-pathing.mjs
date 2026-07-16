@@ -239,6 +239,16 @@ try {
     const wall = scene.buildings.find(item => item.id === id)
     return !wall || wall.health < health
   }, { timeout: 9000, polling: 50 }, ramWall)
+  await page.evaluate(id => {
+    const scene = window.__clashGame.scene.keys.MainScene
+    const wall = scene.buildings.find(item => item.id === id)
+    if (wall) scene['destroyBuilding'](wall)
+  }, ramWall.id)
+  await page.waitForFunction(() => {
+    const scene = window.__clashGame.scene.keys.MainScene
+    const ram = scene.troops.find(item => item.id === 'ram-fixed')
+    return ram?.strategicTarget?.id === 'inside' && ram.target?.id === 'inside'
+  }, { timeout: 8000, polling: 50 })
   const ramResult = await page.evaluate(() => {
     const scene = window.__clashGame.scene.keys.MainScene
     const ram = scene.troops.find(item => item.id === 'ram-fixed')

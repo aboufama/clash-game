@@ -41,12 +41,14 @@ export interface TroopDef {
     movementType?: 'ground' | 'air' | 'ghost';
     /** Planner-only breach reluctance; never permission to phase through walls. */
     wallTraversalCost?: number;
+    /** Charger: plans a straight ray to its objective and attacks the first structure on it. */
+    straightCharge?: boolean;
 }
 
 export const TROOP_DEFINITIONS: Record<TroopType, TroopDef> = {
     warrior: { id: 'warrior', name: 'Warrior', cost: 25, space: 1, desc: 'Fast melee fighter.', health: 100, range: 0.5, damage: 10, speed: 0.003, color: 0xffff00, attackDelay: 800 },
     archer: { id: 'archer', name: 'Archer', cost: 40, space: 1, desc: 'Ranged attacker.', health: 50, range: 2.7, damage: 14.0, speed: 0.0025, color: 0x00ffff, attackDelay: 900 },
-    ram: { id: 'ram', name: 'Battering Ram', cost: 200, space: 8, desc: 'Charges Town Hall. 4x wall damage.', health: 800, range: 0.6, damage: 50, speed: 0.0018, color: 0x8b4513, targetPriority: 'town_hall', wallDamageMultiplier: 4, wallTraversalCost: 50, attackDelay: 1100 },
+    ram: { id: 'ram', name: 'Battering Ram', cost: 200, space: 8, desc: 'Charges Town Hall. 4x wall damage.', health: 800, range: 0.6, damage: 50, speed: 0.0018, color: 0x8b4513, targetPriority: 'town_hall', wallDamageMultiplier: 4, wallTraversalCost: 50, straightCharge: true, attackDelay: 1100 },
     stormmage: { id: 'stormmage', name: 'Storm Mage', cost: 180, space: 6, desc: 'Chain lightning hits 4 targets.', health: 200, range: 4.9, damage: 40, speed: 0.002, color: 0x4444ff, chainCount: 4, chainRange: 5, attackDelay: 1700 },
     golem: { id: 'golem', name: 'Stone Golem', cost: 500, space: 25, desc: 'Colossal stone titan. Nearly indestructible.', health: 9000, range: 0.8, damage: 106, speed: 0.0004, color: 0x6b7b8b, targetPriority: 'defense', attackDelay: 3000, firstAttackDelay: 1500 },
     // Ice golem = golem chassis with a faster slam and a lighter frame:
