@@ -136,11 +136,17 @@ export class TroopRenderer {
             case 'ornithopter':
                 TroopRenderer.drawNewTroop(graphics, 'ornithopter', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
-            case 'skeleton':
-                // Generated-only summon: placeholder at romanwarrior scale
-                // until the necromancer tournament ships its art.
-                TroopRenderer.drawPlaceholder(graphics, 'skeleton', isPlayer, isMoving, time);
+            case 'skeleton': {
+                // Generated-only summon: art ships inside the winning
+                // necromancer design (skeleton slots mirror necromancer's).
+                const skeletonDesign = activeDesign('skeleton');
+                if (skeletonDesign) {
+                    skeletonDesign(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                } else {
+                    TroopRenderer.drawPlaceholder(graphics, 'skeleton', isPlayer, isMoving, time);
+                }
                 break;
+            }
         }
     }
 

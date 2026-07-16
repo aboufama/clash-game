@@ -65,6 +65,9 @@ import { drawFrostfallC } from './FrostfallC'; // IMPORT frostfall C
 // IMPORT ornithopter A
 // IMPORT ornithopter B
 // IMPORT ornithopter C
+// IMPORT skeleton A
+// IMPORT skeleton B
+// IMPORT skeleton C
 
 /**
  * Building design draw fn — the canonical dedicated-building shape (identical
@@ -123,7 +126,8 @@ export type DesignUnit =
     | 'trebuchet'
     | 'hawkeyeassassin'
     | 'warelephant'
-    | 'ornithopter';
+    | 'ornithopter'
+    | 'skeleton';
 export type DesignSlotId = 'A' | 'B' | 'C';
 
 export interface DesignSlots {
@@ -139,6 +143,7 @@ export interface DesignSlots {
     hawkeyeassassin: Record<DesignSlotId, TroopDesignFn | null>;
     warelephant: Record<DesignSlotId, TroopDesignFn | null>;
     ornithopter: Record<DesignSlotId, TroopDesignFn | null>;
+    skeleton: Record<DesignSlotId, TroopDesignFn | null>;
 }
 
 export const DESIGN_SLOTS: DesignSlots = {
@@ -201,6 +206,14 @@ export const DESIGN_SLOTS: DesignSlots = {
         A: null, // SLOT ornithopter A
         B: null, // SLOT ornithopter B
         C: null, // SLOT ornithopter C
+    },
+    // Skeleton slots are filled by the NECROMANCER designers — each slot's
+    // skeleton ships in the same design file as its summoner so the pair
+    // always matches visually.
+    skeleton: {
+        A: null, // SLOT skeleton A
+        B: null, // SLOT skeleton B
+        C: null, // SLOT skeleton C
     },
 };
 
