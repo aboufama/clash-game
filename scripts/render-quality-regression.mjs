@@ -148,9 +148,9 @@ for (const manifestFile of manifestFiles) {
   manifestsByKind[kindOf(manifestFile)] = (manifestsByKind[kindOf(manifestFile)] ?? 0) + 1;
 }
 assert.deepEqual(manifestsByKind,
-  { buildings: 19, figures: 10, obstacles: 5, projectiles: 10, troops: 15, villagers: 11, wrecks: 19 },
-  'expected manifests for 19 buildings (tournament resolved: plain cannon + plain mortar, no @-variant slots), 15 troops (plain golem + icegolem), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 10 projectiles');
-assert.equal(manifestFiles.length, 89, 'the baked unit roster changed size');
+  { buildings: 21, figures: 10, obstacles: 5, projectiles: 10, troops: 15, villagers: 11, wrecks: 19 },
+  'expected manifests for 21 buildings (tournament resolved: plain cannon + plain mortar; frostfall ships as @A/@B/@C variant slots, plain dir deleted), 15 troops (plain golem + icegolem), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 10 projectiles');
+assert.equal(manifestFiles.length, 91, 'the baked unit roster changed size');
 
 const referencedPngs = new Set();
 const framesByKind = {};
@@ -212,11 +212,12 @@ assert.equal(Object.keys(wallAtlas.frames).some(name => /_gate_/.test(name)), fa
 assert.equal(emittedPngs.some(file => /^buildings\/wall\/.*_gate_/.test(file)), false,
   'a removed loose wall-gate PNG is still committed');
 assert.deepEqual(framesByKind,
-  { buildings: 7_788, figures: 144, obstacles: 872, projectiles: 326, troops: 13_212, villagers: 2_924, wrecks: 71 },
+  { buildings: 8_224, figures: 144, obstacles: 872, projectiles: 326, troops: 13_212, villagers: 2_924, wrecks: 71 },
   'the baked roster is incomplete');
-assert.equal(frameCount, 25_337,
-  '7,788 building + 13,212 troop + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 144 figure + 326 projectile frames '
+assert.equal(frameCount, 25_773,
+  '8,224 building + 13,212 troop + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 144 figure + 326 projectile frames '
   + '(dense ambient/idle loops; every defense idles — turrets bake per-angle idle loops; tournament finals resolved the @-variant slots: plain cannon (ex-@B) and reverted plain mortar rebaked, plain golem (ex-@C) plus the new icegolem troop; '
+  + 'frostfall runs a live tournament — @A/@B/@C bake 208 frames each (extended fire sequence), the plain dir is gone; '
   + 'walls carry a per-topology GROUND decal now — the contact shadow stamped under the body by SpriteBank\'s wall-ground slot, 64 frames)');
 assert.deepEqual(emittedPngs.sort(), [...atlasPackedPngs].sort(),
   'every emitted sprite PNG must be packed into exactly one unit atlas');

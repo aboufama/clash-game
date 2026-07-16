@@ -450,6 +450,7 @@ class SpriteBankImpl {
             id?: string;
             ballistaAngle?: number; lastFireTime?: number;
             teslaCharging?: boolean; teslaChargeStart?: number; teslaCharged?: boolean;
+            frostfallProjectileActive?: boolean;
             fillLevel?: number; doorOpen?: number;
         } | undefined,
         time: number,
@@ -480,7 +481,16 @@ class SpriteBankImpl {
             const el = time - building.lastFireTime;
             // A state can bake fewer angles than idle — re-quantize the aim to
             // its own count (a clamp collapsed every aim to the last angle).
-            const frames = st.fire.frames[angleIdx(st.fire.angles || st.fire.frames.length)] ?? st.fire.frames[0];
+            let frames = st.fire.frames[angleIdx(st.fire.angles || st.fire.frames.length)] ?? st.fire.frames[0];
+            // Launch axis (frostfall): prep/abort and launch-FX frames overlap
+            // in fireAge, disambiguated by the baked projectileActive flag —
+            // restrict to the branch matching the sim so nearest-age never
+            // mixes a geyser burst into an abort sink (or vice versa).
+            if (frames.some(f => f.ov?.projectileActive !== undefined)) {
+                const want = building.frostfallProjectileActive === true;
+                const branch = frames.filter(f => (f.ov?.projectileActive === true) === want);
+                if (branch.length > 0) frames = branch;
+            }
             const maxAge = Number(frames[frames.length - 1]?.ov?.fireAge ?? 0) + 180;
             if (el >= 0 && el < maxAge) {
                 return { meta: nearest(frames, 'fireAge', el), atlasKey, ground: entry.ground };

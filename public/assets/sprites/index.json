@@ -45,10 +45,24 @@
     },
     {
       "kind": "buildings",
-      "unit": "frostfall",
-      "atlas": "buildings/frostfall/atlas.png",
-      "frames": "buildings/frostfall/atlas.json",
-      "manifest": "buildings/frostfall/manifest.json"
+      "unit": "frostfall@A",
+      "atlas": "buildings/frostfall@A/atlas.png",
+      "frames": "buildings/frostfall@A/atlas.json",
+      "manifest": "buildings/frostfall@A/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "frostfall@B",
+      "atlas": "buildings/frostfall@B/atlas.png",
+      "frames": "buildings/frostfall@B/atlas.json",
+      "manifest": "buildings/frostfall@B/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "frostfall@C",
+      "atlas": "buildings/frostfall@C/atlas.png",
+      "frames": "buildings/frostfall@C/atlas.json",
+      "manifest": "buildings/frostfall@C/manifest.json"
     },
     {
       "kind": "buildings",

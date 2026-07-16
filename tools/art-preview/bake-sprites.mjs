@@ -138,12 +138,24 @@ const BUILDING_STATES = {
     fire: [{ fireAge: 0 }, { fireAge: 120 }, { fireAge: 320 }]
   },
   prism: { fire: [{ fireAge: 0 }, { fireAge: 120 }, { fireAge: 240 }] },
-  // Frostfall's authored reload pantomime runs long past the shot: crystal
-  // regrows 500-3000, crank swings 3500-4200, flop settles after — the old
-  // 3-frame window cut it at 800 ms and the rebuild never showed.
+  // Frostfall (tournament designs A/B/C): the fire tick STARTS a ~4200 ms
+  // preparation (A awaken 0-800/growth 500-3800/arming 3800-4200; B churn
+  // 0-800/growth+tremble 800-4200; C dock 0-900/pylon ignitions at
+  // 650/1300/1950/2600/tremble 3300-3900/breach 3900-4200), the projectile
+  // spawns at EXACTLY 4200 (projectileActive true through the ~600 ms
+  // flight), and the settle/abort tail runs to ~4900. Union keyframes,
+  // denser around the launch instant; the active/inactive frames overlap in
+  // age, so the runtime picker branches on ov.projectileActive (SpriteBank).
+  // Window = 4850 + 180 ≈ 5030 ms — continuous fire (fireRate 5000..4400)
+  // resets lastFireTime each shot, so late settle frames only show after
+  // the final shot of a battle.
   frostfall: { fire: [
-    { fireAge: 0, projectileActive: true }, { fireAge: 300, projectileActive: true },
-    ...[800, 1500, 2200, 2900, 3500, 3850, 4200, 4700].map(a => ({ fireAge: a, projectileActive: false }))
+    // preparation — the shard grows on the building, nothing launched yet
+    ...[0, 500, 1100, 1800, 2500, 3200, 3700, 4000, 4150].map(a => ({ fireAge: a, projectileActive: false })),
+    // launch — shard ABSENT (in flight): geyser burst / frost ring / spray
+    ...[4230, 4360, 4520, 4700].map(a => ({ fireAge: a, projectileActive: true })),
+    // abort/settle — flag clear past 4200: A's sink-back + post-impact regrow
+    ...[4400, 4850].map(a => ({ fireAge: a, projectileActive: false }))
   ] },
   dragons_breath: { fire: [0, 150, 350, 700, 1100, 1600].map(a => ({ fireAge: a })) },
   // Spike launcher: the loader's 3000 ms reload pantomime (walk to arm tip,
