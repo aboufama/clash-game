@@ -32,6 +32,42 @@ import type Phaser from 'phaser';
 import { drawFrostfallA } from './FrostfallA'; // IMPORT frostfall A
 import { drawFrostfallB } from './FrostfallB'; // IMPORT frostfall B
 import { drawFrostfallC } from './FrostfallC'; // IMPORT frostfall C
+import { drawGoblinplundererA } from './GoblinplundererA'; // IMPORT goblinplunderer A
+import { drawGoblinplundererB } from './GoblinplundererB'; // IMPORT goblinplunderer B
+import { drawGoblinplundererC } from './GoblinplundererC'; // IMPORT goblinplunderer C
+import { drawClockworkbeetleA } from './ClockworkbeetleA'; // IMPORT clockworkbeetle A
+import { drawClockworkbeetleB } from './ClockworkbeetleB'; // IMPORT clockworkbeetle B
+// IMPORT clockworkbeetle C
+import { drawPhysicianscartA } from './PhysicianscartA'; // IMPORT physicianscart A
+import { drawPhysicianscartB } from './PhysicianscartB'; // IMPORT physicianscart B
+import { drawPhysicianscartC } from './PhysicianscartC'; // IMPORT physicianscart C
+import { drawPavisebearerA } from './PavisebearerA'; // IMPORT pavisebearer A
+// IMPORT pavisebearer B
+// IMPORT pavisebearer C
+import { drawQuartermasterA } from './QuartermasterA'; // IMPORT quartermaster A
+import { drawQuartermasterB } from './QuartermasterB'; // IMPORT quartermaster B
+// IMPORT quartermaster C
+import { drawSiegetowerA } from './SiegetowerA'; // IMPORT siegetower A
+import { drawSiegetowerB } from './SiegetowerB'; // IMPORT siegetower B
+// IMPORT siegetower C
+import { drawNecromancerA } from './NecromancerA'; // IMPORT necromancer A
+import { drawNecromancerB } from './NecromancerB'; // IMPORT necromancer B
+// IMPORT necromancer C
+import { drawTrebuchetA } from './TrebuchetA'; // IMPORT trebuchet A
+import { drawTrebuchetB } from './TrebuchetB'; // IMPORT trebuchet B
+import { drawTrebuchetC } from './TrebuchetC'; // IMPORT trebuchet C
+import { drawHawkeyeassassinA } from './HawkeyeassassinA'; // IMPORT hawkeyeassassin A
+// IMPORT hawkeyeassassin B
+// IMPORT hawkeyeassassin C
+import { drawWarelephantA } from './WarelephantA'; // IMPORT warelephant A
+// IMPORT warelephant B
+// IMPORT warelephant C
+import { drawOrnithopterA } from './OrnithopterA'; // IMPORT ornithopter A
+// IMPORT ornithopter B
+// IMPORT ornithopter C
+import { drawSkeletonA } from './NecromancerA'; // IMPORT skeleton A
+import { drawSkeletonB } from './NecromancerB'; // IMPORT skeleton B
+// IMPORT skeleton C
 
 /**
  * Building design draw fn — the canonical dedicated-building shape (identical
@@ -56,11 +92,58 @@ export type BuildingDesignFn = (
     time: number
 ) => void;
 
-export type DesignUnit = 'frostfall';
+/**
+ * Troop design draw fn — the tournament shape for troop units. Mirrors
+ * TroopRenderer's parametric contract: the shared hRig/attackAnim grammar
+ * drives all motion from `time` (deterministic — pinning time pins the pose),
+ * `attackAge`/`attackDelay` lock windup/strike to the damage tick, and
+ * `facingAngle` (radians) aims the weapon (golem-class units may ignore it
+ * and read carrier-level facing — the IceGolem.readFacing precedent).
+ * `driver` carries the unit's bespoke tweened driver (slamOffset /
+ * spearOffset / parked01...) and is 0 when unused.
+ */
+export type TroopDesignFn = (
+    graphics: Phaser.GameObjects.Graphics,
+    isPlayer: boolean,
+    isMoving: boolean,
+    facingAngle: number,
+    troopLevel: number,
+    time: number,
+    attackAge: number,
+    attackDelay: number,
+    driver: number
+) => void;
+
+export type DesignUnit =
+    | 'frostfall'
+    | 'goblinplunderer'
+    | 'clockworkbeetle'
+    | 'physicianscart'
+    | 'pavisebearer'
+    | 'quartermaster'
+    | 'siegetower'
+    | 'necromancer'
+    | 'trebuchet'
+    | 'hawkeyeassassin'
+    | 'warelephant'
+    | 'ornithopter'
+    | 'skeleton';
 export type DesignSlotId = 'A' | 'B' | 'C';
 
 export interface DesignSlots {
     frostfall: Record<DesignSlotId, BuildingDesignFn | null>;
+    goblinplunderer: Record<DesignSlotId, TroopDesignFn | null>;
+    clockworkbeetle: Record<DesignSlotId, TroopDesignFn | null>;
+    physicianscart: Record<DesignSlotId, TroopDesignFn | null>;
+    pavisebearer: Record<DesignSlotId, TroopDesignFn | null>;
+    quartermaster: Record<DesignSlotId, TroopDesignFn | null>;
+    siegetower: Record<DesignSlotId, TroopDesignFn | null>;
+    necromancer: Record<DesignSlotId, TroopDesignFn | null>;
+    trebuchet: Record<DesignSlotId, TroopDesignFn | null>;
+    hawkeyeassassin: Record<DesignSlotId, TroopDesignFn | null>;
+    warelephant: Record<DesignSlotId, TroopDesignFn | null>;
+    ornithopter: Record<DesignSlotId, TroopDesignFn | null>;
+    skeleton: Record<DesignSlotId, TroopDesignFn | null>;
 }
 
 export const DESIGN_SLOTS: DesignSlots = {
@@ -68,6 +151,69 @@ export const DESIGN_SLOTS: DesignSlots = {
         A: drawFrostfallA, // SLOT frostfall A
         B: drawFrostfallB, // SLOT frostfall B
         C: drawFrostfallC, // SLOT frostfall C
+    },
+    goblinplunderer: {
+        A: drawGoblinplundererA, // SLOT goblinplunderer A
+        B: drawGoblinplundererB, // SLOT goblinplunderer B
+        C: drawGoblinplundererC, // SLOT goblinplunderer C
+    },
+    clockworkbeetle: {
+        A: drawClockworkbeetleA, // SLOT clockworkbeetle A
+        B: drawClockworkbeetleB, // SLOT clockworkbeetle B
+        C: null, // SLOT clockworkbeetle C
+    },
+    physicianscart: {
+        A: drawPhysicianscartA, // SLOT physicianscart A
+        B: drawPhysicianscartB, // SLOT physicianscart B
+        C: drawPhysicianscartC, // SLOT physicianscart C
+    },
+    pavisebearer: {
+        A: drawPavisebearerA, // SLOT pavisebearer A
+        B: null, // SLOT pavisebearer B
+        C: null, // SLOT pavisebearer C
+    },
+    quartermaster: {
+        A: drawQuartermasterA, // SLOT quartermaster A
+        B: drawQuartermasterB, // SLOT quartermaster B
+        C: null, // SLOT quartermaster C
+    },
+    siegetower: {
+        A: drawSiegetowerA, // SLOT siegetower A
+        B: drawSiegetowerB, // SLOT siegetower B
+        C: null, // SLOT siegetower C
+    },
+    necromancer: {
+        A: drawNecromancerA, // SLOT necromancer A
+        B: drawNecromancerB, // SLOT necromancer B
+        C: null, // SLOT necromancer C
+    },
+    trebuchet: {
+        A: drawTrebuchetA, // SLOT trebuchet A
+        B: drawTrebuchetB, // SLOT trebuchet B
+        C: drawTrebuchetC, // SLOT trebuchet C
+    },
+    hawkeyeassassin: {
+        A: drawHawkeyeassassinA, // SLOT hawkeyeassassin A
+        B: null, // SLOT hawkeyeassassin B
+        C: null, // SLOT hawkeyeassassin C
+    },
+    warelephant: {
+        A: drawWarelephantA, // SLOT warelephant A
+        B: null, // SLOT warelephant B
+        C: null, // SLOT warelephant C
+    },
+    ornithopter: {
+        A: drawOrnithopterA, // SLOT ornithopter A
+        B: null, // SLOT ornithopter B
+        C: null, // SLOT ornithopter C
+    },
+    // Skeleton slots are filled by the NECROMANCER designers — each slot's
+    // skeleton ships in the same design file as its summoner so the pair
+    // always matches visually.
+    skeleton: {
+        A: drawSkeletonA, // SLOT skeleton A
+        B: drawSkeletonB, // SLOT skeleton B
+        C: null, // SLOT skeleton C
     },
 };
 
@@ -78,11 +224,13 @@ export const DESIGN_SLOTS: DesignSlots = {
  * SSR/test safe: any environment without a usable `window.localStorage` just
  * uses the fallback order.
  */
-export function activeDesign(unit: DesignUnit): BuildingDesignFn | null {
-    const slots: Record<DesignSlotId, BuildingDesignFn | null> = DESIGN_SLOTS[unit];
+export function activeDesign<U extends DesignUnit>(unit: U): DesignSlots[U][DesignSlotId] {
+    // Every DesignSlots entry is a Record<DesignSlotId, Fn | null>; the cast
+    // keeps the per-unit fn type (Building vs Troop) on the return value.
+    const slots = DESIGN_SLOTS[unit] as Record<DesignSlotId, DesignSlots[U][DesignSlotId]>;
     const picked = readStoredSlot(unit);
     if (picked !== null && slots[picked]) return slots[picked];
-    return slots.A ?? slots.B ?? slots.C ?? null;
+    return slots.A ?? slots.B ?? slots.C;
 }
 
 // ===================== variant-switching service =====================

@@ -82,48 +82,6 @@ export const ICONS = [
         -4px 2px #3E2723, -2px 2px #5C3317, 2px 2px #5C3317, 4px 2px #3E2723`
   },
   {
-    classes: ["giant-icon"],
-    note: "GIANT - Large muscular human with leather vest, dark hair, wooden bat",
-    base: "#DEB887",
-    px: `
-        /* Dark short hair */
-        -4px -22px #3A2A1A, -2px -22px #3A2A1A, 0 -22px #3A2A1A, 2px -22px #3A2A1A, 4px -22px #3A2A1A,
-        -6px -20px #3A2A1A, -4px -20px #4A3A2A, -2px -20px #3A2A1A, 0 -20px #4A3A2A, 2px -20px #3A2A1A, 4px -20px #4A3A2A, 6px -20px #3A2A1A,
-        /* Face */
-        -6px -18px #C9A66B, -4px -18px #DEB887, -2px -18px #DEB887, 0 -18px #DEB887, 2px -18px #DEB887, 4px -18px #DEB887, 6px -18px #C9A66B,
-        /* Eyes + brow */
-        -4px -16px #1A1A1A, -2px -16px #DEB887, 0 -16px #DEB887, 2px -16px #DEB887, 4px -16px #1A1A1A,
-        /* Jaw / stubble */
-        -6px -14px #C9A66B, -4px -14px #B8956E, -2px -14px #C9A66B, 0 -14px #B8956E, 2px -14px #C9A66B, 4px -14px #B8956E, 6px -14px #C9A66B,
-        /* Neck */
-        -4px -12px #C9A66B, -2px -12px #DEB887, 0 -12px #DEB887, 2px -12px #DEB887, 4px -12px #C9A66B,
-        /* Broad shoulders (skin) + bat on right */
-        -16px -10px #C9A66B, -14px -10px #DEB887, -12px -10px #DEB887,
-        12px -10px #DEB887, 14px -10px #DEB887, 16px -10px #C9A66B,
-        18px -10px #8B6B4A, 18px -12px #8B6B4A, 18px -14px #8B6B4A, 18px -16px #6B4A30, 18px -18px #6B4A30, 18px -20px #6B4A30,
-        /* Vest over chest */
-        -10px -10px #6B4226, -8px -10px #6B4226, -6px -10px #6B4226, -4px -10px #6B4226, -2px -10px #4A2F1A, 0 -10px #6B4226, 2px -10px #4A2F1A, 4px -10px #6B4226, 6px -10px #6B4226, 8px -10px #6B4226, 10px -10px #6B4226,
-        -10px -8px #6B4226, -8px -8px #4A2F1A, -6px -8px #6B4226, -4px -8px #6B4226, -2px -8px #4A2F1A, 0 -8px #6B4226, 2px -8px #4A2F1A, 4px -8px #6B4226, 6px -8px #6B4226, 8px -8px #4A2F1A, 10px -8px #6B4226,
-        /* Left arm (skin) */
-        -16px -8px #DEB887, -14px -8px #C9A66B, -16px -6px #DEB887, -14px -6px #C9A66B,
-        -16px -4px #C9A66B, -14px -4px #C9A66B,
-        /* Right arm holding bat */
-        16px -8px #DEB887, 14px -8px #C9A66B, 16px -6px #DEB887,
-        /* Belt */
-        -10px -6px #4A3520, -8px -6px #4A3520, -6px -6px #4A3520, -4px -6px #4A3520, -2px -6px #C9A227, 0 -6px #C9A227, 2px -6px #C9A227, 4px -6px #4A3520, 6px -6px #4A3520, 8px -6px #4A3520, 10px -6px #4A3520,
-        /* Pants */
-        -8px -4px #5A4A3A, -6px -4px #5A4A3A, -4px -4px #5A4A3A, -2px -4px #5A4A3A, 2px -4px #5A4A3A, 4px -4px #5A4A3A, 6px -4px #5A4A3A, 8px -4px #5A4A3A,
-        -8px -2px #4A3A2A, -6px -2px #5A4A3A, -4px -2px #4A3A2A, 4px -2px #4A3A2A, 6px -2px #5A4A3A, 8px -2px #4A3A2A,
-        /* Legs */
-        -8px 0 #5A4A3A, -6px 0 #4A3A2A, -4px 0 #5A4A3A, 4px 0 #5A4A3A, 6px 0 #4A3A2A, 8px 0 #5A4A3A,
-        -8px 2px #4A3A2A, -6px 2px #5A4A3A, -4px 2px #4A3A2A, 4px 2px #4A3A2A, 6px 2px #5A4A3A, 8px 2px #4A3A2A,
-        /* Boots */
-        -10px 4px #3A2A1A, -8px 4px #3A2A1A, -6px 4px #3A2A1A, -4px 4px #3A2A1A,
-        4px 4px #3A2A1A, 6px 4px #3A2A1A, 8px 4px #3A2A1A, 10px 4px #3A2A1A,
-        /* Left fist */
-        -18px -2px #C9A66B, -16px -2px #DEB887`
-  },
-  {
     classes: ["wallbreaker-icon"],
     note: "WALL BREAKER - Small guy with barrel of explosives overhead",
     base: "#DEB887",
@@ -156,63 +114,6 @@ export const ICONS = [
         /* Boots */
         -6px 2px #3A2A1A, -4px 2px #3A2A1A, -2px 2px #3A2A1A,
         2px 2px #3A2A1A, 4px 2px #3A2A1A, 6px 2px #3A2A1A`
-  },
-  {
-    classes: ["ward-icon"],
-    note: "WARD - Magical guardian with green shield aura, hooded",
-    base: "#32CD32",
-    px: `
-        /* Hooded head */
-        -4px -16px #1B5E20, -2px -16px #228B22, 0 -16px #2E7D32, 2px -16px #228B22, 4px -16px #1B5E20,
-        -6px -14px #145214, -4px -14px #1B5E20, -2px -14px #228B22, 0 -14px #2E7D32, 2px -14px #228B22, 4px -14px #1B5E20, 6px -14px #145214,
-        /* Face visible under hood */
-        -4px -12px #1B5E20, -2px -12px #DEB887, 0 -12px #F5DEB3, 2px -12px #DEB887, 4px -12px #1B5E20,
-        /* Green glowing eyes */
-        -2px -12px #90EE90, 2px -12px #90EE90,
-        /* Body robes */
-        -6px -10px #0D3D0D, -4px -10px #145214, -2px -10px #1B5E20, 0 -10px #228B22, 2px -10px #1B5E20, 4px -10px #145214, 6px -10px #0D3D0D,
-        -6px -8px #0A2F0A, -4px -8px #0D3D0D, -2px -8px #145214, 0 -8px #1B5E20, 2px -8px #145214, 4px -8px #0D3D0D, 6px -8px #0A2F0A,
-        /* Shield aura (glowing green) */
-        -12px -6px #90EE90, -10px -6px #32CD32, 10px -6px #32CD32, 12px -6px #90EE90,
-        -14px -2px #228B22, -12px -2px #90EE90, 12px -2px #90EE90, 14px -2px #228B22,
-        -14px 2px #228B22, -12px 2px #90EE90, 12px 2px #90EE90, 14px 2px #228B22,
-        -12px 6px #90EE90, -10px 6px #32CD32, 10px 6px #32CD32, 12px 6px #90EE90,
-        /* Arms holding staff */
-        -8px -6px #1B5E20, 8px -6px #1B5E20,
-        /* Staff with gem */
-        -10px -10px #8B4513, -10px -8px #654321, -10px -4px #654321, -10px 0 #8B4513,
-        -10px -12px #90EE90, -10px -14px #00FF00,
-        /* Lower robes */
-        -6px -6px #145214, -4px -6px #1B5E20, -2px -6px #228B22, 0 -6px #1B5E20, 2px -6px #228B22, 4px -6px #1B5E20, 6px -6px #145214,
-        -6px -4px #0D3D0D, -4px -4px #145214, -2px -4px #1B5E20, 0 -4px #145214, 2px -4px #1B5E20, 4px -4px #145214, 6px -4px #0D3D0D,
-        -4px -2px #0D3D0D, -2px -2px #145214, 0 -2px #0D3D0D, 2px -2px #145214, 4px -2px #0D3D0D,
-        /* Feet */
-        -4px 0 #3E2723, -2px 0 #5C3317, 2px 0 #5C3317, 4px 0 #3E2723`
-  },
-  {
-    classes: ["recursion-icon"],
-    note: "RECURSION - Alien hexagonal blob with split symbol",
-    base: "#00FFAA",
-    px: `
-        /* Outer hexagon shell */
-        0 -14px #00AA77, 2px -14px #00FFAA, -2px -14px #00FFAA,
-        -6px -12px #00AA77, -4px -12px #00FFAA, -2px -12px #00DDAA, 0 -12px #00FFAA, 2px -12px #00DDAA, 4px -12px #00FFAA, 6px -12px #00AA77,
-        -8px -10px #00AA77, -6px -10px #00CC88, -4px -10px #00FFAA, -2px -10px #00FFAA, 0 -10px #00FFAA, 2px -10px #00FFAA, 4px -10px #00FFAA, 6px -10px #00CC88, 8px -10px #00AA77,
-        -10px -8px #008866, -8px -8px #00AA77, -6px -8px #00CC88, -4px -8px #00DDAA, -2px -8px #00FFAA, 0 -8px #00FFAA, 2px -8px #00FFAA, 4px -8px #00DDAA, 6px -8px #00CC88, 8px -8px #00AA77, 10px -8px #008866,
-        /* Inner hexagon (darker) */
-        -4px -6px #007755, -2px -6px #008866, 0 -6px #00AA77, 2px -6px #008866, 4px -6px #007755,
-        -10px -6px #008866, -8px -6px #00AA77, -6px -6px #00AA77, 6px -6px #00AA77, 8px -6px #00AA77, 10px -6px #008866,
-        /* Central core - white with split cross */
-        -2px -4px #007755, 0 -4px #FFFFFF, 2px -4px #007755,
-        -10px -4px #00AA77, -8px -4px #00CC88, -6px -4px #008866, 6px -4px #008866, 8px -4px #00CC88, 10px -4px #00AA77,
-        -2px -2px #FFFFFF, 0 -2px #00FFAA, 2px -2px #FFFFFF,
-        -10px -2px #008866, -8px -2px #00AA77, -6px -2px #007755, 6px -2px #007755, 8px -2px #00AA77, 10px -2px #008866,
-        -2px 0 #007755, 0 0 #FFFFFF, 2px 0 #007755,
-        /* Lower hexagon */
-        -8px 0 #00AA77, -6px 0 #00CC88, -4px 0 #00AA77, 4px 0 #00AA77, 6px 0 #00CC88, 8px 0 #00AA77,
-        -6px 2px #00AA77, -4px 2px #00FFAA, -2px 2px #00FFAA, 0 2px #00FFAA, 2px 2px #00FFAA, 4px 2px #00FFAA, 6px 2px #00AA77,
-        -4px 4px #00AA77, -2px 4px #00CC88, 0 4px #00FFAA, 2px 4px #00CC88, 4px 4px #00AA77,
-        -2px 6px #008866, 0 6px #00AA77, 2px 6px #008866`
   },
   {
     classes: ["ram-icon"],
@@ -387,50 +288,6 @@ export const ICONS = [
         2px 8px #35759A, 4px 8px #468AAE, 6px 8px #35759A, 8px 8px #266185`
   },
   {
-    classes: ["sharpshooter-icon"],
-    note: "SHARPSHOOTER - Elite hooded crossbow marksman with scope",
-    base: "#228B22",
-    px: `
-        /* Hood/head */
-        -4px -18px #1B5E20, -2px -18px #228B22, 0 -18px #228B22, 2px -18px #1B5E20,
-        -6px -16px #145214, -4px -16px #1B5E20, -2px -16px #228B22, 0 -16px #2E7D32, 2px -16px #228B22, 4px -16px #1B5E20, 6px -16px #145214,
-        /* Face peeking from hood */
-        -4px -14px #1B5E20, -2px -14px #DEB887, 0 -14px #F5DEB3, 2px -14px #DEB887, 4px -14px #1B5E20,
-        /* Eyes */
-        -2px -14px #654321, 2px -14px #654321,
-        /* Dark green cloak body */
-        -6px -12px #145214, -4px -12px #1B5E20, -2px -12px #228B22, 0 -12px #1B5E20, 2px -12px #228B22, 4px -12px #1B5E20, 6px -12px #145214,
-        -6px -10px #0D3D0D, -4px -10px #145214, -2px -10px #1B5E20, 0 -10px #228B22, 2px -10px #1B5E20, 4px -10px #145214, 6px -10px #0D3D0D,
-        /* Arms holding crossbow */
-        -10px -10px #DEB887, -8px -8px #DEB887, -10px -8px #145214,
-        8px -10px #DEB887, 10px -10px #145214,
-        /* CROSSBOW (held horizontally) */
-        -18px -8px #654321, -16px -8px #8B4513, -14px -8px #654321, -12px -8px #8B4513,
-        /* Crossbow bow arms */
-        -18px -12px #5C3317, -16px -12px #654321, -16px -14px #5C3317,
-        -18px -4px #5C3317, -16px -4px #654321, -16px -2px #5C3317,
-        /* Bowstring */
-        -14px -12px #A9A9A9, -12px -10px #C0C0C0, -12px -8px #A9A9A9, -12px -6px #C0C0C0, -14px -4px #A9A9A9,
-        /* Scope on crossbow */
-        -10px -10px #505050, -8px -10px #696969, -6px -10px #87CEEB,
-        /* Bolt loaded */
-        -10px -8px #8B4513, -8px -8px #654321, -6px -8px #C0C0C0,
-        /* Body/torso */
-        -6px -8px #0D3D0D, -4px -8px #145214, -2px -8px #1B5E20, 0 -8px #145214, 2px -8px #1B5E20, 4px -8px #145214, 6px -8px #0D3D0D,
-        /* Quiver on back */
-        6px -12px #5C3317, 8px -12px #654321, 10px -12px #5C3317,
-        6px -10px #654321, 8px -10px #8B4513, 10px -10px #654321,
-        8px -14px #C0C0C0, 10px -14px #C0C0C0, 12px -14px #C0C0C0,
-        /* Belt with pouches */
-        -6px -6px #5C3317, -4px -6px #654321, -2px -6px #8B4513, 0 -6px #654321, 2px -6px #8B4513, 4px -6px #654321, 6px -6px #5C3317,
-        /* Legs */
-        -4px -4px #0D3D0D, -2px -4px #145214, 2px -4px #145214, 4px -4px #0D3D0D,
-        -4px -2px #0D3D0D, -2px -2px #145214, 2px -2px #145214, 4px -2px #0D3D0D,
-        /* Boots */
-        -6px 0 #3E2723, -4px 0 #5C3317, -2px 0 #3E2723,
-        2px 0 #3E2723, 4px 0 #5C3317, 6px 0 #3E2723`
-  },
-  {
     classes: ["mobilemortar-icon"],
     note: "MOBILEMORTAR - Soldier dragging mortar on wheeled cart",
     base: "#696969",
@@ -536,6 +393,363 @@ export const ICONS = [
         -10px 4px #BB2222, -8px 4px #BB2222,
         0 4px #BB2222, 2px 4px #BB2222,
         10px 4px #BB2222, 8px 4px #BB2222`
+  },
+  {
+    classes: ["goblinplunderer-icon"],
+    note: "GOBLIN PLUNDERER - Scrawny green goblin sprinting with oversized loot sack, coins spilling",
+    base: "#7EC850",
+    px: `
+        /* Oversized loot sack (over right shoulder) */
+        4px -20px #8B6534, 6px -20px #A0784A, 8px -20px #8B6534,
+        2px -18px #8B6534, 4px -18px #A0784A, 6px -18px #B08A5A, 8px -18px #A0784A, 10px -18px #8B6534,
+        2px -16px #6B4A24, 4px -16px #8B6534, 6px -16px #A0784A, 8px -16px #B08A5A, 10px -16px #A0784A, 12px -16px #8B6534,
+        2px -14px #6B4A24, 4px -14px #8B6534, 6px -14px #8B6534, 8px -14px #A0784A, 10px -14px #8B6534, 12px -14px #6B4A24,
+        4px -12px #6B4A24, 6px -12px #8B6534, 8px -12px #8B6534, 10px -12px #6B4A24,
+        /* Fist gripping the sack neck + arm up */
+        2px -12px #7EC850, 0 -10px #5EA838,
+        /* Coins spilling */
+        12px -10px #FFD700, 14px -6px #F0C040, 10px 2px #F0C040,
+        /* Pointy ear + head */
+        -10px -16px #5EA838, -8px -16px #7EC850, -6px -16px #7EC850, -4px -16px #7EC850,
+        /* Manic red eye */
+        -8px -14px #7EC850, -6px -14px #CC2222, -4px -14px #98DC6C, -2px -14px #7EC850,
+        /* Long nose + toothy grin */
+        -10px -12px #5EA838, -8px -12px #7EC850, -6px -12px #5EA838, -4px -12px #E8E8D0, -2px -12px #7EC850,
+        /* Jaw */
+        -6px -10px #5EA838, -4px -10px #7EC850, -2px -10px #5EA838,
+        /* Scrawny torso */
+        -6px -8px #5EA838, -4px -8px #7EC850, -2px -8px #7EC850, 0 -8px #5EA838,
+        -4px -6px #7EC850, -2px -6px #5EA838, 0 -6px #7EC850,
+        /* Free arm swinging */
+        -8px -8px #7EC850, -10px -6px #5EA838,
+        /* Loincloth */
+        -4px -4px #6B4A24, -2px -4px #8B6534, 0 -4px #6B4A24,
+        /* Sprinting legs: front stretched, back trailing */
+        -4px -2px #7EC850, -6px 0 #5EA838, -8px 2px #7EC850,
+        0 -2px #5EA838, 2px 0 #5EA838, 4px 2px #7EC850`
+  },
+  {
+    classes: ["clockworkbeetle-icon"],
+    note: "CLOCKWORK BEETLE - Dark-brass da Vinci wind-up bomb beetle, top view, big winding key",
+    base: "#7A5C20",
+    px: `
+        /* Steel wind-up key bow */
+        -2px -22px #C8CCD4, 0 -22px #C8CCD4, 2px -22px #C8CCD4,
+        -2px -20px #C8CCD4, 0 -20px #3A2C10, 2px -20px #C8CCD4,
+        /* Key stem */
+        0 -18px #9AA0AC, 0 -16px #9AA0AC,
+        /* Mandibles + ember eyes */
+        -4px -16px #4A3812, 4px -16px #4A3812,
+        -4px -14px #E86830, 4px -14px #E86830,
+        /* Head */
+        -2px -14px #7A5C20, 0 -14px #A8842E, 2px -14px #7A5C20,
+        /* Brass shell with centre seam */
+        -6px -12px #7A5C20, -4px -12px #A8842E, -2px -12px #A8842E, 0 -12px #4A3812, 2px -12px #A8842E, 4px -12px #A8842E, 6px -12px #7A5C20,
+        -8px -10px #7A5C20, -6px -10px #A8842E, -4px -10px #C9A23C, -2px -10px #A8842E, 0 -10px #4A3812, 2px -10px #A8842E, 4px -10px #C9A23C, 6px -10px #A8842E, 8px -10px #7A5C20,
+        -8px -8px #7A5C20, -6px -8px #A8842E, -4px -8px #A8842E, -2px -8px #A8842E, 0 -8px #4A3812, 2px -8px #A8842E, 4px -8px #A8842E, 6px -8px #A8842E, 8px -8px #7A5C20,
+        /* Riveted gear band */
+        -8px -6px #4A3812, -6px -6px #7A5C20, -4px -6px #4A3812, -2px -6px #7A5C20, 0 -6px #4A3812, 2px -6px #7A5C20, 4px -6px #4A3812, 6px -6px #7A5C20, 8px -6px #4A3812,
+        /* Rear shell */
+        -8px -4px #7A5C20, -6px -4px #A8842E, -4px -4px #A8842E, -2px -4px #7A5C20, 0 -4px #4A3812, 2px -4px #7A5C20, 4px -4px #A8842E, 6px -4px #A8842E, 8px -4px #7A5C20,
+        -6px -2px #7A5C20, -4px -2px #7A5C20, -2px -2px #7A5C20, 0 -2px #4A3812, 2px -2px #7A5C20, 4px -2px #7A5C20, 6px -2px #7A5C20,
+        /* Tail tip */
+        -4px 0 #4A3812, -2px 0 #7A5C20, 2px 0 #7A5C20, 4px 0 #4A3812,
+        /* Legs (3 per side) */
+        -10px -10px #4A3812, -12px -12px #4A3812, 10px -10px #4A3812, 12px -12px #4A3812,
+        -10px -6px #4A3812, -12px -4px #4A3812, 10px -6px #4A3812, 12px -4px #4A3812,
+        -8px -2px #4A3812, -10px 0 #4A3812, 8px -2px #4A3812, 10px 0 #4A3812`
+  },
+  {
+    classes: ["physicianscart-icon"],
+    note: "PHYSICIAN'S CART - Plague-doctor medic pushing a two-wheel apothecary cart with a red cross",
+    base: "#8FD98F",
+    px: `
+        /* Plague doctor: wide-brim hat */
+        -16px -18px #3A3A44,
+        -18px -16px #2A2A32, -16px -16px #2A2A32, -14px -16px #2A2A32,
+        /* Beaked white mask */
+        -16px -14px #E8E4D8, -14px -14px #D8D4C4, -12px -12px #C8C4B0,
+        /* Dark robe */
+        -18px -12px #3A3A44, -16px -12px #4A4A56, -14px -12px #3A3A44,
+        -18px -10px #3A3A44, -16px -10px #4A4A56, -14px -10px #3A3A44,
+        -18px -8px #3A3A44, -16px -8px #4A4A56, -14px -8px #3A3A44,
+        -18px -6px #2A2A32, -16px -6px #3A3A44, -14px -6px #2A2A32,
+        -18px -4px #2A2A32, -16px -4px #3A3A44, -14px -4px #2A2A32,
+        -16px -2px #2A2A32, -14px -2px #2A2A32,
+        /* Striding feet */
+        -18px 0 #1A1A20, -16px 0 #1A1A20, -12px 0 #1A1A20, -10px 0 #1A1A20,
+        /* Arm pushing the handle */
+        -12px -10px #4A4A56, -10px -8px #3A3A44, -8px -8px #6B4A24,
+        /* Vial on the lid */
+        2px -14px #B8ECB8, 2px -12px #6FBF6F,
+        /* Apothecary chest: lid */
+        -6px -10px #6B4A24, -4px -10px #8B6534, -2px -10px #A0784A, 0 -10px #8B6534, 2px -10px #A0784A, 4px -10px #8B6534, 6px -10px #6B4A24,
+        /* Pale panel with red cross */
+        -6px -8px #8B6534, -4px -8px #B8ECB8, -2px -8px #B8ECB8, 0 -8px #B8ECB8, 2px -8px #B8ECB8, 4px -8px #B8ECB8, 6px -8px #8B6534,
+        -6px -6px #8B6534, -4px -6px #8FD98F, -2px -6px #8FD98F, 0 -6px #CC3333, 2px -6px #8FD98F, 4px -6px #8FD98F, 6px -6px #8B6534,
+        -6px -4px #8B6534, -4px -4px #8FD98F, -2px -4px #CC3333, 0 -4px #CC3333, 2px -4px #CC3333, 4px -4px #8FD98F, 6px -4px #8B6534,
+        -6px -2px #8B6534, -4px -2px #8FD98F, -2px -2px #8FD98F, 0 -2px #CC3333, 2px -2px #8FD98F, 4px -2px #8FD98F, 6px -2px #8B6534,
+        -6px 0 #6B4A24, -4px 0 #8FD98F, -2px 0 #8FD98F, 2px 0 #8FD98F, 4px 0 #8FD98F, 6px 0 #6B4A24,
+        /* Big cart wheel */
+        -2px 2px #5A3E1E, 0 2px #6B4A24, 2px 2px #5A3E1E,
+        -4px 4px #5A3E1E, -2px 4px #6B4A24, 0 4px #8B6534, 2px 4px #6B4A24, 4px 4px #5A3E1E,
+        -2px 6px #5A3E1E, 0 6px #6B4A24, 2px 6px #5A3E1E`
+  },
+  {
+    classes: ["pavisebearer-icon"],
+    note: "PAVISE BEARER - Full-body slate-blue tower shield with white double chevron, helmet peeking over",
+    base: "#2E6E8E",
+    px: `
+        /* Helmet peeking above the shield */
+        -2px -20px #808080, 0 -20px #909090, 2px -20px #808080,
+        -2px -18px #696969, 0 -18px #808080, 2px -18px #696969,
+        /* Shield top edge */
+        -8px -16px #1E4A62, -6px -16px #4A94B4, -4px -16px #4A94B4, -2px -16px #4A94B4, 0 -16px #4A94B4, 2px -16px #4A94B4, 4px -16px #4A94B4, 6px -16px #4A94B4, 8px -16px #1E4A62,
+        /* Field rows */
+        -8px -14px #1E4A62, -6px -14px #2E6E8E, -4px -14px #2E6E8E, -2px -14px #2E6E8E, 0 -14px #2E6E8E, 2px -14px #2E6E8E, 4px -14px #2E6E8E, 6px -14px #2E6E8E, 8px -14px #1E4A62,
+        -8px -12px #1E4A62, -6px -12px #2E6E8E, -4px -12px #2E6E8E, -2px -12px #2E6E8E, 0 -12px #2E6E8E, 2px -12px #2E6E8E, 4px -12px #2E6E8E, 6px -12px #2E6E8E, 8px -12px #1E4A62,
+        /* Upper chevron */
+        -8px -10px #1E4A62, -6px -10px #2E6E8E, -4px -10px #2E6E8E, -2px -10px #2E6E8E, 0 -10px #D8E8F0, 2px -10px #2E6E8E, 4px -10px #2E6E8E, 6px -10px #2E6E8E, 8px -10px #1E4A62,
+        -8px -8px #1E4A62, -6px -8px #2E6E8E, -4px -8px #2E6E8E, -2px -8px #D8E8F0, 0 -8px #2E6E8E, 2px -8px #D8E8F0, 4px -8px #2E6E8E, 6px -8px #2E6E8E, 8px -8px #1E4A62,
+        -8px -6px #1E4A62, -6px -6px #2E6E8E, -4px -6px #D8E8F0, -2px -6px #2E6E8E, 0 -6px #2E6E8E, 2px -6px #2E6E8E, 4px -6px #D8E8F0, 6px -6px #2E6E8E, 8px -6px #1E4A62,
+        /* Gauntlets gripping the rim */
+        -10px -6px #DEB887, 10px -6px #DEB887,
+        /* Lower chevron */
+        -8px -4px #1E4A62, -6px -4px #2E6E8E, -4px -4px #2E6E8E, -2px -4px #2E6E8E, 0 -4px #D8E8F0, 2px -4px #2E6E8E, 4px -4px #2E6E8E, 6px -4px #2E6E8E, 8px -4px #1E4A62,
+        -8px -2px #1E4A62, -6px -2px #2E6E8E, -4px -2px #2E6E8E, -2px -2px #D8E8F0, 0 -2px #2E6E8E, 2px -2px #D8E8F0, 4px -2px #2E6E8E, 6px -2px #2E6E8E, 8px -2px #1E4A62,
+        -8px 0 #1E4A62, -6px 0 #2E6E8E, -4px 0 #D8E8F0, -2px 0 #2E6E8E, 2px 0 #2E6E8E, 4px 0 #D8E8F0, 6px 0 #2E6E8E, 8px 0 #1E4A62,
+        /* Shaded bottom of the field */
+        -8px 2px #1E4A62, -6px 2px #255C78, -4px 2px #255C78, -2px 2px #255C78, 0 2px #255C78, 2px 2px #255C78, 4px 2px #255C78, 6px 2px #255C78, 8px 2px #1E4A62,
+        /* Bottom edge */
+        -6px 4px #1E4A62, -4px 4px #1E4A62, -2px 4px #1E4A62, 0 4px #1E4A62, 2px 4px #1E4A62, 4px 4px #1E4A62, 6px 4px #1E4A62,
+        /* Boots under the shield */
+        -6px 6px #3E2723, -4px 6px #5C3317, 4px 6px #5C3317, 6px 6px #3E2723`
+  },
+  {
+    classes: ["quartermaster-icon"],
+    note: "QUARTERMASTER - Barrel-chested drummer, gold-laced war drum, both sticks raised, banner pole",
+    base: "#D4A017",
+    px: `
+        /* Banner pole + gold pennant */
+        8px -24px #F0C040, 10px -24px #F0C040, 8px -22px #D4A017,
+        6px -24px #6B4226, 6px -22px #6B4226, 6px -20px #6B4226, 6px -18px #6B4226, 6px -16px #6B4226, 6px -14px #6B4226,
+        /* Raised drumsticks */
+        -14px -20px #E8D8A8, -12px -18px #C9A96A, -10px -16px #DEB887, -8px -14px #8B2222,
+        14px -20px #E8D8A8, 12px -18px #C9A96A, 10px -16px #DEB887, 8px -14px #8B2222,
+        /* Cap with plume */
+        4px -20px #F0E0B0,
+        -4px -18px #8B2222, -2px -18px #A03030, 0 -18px #A03030, 2px -18px #A03030, 4px -18px #8B2222,
+        /* Face + mustache */
+        -2px -16px #DEB887, 0 -16px #F5DEB3, 2px -16px #DEB887,
+        -2px -14px #DEB887, 0 -14px #6B4226, 2px -14px #DEB887,
+        /* Barrel chest, crossed gold belts */
+        -6px -12px #8B2222, -4px -12px #B03030, -2px -12px #B03030, 0 -12px #B03030, 2px -12px #B03030, 4px -12px #B03030, 6px -12px #8B2222,
+        -6px -10px #8B2222, -4px -10px #B03030, -2px -10px #D4A017, 0 -10px #B03030, 2px -10px #D4A017, 4px -10px #B03030, 6px -10px #8B2222,
+        -4px -8px #B03030, -2px -8px #B03030, 0 -8px #D4A017, 2px -8px #B03030, 4px -8px #B03030,
+        /* War drum: gold rim */
+        -6px -6px #D4A017, -4px -6px #F0C040, -2px -6px #F0C040, 0 -6px #F0C040, 2px -6px #F0C040, 4px -6px #F0C040, 6px -6px #D4A017,
+        /* Shell with zigzag lacing */
+        -6px -4px #B03030, -4px -4px #D4A017, -2px -4px #B03030, 0 -4px #D4A017, 2px -4px #B03030, 4px -4px #D4A017, 6px -4px #B03030,
+        -6px -2px #8B2222, -4px -2px #B03030, -2px -2px #8B2222, 0 -2px #B03030, 2px -2px #8B2222, 4px -2px #B03030, 6px -2px #8B2222,
+        /* Bottom rim */
+        -6px 0 #B8860B, -4px 0 #D4A017, -2px 0 #D4A017, 2px 0 #D4A017, 4px 0 #D4A017, 6px 0 #B8860B,
+        /* Legs + boots */
+        -4px 2px #5C3317, 4px 2px #5C3317,
+        -6px 4px #3E2723, -4px 4px #3E2723, 4px 4px #3E2723, 6px 4px #3E2723`
+  },
+  {
+    classes: ["siegetower-icon"],
+    note: "SIEGE TOWER - Tall three-tier timber belfry, hide panels, raised drop-ramp at the crown, wheels",
+    base: "#9A7B4F",
+    px: `
+        /* Pennant */
+        2px -26px #B03030, 4px -26px #B03030, 0 -26px #6B4F2E, 0 -24px #6B4F2E,
+        /* Raised drop-ramp (up-left of the crown) */
+        -8px -24px #C4A87E, -8px -22px #8A6F42, -6px -22px #C4A87E,
+        /* Crown crenellation */
+        -4px -22px #6B4F2E, 0 -22px #6B4F2E, 4px -22px #6B4F2E,
+        -4px -20px #9A7B4F, -2px -20px #9A7B4F, 0 -20px #9A7B4F, 2px -20px #9A7B4F, 4px -20px #9A7B4F,
+        /* Top tier with arrow slit */
+        -4px -18px #6B4F2E, -2px -18px #9A7B4F, 0 -18px #2A1E10, 2px -18px #9A7B4F, 4px -18px #6B4F2E,
+        -4px -16px #6B4F2E, -2px -16px #9A7B4F, 0 -16px #2A1E10, 2px -16px #9A7B4F, 4px -16px #6B4F2E,
+        /* Tier beam */
+        -6px -14px #6B4F2E, -4px -14px #8A6F42, -2px -14px #8A6F42, 0 -14px #8A6F42, 2px -14px #8A6F42, 4px -14px #8A6F42, 6px -14px #6B4F2E,
+        /* Mid tier: stitched hide armor */
+        -6px -12px #6B4F2E, -4px -12px #9A7B4F, -2px -12px #C4A87E, 0 -12px #C4A87E, 2px -12px #C4A87E, 4px -12px #9A7B4F, 6px -12px #6B4F2E,
+        -6px -10px #6B4F2E, -4px -10px #9A7B4F, -2px -10px #C4A87E, 0 -10px #8A6F42, 2px -10px #C4A87E, 4px -10px #9A7B4F, 6px -10px #6B4F2E,
+        /* Tier beam */
+        -8px -8px #6B4F2E, -6px -8px #8A6F42, -4px -8px #8A6F42, -2px -8px #8A6F42, 0 -8px #8A6F42, 2px -8px #8A6F42, 4px -8px #8A6F42, 6px -8px #8A6F42, 8px -8px #6B4F2E,
+        /* Base tier with dark troop bay */
+        -8px -6px #6B4F2E, -6px -6px #9A7B4F, -4px -6px #9A7B4F, -2px -6px #2A1E10, 0 -6px #2A1E10, 2px -6px #2A1E10, 4px -6px #9A7B4F, 6px -6px #9A7B4F, 8px -6px #6B4F2E,
+        -8px -4px #6B4F2E, -6px -4px #9A7B4F, -4px -4px #9A7B4F, -2px -4px #2A1E10, 0 -4px #2A1E10, 2px -4px #2A1E10, 4px -4px #9A7B4F, 6px -4px #9A7B4F, 8px -4px #6B4F2E,
+        -8px -2px #6B4F2E, -6px -2px #9A7B4F, -4px -2px #9A7B4F, -2px -2px #2A1E10, 0 -2px #2A1E10, 2px -2px #2A1E10, 4px -2px #9A7B4F, 6px -2px #9A7B4F, 8px -2px #6B4F2E,
+        /* Deck platform */
+        -8px 0 #6B4F2E, -6px 0 #9A7B4F, -4px 0 #9A7B4F, -2px 0 #9A7B4F, 2px 0 #9A7B4F, 4px 0 #9A7B4F, 6px 0 #9A7B4F, 8px 0 #6B4F2E,
+        /* Undercarriage + wheels */
+        -2px 2px #4A3520, 0 2px #4A3520, 2px 2px #4A3520,
+        -8px 2px #3E2723, -6px 2px #5C3317, -4px 2px #3E2723, 4px 2px #3E2723, 6px 2px #5C3317, 8px 2px #3E2723,
+        -8px 4px #2A1A10, -6px 4px #3E2723, -4px 4px #2A1A10, 4px 4px #2A1A10, 6px 4px #3E2723, 8px 4px #2A1A10`
+  },
+  {
+    classes: ["necromancer-icon"],
+    note: "NECROMANCER - Gaunt hooded purple robe, glowing green eyes, skull-topped bone staff, grave-light orb",
+    base: "#6A4C93",
+    px: `
+        /* Grave-light wisps */
+        8px -22px #7CFC66, 12px -20px #7CFC66, 6px -18px #4CD940,
+        /* Skull atop the staff (dark eye socket) */
+        8px -18px #E8E8D8, 10px -18px #E8E8D8, 8px -16px #3A3A32, 10px -16px #C8C8B8,
+        /* Bone staff shaft */
+        10px -14px #C8C0A8, 10px -12px #A89F88, 10px -10px #C8C0A8, 10px -8px #A89F88, 10px -6px #C8C0A8, 10px -4px #A89F88, 10px -2px #C8C0A8, 10px 0 #A89F88,
+        /* Gaunt hand on the staff */
+        8px -10px #C9B8A8,
+        /* Pointed hood */
+        0 -20px #4A3268,
+        -2px -18px #4A3268, 0 -18px #5A3E7E, 2px -18px #4A3268,
+        -4px -16px #3A2652, -2px -16px #4A3268, 0 -16px #5A3E7E, 2px -16px #4A3268, 4px -16px #3A2652,
+        -6px -14px #3A2652, -4px -14px #4A3268, -2px -14px #5A3E7E, 0 -14px #5A3E7E, 2px -14px #4A3268, 4px -14px #4A3268, 6px -14px #3A2652,
+        /* Shadowed face, glowing green eyes */
+        -4px -12px #3A2652, -2px -12px #7CFC66, 0 -12px #1A1022, 2px -12px #7CFC66, 4px -12px #3A2652,
+        /* Robe with bright front trim */
+        -6px -10px #3A2652, -4px -10px #4A3268, -2px -10px #5A3E7E, 0 -10px #6A4C93, 2px -10px #5A3E7E, 4px -10px #4A3268, 6px -10px #3A2652,
+        -6px -8px #3A2652, -4px -8px #4A3268, -2px -8px #4A3268, 0 -8px #6A4C93, 2px -8px #4A3268, 4px -8px #3A2652, 6px -8px #2A1C3E,
+        -6px -6px #2A1C3E, -4px -6px #3A2652, -2px -6px #4A3268, 0 -6px #6A4C93, 2px -6px #4A3268, 4px -6px #3A2652, 6px -6px #2A1C3E,
+        -4px -4px #3A2652, -2px -4px #4A3268, 0 -4px #6A4C93, 2px -4px #3A2652, 4px -4px #2A1C3E,
+        -4px -2px #2A1C3E, -2px -2px #3A2652, 0 -2px #6A4C93, 2px -2px #3A2652, 4px -2px #2A1C3E,
+        -4px 0 #1A1022, -2px 0 #2A1C3E, 2px 0 #2A1C3E, 4px 0 #1A1022,
+        /* Tattered hem */
+        -4px 2px #1A1022, 0 2px #3A2652, 4px 2px #1A1022,
+        /* Grave-light orb in the off hand */
+        -8px -8px #4A3268, -10px -8px #7CFC66, -12px -10px #A8FF98`
+  },
+  {
+    classes: ["trebuchet-icon"],
+    note: "TREBUCHET CREW - Counterweight trebuchet: long arm up-right, hanging sling stone, iron weight box, wheels",
+    base: "#8A6D4A",
+    px: `
+        /* Long throwing arm (diagonal up-right, 2 cells thick) */
+        10px -18px #B89563, 8px -16px #B89563, 6px -14px #A0784A, 4px -12px #A0784A, 2px -10px #A0784A,
+        10px -16px #6B4F2E, 8px -14px #6B4F2E, 6px -12px #6B4F2E, 4px -10px #6B4F2E, 2px -8px #6B4F2E,
+        /* Sling rope + stone */
+        12px -16px #C4A87E,
+        12px -14px #909090, 14px -14px #707070, 12px -12px #808080, 14px -12px #606060,
+        /* Arm butt + axle */
+        -2px -10px #8A6D4A, 0 -8px #4A3520,
+        /* Chain to the raised counterweight */
+        -4px -8px #4A4A52,
+        /* Iron counterweight box */
+        -10px -6px #5A5A64, -8px -6px #6A6A76, -6px -6px #5A5A64,
+        -10px -4px #4A4A52, -8px -4px #5A5A64, -6px -4px #4A4A52,
+        -10px -2px #3A3A42, -8px -2px #4A4A52, -6px -2px #3A3A42,
+        /* Mast under the axle */
+        0 -6px #8A6D4A, 2px -6px #6B4F2E,
+        0 -4px #8A6D4A, 2px -4px #6B4F2E,
+        0 -2px #8A6D4A, 2px -2px #6B4F2E,
+        2px 0 #6B4F2E,
+        /* Side braces */
+        -2px -4px #6B4F2E, -4px -2px #6B4F2E, 4px -4px #6B4F2E, 6px -2px #6B4F2E,
+        /* Ground sled */
+        -8px 2px #6B4F2E, -6px 2px #8A6D4A, -4px 2px #8A6D4A, -2px 2px #8A6D4A, 0 2px #8A6D4A, 2px 2px #8A6D4A, 4px 2px #8A6D4A, 6px 2px #8A6D4A, 8px 2px #6B4F2E,
+        /* Wheels */
+        -8px 4px #3A2A1A, -6px 4px #5C3317, -4px 4px #3A2A1A, 4px 4px #3A2A1A, 6px 4px #5C3317, 8px 4px #3A2A1A`
+  },
+  {
+    classes: ["hawkeyeassassin-icon"],
+    note: "HAWK-EYE ASSASSIN - Hooded slate sniper kneeling with long scoped wheellock, single gold eye glint",
+    base: "#394B59",
+    px: `
+        /* Hood peak */
+        -6px -16px #2A3843, -4px -16px #394B59, -2px -16px #2A3843,
+        /* Hood */
+        -8px -14px #2A3843, -6px -14px #394B59, -4px -14px #46596A, -2px -14px #394B59, 0 -14px #2A3843,
+        -10px -12px #2A3843, -8px -12px #394B59, -6px -12px #46596A, -4px -12px #394B59, -2px -12px #394B59, 0 -12px #2A3843,
+        /* Shadowed face, gold eye glint */
+        -8px -10px #394B59, -6px -10px #10181E, -4px -10px #10181E, -2px -10px #E8C860, 0 -10px #10181E,
+        /* Scope with lens glint */
+        4px -10px #2A2A32, 6px -10px #2A2A32, 8px -10px #7CD9E8,
+        /* Wheellock rifle: stock then long barrel */
+        -4px -8px #5C3A22, -2px -8px #6E4A2E, 0 -8px #5C3A22,
+        2px -8px #3A3A42, 4px -8px #4A4A52, 6px -8px #3A3A42, 8px -8px #4A4A52, 10px -8px #3A3A42, 12px -8px #2A2A32, 14px -8px #1A1A20,
+        /* Cloaked torso, brass wheellock, hands */
+        -8px -6px #2A3843, -6px -6px #394B59, -4px -6px #394B59, -2px -6px #C9A23C, 0 -6px #B89468, 2px -6px #394B59, 4px -6px #B89468,
+        /* Shimmer fleck */
+        -10px -6px #5A7484,
+        /* Crouched body */
+        -8px -4px #223039, -6px -4px #2A3843, -4px -4px #394B59, -2px -4px #394B59, 0 -4px #2A3843,
+        -8px -2px #1A2630, -6px -2px #223039, -4px -2px #2A3843, -2px -2px #223039, 0 -2px #2A3843, 2px -2px #223039,
+        /* Kneeling legs + boots */
+        -6px 0 #10181E, -4px 0 #10181E, 2px 0 #10181E, 4px 0 #10181E`
+  },
+  {
+    classes: ["warelephant-icon"],
+    note: "WAR ELEPHANT - Armored elephant head-on: plated forehead with gold boss, fanned ears, white tusks, trunk, red howdah crest",
+    base: "#8D8D99",
+    px: `
+        /* Howdah crest */
+        -4px -20px #B03030, 0 -20px #B03030, 4px -20px #B03030,
+        -4px -18px #8B2222, -2px -18px #B03030, 0 -18px #C9A23C, 2px -18px #B03030, 4px -18px #8B2222,
+        /* Crown of the head */
+        -6px -16px #6E6E7A, -4px -16px #8D8D99, -2px -16px #A8A8B4, 0 -16px #A8A8B4, 2px -16px #A8A8B4, 4px -16px #8D8D99, 6px -16px #6E6E7A,
+        /* Ears out + plate with gold boss (dark crease at the ear root) */
+        -12px -14px #6E6E7A, -10px -14px #8D8D99, -8px -14px #6E6E7A, -6px -14px #8D8D99, -4px -14px #A8A8B4, -2px -14px #A8A8B4, 0 -14px #C9A23C, 2px -14px #A8A8B4, 4px -14px #A8A8B4, 6px -14px #8D8D99, 8px -14px #6E6E7A, 10px -14px #8D8D99, 12px -14px #6E6E7A,
+        /* Eye row */
+        -12px -12px #8D8D99, -10px -12px #8D8D99, -8px -12px #6E6E7A, -6px -12px #2A2A32, -4px -12px #A8A8B4, -2px -12px #A8A8B4, 0 -12px #A8A8B4, 2px -12px #A8A8B4, 4px -12px #A8A8B4, 6px -12px #2A2A32, 8px -12px #6E6E7A, 10px -12px #8D8D99, 12px -12px #8D8D99,
+        /* Cheeks, ears folding */
+        -12px -10px #5A5A66, -10px -10px #6E6E7A, -8px -10px #7A7A86, -6px -10px #8D8D99, -4px -10px #A8A8B4, -2px -10px #A8A8B4, 0 -10px #A8A8B4, 2px -10px #A8A8B4, 4px -10px #A8A8B4, 6px -10px #8D8D99, 8px -10px #7A7A86, 10px -10px #6E6E7A, 12px -10px #5A5A66,
+        /* Jaw */
+        -8px -8px #7A7A86, -6px -8px #8D8D99, -4px -8px #8D8D99, -2px -8px #8D8D99, 0 -8px #7A7A86, 2px -8px #8D8D99, 4px -8px #8D8D99, 6px -8px #8D8D99, 8px -8px #7A7A86,
+        /* Mouth + trunk root */
+        -6px -6px #6E6E7A, -4px -6px #7A7A86, -2px -6px #8D8D99, 0 -6px #7A7A86, 2px -6px #7A7A86, 4px -6px #7A7A86, 6px -6px #6E6E7A,
+        /* Big white tusks curving out, tips up */
+        -6px -4px #E8E4D0, -8px -4px #E8E4D0, -8px -6px #F8F4E0, -10px -6px #F8F4E0,
+        6px -4px #E8E4D0, 8px -4px #E8E4D0, 8px -6px #F8F4E0, 10px -6px #F8F4E0,
+        /* Trunk hanging down (banded) */
+        -2px -4px #8D8D99, 0 -4px #8D8D99,
+        -2px -2px #7A7A86, 0 -2px #7A7A86,
+        -2px 0 #8D8D99,
+        /* Trunk tip curls */
+        0 2px #7A7A86, 2px 2px #7A7A86`
+  },
+  {
+    classes: ["ornithopter-icon"],
+    note: "ORNITHOPTER - Da Vinci flapping-wing machine head-on: canvas bat wings on spruce spars, pilot gondola, tail fan",
+    base: "#A88D5E",
+    px: `
+        /* Left wing: spar leading edge */
+        -18px -16px #6B4F2E, -16px -16px #6B4F2E,
+        -14px -14px #6B4F2E, -12px -14px #6B4F2E,
+        -10px -12px #6B4F2E, -8px -12px #6B4F2E,
+        -6px -10px #6B4F2E, -4px -10px #6B4F2E,
+        /* Left wing: canvas membrane */
+        -16px -14px #D8C79E,
+        -16px -12px #A88D5E, -14px -12px #D8C79E, -12px -12px #D8C79E,
+        -14px -10px #A88D5E, -12px -10px #6B4F2E, -10px -10px #D8C79E, -8px -10px #D8C79E,
+        -12px -8px #8A6F42, -10px -8px #A88D5E, -8px -8px #6B4F2E, -6px -8px #D8C79E, -4px -8px #D8C79E,
+        /* Left scallop points */
+        -10px -6px #8A6F42, -6px -6px #8A6F42,
+        /* Right wing: spar leading edge */
+        18px -16px #6B4F2E, 16px -16px #6B4F2E,
+        14px -14px #6B4F2E, 12px -14px #6B4F2E,
+        10px -12px #6B4F2E, 8px -12px #6B4F2E,
+        6px -10px #6B4F2E, 4px -10px #6B4F2E,
+        /* Right wing: canvas membrane */
+        16px -14px #D8C79E,
+        16px -12px #A88D5E, 14px -12px #D8C79E, 12px -12px #D8C79E,
+        14px -10px #A88D5E, 12px -10px #6B4F2E, 10px -10px #D8C79E, 8px -10px #D8C79E,
+        12px -8px #8A6F42, 10px -8px #A88D5E, 8px -8px #6B4F2E, 6px -8px #D8C79E, 4px -8px #D8C79E,
+        /* Right scallop points */
+        10px -6px #8A6F42, 6px -6px #8A6F42,
+        /* Pilot: leather cap + face */
+        0 -12px #8B5A2B,
+        -2px -10px #8A6F42, 0 -10px #DEB887, 2px -10px #8A6F42,
+        /* Gondola hull */
+        -2px -8px #6B4F2E, 0 -8px #8A6F42, 2px -8px #6B4F2E,
+        -2px -6px #8A6F42, 0 -6px #A88D5E, 2px -6px #8A6F42,
+        -2px -4px #8A6F42, 0 -4px #A88D5E, 2px -4px #8A6F42,
+        -2px -2px #6B4F2E, 0 -2px #8A6F42, 2px -2px #6B4F2E,
+        /* Tail strut + linen rudder */
+        0 2px #6B4F2E,
+        -2px 4px #D8C79E, 0 4px #D8C79E, 2px 4px #D8C79E`
   },
   {
     classes: ["town_hall-icon"],

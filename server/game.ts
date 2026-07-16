@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { BUILDING_DEFINITIONS, TROOP_DEFINITIONS, getTroopStats, getTroopUnlockLevel, normalizeTroopLevel, troopFoodCostOf, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
+import { BUILDING_DEFINITIONS, GENERATED_ONLY, TROOP_DEFINITIONS, getTroopStats, getTroopUnlockLevel, normalizeTroopLevel, troopFoodCostOf, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
 import {
   BOT_RAID_COOLDOWN_MS,
   RAIDABLE_SHARE,
@@ -439,7 +439,6 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
         const type = sanitizeId(troop?.type)
         if (!id || !type) return []
         const facing = Number(troop.facingAngle)
-        const recursionGen = Number(troop.recursionGen)
         return [{
           id,
           type,
@@ -449,7 +448,6 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
           gridY: Number(troop.gridY) || 0,
           health: Math.max(0, Number(troop.health) || 0),
           maxHealth: Math.max(1, Number(troop.maxHealth) || 1),
-          ...(Number.isFinite(recursionGen) ? { recursionGen: Math.max(0, Math.floor(recursionGen)) } : {}),
           ...(Number.isFinite(facing) ? { facingAngle: facing } : {}),
           hasTakenDamage: Boolean(troop.hasTakenDamage)
         }]
@@ -1986,7 +1984,7 @@ export class GameService {
   trainTroop(player: PlayerRecord, body: { type?: unknown; count?: unknown; requestId?: unknown }): { army: Record<string, number>; gold: number; ore: number; food: number; revision: number } {
     const type = sanitizeId(body?.type) as TroopType
     const def = hasOwn(TROOP_DEFINITIONS, type) ? TROOP_DEFINITIONS[type] : undefined
-    if (!def || type === 'romanwarrior') throw new ApiError(404, 'Unknown troop type')
+    if (!def || GENERATED_ONLY.has(type)) throw new ApiError(404, 'Unknown troop type')
     const count = clamp(toInt(body?.count, 1), 1, 50)
 
     const key = this.normalizeKey(body?.requestId)
@@ -2333,7 +2331,7 @@ export class GameService {
     if (!ALLOW_LEGACY_FRAME_COMMANDS) return
     const desired = sanitizeArmy(rawDeployed)
     for (const [type, count] of Object.entries(desired)) {
-      if (!hasOwn(TROOP_DEFINITIONS, type) || type === 'romanwarrior') throw new ApiError(400, 'Unknown deployed troop')
+      if (!hasOwn(TROOP_DEFINITIONS, type) || GENERATED_ONLY.has(type)) throw new ApiError(400, 'Unknown deployed troop')
       if (count <= 0 || count > (raid.reservedArmy[type] ?? 0) || count > (player.army[type] ?? 0)) {
         throw new ApiError(409, `Not enough reserved ${type} troops`)
       }
@@ -2953,7 +2951,7 @@ export class GameService {
   private deploymentCounts(replay: AttackRecord): Record<string, number> {
     const counts = Object.create(null) as Record<string, number>
     for (const type of Object.values(replay.validatedDeployments ?? {})) {
-      if (hasOwn(TROOP_DEFINITIONS, type) && type !== 'romanwarrior') counts[type] = (counts[type] ?? 0) + 1
+      if (hasOwn(TROOP_DEFINITIONS, type) && !GENERATED_ONLY.has(type)) counts[type] = (counts[type] ?? 0) + 1
     }
     return counts
   }
@@ -3005,16 +3003,17 @@ export class GameService {
     const elapsed = clamp(activeMs, 0, MAX_COMBAT_CREDIT_MS)
     const firstDelay = Math.max(0, stats.firstAttackDelay ?? 0)
     if (elapsed < firstDelay) return 0
-    // Most troops may strike on their first client combat tick. The suicidal
-    // wall breaker can do so only once; every other troop follows its cadence.
-    if (type === 'wallbreaker') return 1
+    // Most troops may strike on their first client combat tick. Suicide
+    // detonators (wall breaker, clockwork beetle) can do so only once; every
+    // other troop follows its cadence.
+    if (stats.detonateOnAttack) return 1
     const delay = Math.max(150, stats.attackDelay ?? 1000)
     return 1 + Math.floor((elapsed - firstDelay) / delay)
   }
 
   /** Worst-case honest building damage from one trained root troop. */
   private rootDamageCeiling(world: SerializedWorld, type: TroopType, level: number, activeMs: number): number {
-    if (type === 'romanwarrior' || !hasOwn(TROOP_DEFINITIONS, type)) return 0
+    if (GENERATED_ONLY.has(type) || !hasOwn(TROOP_DEFINITIONS, type)) return 0
     const stats = getTroopStats(type, level)
     const attacks = this.attackCountCeiling(type, level, activeMs)
     if (attacks <= 0) return 0
@@ -3026,11 +3025,17 @@ export class GameService {
       return stats.damage * attacks + 9 * soldier.damage * soldierAttacks
     }
 
+    if (stats.summonType && (stats.summonCount ?? 0) > 0 && hasOwn(TROOP_DEFINITIONS, stats.summonType)) {
+      // A summoner (necromancer) can keep its full alive-cap of summons
+      // fighting beside it for its whole window (phalanx-pattern generosity).
+      const summon = getTroopStats(stats.summonType, level)
+      const summonAttacks = this.attackCountCeiling(stats.summonType, level, activeMs)
+      const summonPeak = Math.max(stats.summonCount ?? 1, stats.summonCap ?? 1)
+      return stats.damage * attacks + summonPeak * summon.damage * summonAttacks
+    }
+
     let perVolley = stats.damage
-    if (type === 'recursion') {
-      // root -> 2 children -> 4 grandchildren (generation 2 is terminal).
-      perVolley *= 7
-    } else if (type === 'stormmage') {
+    if (type === 'stormmage') {
       const targets = this.destructibleTargets(world).length
       const extraChains = Math.min(Math.max(0, stats.chainCount ?? 0), Math.max(0, targets - 1))
       let chainMultiplier = 1
@@ -3041,13 +3046,23 @@ export class GameService {
       perVolley *= 1 + Math.max(0, hits - 1) * 0.6
     } else if (type === 'golem' || type === 'icegolem') {
       perVolley *= this.splashTargetCeiling(world, 3, false)
-    } else if (type === 'wallbreaker') {
+    } else if (stats.detonateOnAttack) {
+      // Wall breaker and clockwork beetle: one detonation with splash reach.
       const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2.5, false)
       perVolley *= 1 + Math.max(0, hits - 1) * 0.6
-    } else if (type === 'ward') {
-      // The current client applies the beam hit plus its 20% pulse tick.
-      perVolley *= 1.2
+    } else if (type === 'trebuchet' || type === 'ornithopter') {
+      // Arcing shot / dropped bomb: splash centers on a struck building
+      // (mobile-mortar pattern).
+      const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2, true)
+      perVolley *= 1 + Math.max(0, hits - 1) * 0.6
+    } else if ((stats.resourceDamageMultiplier ?? 1) > 1) {
+      // Resource raider (goblin plunderer): worst honest case lands every
+      // strike on a resource building at the full multiplier.
+      perVolley *= stats.resourceDamageMultiplier ?? 1
     }
+    // Pure supports (physician's cart, quartermaster, siege tower) declare
+    // damage 0, so their own ceiling contribution is intentionally zero; the
+    // quartermaster's aura is credited army-wide in timedCombatPowerCeiling.
     return perVolley * attacks
   }
 
@@ -3104,6 +3119,17 @@ export class GameService {
       const contribution = this.rootDamageCeiling(replay.enemyWorld, type, level, now - deployedAt + DEPLOYMENT_RECEIPT_ALLOWANCE_MS)
       if (Number.isFinite(contribution) && contribution > 0) damage += contribution
     }
+    // A deployed quartermaster's war drums let every ally strike at a faster
+    // cadence (−boostCadence effective attack delay); the honest ceiling
+    // grows by the full-aura uplift, capped at one aura.
+    let cadence = 0
+    for (const rawType of Object.values(replay.validatedDeployments ?? {})) {
+      const type = rawType as TroopType
+      if (!hasOwn(TROOP_DEFINITIONS, type)) continue
+      const boost = getTroopStats(type, level).boostCadence ?? 0
+      if (boost > cadence && boost < 1) cadence = boost
+    }
+    if (cadence > 0) damage /= 1 - cadence
     return this.destructionCeilingFromDamage(replay.enemyWorld, damage)
   }
 
@@ -3619,11 +3645,15 @@ export class GameService {
         if (seenTroops.has(troop.id)) return false
         seenTroops.add(troop.id)
         if (troop.owner !== 'PLAYER') return true
-        const generatedRoman = troop.type === 'romanwarrior'
-        const generatedRecursion = troop.type === 'recursion' && (troop.recursionGen ?? 0) > 0 && (troop.recursionGen ?? 0) <= 2
-        if (generatedRoman || generatedRecursion) {
-          const sourceType = generatedRoman ? 'phalanx' : 'recursion'
-          if ((deployedCounts[sourceType] ?? 0) <= 0) return false
+        if (troop.type === 'romanwarrior') {
+          if ((deployedCounts.phalanx ?? 0) <= 0) return false
+          troop.level = normalizeTroopLevel(replay.troopLevel ?? 1)
+          return true
+        }
+        if (troop.type === 'skeleton') {
+          // Generated-only summon: allowed in presentation frames only while
+          // a necromancer was actually deployed (romanwarrior pattern).
+          if ((deployedCounts.necromancer ?? 0) <= 0) return false
           troop.level = normalizeTroopLevel(replay.troopLevel ?? 1)
           return true
         }
@@ -3639,7 +3669,7 @@ export class GameService {
         // Production authority accepts deployments only through the compact
         // command endpoint. The opt-in bridge exists solely for legacy data
         // migration and the old HTTP compatibility regression suite.
-        if (!ALLOW_LEGACY_FRAME_COMMANDS || troop.type === 'romanwarrior') return false
+        if (!ALLOW_LEGACY_FRAME_COMMANDS || GENERATED_ONLY.has(troop.type)) return false
         this.applyAuthorityCommand(replay, attacker, {
           type: 'DEPLOY',
           commandId: `legacy_${troop.id}`,
@@ -3749,8 +3779,7 @@ export class GameService {
       const validPlayerTroop = frame.troops.some(troop =>
         troop.owner === 'PLAYER' && (
           hasOwn(validated, troop.id) ||
-          (troop.type === 'romanwarrior' && (deployedCounts.phalanx ?? 0) > 0) ||
-          (troop.type === 'recursion' && (troop.recursionGen ?? 0) > 0 && (deployedCounts.recursion ?? 0) > 0)
+          (troop.type === 'romanwarrior' && (deployedCounts.phalanx ?? 0) > 0)
         )
       )
       const damagedBuilding = frame.buildings.some(state => {

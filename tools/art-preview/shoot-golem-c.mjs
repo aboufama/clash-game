@@ -57,7 +57,7 @@ try {
       [3.5, 19, 'PLAYER', 2],   // heading + walk + idle model
       [3.5, 22.5, 'PLAYER', 3]  // slam model
     ]
-    for (const [x, y, owner, lvl] of cast) s.spawnTroop(x, y, 'golem', owner, 0, lvl)
+    for (const [x, y, owner, lvl] of cast) s.spawnTroop(x, y, 'golem', owner, lvl)
     for (const t of s.troops) { t.target = null; t.path = undefined; t.facingAngle = 0.9 }
     window.__G = idx => s.troops.filter(t => t.type === 'golem')[idx]
   })

@@ -37,7 +37,7 @@ world.buildings = [
 ]
 const saved = await api('/world/save', { world, requestId: 'troop-showcase' })
 if (saved?.error) console.log('WORLD SAVE FAILED:', saved.error, '- shooting on the existing base instead')
-for (const [i, t] of ['warrior', 'archer', 'sharpshooter', 'giant'].entries()) {
+for (const [i, t] of ['warrior', 'archer', 'stormmage', 'ram'].entries()) {
   const trained = await api('/army/train', { type: t, requestId: `tr-${i}` }).catch(e => ({ error: String(e) }))
   if (trained?.error) console.log('train failed:', t, trained.error)
 }
@@ -65,19 +65,19 @@ try {
     s.dayNight.setPhaseOverride(0.32)
     s.weather.setWeatherOverride(0)
     const cast = [
-      ['warrior', 6, 14], ['archer', 8, 14], ['sharpshooter', 10, 14],
-      ['stormmage', 12, 14], ['ward', 14, 14], ['wallbreaker', 16, 14],
+      ['warrior', 6, 14], ['archer', 8, 14],
+      ['stormmage', 12, 14], ['wallbreaker', 16, 14],
       ['romanwarrior', 18, 14],
-      ['giant', 7, 18], ['ram', 12, 18], ['mobilemortar', 16.5, 18],
+      ['ram', 12, 18], ['mobilemortar', 16.5, 18],
       ['phalanx', 6, 22], ['golem', 11, 22.6]
     ]
     for (const [type, x, y] of cast) s.spawnTroop(x, y, type, 'PLAYER')
     // level-chip demo warriors
-    s.spawnTroop(10, 16, 'warrior', 'PLAYER', 0, 1)
-    s.spawnTroop(12, 16, 'warrior', 'PLAYER', 0, 2)
-    s.spawnTroop(14, 16, 'warrior', 'PLAYER', 0, 3)
+    s.spawnTroop(10, 16, 'warrior', 'PLAYER', 1)
+    s.spawnTroop(12, 16, 'warrior', 'PLAYER', 2)
+    s.spawnTroop(14, 16, 'warrior', 'PLAYER', 3)
     // enemy palette row
-    const foes = [['warrior', 6, 21], ['archer', 8, 21], ['sharpshooter', 10, 21], ['stormmage', 12, 21], ['giant', 14.5, 21.3]]
+    const foes = [['warrior', 6, 21], ['archer', 8, 21], ['stormmage', 12, 21], ['golem', 14.5, 21.3]]
     for (const [type, x, y] of foes) s.spawnTroop(x, y, type, 'ENEMY')
     // keep everyone rooted: no target -> updateTroops never moves them
     for (const t of s.troops) { t.target = null; t.path = undefined; t.facingAngle = 0.45 }
@@ -143,25 +143,25 @@ try {
   // ---------- (a) SCALE PROOF (all idle, villagers in the rows) -----------
   await poseAll()
   await cam(9.5, 14.2, 2.7, -8)
-  await shot('a1-scale-row1-warrior-archer-sharpshooter-mage')
+  await shot('a1-scale-row1-warrior-archer-mage')
   await cam(14.5, 14.2, 2.7, -8)
-  await shot('a2-scale-row2-ward-wallbreaker-roman')
-  await cam(9.5, 18.2, 2.4, -8)
-  await shot('a3-scale-giant-ram')
+  await shot('a2-scale-row2-wallbreaker-roman')
+  await cam(12, 18.2, 2.4, -8)
+  await shot('a3-scale-ram')
   await cam(16, 18.2, 2.6, -8)
   await shot('a4-scale-mobilemortar')
 
   // ---------- (b) WALK + ATTACK frames per troop --------------------------
   const troopSpots = {
-    warrior: [6, 14], archer: [8, 14], sharpshooter: [10, 14],
-    stormmage: [12, 14], ward: [14, 14], wallbreaker: [16, 14],
-    romanwarrior: [18, 14], giant: [7, 18], ram: [12, 18], mobilemortar: [16.5, 18]
+    warrior: [6, 14], archer: [8, 14],
+    stormmage: [12, 14], wallbreaker: [16, 14],
+    romanwarrior: [18, 14], ram: [12, 18], mobilemortar: [16.5, 18]
   }
   const seq = [
     ['idle', 'idle', 0], ['walk1', 'walk', 0], ['walk2', 'walk', 0],
     ['windup', 'hold', -140], ['strike', 'hold', 55], ['muzzle', 'hold', 360], ['follow', 'hold', 520]
   ]
-  for (const type of ['warrior', 'archer', 'sharpshooter', 'stormmage', 'ward', 'wallbreaker', 'romanwarrior']) {
+  for (const type of ['warrior', 'archer', 'stormmage', 'wallbreaker', 'romanwarrior']) {
     const [x, y] = troopSpots[type]
     await cam(x, y, 5, -12)
     for (const [name, mode, ms] of seq) {
@@ -191,24 +191,6 @@ try {
   await cam(11, 22.6, 2.6, -18)
   await setPose('golem', 'idle', 0, 0)
   await shot('b-golem-port-check')
-
-  // ---------- (c) GIANT full attack sequence ------------------------------
-  const [gx, gy] = troopSpots.giant
-  await cam(gx, gy, 4, -16)
-  for (const [name, mode, ms] of [
-    ['1-menace', 'hold', 1800],
-    ['2-rise', 'hold', -520],
-    ['3-overhead', 'hold', -95],
-    ['4-impact', 'hold', 60],
-    ['5-dustroll', 'hold', 300],
-    ['6-recovery', 'hold', 800],
-    ['7-walk', 'walk', 0],
-    ['8-idle', 'idle', 0]
-  ]) {
-    const r = await setPose('giant', mode, ms, 0.35)
-    if (r !== 'ok') { console.log('giant:', r); continue }
-    await shot(`c-giant-${name}`)
-  }
 
   // ---------- (d) LEVEL CHIPS ---------------------------------------------
   await page.evaluate(() => {

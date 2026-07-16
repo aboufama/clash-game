@@ -65,14 +65,13 @@ try {
       const s = window.__clashGame.scene.keys.MainScene
       if (s.mode !== 'ATTACK') return
       s.hasDeployed = true
-      s.spawnTroop(12, 22, 'giant', 'PLAYER')
+      s.spawnTroop(12, 22, 'golem', 'PLAYER')
       s.spawnTroop(11, 22, 'warrior', 'PLAYER')
       s.spawnTroop(13, 22, 'archer', 'PLAYER')
-      s.spawnTroop(10, 22, 'golem', 'PLAYER')
+      s.spawnTroop(10, 22, 'ram', 'PLAYER')
       s.spawnTroop(14, 22, 'davincitank', 'PLAYER')
       s.spawnTroop(12, 23, 'phalanx', 'PLAYER')
       s.spawnTroop(11, 23, 'wallbreaker', 'PLAYER')
-      s.spawnTroop(13, 23, 'ward', 'PLAYER')
     })
     // Let the battle rage — golem slams, tank volleys, deaths mid-animation.
     await sleep(12000)

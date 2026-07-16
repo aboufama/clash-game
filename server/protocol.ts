@@ -75,7 +75,6 @@ export interface ReplayTroopState {
   gridY: number
   health: number
   maxHealth: number
-  recursionGen?: number
   facingAngle?: number
   hasTakenDamage?: boolean
 }

@@ -1,9 +1,12 @@
 import {
     BUILDING_DEFINITIONS,
     MAP_SIZE,
+    getBuildingStats,
     getTroopStats,
+    type BuildingType,
     type TroopDef
 } from '../config/GameDefinitions';
+import { defenseDps } from './DefenseBehaviorCatalog';
 import type { PlacedBuilding, Troop } from '../types/GameTypes';
 
 export interface CombatPoint {
@@ -16,6 +19,8 @@ export interface CombatNavigationPlan {
     strategicTargetId: string;
     /** The building currently safe to damage: objective or required wall. */
     activeTargetId: string;
+    /** For A* plans always the first wall to breach. For straight-charge
+     * plans it may be ANY structure sitting on the charge ray. */
     blockerId?: string;
     topologyRevision: number;
     routeCost: number;
@@ -53,6 +58,13 @@ interface TraversalContext {
     occupied: Uint8Array;
     wallAt: Array<PlacedBuilding | null>;
     canBypassStructures: boolean;
+    /** Enemy wall ids a parked allied siege tower has turned into ramps:
+     *  crossable at COST_OPEN+12 (never free), never a goal/attack slot,
+     *  never a blocker. The deliberate, scoped exception to invariant 1. */
+    rampWalls?: ReadonlySet<string>;
+    /** Every live, defined structure — straight-charge ray geometry needs
+     * the full set even where the cost grid abstracts it away. */
+    solids: PlacedBuilding[];
     /** Nearby allies committed to the same objective lend a bounded preference
      * to one breach. It remains only a cost hint: an opened gap always wins. */
     breachAffinity: Map<string, string>;
@@ -74,7 +86,8 @@ interface SearchResult {
  *
  * Ground invariants:
  *  - emitted movement waypoints never lie inside a live structure;
- *  - a wall can be a temporary interaction target, never the objective;
+ *  - a wall (or, for straight-charge units, any structure on the charge
+ *    ray) can be a temporary interaction target, never the objective;
  *  - conceptual A* wall crossings are truncated at the first required wall;
  *  - every committed displacement is conservatively sub-stepped and checked.
  */
@@ -139,7 +152,8 @@ export class CombatNavigationSystem {
         allTroops: Troop[],
         topologyRevision: number,
         plannedAt: number,
-        preferredTarget?: PlacedBuilding
+        preferredTarget?: PlacedBuilding,
+        rampWallIds?: ReadonlySet<string>
     ): CombatNavigationSelection {
         const enemies = buildings.filter(building =>
             building.owner !== troop.owner
@@ -163,6 +177,10 @@ export class CombatNavigationSystem {
             priorityCandidates = nonWalls.filter(building => building.type === 'town_hall');
         } else if (stats.targetPriority === 'wall') {
             priorityCandidates = enemies.filter(building => building.type === 'wall');
+        } else if (stats.targetPriority === 'resource') {
+            priorityCandidates = nonWalls.filter(building =>
+                BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS]?.category === 'resource'
+            );
         } else {
             priorityCandidates = nonWalls;
         }
@@ -180,7 +198,7 @@ export class CombatNavigationSystem {
             return { strategicTarget: null, activeTarget: null, plan: null };
         }
 
-        const context = this.buildContext(troop, buildings, allTroops, stats);
+        const context = this.buildContext(troop, buildings, allTroops, stats, rampWallIds);
         let bestTarget: PlacedBuilding | null = null;
         let bestPlan: CombatNavigationPlan | null = null;
 
@@ -188,6 +206,37 @@ export class CombatNavigationSystem {
             if (tier.length === 0) continue;
             bestTarget = null;
             bestPlan = null;
+
+            // Threat-ordered tier (hawk-eye): the PRIORITY tier is ranked by
+            // sustained defense DPS (desc, deterministic id tie-break) and the
+            // first REACHABLE candidate wins outright — route cost never
+            // reorders a threat hunt, so no hysteresis is needed. Lower tiers
+            // keep the standard nearest/route scoring.
+            if (stats.targetOrdering === 'defenseDps' && tier === priorityCandidates) {
+                const ranked = [...tier].sort((a, b) => {
+                    const dpsA = defenseDps(a.type, getBuildingStats(a.type as BuildingType, a.level || 1)) ?? 0;
+                    const dpsB = defenseDps(b.type, getBuildingStats(b.type as BuildingType, b.level || 1)) ?? 0;
+                    return (dpsB - dpsA) || a.id.localeCompare(b.id);
+                });
+                for (const candidate of ranked) {
+                    const plan = this.planToBuildingWithContext(
+                        troop,
+                        candidate,
+                        context,
+                        topologyRevision,
+                        plannedAt,
+                        stats
+                    );
+                    if (plan) {
+                        bestTarget = candidate;
+                        bestPlan = plan;
+                        break;
+                    }
+                }
+                if (bestTarget && bestPlan) break;
+                continue;
+            }
+
             let bestScore = Number.POSITIVE_INFINITY;
             const sorted = [...tier].sort((a, b) => {
                 const distanceDelta = this.edgeDistance(troop.gridX, troop.gridY, a)
@@ -261,10 +310,11 @@ export class CombatNavigationSystem {
         buildings: PlacedBuilding[],
         allTroops: Troop[],
         topologyRevision: number,
-        plannedAt: number
+        plannedAt: number,
+        rampWallIds?: ReadonlySet<string>
     ): CombatNavigationPlan | null {
         const stats = getTroopStats(troop.type, troop.level || 1);
-        const context = this.buildContext(troop, buildings, allTroops, stats);
+        const context = this.buildContext(troop, buildings, allTroops, stats, rampWallIds);
         return this.planToBuildingWithContext(
             troop,
             target,
@@ -275,6 +325,9 @@ export class CombatNavigationSystem {
         );
     }
 
+    /** Route to a moving point (the support-follower lane: physician's cart
+     *  trailing an ally). The point is a zero-size region reached at
+     *  `followRange`; everything else is the standard planner. */
     static planToPoint(
         troop: Troop,
         point: { id?: string; gridX: number; gridY: number },
@@ -282,10 +335,11 @@ export class CombatNavigationSystem {
         buildings: PlacedBuilding[],
         allTroops: Troop[],
         topologyRevision: number,
-        plannedAt: number
+        plannedAt: number,
+        rampWallIds?: ReadonlySet<string>
     ): CombatNavigationPlan | null {
         const stats = getTroopStats(troop.type, troop.level || 1);
-        const context = this.buildContext(troop, buildings, allTroops, stats);
+        const context = this.buildContext(troop, buildings, allTroops, stats, rampWallIds);
         const id = point.id ?? `point:${point.gridX.toFixed(2)},${point.gridY.toFixed(2)}`;
         return this.planToRegion(
             troop,
@@ -309,12 +363,13 @@ export class CombatNavigationSystem {
         x: number,
         y: number,
         buildings: PlacedBuilding[],
-        mapSize: number = MAP_SIZE
+        mapSize: number = MAP_SIZE,
+        rampWallIds?: ReadonlySet<string>
     ): boolean {
         if (!this.isGroundTroop(troop)) {
             return x >= -2.25 && y >= -2.25 && x <= mapSize + 2.25 && y <= mapSize + 2.25;
         }
-        return this.penetrationScore(troop, x, y, buildings, mapSize) <= 0;
+        return this.penetrationScore(troop, x, y, buildings, mapSize, rampWallIds) <= 0;
     }
 
     static resolveMovement(
@@ -324,7 +379,8 @@ export class CombatNavigationSystem {
         fallbackDx: number,
         fallbackDy: number,
         buildings: PlacedBuilding[],
-        mapSize: number = MAP_SIZE
+        mapSize: number = MAP_SIZE,
+        rampWallIds?: ReadonlySet<string>
     ): CombatMovementResult {
         const startX = troop.gridX;
         const startY = troop.gridY;
@@ -351,8 +407,8 @@ export class CombatNavigationSystem {
         const tryStep = (stepX: number, stepY: number): boolean => {
             const nextX = x + stepX;
             const nextY = y + stepY;
-            const before = this.penetrationScore(troop, x, y, buildings, mapSize);
-            const after = this.penetrationScore(troop, nextX, nextY, buildings, mapSize);
+            const before = this.penetrationScore(troop, x, y, buildings, mapSize, rampWallIds);
+            const after = this.penetrationScore(troop, nextX, nextY, buildings, mapSize, rampWallIds);
             if (after <= 0 || (before > 0 && after < before - 0.000_001)) {
                 x = nextX;
                 y = nextY;
@@ -396,6 +452,21 @@ export class CombatNavigationSystem {
     ): CombatNavigationPlan | null {
         const info = BUILDING_DEFINITIONS[target.type as keyof typeof BUILDING_DEFINITIONS];
         if (!info || target.health <= 0 || target.isDestroyed) return null;
+        // Straight-charge units ray-cast the objective and fight the first
+        // structure standing on the line. A* remains their fallback whenever
+        // the ray has no legal stop (friendly geometry, a corner-clipped stop
+        // point), so a charger can never brick on pure geometry.
+        if (stats.straightCharge && !context.canBypassStructures) {
+            const charge = this.planStraightCharge(
+                troop,
+                target,
+                context.solids,
+                topologyRevision,
+                plannedAt,
+                stats
+            );
+            if (charge) return charge;
+        }
         return this.planToRegion(
             troop,
             {
@@ -411,6 +482,176 @@ export class CombatNavigationSystem {
             plannedAt,
             stats
         );
+    }
+
+    /**
+     * Straight-charge planning: draw the ray from the troop to the
+     * objective's footprint center and stop at attack range of the first
+     * structure standing on it — wall OR building, that structure becomes
+     * the active target; once it falls, the next replan re-aims the ray
+     * from the breach and the charge continues. Pure segment geometry: no
+     * cost model, no cohort claims, no RNG, so identical inputs always
+     * yield the identical plan. Returns null whenever the ray has no legal
+     * stop; every caller then falls back to A*.
+     */
+    private static planStraightCharge(
+        troop: Troop,
+        target: PlacedBuilding,
+        solids: PlacedBuilding[],
+        topologyRevision: number,
+        plannedAt: number,
+        stats: TroopDef
+    ): CombatNavigationPlan | null {
+        const info = BUILDING_DEFINITIONS[target.type as keyof typeof BUILDING_DEFINITIONS];
+        if (!info) return null;
+        const originX = troop.gridX;
+        const originY = troop.gridY;
+        const segX = target.gridX + info.width / 2 - originX;
+        const segY = target.gridY + info.height / 2 - originY;
+        const segmentLength = Math.hypot(segX, segY);
+        if (segmentLength < 0.000_001) return null;
+
+        const range = Math.max(0.1, stats.range);
+        // Deterministic ~0.05-tile march along the ray, shared by the
+        // range-stop search and the walk-back. Pure function of endpoints.
+        const stepT = 0.05 / segmentLength;
+        const firstInRangeT = (
+            structure: PlacedBuilding,
+            width: number,
+            height: number
+        ): number => {
+            for (let t = 0; t <= 1; t += stepT) {
+                const distance = this.distanceToRect(
+                    originX + segX * t,
+                    originY + segY * t,
+                    structure.gridX,
+                    structure.gridY,
+                    structure.gridX + width,
+                    structure.gridY + height
+                );
+                if (distance <= range) return t;
+            }
+            // t = 1 is the footprint center: always within range.
+            return 1;
+        };
+        const targetStopT = firstInRangeT(target, info.width, info.height);
+
+        // The charge fights the first structure whose radius-inflated
+        // footprint the segment enters before it reaches attack range of
+        // the objective; later intersections are behind the stop point.
+        const radius = this.agentRadius(troop);
+        let blocker: PlacedBuilding | null = null;
+        let blockerWidth = 0;
+        let blockerHeight = 0;
+        let blockerEntryT = Number.POSITIVE_INFINITY;
+        for (const solid of solids) {
+            if (solid.id === target.id) continue;
+            const solidInfo = BUILDING_DEFINITIONS[solid.type as keyof typeof BUILDING_DEFINITIONS];
+            if (!solidInfo) continue;
+            const entryT = this.segmentEntryIntoRect(
+                originX,
+                originY,
+                segX,
+                segY,
+                solid.gridX - radius,
+                solid.gridY - radius,
+                solid.gridX + solidInfo.width + radius,
+                solid.gridY + solidInfo.height + radius
+            );
+            if (entryT === null) continue;
+            // A friendly structure on the line can never be fought through:
+            // surrender the whole charge to A* instead of idling against it.
+            if (solid.owner === troop.owner) return null;
+            if (entryT >= targetStopT) continue;
+            if (entryT < blockerEntryT
+                || (entryT === blockerEntryT && solid.id < (blocker?.id ?? ''))) {
+                blocker = solid;
+                blockerWidth = solidInfo.width;
+                blockerHeight = solidInfo.height;
+                blockerEntryT = entryT;
+            }
+        }
+
+        const stopTarget = blocker ?? target;
+        // Already at fighting distance of whatever the ray says to hit:
+        // hold. Mirrors planToRegion's stopPlan shape (goal = current
+        // position, no waypoints) so the empty-waypoint terminal-state
+        // reset downstream keeps stuck recovery quiet.
+        if (this.edgeDistance(originX, originY, stopTarget) <= stats.range + 0.08) {
+            return {
+                strategicTargetId: target.id,
+                activeTargetId: stopTarget.id,
+                blockerId: blocker?.id,
+                topologyRevision,
+                routeCost: 0,
+                goal: { x: originX, y: originY },
+                waypoints: [],
+                plannedAt
+            };
+        }
+
+        const stopT = blocker
+            ? firstInRangeT(blocker, blockerWidth, blockerHeight)
+            : targetStopT;
+
+        // The segment before the stop clears every inflated footprint, but
+        // the stop point itself may clip a structure adjacent to the line.
+        // Walk back along the ray; if no legal point remains inside the
+        // acceptance range the charge is corner-clipped and A* must take
+        // over (never phase, and never return a plan that stuck recovery
+        // would re-derive forever).
+        for (let back = 0; back <= 12; back++) {
+            const t = stopT - back * stepT;
+            if (t < 0) break;
+            const x = originX + segX * t;
+            const y = originY + segY * t;
+            if (!this.isPositionWalkable(troop, x, y, solids)) continue;
+            if (this.edgeDistance(x, y, stopTarget) > stats.range + 0.08) return null;
+            return {
+                strategicTargetId: target.id,
+                activeTargetId: stopTarget.id,
+                blockerId: blocker?.id,
+                topologyRevision,
+                routeCost: segmentLength * this.COST_OPEN,
+                goal: { x, y },
+                waypoints: [{ x, y }],
+                plannedAt
+            };
+        }
+        return null;
+    }
+
+    /** Smallest t in [0,1] at which the segment origin + t·(dx,dy) is inside
+     * the rect (0 when it starts inside), or null when the segment misses. */
+    private static segmentEntryIntoRect(
+        originX: number,
+        originY: number,
+        dx: number,
+        dy: number,
+        minX: number,
+        minY: number,
+        maxX: number,
+        maxY: number
+    ): number | null {
+        let tEntry = 0;
+        let tExit = 1;
+        if (Math.abs(dx) < 0.000_000_001) {
+            if (originX < minX || originX > maxX) return null;
+        } else {
+            const t1 = (minX - originX) / dx;
+            const t2 = (maxX - originX) / dx;
+            tEntry = Math.max(tEntry, Math.min(t1, t2));
+            tExit = Math.min(tExit, Math.max(t1, t2));
+        }
+        if (Math.abs(dy) < 0.000_000_001) {
+            if (originY < minY || originY > maxY) return null;
+        } else {
+            const t1 = (minY - originY) / dy;
+            const t2 = (maxY - originY) / dy;
+            tEntry = Math.max(tEntry, Math.min(t1, t2));
+            tExit = Math.min(tExit, Math.max(t1, t2));
+        }
+        return tEntry <= tExit ? tEntry : null;
     }
 
     private static planToRegion(
@@ -599,7 +840,8 @@ export class CombatNavigationSystem {
         troop: Troop,
         buildings: PlacedBuilding[],
         allTroops: Troop[],
-        stats: TroopDef
+        stats: TroopDef,
+        rampWallIds?: ReadonlySet<string>
     ): TraversalContext {
         const grid = this.gridScratch;
         const occupied = this.occupiedScratch;
@@ -609,6 +851,10 @@ export class CombatNavigationSystem {
         wallAt.fill(null);
 
         const canBypassStructures = stats.movementType === 'air' || stats.movementType === 'ghost';
+        const solids = buildings.filter(building =>
+            building.health > 0 && !building.isDestroyed
+            && !!BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS]
+        );
         const breachAffinity = new Map<string, string>();
         if (!canBypassStructures) {
             const wallDamage = Math.max(0.1, stats.damage * (stats.wallDamageMultiplier ?? 1));
@@ -621,10 +867,18 @@ export class CombatNavigationSystem {
                 if (!info) continue;
 
                 const enemyWall = building.type === 'wall' && building.owner !== troop.owner;
+                // Ally ramp (parked siege tower): the wall is crossable at a
+                // small toll — COST_OPEN+12, never free or ramps would beat
+                // open ground. occupied stays 1 (never a goal/attack slot);
+                // wallAt stays null (never a blocker, so the physical route
+                // is NOT truncated at it).
+                const isRamp = enemyWall && !!rampWallIds?.has(building.id);
                 const baseWallCost = stats.wallTraversalCost ?? 220;
-                const wallCost = enemyWall
-                    ? this.COST_OPEN + baseWallCost + (building.health / wallDps) * 35
-                    : this.COST_IMPASSABLE;
+                const wallCost = isRamp
+                    ? this.COST_OPEN + 12
+                    : enemyWall
+                        ? this.COST_OPEN + baseWallCost + (building.health / wallDps) * 35
+                        : this.COST_IMPASSABLE;
 
                 for (let x = building.gridX; x < building.gridX + info.width; x++) {
                     for (let y = building.gridY; y < building.gridY + info.height; y++) {
@@ -634,7 +888,7 @@ export class CombatNavigationSystem {
                         const index = gridY * this.GRID_SIZE + gridX;
                         occupied[index] = 1;
                         grid[index] = Math.max(grid[index], wallCost);
-                        if (enemyWall) wallAt[index] = building;
+                        if (enemyWall && !isRamp) wallAt[index] = building;
                     }
                 }
             }
@@ -661,6 +915,9 @@ export class CombatNavigationSystem {
             for (const other of allTroops) {
                 if (other.owner !== troop.owner || other.health <= 0) continue;
                 const plan = other.navigationPlan;
+                // The liveWallIds guard also intentionally drops straight-
+                // charge blockers that are ordinary buildings: only wall
+                // breaches take affinity votes.
                 if (!plan?.blockerId || !liveWallIds.has(plan.blockerId)) continue;
                 const distance = Math.hypot(other.gridX - troop.gridX, other.gridY - troop.gridY);
                 if (other.id !== troop.id && distance > 7.5) continue;
@@ -705,7 +962,7 @@ export class CombatNavigationSystem {
             cells.set(index, (cells.get(index) ?? 0) + 1);
         }
 
-        return { grid, occupied, wallAt, canBypassStructures, breachAffinity, goalClaims };
+        return { grid, occupied, wallAt, canBypassStructures, solids, breachAffinity, goalClaims, rampWalls: rampWallIds };
     }
 
     /** Stable per-troop approach preference derived from the id hash — the
@@ -835,7 +1092,8 @@ export class CombatNavigationSystem {
         x: number,
         y: number,
         buildings: PlacedBuilding[],
-        mapSize: number
+        mapSize: number,
+        rampWallIds?: ReadonlySet<string>
     ): number {
         let score = 0;
         if (x < -2.25) score += -2.25 - x;
@@ -846,6 +1104,10 @@ export class CombatNavigationSystem {
         const radius = this.agentRadius(troop);
         for (const building of buildings) {
             if (building.health <= 0 || building.isDestroyed) continue;
+            // Ramped wall (parked allied siege tower): physically crossable —
+            // the cost model above keeps it priced, this keeps it passable.
+            // Both layers must agree or troops plan through and bounce off.
+            if (rampWallIds?.has(building.id)) continue;
             const info = BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS];
             if (!info) continue;
             const minX = building.gridX - radius;

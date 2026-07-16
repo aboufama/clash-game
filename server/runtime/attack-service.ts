@@ -9,6 +9,7 @@ import {
   watchtowerSightOf
 } from '../../src/game/config/Economy'
 import type { SerializedWorld } from '../../src/game/data/Models'
+import { GENERATED_ONLY } from '../../src/game/config/GameDefinitions'
 import { generateBotWorldFromSeed } from '../../src/game/backend/BotWorlds'
 import {
   applyAttackCommand,
@@ -155,7 +156,6 @@ type ReplayFrame = {
     gridY: number
     health: number
     maxHealth: number
-    recursionGen?: number
     facingAngle?: number
     hasTakenDamage?: boolean
   }>
@@ -216,7 +216,7 @@ function safeArmy(raw: unknown): TroopCounts {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   const out: TroopCounts = {}
   for (const [type, rawCount] of Object.entries(raw as Record<string, unknown>)) {
-    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(type) || type === 'romanwarrior') continue
+    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(type) || GENERATED_ONLY.has(type)) continue
     const count = nonNegativeInt(rawCount, 0, 10_000)
     if (count > 0) out[type as keyof TroopCounts] = count
   }
@@ -370,7 +370,6 @@ function sanitizeFrame(raw: unknown, maxT: number): ReplayFrame | null {
           gridY: finiteNumber(state.gridY),
           health: nonNegativeInt(state.health, 0, 100_000_000),
           maxHealth: Math.max(1, nonNegativeInt(state.maxHealth, 1, 100_000_000)),
-          ...(state.recursionGen === undefined ? {} : { recursionGen: nonNegativeInt(state.recursionGen, 0, 8) }),
           ...(state.facingAngle === undefined ? {} : { facingAngle: finiteNumber(state.facingAngle, 0, -100, 100) }),
           ...(state.hasTakenDamage === undefined ? {} : { hasTakenDamage: Boolean(state.hasTakenDamage) })
         }]

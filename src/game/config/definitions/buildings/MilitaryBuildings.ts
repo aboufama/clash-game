@@ -12,7 +12,7 @@ export const MILITARY_BUILDING_DEFINITIONS: BuildingDefinitionMap<MilitaryBuildi
         category: 'military',
         maxCount: 1,
         color: 0xff3333,
-        maxLevel: 14,
+        maxLevel: 11,
         levels: [
             { hp: 850, cost: 200 },
             { hp: 900, cost: 320 },
@@ -24,13 +24,11 @@ export const MILITARY_BUILDING_DEFINITIONS: BuildingDefinitionMap<MilitaryBuildi
             { hp: 1280, cost: 1550 },
             { hp: 1380, cost: 1900 },
             { hp: 1480, cost: 2300 },
-            { hp: 1600, cost: 2800 },
-            { hp: 1750, cost: 3400 },
-            { hp: 1900, cost: 4000 },
-            // L14 added with the icegolem unlock (slotted after golem, pushing
-            // davincitank to 14). Art reuses the max L13 bake/vector tier —
-            // both SpriteBank and drawBarracks clamp to the nearest baked level.
-            { hp: 2050, cost: 4700 }
+            // L11 added with the 2-troops-per-level unlock rework (ornithopter
+            // capstone). Levels past the baked art reuse the nearest baked
+            // tier automatically (BuildingRenderer level clamp + SpriteBank
+            // nearest-baked-level fallback) — no re-bake needed.
+            { hp: 1580, cost: 2750 }
         ]
     },
     lab: {

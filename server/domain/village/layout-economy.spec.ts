@@ -61,7 +61,7 @@ expectRule('DUPLICATE_BUILDING_ID', () => sanitizeBuildings([
 ], context))
 
 assert.deepEqual(
-  { ...sanitizeArmy({ warrior: 3.8, archer: -4, romanwarrior: 99, bogus: 5 }) },
+  { ...sanitizeArmy({ warrior: 3.8, archer: -4, romanwarrior: 99, skeleton: 12, bogus: 5 }) },
   { warrior: 3 }
 )
 

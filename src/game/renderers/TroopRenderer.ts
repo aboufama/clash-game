@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import type { TroopType } from '../config/GameDefinitions';
+import { TROOP_DEFINITIONS, type TroopType } from '../config/GameDefinitions';
 import { drawGolemC } from './redesign/GolemC';
 import { drawIceGolem as drawIceGolemArt } from './redesign/IceGolem';
+import { activeDesign, type DesignUnit } from './redesign/DesignRegistry';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -14,8 +15,7 @@ type G = Phaser.GameObjects.Graphics;
  * so every humanoid here is drawn ~19-21px head-to-toe (ground at y≈+9.5,
  * head top ≈ -11). Weapons/hats may poke a few px higher — bodies must not.
  * Machines and monsters (golem, da vinci tank, ram trunk) keep their bulk,
- * but any human crew on them uses this same villager scale. The giant is
- * deliberately ~2x a villager — big, but the same world.
+ * but any human crew on them uses this same villager scale.
  *
  * THE ANIMATION CONTRACT: all motion is a deterministic function of the
  * `time` parameter — sines and phases, never Math.random() per frame.
@@ -46,11 +46,6 @@ const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
 const easeIn = (t: number): number => t * t;
 
 export class TroopRenderer {
-    /** ms after the damage tick at which the sharpshooter's ball leaves the
-     *  muzzle — MainScene's projectile delay and the renderer's flash/recoil
-     *  keyframes both read this so they can never drift apart. */
-    static readonly MUSKET_FIRE_MS = 330;
-
     static drawTroopVisual(
         graphics: G,
         type: TroopType,
@@ -58,9 +53,10 @@ export class TroopRenderer {
         facingAngle: number = 0,
         isMoving: boolean = true,
         slamOffset: number = 0,
-        bowDrawProgress: number = 0,
         mortarRecoil: number = 0,
-        isDeactivated: boolean = false,
+        // Boolean for the da-vinci husk; the siege tower rides the same slot
+        // as its continuous parked01 driver (0 rolling → 1 parked).
+        isDeactivated: boolean | number = false,
         phalanxSpearOffset: number = 0,
         troopLevel: number = 1,
         // Callers MUST pass sim/scene time; the default is a deterministic
@@ -70,7 +66,6 @@ export class TroopRenderer {
         attackAge: number = -1,
         attackDelay: number = 0
     ) {
-        void bowDrawProgress; // legacy sharpshooter tween driver — pose now keys off attackAge
         const isPlayer = owner === 'PLAYER';
 
         switch (type) {
@@ -80,26 +75,14 @@ export class TroopRenderer {
             case 'archer':
                 TroopRenderer.drawArcher(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay);
                 break;
-            case 'giant':
-                TroopRenderer.drawGiant(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
-                break;
             case 'golem':
                 TroopRenderer.drawGolem(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
                 break;
             case 'icegolem':
                 TroopRenderer.drawIceGolem(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
                 break;
-            case 'sharpshooter':
-                TroopRenderer.drawSharpshooter(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay);
-                break;
             case 'mobilemortar':
                 TroopRenderer.drawMobileMortar(graphics, isPlayer, isMoving, facingAngle, mortarRecoil, troopLevel, time, attackAge, attackDelay);
-                break;
-            case 'ward':
-                TroopRenderer.drawWard(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
-                break;
-            case 'recursion':
-                TroopRenderer.drawRecursion(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'ram':
                 TroopRenderer.drawRam(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay);
@@ -108,7 +91,7 @@ export class TroopRenderer {
                 TroopRenderer.drawStormMage(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'davincitank':
-                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, isDeactivated, facingAngle, troopLevel, time);
+                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, !!isDeactivated, facingAngle, troopLevel, time);
                 break;
             case 'phalanx':
                 TroopRenderer.drawPhalanx(graphics, isPlayer, isMoving, facingAngle, phalanxSpearOffset, troopLevel, time);
@@ -119,7 +102,128 @@ export class TroopRenderer {
             case 'wallbreaker':
                 TroopRenderer.drawWallBreaker(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
+            // ===== 2026-07 troop-overhaul units: tournament slot when filled,
+            // neutral placeholder until then (art phase pending) =====
+            case 'goblinplunderer':
+                TroopRenderer.drawNewTroop(graphics, 'goblinplunderer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'clockworkbeetle':
+                TroopRenderer.drawNewTroop(graphics, 'clockworkbeetle', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'physicianscart':
+                TroopRenderer.drawNewTroop(graphics, 'physicianscart', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'pavisebearer':
+                TroopRenderer.drawNewTroop(graphics, 'pavisebearer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'quartermaster':
+                TroopRenderer.drawNewTroop(graphics, 'quartermaster', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'siegetower':
+                // driver = parked01 (the davincitank isDeactivated plumbing);
+                // MainScene tweens it 0→1 through the redraw path on parking.
+                TroopRenderer.drawNewTroop(graphics, 'siegetower', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay,
+                    typeof isDeactivated === 'number' ? Math.max(0, Math.min(1, isDeactivated)) : (isDeactivated ? 1 : 0));
+                break;
+            case 'necromancer':
+                TroopRenderer.drawNewTroop(graphics, 'necromancer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'trebuchet':
+                TroopRenderer.drawNewTroop(graphics, 'trebuchet', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'hawkeyeassassin':
+                TroopRenderer.drawNewTroop(graphics, 'hawkeyeassassin', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'warelephant':
+                TroopRenderer.drawNewTroop(graphics, 'warelephant', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'ornithopter':
+                TroopRenderer.drawNewTroop(graphics, 'ornithopter', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'skeleton': {
+                // Generated-only summon: art ships inside the winning
+                // necromancer design (skeleton slots mirror necromancer's).
+                const skeletonDesign = activeDesign('skeleton');
+                if (skeletonDesign) {
+                    skeletonDesign(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                } else {
+                    TroopRenderer.drawPlaceholder(graphics, 'skeleton', isPlayer, isMoving, time);
+                }
+                break;
+            }
         }
+    }
+
+    /** New-troop dispatch: the live tournament design when a slot is filled,
+     *  else the neutral placeholder. `driver` = the unit's bespoke tweened
+     *  driver (parked01 for siegetower), 0 when unused. */
+    private static drawNewTroop(
+        g: G,
+        unit: Exclude<DesignUnit, 'frostfall'>,
+        isPlayer: boolean,
+        isMoving: boolean,
+        facingAngle: number,
+        troopLevel: number,
+        time: number,
+        attackAge: number,
+        attackDelay: number,
+        driver: number
+    ): void {
+        const design = activeDesign(unit);
+        if (design) {
+            design(g, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, driver);
+            return;
+        }
+        TroopRenderer.drawPlaceholder(g, unit, isPlayer, isMoving, time);
+    }
+
+    /** Multiply a 0xRRGGBB colour toward dark (m<1) or light (m>1). */
+    private static shade(c: number, m: number): number {
+        const r = Math.max(0, Math.min(255, Math.round(((c >> 16) & 0xff) * m)));
+        const g = Math.max(0, Math.min(255, Math.round(((c >> 8) & 0xff) * m)));
+        const b = Math.max(0, Math.min(255, Math.round((c & 0xff) * m)));
+        return (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * Neutral tournament placeholder — a readable capsule figure in the
+     * troop's definition colour, bulk scaled by housing space (space 1 ≈ the
+     * villager-scale humanoid) so battle silhouettes stay honest before the
+     * real art lands. All motion is a deterministic f(time): the walk bounce
+     * closes on a 500 ms stride and the idle bob on an exact 2000 ms period
+     * (250 ms harmonics — bake-safe, iron rule 3). Air units hover with a
+     * detached ground shadow. Safe at every level and for both owners.
+     */
+    private static drawPlaceholder(g: G, type: TroopType, isPlayer: boolean, isMoving: boolean, time: number): void {
+        const def = TROOP_DEFINITIONS[type];
+        const color = def?.color ?? 0x9a9a9a;
+        const space = def?.space ?? 1;
+        const air = def?.movementType === 'air';
+        const s = 0.85 + Math.sqrt(space) * 0.32; // space 1 ≈ ~19 px tall
+        const bodyW = 6.6 * s;
+        const bodyH = 13.5 * s;
+        const bob = isMoving
+            ? Math.abs(Math.sin(((time % 500) / 500) * Math.PI * 2)) * 1.1
+            : (Math.sin(((time % 2000) / 2000) * Math.PI * 2) * 0.5 + 0.5) * 0.8;
+        const hover = air ? 7 + Math.sin(((time % 2000) / 2000) * Math.PI * 2) * 1.2 : 0;
+        const groundY = 9.5;
+        const top = groundY - bodyH - bob - hover;
+        const owner = isPlayer ? 1 : 0.7; // enemies darken (palette convention)
+
+        // Contact shadow stays on the ground (air units cast it detached).
+        g.fillStyle(0x000000, air ? 0.14 : 0.22);
+        g.fillEllipse(0, groundY + 0.1, bodyW * (air ? 0.9 : 1.25), bodyW * 0.45);
+
+        // Capsule body with a darker rim for silhouette read.
+        g.fillStyle(TroopRenderer.shade(color, 0.55 * owner), 1);
+        g.fillRoundedRect(-bodyW / 2 - 0.7, top - 0.7, bodyW + 1.4, bodyH + 1.4, (bodyW + 1.4) / 2);
+        g.fillStyle(TroopRenderer.shade(color, owner), 1);
+        g.fillRoundedRect(-bodyW / 2, top, bodyW, bodyH, bodyW / 2);
+        // NW-light cap highlight + visor band so the figure reads as a unit.
+        g.fillStyle(TroopRenderer.shade(color, 1.35 * owner), 1);
+        g.fillEllipse(-bodyW * 0.14, top + bodyH * 0.18, bodyW * 0.52, bodyH * 0.2);
+        g.fillStyle(TroopRenderer.shade(color, 0.4 * owner), 1);
+        g.fillRect(-bodyW * 0.32, top + bodyH * 0.32, bodyW * 0.64, 1.4);
     }
 
     // ================= villager-scale humanoid toolkit =================
@@ -446,136 +550,6 @@ export class TroopRenderer {
         }
     }
 
-    // ========================= SHARPSHOOTER =========================
-    // Elite marksman with a long musket (was an oversized archer). Walks at
-    // port arms; shoulders the piece as the cooldown ends; on the tick the
-    // hammer falls — flash, recoil kick and a drifting powder plume, all
-    // keyed to MUSKET_FIRE_MS so the ball leaves with the flash.
-    private static drawSharpshooter(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
-        const rig = TroopRenderer.hRig(time, isMoving, 430, 2.2, 2);
-        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 1400, 420, 0);
-        const lift = rig.lift;
-        const FIRE = TroopRenderer.MUSKET_FIRE_MS;
-
-        const coat = isPlayer ? 0x33691e : 0x5d4037;
-        const coatDark = isPlayer ? 0x1f4212 : 0x3e2c23;
-        const skin = 0xe8d4b8;
-        const fa = facingAngle || 0;
-        const ax = Math.cos(fa);
-        const ays = (d: number) => Math.sin(fa) * 0.5 * d; // iso squash along aim
-
-        // Shoulder-raise: up during the wind-up, held through the shot,
-        // lowered back to port ~600ms after the tick.
-        let raise = 0;
-        if (!isMoving && atk.inCombat) {
-            if (atk.windup > 0) raise = easeOut(atk.windup);
-            else if (atk.age <= 620) raise = 1;
-            else if (atk.age <= 900) raise = 1 - easeIn((atk.age - 620) / 280);
-        }
-        // Recoil kick right after the ball leaves.
-        const sinceFire = atk.age - FIRE;
-        const kick = (raise > 0 && sinceFire >= 0 && sinceFire < 260) ? Math.exp(-sinceFire / 70) * 1.8 : 0;
-
-        TroopRenderer.hShadow(g, 9);
-        TroopRenderer.hLegs(g, coatDark, rig.swing, lift, 1.6);
-
-        // Long coat tail (a small trapezoid behind the legs).
-        g.fillStyle(coatDark, 1);
-        g.beginPath();
-        g.moveTo(-3.4, 1.5 - lift);
-        g.lineTo(3.4, 1.5 - lift);
-        g.lineTo(2.6 - rig.swing * 0.4, 6.5);
-        g.lineTo(-2.6 - rig.swing * 0.4, 6.5);
-        g.closePath();
-        g.fillPath();
-
-        const lean = raise * ax * 0.7 - kick * ax * 0.5;
-        TroopRenderer.hTorso(g, coat, coatDark, lift, 4.1, lean);
-        // Powder horn strap
-        g.lineStyle(1, 0x4a341f, 0.9);
-        g.lineBetween(-2.4 + lean, -3.8 - lift, 2.6 + lean, 0.6 - lift);
-
-        // Head: cheek drops toward the stock when aiming.
-        const hx = lean + raise * ax * 0.6;
-        TroopRenderer.hHead(g, skin, lift + raise * 0.4, undefined, hx);
-        // Flat-brim marksman hat.
-        g.fillStyle(0x3e2c23, 1);
-        g.fillEllipse(hx, -9 - lift + raise * 0.4, 7.6, 2);
-        g.beginPath();
-        g.arc(hx, -9.2 - lift + raise * 0.4, 2.6, Math.PI, 0, false);
-        g.closePath();
-        g.fillPath();
-        if (troopLevel >= 2) {
-            g.fillStyle(0xdaa520, 1);
-            g.fillRect(hx - 2.4, -9.6 - lift + raise * 0.4, 4.8, 0.9);
-        }
-        if (troopLevel >= 3) {
-            // White feather plume — a subtle accent.
-            g.fillStyle(0xe8e4da, 0.95);
-            g.fillTriangle(hx + 1.8, -10 - lift, hx + 4.6, -13.2 - lift, hx + 2.8, -9.6 - lift);
-        }
-
-        // ---- musket: interpolate port-arms → shouldered along the aim.
-        const barrelLen = troopLevel >= 3 ? 12 : 10.8;
-        // Port pose endpoints (fixed diagonal across the body)
-        const pBx = -2.6, pBy = 1 - lift, pMx = 3.4, pMy = -7.8 - lift;
-        // Shouldered pose endpoints (along facing, butt at the shoulder)
-        const sBx = -ax * 2.2 - kick * ax, sBy = -6.4 - lift + ays(-2.2) + 0.7;
-        const sMx = ax * barrelLen - kick * ax, sMy = -7 - lift + ays(barrelLen) - kick * 0.15;
-        const bxp = pBx + (sBx - pBx) * raise, byp = pBy + (sBy - pBy) * raise;
-        const mxp = pMx + (sMx - pMx) * raise, myp = pMy + (sMy - pMy) * raise;
-
-        // Wood stock: the back 40% of the piece, thicker.
-        const stX = bxp + (mxp - bxp) * 0.38, stY = byp + (myp - byp) * 0.38;
-        TroopRenderer.hLimb(g, 0x5d4037, bxp, byp, stX, stY, 2.5);
-        // Barrel
-        TroopRenderer.hLimb(g, 0x757b85, stX, stY, mxp, myp, 1.4);
-        g.fillStyle(0x2a2d33, 1);
-        g.fillCircle(mxp, myp, 0.9);
-        if (troopLevel >= 2) {
-            g.fillStyle(0xdaa520, 1);
-            const b1x = bxp + (mxp - bxp) * 0.55, b1y = byp + (myp - byp) * 0.55;
-            g.fillCircle(b1x, b1y, 1);
-        }
-        // Hands: trigger hand at the stock, support hand up the barrel.
-        TroopRenderer.hLimb(g, skin, lean + 2.4, -2.8 - lift, stX, stY, 1.7);
-        const supX = bxp + (mxp - bxp) * 0.62, supY = byp + (myp - byp) * 0.62;
-        TroopRenderer.hLimb(g, skin, lean - 1.8, -2.6 - lift, supX, supY, 1.7);
-        g.fillStyle(skin, 1);
-        g.fillCircle(stX, stY, 1.2);
-        g.fillCircle(supX, supY, 1.2);
-
-        // ---- the shot: flash + powder smoke, keyed to MUSKET_FIRE_MS.
-        if (raise > 0.9 && sinceFire >= 0) {
-            if (sinceFire < 85) {
-                const fl = 1 - sinceFire / 85;
-                g.fillStyle(0xffd27a, 0.75 * fl);
-                g.fillCircle(mxp + ax * 1.4, myp + ays(1.4), 2.6);
-                g.fillStyle(0xfff3d0, 0.9 * fl);
-                for (let i = 0; i < 4; i++) {
-                    const sa = fa + (i - 1.5) * 0.5;
-                    g.fillTriangle(
-                        mxp + ax * 0.8, myp + ays(0.8),
-                        mxp + Math.cos(sa) * 4.4, myp + Math.sin(sa) * 0.5 * 4.4 - 0.4,
-                        mxp + Math.cos(sa + 0.16) * 2.2, myp + Math.sin(sa + 0.16) * 0.5 * 2.2
-                    );
-                }
-            }
-            // Powder plume: puffs rolling out of the muzzle, drifting up.
-            for (let i = 0; i < 4; i++) {
-                const p = clamp01((sinceFire - i * 80) / 640);
-                if (p > 0 && p < 1) {
-                    g.fillStyle(0xd9d4c8, 0.5 * (1 - p));
-                    g.fillCircle(
-                        mxp + ax * (1.6 + p * 8 + i * 1.2) - Math.sin(fa) * (i - 1.5) * 0.8,
-                        myp + ays(1.6 + p * 8) - p * (5 + i * 1.4),
-                        1.5 + p * 3.4
-                    );
-                }
-            }
-        }
-    }
-
     // =========================== STORM MAGE ===========================
     // Robed villager-scale caster. Attack: both hands raise the staff as
     // the charge builds (motes spiral in), then a glyph ring flashes over
@@ -727,142 +701,6 @@ export class TroopRenderer {
         }
     }
 
-    // ============================= WARD =============================
-    // The healer. Keeps its heal-radius aura (gameplay info); the figure is
-    // a villager-scale hooded acolyte with an orb staff. Heal ticks raise
-    // the free palm and send motes up; the orb flashes on the tick.
-    private static drawWard(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
-        const rig = TroopRenderer.hRig(time, isMoving, 520, 1.6, 4);
-        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 1000, 420, 300);
-        const lift = rig.lift;
-
-        const glow = isPlayer ? 0x58d68d : 0x45b39d;
-        const robe = isPlayer ? 0x2ecc71 : 0x27ae60;
-        const robeDark = isPlayer ? 0x1e8449 : 0x196f3d;
-        const skin = isPlayer ? 0xdeb887 : 0xc9a66b;
-        const wu = (!isMoving && atk.inCombat) ? atk.windup : 0;
-        const st = (!isMoving && atk.inCombat) ? atk.strike : 0;
-
-        // Heal-radius aura (kept: it communicates the heal range).
-        const healRadiusPixels = 7 * 32;
-        const pulseAlpha = 0.1 + Math.sin(time / 300) * 0.05;
-        g.lineStyle(3, glow, pulseAlpha + 0.15);
-        g.beginPath();
-        const segments = 48;
-        for (let i = 0; i <= segments; i++) {
-            const theta = (i / segments) * Math.PI * 2;
-            const noise = Math.sin(time / 25 + theta * 3) * 4 +
-                Math.sin(time / 37 + theta * 7) * 2 +
-                Math.sin(time / 20 + theta * 11) * 1.5;
-            const rx = (healRadiusPixels + noise) * Math.cos(theta);
-            const ry = ((healRadiusPixels / 2) + noise * 0.5) * Math.sin(theta);
-            if (i === 0) g.moveTo(rx, 5 + ry);
-            else g.lineTo(rx, 5 + ry);
-        }
-        g.closePath();
-        g.strokePath();
-        g.fillStyle(glow, pulseAlpha * 0.25);
-        g.fillEllipse(0, 5, healRadiusPixels, healRadiusPixels / 2);
-
-        TroopRenderer.hShadow(g, 9);
-
-        // Robe skirt.
-        const hem = isMoving ? rig.swing * 0.45 : 0;
-        g.fillStyle(robeDark, 1);
-        g.beginPath();
-        g.moveTo(-3.5, 0.8 - lift * 0.5);
-        g.lineTo(3.5, 0.8 - lift * 0.5);
-        g.lineTo(4.3 + hem, 9.4);
-        g.lineTo(-4.3 + hem, 9.4);
-        g.closePath();
-        g.fillPath();
-        g.fillStyle(robe, 1);
-        g.beginPath();
-        g.moveTo(-2.9, 0.8 - lift * 0.5);
-        g.lineTo(2.9, 0.8 - lift * 0.5);
-        g.lineTo(3.5 + hem, 8.6);
-        g.lineTo(-3.5 + hem, 8.6);
-        g.closePath();
-        g.fillPath();
-        if (troopLevel >= 2) {
-            g.lineStyle(0.9, 0xdaa520, 0.8);
-            g.lineBetween(-3.8 + hem, 8.9, 3.8 + hem, 8.9);
-        }
-
-        TroopRenderer.hTorso(g, robe, robeDark, lift, 3.9);
-
-        // Hooded head with an open face.
-        g.fillStyle(robeDark, 1);
-        g.fillCircle(0, -7.2 - lift, 3.2);
-        g.fillStyle(skin, 1);
-        g.fillCircle(0, -6.8 - lift, 2.3);
-        g.fillStyle(robe, 1);
-        g.beginPath();
-        g.arc(0, -7.6 - lift, 3, Math.PI * 0.85, Math.PI * 0.15, false);
-        g.closePath();
-        g.fillPath();
-        g.fillStyle(0x2a5a1a, 1);
-        g.fillCircle(-1, -6.8 - lift, 0.65);
-        g.fillCircle(1, -6.8 - lift, 0.65);
-
-        // Staff with the healing orb.
-        const stfX = 4.6 + (isMoving ? rig.swing * 0.3 : 0);
-        g.lineStyle(1.5, 0x5d4e37, 1);
-        g.lineBetween(stfX, -10.5 - lift, stfX, 8.2 - lift * 0.5);
-        TroopRenderer.hLimb(g, robe, 2.6, -2.6 - lift, stfX, -3 - lift, 1.8);
-        g.fillStyle(skin, 1);
-        g.fillCircle(stfX, -3 - lift, 1.1);
-
-        const orbY = -12.2 - lift;
-        // Orb glow closes on whichever loop is playing: one cycle per 520 ms
-        // stride while walking, harmonic 3 of the idle breath at rest.
-        const orbPulse = 0.75 + Math.sin(isMoving ? time * (Math.PI * 2) / 520 : time * 3 / 640) * 0.15;
-        g.fillStyle(0x88ffcc, orbPulse * (0.75 + 0.25 * st));
-        g.fillCircle(stfX, orbY, 2.1 + 0.6 * st);
-        g.fillStyle(0xffffff, 0.55 + 0.35 * st);
-        g.fillCircle(stfX - 0.6, orbY - 0.6, 0.8);
-        g.lineStyle(1, 0xaaffdd, 0.35 + 0.3 * st);
-        g.strokeCircle(stfX, orbY, 3.6 + st);
-        if (troopLevel >= 2) {
-            g.lineStyle(0.8, 0xffd700, 0.45);
-            g.strokeCircle(stfX, orbY, 3);
-        }
-        if (troopLevel >= 3) {
-            g.lineStyle(0.7, glow, 0.3);
-            g.strokeCircle(stfX, orbY, 4.6 + st * 0.6);
-            g.fillStyle(0xffffff, 0.35);
-            g.fillCircle(stfX, orbY, 1.2);
-        }
-
-        // Free palm: raised while the blessing gathers, motes rise on the tick.
-        const palmX = -4.4 - wu, palmY = -4 - lift - 1.8 * wu;
-        TroopRenderer.hLimb(g, robe, -2.4, -2.4 - lift, palmX, palmY, 1.8);
-        g.fillStyle(skin, 1);
-        g.fillCircle(palmX, palmY, 1.1);
-        if (wu > 0.1) {
-            g.fillStyle(glow, 0.5 * wu);
-            g.fillCircle(palmX, palmY - 1.4, 1.2);
-        }
-        if (st > 0) {
-            for (let i = 0; i < 3; i++) {
-                const p = clamp01(atk.age / 300 + i * 0.12);
-                if (p < 1) {
-                    g.fillStyle(glow, 0.7 * (1 - p));
-                    g.fillCircle(palmX - 2 + i * 2, palmY - p * 6 - 1, 1);
-                }
-            }
-        }
-        // Ambient: two soft motes drifting around her when idle — one orbit
-        // per 2π·640 ms idle loop so the baked breath closes.
-        if (!isMoving && wu === 0 && st === 0) {
-            for (let i = 0; i < 2; i++) {
-                const ma = time / 640 + i * Math.PI;
-                g.fillStyle(glow, 0.28);
-                g.fillCircle(Math.cos(ma) * 5.4, -3 + Math.sin(ma) * 2.6, 0.9);
-            }
-        }
-    }
-
     // ========================== WALL BREAKER ==========================
     // A small, very determined person carrying a lit powder keg overhead.
     private static drawWallBreaker(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
@@ -936,304 +774,6 @@ export class TroopRenderer {
                 const sa = time / 50 + i * 2.1;
                 g.fillStyle(0xffd27a, 0.6 * brace);
                 g.fillCircle(fx + 1.2 + Math.cos(sa) * 2.2, fy - 2.4 + Math.sin(sa) * 1.6, 0.5);
-            }
-        }
-    }
-
-    // ============================= GIANT =============================
-    // Redesigned from scratch. A knuckle-dragging wall of a man about twice
-    // a villager tall: barrel chest, boulder shoulders, long heavy arms,
-    // small bald head sunk low. Walk is slow and weighty; the attack is a
-    // two-fisted overhead slam — arms climb through the wind-up, hang for a
-    // beat, crash down exactly on the damage tick, dust shock rolls out,
-    // then he slowly straightens back up.
-    private static drawGiant(g: G, isPlayer: boolean, isMoving: boolean, troopLevel: number, time: number, attackAge: number, attackDelay: number): void {
-        const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 3600, 950, 550);
-
-        const skin = isPlayer ? 0xd9a36a : 0xbb8f60;
-        const skinDark = isPlayer ? 0xb9854e : 0x9f7748;
-        const pants = isPlayer ? 0x5a4632 : 0x4a3a2a;
-        const pantsDark = isPlayer ? 0x453525 : 0x382c1f;
-        const rope = 0x8a6438;
-
-        // ---- gait / breath
-        let lift = 0;        // body rise
-        let legSwing = 0;
-        let armSwing = 0;
-        let roll = 0;        // shoulder-line tilt while lumbering
-        if (isMoving) {
-            const ph = (time % 1300) / 1300;
-            const s = Math.sin(ph * Math.PI * 2);
-            lift = Math.pow(Math.abs(s), 0.7) * 1.8;
-            legSwing = s * 3.2;
-            armSwing = -s * 2.4;
-            roll = Math.sin(ph * Math.PI * 2) * 0.8;
-        } else {
-            // Out of combat the breath uses the shared 640 base so the baked
-            // idle loop (2π·640 ms) closes exactly; mid-fight it quickens
-            // (combat poses are keyframed by attackAge, not looped).
-            const period = atk.inCombat ? 280 : 640;
-            lift = Math.max(0, Math.sin(time / period)) * 0.7;
-        }
-
-        // ---- attack pose: armT 0 = hanging, 1 = overhead, then slammed to
-        // the ground. stretch/crunch move the torso with the arms.
-        let armT = 0;
-        let slam = 0;       // 0..1 fists driven into the ground
-        let recover = -1;   // 0..1 straightening out of the slam (-1 = not recovering)
-        let stretch = 0;    // torso reaches up during the wind-up
-        let crunch = 0;     // torso drops into the impact
-        if (!isMoving && atk.inCombat) {
-            const W = atk.windup;
-            if (W > 0) {
-                if (W < 0.8) {
-                    armT = easeOut(W / 0.8);            // arms climb overhead
-                    stretch = armT;
-                } else if (W < 0.905) {
-                    armT = 1;                            // a held beat at the top
-                    stretch = 1;
-                } else {
-                    const s = easeIn((W - 0.905) / 0.095); // the drop — fast
-                    armT = 1;
-                    slam = s;
-                    stretch = 1 - s;
-                    crunch = s;
-                }
-            } else if (atk.age <= 620) {
-                armT = 1; slam = 1; crunch = 1;          // fists in the dirt
-            } else if (atk.age <= 1400) {
-                const t = easeOut((atk.age - 620) / 780); // slow straighten
-                recover = t; armT = 1 - t; crunch = 1 - t;
-            }
-        }
-
-        const shoulderY = -13 - lift - stretch * 2.5 + crunch * 4.5;
-        const leanX = crunch * 2 - stretch * 1.2;
-
-        // ---- shadow (bigger while the fists are airborne overhead)
-        g.fillStyle(0x000000, 0.3);
-        g.fillEllipse(0, 13.5, 26 + stretch * 2, 9.5);
-
-        // ---- legs: thick trapezoids, wide stance, big flat feet.
-        const legs: Array<[number, number]> = [[-1, legSwing], [1, -legSwing]];
-        for (const [side, sw] of legs) {
-            g.fillStyle(side < 0 ? pantsDark : pants, 1);
-            g.beginPath();
-            g.moveTo(side * 7.6, 2 - lift * 0.5);
-            g.lineTo(side * 3.4, 2.5 - lift * 0.5);
-            g.lineTo(side * 4.2 + sw, 12);
-            g.lineTo(side * 8.4 + sw, 11.4);
-            g.closePath();
-            g.fillPath();
-            // knee wrap
-            g.lineStyle(1, 0x3a2c1d, 0.75);
-            g.lineBetween(side * 6.6 + sw * 0.55, 7, side * 3.9 + sw * 0.55, 7.3);
-            // foot
-            g.fillStyle(0x33261a, 1);
-            g.fillEllipse(side * 6.3 + sw, 12.6, 7, 2.8);
-        }
-
-        // ---- torso: broad trapezoid, belly, pec shading.
-        g.fillStyle(skin, 1);
-        g.beginPath();
-        g.moveTo(-10.5 + leanX * 0.6 - roll * 0.4, shoulderY - roll);
-        g.lineTo(10.5 + leanX * 0.6 + roll * 0.4, shoulderY + roll);
-        g.lineTo(6.6 + leanX * 0.2, 3.6 - lift * 0.5);
-        g.lineTo(-6.6 + leanX * 0.2, 3.6 - lift * 0.5);
-        g.closePath();
-        g.fillPath();
-        // SE shade plane (light from the NW)
-        g.fillStyle(skinDark, 0.55);
-        g.beginPath();
-        g.moveTo(10.5 + leanX * 0.6 + roll * 0.4, shoulderY + roll);
-        g.lineTo(6.6 + leanX * 0.2, 3.6 - lift * 0.5);
-        g.lineTo(2.6 + leanX * 0.2, 3.6 - lift * 0.5);
-        g.lineTo(6.2 + leanX * 0.6, shoulderY + roll * 0.6);
-        g.closePath();
-        g.fillPath();
-        // Belly + crease
-        g.fillStyle(skin, 1);
-        g.fillCircle(leanX * 0.3, 0.6 - lift * 0.4, 4.8);
-        g.lineStyle(1, skinDark, 0.6);
-        g.beginPath();
-        g.arc(leanX * 0.3, -0.2 - lift * 0.4, 4.2, 0.35, Math.PI - 0.35, false);
-        g.strokePath();
-        // Pecs
-        g.lineStyle(1, skinDark, 0.5);
-        g.beginPath();
-        g.arc(-3.6 + leanX * 0.5, shoulderY + 5.4, 3, 0.25, Math.PI * 0.75, false);
-        g.strokePath();
-        g.beginPath();
-        g.arc(3.6 + leanX * 0.5, shoulderY + 5.4, 3, Math.PI * 0.25, Math.PI * 0.75, false);
-        g.strokePath();
-
-        // Rope belt + knot.
-        g.fillStyle(rope, 1);
-        g.fillRect(-7 + leanX * 0.2, 2 - lift * 0.5, 14, 2.2);
-        g.fillCircle(leanX * 0.2 + 2.4, 3 - lift * 0.5, 1.5);
-        if (troopLevel >= 3) {
-            g.fillStyle(0xdaa520, 1);
-            g.fillRect(leanX * 0.2 - 1.6, 2.2 - lift * 0.5, 3.2, 1.8);
-        }
-
-        // ---- arms: shoulder → (bezier) fist, with an elbow bulge.
-        // Fist anchors for the three key poses:
-        const hangY = 7 - lift * 0.6;
-        for (const side of [-1, 1]) {
-            const sx = side * 9 + leanX * 0.7;
-            const sy = shoulderY + 1 + roll * side;
-            // hang → overhead (big outward arc), overhead → ground (inner fast)
-            const hx0 = side * 12.5 + (isMoving ? armSwing * side : 0);
-            const hy0 = hangY;
-            const ox = side * 4.6 + leanX;
-            const oy = shoulderY - 13.5;
-            const gx = side * 7 + leanX;
-            const gy = 9.8;
-            let fx: number, fy: number;
-            if (recover >= 0) {
-                // Straighten: knuckles drag out of the dirt and swing directly
-                // back to the hang — never retracing the overhead arc.
-                const t = recover;
-                const cx = side * 14, cy = 10.5; // low outward control — fists stay heavy
-                fx = (1 - t) * (1 - t) * gx + 2 * (1 - t) * t * cx + t * t * hx0;
-                fy = (1 - t) * (1 - t) * gy + 2 * (1 - t) * t * cy + t * t * hy0;
-            } else if (slam > 0) {
-                const t = slam;
-                const cx = side * 10 + leanX, cy = -6; // inner control point
-                fx = (1 - t) * (1 - t) * ox + 2 * (1 - t) * t * cx + t * t * gx;
-                fy = (1 - t) * (1 - t) * oy + 2 * (1 - t) * t * cy + t * t * gy;
-            } else {
-                const t = armT;
-                const cx = side * 16.5, cy = shoulderY - 5; // outward control point
-                fx = (1 - t) * (1 - t) * hx0 + 2 * (1 - t) * t * cx + t * t * ox;
-                fy = (1 - t) * (1 - t) * hy0 + 2 * (1 - t) * t * cy + t * t * oy;
-            }
-            // Elbow bows outward from the straight line.
-            const mx = (sx + fx) / 2 + side * 2.6 * (1 - armT * 0.55);
-            const my = (sy + fy) / 2 + (0.8 - 1.8 * armT);
-            TroopRenderer.hLimb(g, skin, sx, sy, mx, my, 4.4);
-            TroopRenderer.hLimb(g, skin, mx, my, fx, fy, 3.7);
-            // Wrist wrap
-            const wx = mx + (fx - mx) * 0.72, wy = my + (fy - my) * 0.72;
-            TroopRenderer.hLimb(g, rope, wx - 1.4, wy - 1, wx + 1.4, wy + 1, 2.6);
-            // Fist
-            g.fillStyle(skinDark, 1);
-            g.fillCircle(fx, fy, 3.8);
-            g.fillStyle(skin, 1);
-            g.fillCircle(fx - side * 0.7, fy - 0.8, 3);
-            g.fillStyle(skinDark, 0.8);
-            for (let k = -1; k <= 1; k++) g.fillCircle(fx + k * 1.6, fy - 2.2, 0.8);
-            if (troopLevel >= 3) {
-                g.fillStyle(0xdaa520, 0.95);
-                for (let k = -1; k <= 1; k++) g.fillCircle(fx + k * 1.7, fy - 2.3, 0.6);
-            }
-            // Shoulder boulder on top of the arm root.
-            g.fillStyle(skin, 1);
-            g.fillCircle(side * 8.8 + leanX * 0.7, shoulderY + 0.6 + roll * side, 4.4);
-            g.lineStyle(1, skinDark, 0.5);
-            g.beginPath();
-            g.arc(side * 8.8 + leanX * 0.7, shoulderY + 0.6 + roll * side, 3.6, Math.PI * 1.15, Math.PI * 1.85, false);
-            g.strokePath();
-            if (troopLevel >= 2 && side < 0) {
-                // Iron pauldron on the left shoulder.
-                g.fillStyle(0x565b64, 1);
-                g.beginPath();
-                g.arc(side * 8.8 + leanX * 0.7, shoulderY + 0.2 + roll * side, 4.6, Math.PI * 0.95, Math.PI * 2.05, false);
-                g.closePath();
-                g.fillPath();
-                g.fillStyle(0x8a8f99, 1);
-                g.fillCircle(side * 8.8 + leanX * 0.7, shoulderY - 2.6 + roll * side, 1);
-            }
-        }
-
-        // ---- head: small skull, heavy jaw, sunk between the shoulders
-        // (drops right down into them on the impact).
-        const hy = shoulderY - 4.6 + crunch * 2.2;
-        const hx = leanX;
-        g.fillStyle(skin, 1);
-        g.fillCircle(hx, hy, 4.4);
-        // Jaw slab
-        g.fillStyle(skin, 1);
-        g.fillRect(hx - 3.4, hy + 1.4, 6.8, 2.8);
-        g.fillStyle(skinDark, 0.5);
-        g.fillRect(hx - 2.6, hy + 3.4, 5.2, 0.9);
-        // Ears
-        g.fillStyle(skinDark, 1);
-        g.fillCircle(hx - 4.2, hy + 0.6, 1);
-        g.fillCircle(hx + 4.2, hy + 0.6, 1);
-        // Brow — drops lower the angrier he gets.
-        const browDrop = atk.inCombat ? 0.7 : 0;
-        g.fillStyle(skinDark, 1);
-        g.fillRect(hx - 3.5, hy - 1.8 + browDrop, 7, 1.6);
-        // Eyes
-        g.fillStyle(0x140e08, 0.9);
-        g.fillCircle(hx - 1.9, hy + 0.3, 0.9);
-        g.fillCircle(hx + 1.9, hy + 0.3, 0.9);
-        // Grim mouth
-        g.lineStyle(1, 0x4a3018, 0.8);
-        g.lineBetween(hx - 1.6, hy + 2.9, hx + 1.6, hy + 2.9);
-        if (troopLevel < 2) {
-            // Bald with a short back-tuft.
-            g.fillStyle(0x3a2a1a, 1);
-            g.beginPath();
-            g.arc(hx, hy - 2.2, 3.4, Math.PI * 1.1, Math.PI * 1.7, false);
-            g.closePath();
-            g.fillPath();
-        } else {
-            // Iron skullcap; L3 adds horns + a gold rivet.
-            g.fillStyle(0x565b64, 1);
-            g.beginPath();
-            g.arc(hx, hy - 1.2, 4.6, Math.PI, 0, false);
-            g.closePath();
-            g.fillPath();
-            g.fillStyle(0x8a8f99, 1);
-            g.beginPath();
-            g.arc(hx, hy - 1.6, 3.7, Math.PI, 0, false);
-            g.closePath();
-            g.fillPath();
-            g.fillStyle(0x565b64, 1);
-            g.fillCircle(hx - 2.6, hy - 2.6, 0.7);
-            g.fillCircle(hx + 2.6, hy - 2.6, 0.7);
-            if (troopLevel >= 3) {
-                g.fillStyle(0xe3dcc6, 1);
-                g.fillTriangle(hx - 3.8, hy - 3.4, hx - 7.2, hy - 8.2, hx - 5.4, hy - 3.2);
-                g.fillTriangle(hx + 3.8, hy - 3.4, hx + 7.2, hy - 8.2, hx + 5.4, hy - 3.2);
-                g.fillStyle(0xcfc5a8, 1);
-                g.fillCircle(hx - 7.2, hy - 8.2, 0.9);
-                g.fillCircle(hx + 7.2, hy - 8.2, 0.9);
-                g.fillStyle(0xdaa520, 1);
-                g.fillCircle(hx, hy - 5.4, 1);
-            }
-        }
-
-        // ---- impact: a rolling dust shockwave + arcing pebbles + low puffs.
-        if (!isMoving && atk.inCombat && atk.age <= 700 && slam > 0.95) {
-            const p = clamp01(atk.age / 650);
-            if (p < 1) {
-                g.lineStyle(2.5, 0xbfae8e, 0.55 * (1 - p));
-                g.strokeEllipse(0, 12, 18 + p * 46, (18 + p * 46) * 0.42);
-                g.lineStyle(1.5, 0xa8987a, 0.35 * (1 - p));
-                g.strokeEllipse(0, 12.5, 10 + p * 30, (10 + p * 30) * 0.4);
-            }
-            const pp = clamp01(atk.age / 560);
-            if (pp < 1) {
-                g.fillStyle(0x9a8f78, 0.9 * (1 - pp));
-                for (let k = 0; k < 6; k++) {
-                    const A = k * 1.047 + 0.35;
-                    const d = 9 + pp * 17;
-                    g.fillCircle(
-                        Math.cos(A) * d,
-                        12 + Math.sin(A) * 0.5 * d - 6 * Math.sin(pp * Math.PI),
-                        1.5
-                    );
-                }
-                // Low dust puffs rolling out along the ground line.
-                g.fillStyle(0xbfae8e, 0.32 * (1 - pp));
-                for (let k = 0; k < 3; k++) {
-                    const A = k * 2.09 + 0.9;
-                    const d = 10 + pp * 16;
-                    g.fillCircle(Math.cos(A) * d, 11.4 + Math.sin(A) * 0.5 * d, 2.2 + pp * 3);
-                }
             }
         }
     }
@@ -1994,141 +1534,6 @@ export class TroopRenderer {
      *  by slamOffset, facing resolved carrier-level inside the design fn. */
     private static drawIceGolem(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, slamOffset: number, troopLevel: number = 1, time: number = 0) {
         drawIceGolemArt(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
-    }
-    private static drawRecursion(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean = false, troopLevel: number = 1, time: number = 0, attackAge: number = -1, attackDelay: number = 0) {
-        // Fractal/geometric entity that splits on death
-        const bodyColor = isPlayer ? 0x00ffaa : 0xaa00ff;
-        const innerColor = isPlayer ? 0x00aa77 : 0x7700aa;
-        const now = time;
-
-        // Hover bob when moving — exactly one bob per 1250 ms walk loop
-        // (matches TROOP_PARAMS.recursion.stride in the bake harness).
-        const hoverBob = isMoving ? Math.sin(now * (Math.PI * 2) / 1250) * 2 : 0;
-
-        // Attack animation: expands and contracts with energy burst.
-        // Cycle locks to the real attack cadence when combat state is known;
-        // out of combat it pulses on an exact 1000 ms clock (2 pulses per
-        // 2000 ms idle loop — all idle terms below are harmonics of 2000 ms).
-        const cycle = attackDelay > 0 ? attackDelay : 1000;
-        const inCombat = attackAge >= 0;
-        const attackPhase = (!isMoving && (!inCombat || attackAge <= cycle + 600)) ? ((inCombat ? Math.min(attackAge, cycle - 1) : now % cycle) / cycle) : 0;
-        let attackPulse = 0;
-        let burstAlpha = 0;
-        if (!isMoving) {
-            if (attackPhase < 0.15) {
-                // Contract inward
-                attackPulse = -(attackPhase / 0.15) * 3;
-            } else if (attackPhase < 0.35) {
-                // Expand outward with burst
-                const t = (attackPhase - 0.15) / 0.2;
-                attackPulse = -3 + 7 * t;
-                burstAlpha = t;
-            } else if (attackPhase < 0.5) {
-                // Hold expanded
-                attackPulse = 4;
-                burstAlpha = 1 - (attackPhase - 0.35) / 0.15;
-            } else {
-                // Return to normal
-                const t = (attackPhase - 0.5) / 0.5;
-                attackPulse = 4 * (1 - t);
-            }
-        }
-
-        const outerRadius = 10 + attackPulse;
-        const innerRadius = 5 + attackPulse * 0.4;
-
-        // Shadow
-        graphics.fillStyle(0x000000, 0.3);
-        graphics.fillEllipse(0, 5, 14, 6);
-
-        // Energy burst rings during attack
-        if (burstAlpha > 0) {
-            graphics.lineStyle(2, bodyColor, burstAlpha * 0.6);
-            graphics.strokeCircle(0, -2 + hoverBob, outerRadius + 5);
-            graphics.lineStyle(1, 0xffffff, burstAlpha * 0.4);
-            graphics.strokeCircle(0, -2 + hoverBob, outerRadius + 8);
-        }
-
-        // Outer hexagonal shell rotation. The shell/inner/L2/L3 multipliers
-        // (1, -1.5, 0.5, 1.5) only all land back on their 6-fold/4-fold
-        // symmetries when the base advance per loop is a multiple of 2π/3 —
-        // so the shell advances exactly 2π/3 per idle loop (2000 ms) and per
-        // walk loop (1250 ms), and every baked loop closes seamlessly.
-        const rot = now * (Math.PI * 2 / 3) / (!isMoving ? 2000 : 1250);
-        graphics.fillStyle(bodyColor, 0.9);
-        graphics.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = rot + (i / 6) * Math.PI * 2;
-            const px = Math.cos(angle) * outerRadius;
-            const py = Math.sin(angle) * outerRadius * 0.6 - 2 + hoverBob;
-            if (i === 0) graphics.moveTo(px, py);
-            else graphics.lineTo(px, py);
-        }
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Inner hexagon (counter-rotating)
-        graphics.fillStyle(innerColor, 1);
-        graphics.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = -rot * 1.5 + (i / 6) * Math.PI * 2;
-            const px = Math.cos(angle) * innerRadius;
-            const py = Math.sin(angle) * innerRadius * 0.6 - 2 + hoverBob;
-            if (i === 0) graphics.moveTo(px, py);
-            else graphics.lineTo(px, py);
-        }
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Central core with split symbol
-        graphics.fillStyle(0xffffff, 0.9);
-        graphics.fillCircle(0, -2 + hoverBob, 2.5);
-        graphics.lineStyle(1, bodyColor, 1);
-        graphics.lineBetween(-1.5, -2 + hoverBob, 1.5, -2 + hoverBob);
-        graphics.lineBetween(0, -3.5 + hoverBob, 0, -0.5 + hoverBob);
-
-        // Energy wisps when attacking — orbit/wobble/flicker at harmonics
-        // 2/3/5 of the 2000 ms idle loop.
-        if (!isMoving) {
-            for (let i = 0; i < 3; i++) {
-                const wAngle = (now * (Math.PI * 2) / 1000 + i * 2.1) % (Math.PI * 2);
-                const wDist = outerRadius + 3 + Math.sin(now * (Math.PI * 2 * 3) / 2000 + i) * 2;
-                const wx = Math.cos(wAngle) * wDist;
-                const wy = Math.sin(wAngle) * wDist * 0.6 - 2 + hoverBob;
-                graphics.fillStyle(bodyColor, 0.4 + Math.sin(now * (Math.PI * 2 * 5) / 2000 + i) * 0.3);
-                graphics.fillCircle(wx, wy, 1.5);
-            }
-        }
-
-        // L2: Extra outer ring + gold core
-        if (troopLevel >= 2) {
-            graphics.lineStyle(1.5, 0xdaa520, 0.6);
-            graphics.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = rot * 0.5 + (i / 6) * Math.PI * 2;
-                const px = Math.cos(angle) * (outerRadius + 4);
-                const py = Math.sin(angle) * (outerRadius + 4) * 0.6 - 2 + hoverBob;
-                if (i === 0) graphics.moveTo(px, py);
-                else graphics.lineTo(px, py);
-            }
-            graphics.closePath();
-            graphics.strokePath();
-            // Gold core accent
-            graphics.fillStyle(0xffd700, 0.5);
-            graphics.fillCircle(0, -2 + hoverBob, 1.5);
-        }
-        // L3: Brighter core + extra orbiting particles
-        if (troopLevel >= 3) {
-            graphics.fillStyle(0xffffff, 0.4);
-            graphics.fillCircle(0, -2 + hoverBob, 2.5);
-            for (let i = 0; i < 4; i++) {
-                const pAngle = rot * 1.5 + (i / 4) * Math.PI * 2;
-                const px = Math.cos(pAngle) * (outerRadius + 6);
-                const py = Math.sin(pAngle) * (outerRadius + 6) * 0.6 - 2 + hoverBob;
-                graphics.fillStyle(bodyColor, 0.5);
-                graphics.fillCircle(px, py, 1);
-            }
-        }
     }
     static drawDaVinciTank(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, _isMoving: boolean, isDeactivated: boolean = false, facingAngle: number = 0, troopLevel: number = 1, time: number = 0) {
         // LEONARDO DA VINCI'S ARMORED WAR MACHINE

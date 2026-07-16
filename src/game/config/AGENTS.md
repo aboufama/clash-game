@@ -65,6 +65,7 @@ interface TroopDef {
   health; range; damage; speed; color;
   targetPriority?: 'town_hall'|'defense'|'wall';
   wallDamageMultiplier?; movementType?: 'ground'|'air'|'ghost'; wallTraversalCost?;
+  straightCharge?;                            // ray the objective, fight the first structure on the line
   splashRadius?; chainCount?; chainRange?;    // aoe / chain
   healRadius?; healAmount?; boostRadius?; boostAmount?;   // support
   attackDelay?; firstAttackDelay?;

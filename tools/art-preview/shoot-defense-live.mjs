@@ -122,7 +122,7 @@ try {
     s.spawnTroop(11, 20, 'warrior', 'PLAYER')
     s.spawnTroop(12, 20, 'warrior', 'PLAYER')
     s.spawnTroop(10, 20, 'archer', 'PLAYER')
-    s.spawnTroop(13, 20, 'giant', 'PLAYER')
+    s.spawnTroop(13, 20, 'golem', 'PLAYER')
   })
   console.log('attack deployed')
 
@@ -162,7 +162,7 @@ try {
   // Moving steps only — a troop pausing to swing is legitimate stillness.
   const metric = await pageA.evaluate(async () => {
     const s = window.__clashGame.scene.keys.MainScene
-    const pick = s.troops.find(tr => tr.health > 0 && tr.type === 'giant') ?? s.troops.find(tr => tr.health > 0)
+    const pick = s.troops.find(tr => tr.health > 0 && tr.type === 'golem') ?? s.troops.find(tr => tr.health > 0)
     if (!pick) return null
     const id = pick.id
     const samples = []

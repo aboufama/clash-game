@@ -88,6 +88,10 @@ export interface PlacedBuilding {
     fillLevel?: number;
     lastHarvestAt?: number;
     lastDrawFill?: number;
+    /** Pavise-bearer redirect: per-defense counter of ELIGIBLE shots (a ranged
+     *  ally guarded by a live pavise). Deterministic share selection —
+     *  redirect when floor(n·share) increments — never Math.random. */
+    redirectShotCounter?: number;
 }
 
 export interface Troop {
@@ -110,8 +114,7 @@ export interface Troop {
     facingAngle: number;
     path?: Array<{ x: number; y: number }>; // Continuous grid-space waypoints
     /** The building this troop ultimately intends to attack. A temporary wall
-     * blocker must never replace this intent. Wards keep this unset while
-     * following another troop. */
+     * blocker must never replace this intent. */
     strategicTarget?: PlacedBuilding | null;
     /** Versioned combat route. `target` remains the active damage/animation
      * target for legacy render code; this plan retains the strategic intent. */
@@ -135,9 +138,7 @@ export interface Troop {
      *  continuous-beam damage ticks would otherwise spam a burst per tick). */
     frostHitFxAt?: number;
     // Special troop properties
-    recursionGen?: number; // For recursion (0 = original, 1 = first split, 2 = final)
     slamOffset?: number; // For golem body slam animation
-    bowDrawProgress?: number; // For sharpshooter bow draw animation (0 = relaxed, 1 = fully drawn)
     mortarRecoil?: number; // For mobile mortar - recoil offset for the mortar only (not the soldier)
     phalanxSpearOffset?: number; // For phalanx - spear thrusting animation (0 = normal, 1 = full thrust)
     lastHealthBarValue?: number;
@@ -154,6 +155,31 @@ export interface Troop {
     replaySampleX?: number;
     replaySampleY?: number;
     replaySampleT?: number;
+    // === 2026-07 troop-kit state (client battle sim; all optional) ===
+    /** Hawk-eye cloak: defenses skip this troop while `time < untargetableUntil`. */
+    untargetableUntil?: number;
+    /** Generated unit (skeleton): id of the summoner that raised it. */
+    summonedBy?: string;
+    /** Summoner (necromancer): last summon-wave tick (timer runs from deploy). */
+    lastSummonTime?: number;
+    /** Summoner: waves cast so far — rotates the deterministic spawn offsets. */
+    summonWaves?: number;
+    /** Support healer (physician's cart): last burst-heal pulse tick. */
+    lastHealPulseAt?: number;
+    /** Siege tower: undefined = rolling; 0..1 = parked drop-ramp driver
+     *  (tweened once on arrival, passed to the TroopDesignFn as `driver`). */
+    parked01?: number;
+    /** Siege tower: the enemy wall tile currently serving as the ally ramp. */
+    parkedWallId?: string;
+    /** Pavise bearer: shield-spark FX window armed by a redirected shot. */
+    guardFlareUntil?: number;
+    /** Quartermaster aura: last frame this troop was inside a drum aura. */
+    lastBoostedAt?: number;
+    /** Quartermaster aura: brief gold tint window on newly buffed allies. */
+    boostTintUntil?: number;
+    /** Replay watch: when this troop's stream samples stopped moving —
+     *  derives the siege tower's parked pose without new frame fields. */
+    replayStillSince?: number;
 }
 
 export interface PlacedObstacle {

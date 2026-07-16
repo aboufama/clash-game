@@ -1,4 +1,5 @@
 import {
+  GENERATED_ONLY,
   TROOP_DEFINITIONS,
   getTroopUnlockLevel,
   troopFoodCostOf,
@@ -642,7 +643,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
   async trainTroop(principal: RuntimePrincipal, body: ArmyMutationRequest) {
     const type = sanitizeId(body.type) as TroopType
     const definition = TROOP_DEFINITIONS[type]
-    if (!definition || type === 'romanwarrior') throw new ApiError(404, 'Unknown troop type')
+    if (!definition || GENERATED_ONLY.has(type)) throw new ApiError(404, 'Unknown troop type')
     const count = clamp(toInteger(body.count, 1), 1, 50)
     const id = requestId(body.requestId)
     const now = this.clock()

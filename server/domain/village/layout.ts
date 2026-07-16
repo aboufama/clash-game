@@ -1,5 +1,6 @@
 import {
   BUILDING_DEFINITIONS,
+  GENERATED_ONLY,
   MAP_SIZE,
   OBSTACLE_DEFINITIONS,
   TROOP_DEFINITIONS,
@@ -106,7 +107,7 @@ export function sanitizeArmy(input: unknown): Record<string, number> {
     if (Object.keys(army).length >= MAX_VILLAGE_ARMY_TYPES) break
     const key = sanitizeId(type)
     const value = clamp(toInt(count, 0), 0, 10_000)
-    if (key && key !== 'romanwarrior' && hasOwn(TROOP_DEFINITIONS, key) && value > 0) army[key] = value
+    if (key && !GENERATED_ONLY.has(key) && hasOwn(TROOP_DEFINITIONS, key) && value > 0) army[key] = value
   }
   return army
 }

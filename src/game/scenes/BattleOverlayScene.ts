@@ -28,6 +28,10 @@ export class BattleOverlayScene extends Phaser.Scene {
         [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100]
     ];
 
+    /** 5x7 plus sign for the floating heal numbers. */
+    private static readonly PLUS_5X7: number[] =
+        [0b00000, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000];
+
     constructor() {
         super('BattleOverlay');
     }
@@ -66,6 +70,39 @@ export class BattleOverlayScene extends Phaser.Scene {
                 if (rows[r] & (1 << (4 - c))) ctx.fillRect(4 + c, 3 + r, 1, 1);
             }
         }
+        tex.refresh();
+        applyTextureSampling(tex, TextureSampling.PIXEL_ART);
+        return key;
+    }
+
+    /** Bakes (once per distinct amount) and returns the texture key for a
+     *  floating heal number: '+<amount>' in heal green, 5x7 digits on the
+     *  level-chip pattern — one canvas pixel per cell, a 1-cell dark drop
+     *  shadow for readability, NEAREST-sampled so it stays hard-edged at any
+     *  zoom. Shown world-anchored over healed troops (physician's cart). */
+    ensureHealNumberTexture(amount: number): string {
+        const value = Math.max(1, Math.min(99999, Math.floor(amount)));
+        const key = `heal-num-${value}`;
+        if (this.textures.exists(key)) return key;
+        const digits = String(value).split('').map(Number);
+        const glyphs: number[][] = [BattleOverlayScene.PLUS_5X7, ...digits.map(d => BattleOverlayScene.DIGITS_5X7[d])];
+        const W = glyphs.length * 6 + 1; // 5 cells + 1 gap per glyph, +1 shadow margin
+        const H = 9;                     // 7 rows + 1 shadow + 1 top margin
+        const tex = this.textures.createCanvas(key, W, H);
+        if (!tex) return key;
+        const ctx = tex.getContext();
+        const stamp = (color: string, ox: number, oy: number) => {
+            ctx.fillStyle = color;
+            glyphs.forEach((rows, gi) => {
+                for (let r = 0; r < 7; r++) {
+                    for (let c = 0; c < 5; c++) {
+                        if (rows[r] & (1 << (4 - c))) ctx.fillRect(gi * 6 + c + ox, r + oy, 1, 1);
+                    }
+                }
+            });
+        };
+        stamp('#0a2a18', 1, 2); // drop shadow
+        stamp('#00ff88', 0, 1); // heal green
         tex.refresh();
         applyTextureSampling(tex, TextureSampling.PIXEL_ART);
         return key;

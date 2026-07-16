@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BUILDING_DEFINITIONS, type BuildingType, getBuildingStats, BARRACKS_TROOP_UNLOCK_ORDER, TROOP_DEFINITIONS, getTroopLevelMultiplier, upgradeOreCostOf } from '../game/config/GameDefinitions';
+import { BUILDING_DEFINITIONS, type BuildingType, getBuildingStats, BARRACKS_TROOP_UNLOCK_ORDER, TROOP_DEFINITIONS, getTroopLevelMultiplier, getTroopUnlockLevel, upgradeOreCostOf } from '../game/config/GameDefinitions';
 import { armySpaceUsed } from '../game/config/Economy';
 import { serverUpgradeDurationMs } from '../game/config/UpgradePolicy';
 import { gameManager } from '../game/GameManager';
@@ -278,18 +278,32 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, sp
                             </span>
                         </div>
                     )}
-                    {type === 'barracks' && level <= BARRACKS_TROOP_UNLOCK_ORDER.length && (
-                        <div className="stat-row">
-                            <span className="stat-label">Trains</span>
-                            <span className="stat-value">{TROOP_DEFINITIONS[BARRACKS_TROOP_UNLOCK_ORDER[level - 1]]?.name ?? '—'}</span>
-                        </div>
-                    )}
-                    {type === 'barracks' && !isMaxLevel && level < BARRACKS_TROOP_UNLOCK_ORDER.length && (
-                        <div className="stat-row">
-                            <span className="stat-label">Next</span>
-                            <span className="stat-value next">{TROOP_DEFINITIONS[BARRACKS_TROOP_UNLOCK_ORDER[level]]?.name ?? '—'}</span>
-                        </div>
-                    )}
+                    {/* Two troops unlock per barracks level: derive each level's
+                        pair from getTroopUnlockLevel (never raw [level-1] indexing). */}
+                    {(() => {
+                        if (type !== 'barracks') return null;
+                        const unlockNames = (barracksLevel: number) => BARRACKS_TROOP_UNLOCK_ORDER
+                            .filter(troop => getTroopUnlockLevel(troop) === barracksLevel)
+                            .map(troop => TROOP_DEFINITIONS[troop]?.name ?? '—');
+                        const current = unlockNames(level);
+                        const next = isMaxLevel ? [] : unlockNames(level + 1);
+                        return (
+                            <>
+                                {current.length > 0 && (
+                                    <div className="stat-row">
+                                        <span className="stat-label">Unlocks</span>
+                                        <span className="stat-value">{current.join(' + ')}</span>
+                                    </div>
+                                )}
+                                {next.length > 0 && (
+                                    <div className="stat-row">
+                                        <span className="stat-label">Next</span>
+                                        <span className="stat-value next">{next.join(' + ')}</span>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
                     {type === 'lab' && (
                         <div className="stat-row">
                             <span className="stat-label">Troop Stats</span>

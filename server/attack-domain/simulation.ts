@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { BUILDING_DEFINITIONS, getBuildingStats, getTroopStats } from '../../src/game/config/GameDefinitions'
+import { BUILDING_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats } from '../../src/game/config/GameDefinitions'
 import type { BuildingType } from '../../src/game/config/GameDefinitions'
 import { defenseDps } from '../../src/game/systems/DefenseBehaviorCatalog'
 import type {
@@ -113,6 +113,9 @@ function attritionLifetimeMs(
   totalDefenseDps: number,
   deployedCount: number
 ): number {
+  // Stored aggregates may reference troop types deleted in a later build;
+  // they earn zero credit (see troopDamage), so any lifetime is safe here.
+  if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return attack.rules.maxDamageCreditMs
   if (attack.rules.simulationVersion < 3 || totalDefenseDps <= 0) return attack.rules.maxDamageCreditMs
   const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
   const hitPoints = Math.max(1, Math.floor(stats.health))
@@ -120,7 +123,130 @@ function attritionLifetimeMs(
   const jitterHex = deterministicScore(attack.simulationSeed, `attrition:${deploy.troopInstanceId}`).slice(0, 8)
   const jitter = 0.8 + 0.4 * (Number.parseInt(jitterHex, 16) / 0xffffffff)
   const lifetime = Math.round(hitPoints * 1_000 * jitter / perTroopDps)
+  // Rules v4: a troop that deploys hidden (hawk-eye assassin) takes no
+  // defensive fire while untargetable, so its credit window starts burning
+  // only after the cloak drops — the whole window extends by untargetableMs.
+  if (attack.rules.simulationVersion >= 4 && typeof stats.untargetableMs === 'number' && stats.untargetableMs > 0) {
+    return Math.min(attack.rules.maxDamageCreditMs, Math.max(1_000, lifetime) + Math.floor(stats.untargetableMs))
+  }
   return Math.min(attack.rules.maxDamageCreditMs, Math.max(1_000, lifetime))
+}
+
+// ---------------------------------------------------------------------------
+// Rules v4 deterministic kit-credit models. Everything below is reached only
+// when rules.simulationVersion >= 4 (the attack pins its version at
+// preparation), so stored v1–v3 attacks and replays reproduce byte-identically.
+// All models are pure functions of the snapshot, the deploy log and the
+// simulation seed — like v3 attrition, they are aspatial approximations.
+// ---------------------------------------------------------------------------
+
+/** A deploy's base damage-credit window: deploy time plus its attrition
+ *  lifetime, clamped by the combat duration and the per-troop credit budget.
+ *  "Base" = pre-support-extension; every v4 overlap model measures against
+ *  these windows so support credit is non-recursive. */
+interface CreditWindow {
+  startMs: number
+  endMs: number
+}
+
+/** Quartermaster war-drum aura: cadence uplift while its window is open. */
+interface CadenceWindow extends CreditWindow {
+  cadence: number
+}
+
+/** Flat lifetime credit for allies of a parked siege tower: the ramp spares
+ *  them the walk (and the fire taken) around the wall line. */
+const SIEGE_TOWER_PATHING_CREDIT_MS = 2_000
+
+function baseCreditWindowsV4(
+  attack: AttackAggregate,
+  deploys: TroopDeployedEvent[],
+  durationMs: number,
+  totalDefenseDps: number,
+  deployedCount: number
+): Map<string, CreditWindow> {
+  const windows = new Map<string, CreditWindow>()
+  for (const deploy of deploys) {
+    const lifetime = attritionLifetimeMs(attack, deploy, totalDefenseDps, deployedCount)
+    const endMs = Math.min(durationMs, deploy.atMs + Math.min(attack.rules.maxDamageCreditMs, lifetime))
+    windows.set(deploy.troopInstanceId, { startMs: deploy.atMs, endMs: Math.max(deploy.atMs, endMs) })
+  }
+  return windows
+}
+
+function quartermasterWindowsV4(
+  attack: AttackAggregate,
+  deploys: TroopDeployedEvent[],
+  baseWindows: Map<string, CreditWindow>
+): CadenceWindow[] {
+  const windows: CadenceWindow[] = []
+  for (const deploy of deploys) {
+    if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) continue
+    const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
+    const cadence = stats.boostCadence ?? 0
+    if (cadence <= 0 || cadence >= 1) continue
+    const window = baseWindows.get(deploy.troopInstanceId)
+    if (window && window.endMs > window.startMs) windows.push({ ...window, cadence })
+  }
+  return windows
+}
+
+/**
+ * Rules v4 support-window extension: while a support deploy's credit window
+ * is open, allied credit windows extend deterministically. Models (additive,
+ * monotonic, non-recursive — every overlap is measured against BASE windows):
+ * - Healer (healAmount + healRadius; physician's cart): each heal pulse
+ *   (cadence = the healer's attackDelay) that fits inside the overlap grants
+ *   the ally healAmount equivalent hit points, converted to lifetime at the
+ *   same per-troop defense DPS the v3 attrition model burns at.
+ * - Guard (guardRadius + guardRedirectShare; pavise bearer): while the guard
+ *   overlaps a RANGED ally (range >= 1.5, mirroring the client redirect
+ *   rule), guardRedirectShare of the fire aimed at the ally lands on the
+ *   guard's larger pool instead — the ally's burn rate drops by that share,
+ *   worth overlapMs x share extra lifetime.
+ * - Siege tower ('siegetower', the one type-keyed support until a
+ *   declarative ramp field exists): a parked ramp spares each overlapping
+ *   ally a flat SIEGE_TOWER_PATHING_CREDIT_MS of wall-line pathing.
+ * The extended lifetime stays clamped by maxDamageCreditMs.
+ */
+function supportExtendedLifetimeMs(
+  attack: AttackAggregate,
+  deploy: TroopDeployedEvent,
+  baseLifetimeMs: number,
+  deploys: TroopDeployedEvent[],
+  baseWindows: Map<string, CreditWindow>,
+  totalDefenseDps: number,
+  deployedCount: number
+): number {
+  if (totalDefenseDps <= 0) return baseLifetimeMs
+  if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return baseLifetimeMs
+  const own = baseWindows.get(deploy.troopInstanceId)
+  if (!own) return baseLifetimeMs
+  const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
+  const perTroopDps = totalDefenseDps / Math.max(1, deployedCount)
+  let bonusMs = 0
+  for (const support of deploys) {
+    if (support.troopInstanceId === deploy.troopInstanceId) continue
+    if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, support.troopType)) continue
+    const supportStats = getTroopStats(support.troopType, attack.reservation.troopLevel)
+    const window = baseWindows.get(support.troopInstanceId)
+    if (!window) continue
+    const overlapMs = Math.min(own.endMs, window.endMs) - Math.max(own.startMs, window.startMs)
+    if (overlapMs <= 0) continue
+    if ((supportStats.healAmount ?? 0) > 0 && (supportStats.healRadius ?? 0) > 0 && perTroopDps > 0) {
+      const pulseMs = Math.max(1_000, Math.floor(supportStats.attackDelay ?? 1_000))
+      const pulses = Math.floor(overlapMs / pulseMs)
+      if (pulses > 0) bonusMs += Math.round(pulses * (supportStats.healAmount ?? 0) * 1_000 / perTroopDps)
+    }
+    if ((supportStats.guardRadius ?? 0) > 0 && (supportStats.guardRedirectShare ?? 0) > 0 && stats.range >= 1.5) {
+      bonusMs += Math.floor(overlapMs * Math.min(0.95, supportStats.guardRedirectShare ?? 0))
+    }
+    if (support.troopType === 'siegetower') {
+      bonusMs += SIEGE_TOWER_PATHING_CREDIT_MS
+    }
+  }
+  if (bonusMs <= 0) return baseLifetimeMs
+  return Math.min(attack.rules.maxDamageCreditMs, baseLifetimeMs + bonusMs)
 }
 
 function troopDamage(
@@ -128,8 +254,13 @@ function troopDamage(
   deploy: TroopDeployedEvent,
   durationMs: number,
   boosts: AbilityUsedEvent[],
-  lifetimeMs: number
+  lifetimeMs: number,
+  cadenceWindows: CadenceWindow[] = []
 ): number {
+  // A troop type deleted after this aggregate was stored settles to zero
+  // credit instead of NaN-corrupting (level 1) or throwing (level 2+) in
+  // getTroopStats. Surviving types are untouched.
+  if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return 0
   const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
   const delay = Math.max(150, Math.floor(stats.attackDelay ?? 1_000))
   const firstDelay = Math.max(0, Math.floor(stats.firstAttackDelay ?? 0))
@@ -148,6 +279,27 @@ function troopDamage(
     damage += Math.floor(boostedStrikes * perStrike * ability.effect.bonusBasisPoints / 10_000)
   }
 
+  // Rules v4 quartermaster war drums: a strike landed while any
+  // quartermaster's credit window is open comes cadence-boosted — the
+  // effective attack delay shrinks by boostCadence, worth
+  // cadence / (1 - cadence) extra damage per boosted strike. Total boosted
+  // strikes are capped at the troop's own strike count, so stacked
+  // quartermasters never exceed one full aura.
+  if (attack.rules.simulationVersion >= 4 && cadenceWindows.length > 0 && perStrike > 0) {
+    let boostedStrikes = 0
+    let cadence = 0
+    for (const window of cadenceWindows) {
+      const start = Math.max(deploy.atMs, window.startMs)
+      const end = Math.min(creditEnd, window.endMs)
+      boostedStrikes += attackCountInWindow(deploy.atMs, firstDelay, delay, start, end)
+      cadence = Math.max(cadence, window.cadence)
+    }
+    boostedStrikes = Math.min(strikes, boostedStrikes)
+    if (boostedStrikes > 0 && cadence > 0 && cadence < 1) {
+      damage += Math.floor(boostedStrikes * perStrike * cadence / (1 - cadence))
+    }
+  }
+
   // Preserve the broad power profile of chain/splash units without accepting
   // client-authored hit lists. Exact targets remain deterministic below.
   if (stats.chainCount && stats.chainCount > 1) {
@@ -155,14 +307,39 @@ function troopDamage(
   } else if (stats.splashRadius && stats.splashRadius > 0) {
     damage = Math.floor(damage * 12_500 / 10_000)
   }
+
+  // Rules v4 summoner credit (necromancer): each credited wave fields
+  // summonCount units that fight for one summon interval at their sustained
+  // DPS. Credited waves = floor(creditWindow / summonIntervalMs), floored at
+  // 3 (even a briefly-lived summoner banks its opening waves) and capped by
+  // summonCap. Additive on top of the summoner's own strikes and independent
+  // of its chain/splash profile.
+  if (
+    attack.rules.simulationVersion >= 4
+    && stats.summonType
+    && (stats.summonCount ?? 0) > 0
+    && (stats.summonIntervalMs ?? 0) > 0
+    && Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, stats.summonType)
+  ) {
+    const summonStats = getTroopStats(stats.summonType, attack.reservation.troopLevel)
+    const summonDelay = Math.max(150, Math.floor(summonStats.attackDelay ?? 1_000))
+    const summonDps = Math.max(0, summonStats.damage) * 1_000 / summonDelay
+    const waves = Math.min(
+      stats.summonCap ?? Number.MAX_SAFE_INTEGER,
+      Math.max(3, Math.floor(activeMs / (stats.summonIntervalMs ?? 1)))
+    )
+    damage += Math.floor((stats.summonCount ?? 0) * waves * summonDps * (stats.summonIntervalMs ?? 0) / 1_000)
+  }
   return Math.max(0, damage)
 }
 
-function targetPriority(type: BuildingType, troop: TroopDeployedEvent): number {
+function targetPriority(type: BuildingType, troop: TroopDeployedEvent, simulationVersion: number): number {
   const stats = getTroopStats(troop.troopType, 1)
   if (stats.targetPriority === 'town_hall' && type === 'town_hall') return 0
   if (stats.targetPriority === 'wall' && type === 'wall') return 0
   if (stats.targetPriority === 'defense' && BUILDING_DEFINITIONS[type].category === 'defense') return 0
+  // Rules v4: resource raiders (goblin plunderer) head straight for the economy.
+  if (simulationVersion >= 4 && stats.targetPriority === 'resource' && BUILDING_DEFINITIONS[type].category === 'resource') return 0
   if (type === 'wall') return 2
   return 1
 }
@@ -171,16 +348,22 @@ function orderedTargets(states: MutableBuildingState[], attack: AttackAggregate,
   return states
     .filter(state => state.remainingHitPoints > 0)
     .sort((left, right) => {
-      const priority = targetPriority(left.type, troop) - targetPriority(right.type, troop)
+      const priority = targetPriority(left.type, troop, attack.rules.simulationVersion) - targetPriority(right.type, troop, attack.rules.simulationVersion)
       if (priority !== 0) return priority
       return deterministicScore(attack.simulationSeed, `${troop.troopInstanceId}:${left.id}`)
         .localeCompare(deterministicScore(attack.simulationSeed, `${troop.troopInstanceId}:${right.id}`))
     })
 }
 
-function applyRawDamage(state: MutableBuildingState, rawDamage: number, wallMultiplier = 1): { consumed: number; dealt: number } {
+// resourceMultiplier stays 1 for every pre-v4 caller, so the wall-only
+// multiplier selection below is byte-identical to the v3 code path.
+function applyRawDamage(state: MutableBuildingState, rawDamage: number, wallMultiplier = 1, resourceMultiplier = 1): { consumed: number; dealt: number } {
   if (rawDamage <= 0 || state.remainingHitPoints <= 0) return { consumed: 0, dealt: 0 }
-  const multiplier = state.type === 'wall' ? Math.max(1, wallMultiplier) : 1
+  const multiplier = state.type === 'wall'
+    ? Math.max(1, wallMultiplier)
+    : resourceMultiplier > 1 && BUILDING_DEFINITIONS[state.type].category === 'resource'
+      ? resourceMultiplier
+      : 1
   const possible = Math.floor(rawDamage * multiplier)
   const dealt = Math.min(state.remainingHitPoints, possible)
   state.remainingHitPoints -= dealt
@@ -206,14 +389,27 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   const boosts = attack.events.filter((event): event is AbilityUsedEvent => event.type === 'ABILITY_USED' && event.effect.kind === 'DAMAGE_BOOST')
   const totalDefenseDps = snapshotDefenseDps(attack)
   const deployedCount = attack.events.filter(event => event.type === 'TROOP_DEPLOYED').length
+  // Rules v4 precomputes each deploy's BASE credit window once; the aura and
+  // support-extension models overlap against these (never against extended
+  // windows), keeping the v4 credit deterministic and non-recursive.
+  const versionAtLeast4 = attack.rules.simulationVersion >= 4
+  const troopDeploys = attack.events.filter((event): event is TroopDeployedEvent => event.type === 'TROOP_DEPLOYED')
+  const baseWindows = versionAtLeast4
+    ? baseCreditWindowsV4(attack, troopDeploys, durationMs, totalDefenseDps, deployedCount)
+    : new Map<string, CreditWindow>()
+  const cadenceWindows = versionAtLeast4 ? quartermasterWindowsV4(attack, troopDeploys, baseWindows) : []
   const actions: DamageAction[] = []
 
   for (const event of attack.events) {
     if (event.type === 'TROOP_DEPLOYED') {
+      const baseLifetime = attritionLifetimeMs(attack, event, totalDefenseDps, deployedCount)
+      const lifetime = versionAtLeast4
+        ? supportExtendedLifetimeMs(attack, event, baseLifetime, troopDeploys, baseWindows, totalDefenseDps, deployedCount)
+        : baseLifetime
       actions.push({
         atMs: event.atMs,
         eventIndex: event.eventIndex,
-        damage: troopDamage(attack, event, durationMs, boosts, attritionLifetimeMs(attack, event, totalDefenseDps, deployedCount)),
+        damage: troopDamage(attack, event, durationMs, boosts, lifetime, cadenceWindows),
         troop: event
       })
     } else if (event.type === 'ABILITY_USED' && event.effect.kind === 'DIRECT_DAMAGE') {
@@ -242,10 +438,16 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
     }
 
     const stats = getTroopStats(action.troop.troopType, attack.reservation.troopLevel)
+    // Rules v4: a resource raider converts the share of its budget spent on
+    // resource-category buildings at resourceDamageMultiplier — the same
+    // deterministic proportional model walls have always used.
+    const resourceMultiplier = versionAtLeast4 && stats.targetPriority === 'resource'
+      ? Math.max(1, stats.resourceDamageMultiplier ?? 1)
+      : 1
     let budget = action.damage
     for (const target of orderedTargets(states, attack, action.troop)) {
       if (budget <= 0) break
-      const applied = applyRawDamage(target, budget, stats.wallDamageMultiplier ?? 1)
+      const applied = applyRawDamage(target, budget, stats.wallDamageMultiplier ?? 1, resourceMultiplier)
       budget -= applied.consumed
       damageDealt += applied.dealt
     }
@@ -260,6 +462,10 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   // Version 3 keeps the v2 scoring but caps each troop's damage-credit window
   // by its deterministic expected survival time (see attritionLifetimeMs), so
   // an army that gets wiped in seconds no longer banks the full credit window.
+  // Version 4 keeps the v3 scoring and attrition but credits the declarative
+  // troop kits: resource-raider multipliers/tiering, summoner waves,
+  // untargetable deploy windows, quartermaster cadence auras and support
+  // window extensions (see the "Rules v4" helpers above).
   const destruction = attack.rules.simulationVersion <= 1
     ? (scoring.length > 0
         ? Math.min(100, Math.round(scoring.filter(state => state.remainingHitPoints <= 0).length * 100 / scoring.length))

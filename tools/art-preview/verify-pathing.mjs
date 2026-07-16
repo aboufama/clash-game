@@ -239,6 +239,16 @@ try {
     const wall = scene.buildings.find(item => item.id === id)
     return !wall || wall.health < health
   }, { timeout: 9000, polling: 50 }, ramWall)
+  await page.evaluate(id => {
+    const scene = window.__clashGame.scene.keys.MainScene
+    const wall = scene.buildings.find(item => item.id === id)
+    if (wall) scene['destroyBuilding'](wall)
+  }, ramWall.id)
+  await page.waitForFunction(() => {
+    const scene = window.__clashGame.scene.keys.MainScene
+    const ram = scene.troops.find(item => item.id === 'ram-fixed')
+    return ram?.strategicTarget?.id === 'inside' && ram.target?.id === 'inside'
+  }, { timeout: 8000, polling: 50 })
   const ramResult = await page.evaluate(() => {
     const scene = window.__clashGame.scene.keys.MainScene
     const ram = scene.troops.find(item => item.id === 'ram-fixed')
@@ -278,67 +288,6 @@ try {
     'wall breaker self-destructed without damaging its selected wall')
   assert(wallbreakerResult.violations.length === 0,
     `wall breaker collision violations: ${JSON.stringify(wallbreakerResult.violations)}`)
-
-  const wardSetup = await page.evaluate(() => {
-    const scene = window.__clashGame.scene.keys.MainScene
-    scene['clearScene']()
-    scene.mode = 'ATTACK'
-    scene.isScouting = true
-    scene.raidEndScheduled = true
-    scene.villageLife.clear()
-    const add = (id, type, gridX, gridY) => scene['instantiateBuilding']({ id, type, gridX, gridY, level: 1 }, 'ENEMY')
-    add('inside', 'town_hall', 13, 11)
-    for (let wallX = 8; wallX <= 18; wallX++) {
-      add(`wall-n-${wallX}`, 'wall', wallX, 8)
-      add(`wall-s-${wallX}`, 'wall', wallX, 18)
-    }
-    for (let wallY = 9; wallY < 18; wallY++) {
-      add(`wall-w-${wallY}`, 'wall', 8, wallY)
-      add(`wall-e-${wallY}`, 'wall', 18, wallY)
-    }
-    scene.spawnTroop(11.5, 12.5, 'warrior', 'PLAYER')
-    const leader = scene.troops.at(-1)
-    leader.id = 'ward-leader'
-    leader.speedMult = 0
-    leader.attackDelay = 1_000_000
-    leader.lastAttackTime = scene.time.now
-    leader.nextPathTime = 0
-    leader.retargetPauseUntil = 0
-    scene.spawnTroop(4.5, 12.5, 'ward', 'PLAYER')
-    const ward = scene.troops.at(-1)
-    ward.id = 'ward-fixed'
-    ward.speedMult = 1
-    ward.nextPathTime = 0
-    ward.retargetPauseUntil = 0
-    return { leader: leader.id, ward: ward.id }
-  })
-  await page.waitForFunction(({ leader, ward }) => {
-    const scene = window.__clashGame.scene.keys.MainScene
-    const unit = scene.troops.find(item => item.id === ward)
-    return unit?.target?.id === leader && unit.navigationPlan?.blockerId
-  }, { timeout: 5000, polling: 50 }, wardSetup)
-  const wardBlocker = await page.evaluate(wardId => {
-    const scene = window.__clashGame.scene.keys.MainScene
-    const ward = scene.troops.find(item => item.id === wardId)
-    const wall = scene.buildings.find(item => item.id === ward.navigationPlan.blockerId)
-    return { id: wall.id, health: wall.health }
-  }, wardSetup.ward)
-  await page.waitForFunction(({ id, health }) => {
-    const wall = window.__clashGame.scene.keys.MainScene.buildings.find(item => item.id === id)
-    return !wall || wall.health < health
-  }, { timeout: 5000, polling: 50 }, wardBlocker)
-  const wardResult = await page.evaluate(({ leader, ward }, blockerId) => {
-    const scene = window.__clashGame.scene.keys.MainScene
-    const unit = scene.troops.find(item => item.id === ward)
-    return {
-      follows: unit?.target?.id === leader,
-      blocker: unit?.navigationPlan?.blockerId,
-      blockerHealth: scene.buildings.find(item => item.id === blockerId)?.health ?? 0
-    }
-  }, wardSetup, wardBlocker.id)
-  assert(wardResult.follows, 'ward abandoned its living ally while helping with a breach')
-  assert(wardResult.blocker === wardBlocker.id && wardResult.blockerHealth < wardBlocker.health,
-    'ward could not assist across its required wall route')
 
   const cohortBefore = await page.evaluate(() => {
     const scene = window.__clashGame.scene.keys.MainScene
@@ -405,7 +354,7 @@ try {
 
   assert(errors.length === 0, `browser errors: ${errors.join(' | ')}`)
   console.log('browser pathing regressions passed', {
-    staleWallResult, breachResult, ranged, ramResult, wallbreakerResult, wardResult, cohortPlan, cohortAfter, out: OUT
+    staleWallResult, breachResult, ranged, ramResult, wallbreakerResult, cohortPlan, cohortAfter, out: OUT
   })
 } catch (error) {
   primaryError = error

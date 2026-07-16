@@ -366,8 +366,8 @@ class SpriteBankImpl {
             y = Math.round(y / bind.snapCell) * bind.snapCell;
             img.setScale(bind.cellWorldPx * bind.scaleMul);
         } else {
-            // Everything else rides the carrier's scale so spawn bounces,
-            // recursion splits and squish tweens survive on the baked path.
+            // Everything else rides the carrier's scale so spawn bounces
+            // and squish tweens survive on the baked path.
             // The SIGN stays out of flipX: multi-dir bakes carry facing in the
             // frame itself, and every flip request arrives already resolved.
             img.setScale(

@@ -131,7 +131,6 @@ export type ReplayTroopSnapshot = {
   gridY: number;
   health: number;
   maxHealth: number;
-  recursionGen?: number;
   facingAngle?: number;
   hasTakenDamage?: boolean;
 };
