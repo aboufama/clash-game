@@ -36,37 +36,37 @@ import { drawGoblinplundererA } from './GoblinplundererA'; // IMPORT goblinplund
 import { drawGoblinplundererB } from './GoblinplundererB'; // IMPORT goblinplunderer B
 import { drawGoblinplundererC } from './GoblinplundererC'; // IMPORT goblinplunderer C
 import { drawClockworkbeetleA } from './ClockworkbeetleA'; // IMPORT clockworkbeetle A
-// IMPORT clockworkbeetle B
+import { drawClockworkbeetleB } from './ClockworkbeetleB'; // IMPORT clockworkbeetle B
 // IMPORT clockworkbeetle C
 import { drawPhysicianscartA } from './PhysicianscartA'; // IMPORT physicianscart A
 import { drawPhysicianscartB } from './PhysicianscartB'; // IMPORT physicianscart B
 import { drawPhysicianscartC } from './PhysicianscartC'; // IMPORT physicianscart C
-// IMPORT pavisebearer A
+import { drawPavisebearerA } from './PavisebearerA'; // IMPORT pavisebearer A
 // IMPORT pavisebearer B
 // IMPORT pavisebearer C
 import { drawQuartermasterA } from './QuartermasterA'; // IMPORT quartermaster A
-// IMPORT quartermaster B
+import { drawQuartermasterB } from './QuartermasterB'; // IMPORT quartermaster B
 // IMPORT quartermaster C
 import { drawSiegetowerA } from './SiegetowerA'; // IMPORT siegetower A
 import { drawSiegetowerB } from './SiegetowerB'; // IMPORT siegetower B
 // IMPORT siegetower C
 import { drawNecromancerA } from './NecromancerA'; // IMPORT necromancer A
-// IMPORT necromancer B
+import { drawNecromancerB } from './NecromancerB'; // IMPORT necromancer B
 // IMPORT necromancer C
 import { drawTrebuchetA } from './TrebuchetA'; // IMPORT trebuchet A
 import { drawTrebuchetB } from './TrebuchetB'; // IMPORT trebuchet B
 import { drawTrebuchetC } from './TrebuchetC'; // IMPORT trebuchet C
-// IMPORT hawkeyeassassin A
+import { drawHawkeyeassassinA } from './HawkeyeassassinA'; // IMPORT hawkeyeassassin A
 // IMPORT hawkeyeassassin B
 // IMPORT hawkeyeassassin C
-// IMPORT warelephant A
+import { drawWarelephantA } from './WarelephantA'; // IMPORT warelephant A
 // IMPORT warelephant B
 // IMPORT warelephant C
-// IMPORT ornithopter A
+import { drawOrnithopterA } from './OrnithopterA'; // IMPORT ornithopter A
 // IMPORT ornithopter B
 // IMPORT ornithopter C
 import { drawSkeletonA } from './NecromancerA'; // IMPORT skeleton A
-// IMPORT skeleton B
+import { drawSkeletonB } from './NecromancerB'; // IMPORT skeleton B
 // IMPORT skeleton C
 
 /**
@@ -159,7 +159,7 @@ export const DESIGN_SLOTS: DesignSlots = {
     },
     clockworkbeetle: {
         A: drawClockworkbeetleA, // SLOT clockworkbeetle A
-        B: null, // SLOT clockworkbeetle B
+        B: drawClockworkbeetleB, // SLOT clockworkbeetle B
         C: null, // SLOT clockworkbeetle C
     },
     physicianscart: {
@@ -168,13 +168,13 @@ export const DESIGN_SLOTS: DesignSlots = {
         C: drawPhysicianscartC, // SLOT physicianscart C
     },
     pavisebearer: {
-        A: null, // SLOT pavisebearer A
+        A: drawPavisebearerA, // SLOT pavisebearer A
         B: null, // SLOT pavisebearer B
         C: null, // SLOT pavisebearer C
     },
     quartermaster: {
         A: drawQuartermasterA, // SLOT quartermaster A
-        B: null, // SLOT quartermaster B
+        B: drawQuartermasterB, // SLOT quartermaster B
         C: null, // SLOT quartermaster C
     },
     siegetower: {
@@ -184,7 +184,7 @@ export const DESIGN_SLOTS: DesignSlots = {
     },
     necromancer: {
         A: drawNecromancerA, // SLOT necromancer A
-        B: null, // SLOT necromancer B
+        B: drawNecromancerB, // SLOT necromancer B
         C: null, // SLOT necromancer C
     },
     trebuchet: {
@@ -193,17 +193,17 @@ export const DESIGN_SLOTS: DesignSlots = {
         C: drawTrebuchetC, // SLOT trebuchet C
     },
     hawkeyeassassin: {
-        A: null, // SLOT hawkeyeassassin A
+        A: drawHawkeyeassassinA, // SLOT hawkeyeassassin A
         B: null, // SLOT hawkeyeassassin B
         C: null, // SLOT hawkeyeassassin C
     },
     warelephant: {
-        A: null, // SLOT warelephant A
+        A: drawWarelephantA, // SLOT warelephant A
         B: null, // SLOT warelephant B
         C: null, // SLOT warelephant C
     },
     ornithopter: {
-        A: null, // SLOT ornithopter A
+        A: drawOrnithopterA, // SLOT ornithopter A
         B: null, // SLOT ornithopter B
         C: null, // SLOT ornithopter C
     },
@@ -212,7 +212,7 @@ export const DESIGN_SLOTS: DesignSlots = {
     // always matches visually.
     skeleton: {
         A: drawSkeletonA, // SLOT skeleton A
-        B: null, // SLOT skeleton B
+        B: drawSkeletonB, // SLOT skeleton B
         C: null, // SLOT skeleton C
     },
 };
