@@ -110,8 +110,7 @@ export interface Troop {
     facingAngle: number;
     path?: Array<{ x: number; y: number }>; // Continuous grid-space waypoints
     /** The building this troop ultimately intends to attack. A temporary wall
-     * blocker must never replace this intent. Wards keep this unset while
-     * following another troop. */
+     * blocker must never replace this intent. */
     strategicTarget?: PlacedBuilding | null;
     /** Versioned combat route. `target` remains the active damage/animation
      * target for legacy render code; this plan retains the strategic intent. */
@@ -135,9 +134,7 @@ export interface Troop {
      *  continuous-beam damage ticks would otherwise spam a burst per tick). */
     frostHitFxAt?: number;
     // Special troop properties
-    recursionGen?: number; // For recursion (0 = original, 1 = first split, 2 = final)
     slamOffset?: number; // For golem body slam animation
-    bowDrawProgress?: number; // For sharpshooter bow draw animation (0 = relaxed, 1 = fully drawn)
     mortarRecoil?: number; // For mobile mortar - recoil offset for the mortar only (not the soldier)
     phalanxSpearOffset?: number; // For phalanx - spear thrusting animation (0 = normal, 1 = full thrust)
     lastHealthBarValue?: number;

@@ -119,10 +119,10 @@ Troop pose is a pure function of `(time, attackAge, facingAngle, isMoving)`
   runtime picks the frame nearest its live `time − lastAttackTime` — no fps
   math, and the anticipation still peaks exactly on the damage tick.
 - **idle**: one breath frame. **Directions**: troops whose draw consumes
-  `facingAngle` bake 8 (`archer`, `sharpshooter`, `mobilemortar`, `ram`,
+  `facingAngle` bake 8 (`archer`, `mobilemortar`, `ram`,
   `davincitank`, `phalanx`, `romanwarrior`); symmetric troops bake 1.
   **Owners**: both `P`layer and `E`nemy palettes. Troops with externally-driven
-  attack poses (`golem` slam, `phalanx` spear, `davincitank`, `recursion`)
+  attack poses (`golem` slam, `phalanx` spear, `davincitank`)
   bake idle/walk only for now (`attack: false` in `TROOP_PARAMS`).
 
 ### Manifest schema (as emitted)

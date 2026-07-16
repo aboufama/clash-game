@@ -108,7 +108,7 @@ try {
     s.dayNight.setPhaseOverride(0.3)
     s.weather.setWeatherOverride(0)
     s.hasDeployed = true
-    s.spawnTroop(8, 16, 'giant', 'PLAYER')
+    s.spawnTroop(8, 16, 'golem', 'PLAYER')
     const fakeDb = { type: 'dragons_breath', owner: 'ENEMY', health: 500, gridX: 12, gridY: 12, level: 2 }
     const silo = { x: (12 - 12) * 32, y: (12 + 12) * 16 - 14 }
     s['shootDragonPod'](fakeDb, silo, 8, 16, 0)

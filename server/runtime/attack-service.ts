@@ -155,7 +155,6 @@ type ReplayFrame = {
     gridY: number
     health: number
     maxHealth: number
-    recursionGen?: number
     facingAngle?: number
     hasTakenDamage?: boolean
   }>
@@ -370,7 +369,6 @@ function sanitizeFrame(raw: unknown, maxT: number): ReplayFrame | null {
           gridY: finiteNumber(state.gridY),
           health: nonNegativeInt(state.health, 0, 100_000_000),
           maxHealth: Math.max(1, nonNegativeInt(state.maxHealth, 1, 100_000_000)),
-          ...(state.recursionGen === undefined ? {} : { recursionGen: nonNegativeInt(state.recursionGen, 0, 8) }),
           ...(state.facingAngle === undefined ? {} : { facingAngle: finiteNumber(state.facingAngle, 0, -100, 100) }),
           ...(state.hasTakenDamage === undefined ? {} : { hasTakenDamage: Boolean(state.hasTakenDamage) })
         }]

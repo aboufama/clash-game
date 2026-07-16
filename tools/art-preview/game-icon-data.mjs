@@ -82,48 +82,6 @@ export const ICONS = [
         -4px 2px #3E2723, -2px 2px #5C3317, 2px 2px #5C3317, 4px 2px #3E2723`
   },
   {
-    classes: ["giant-icon"],
-    note: "GIANT - Large muscular human with leather vest, dark hair, wooden bat",
-    base: "#DEB887",
-    px: `
-        /* Dark short hair */
-        -4px -22px #3A2A1A, -2px -22px #3A2A1A, 0 -22px #3A2A1A, 2px -22px #3A2A1A, 4px -22px #3A2A1A,
-        -6px -20px #3A2A1A, -4px -20px #4A3A2A, -2px -20px #3A2A1A, 0 -20px #4A3A2A, 2px -20px #3A2A1A, 4px -20px #4A3A2A, 6px -20px #3A2A1A,
-        /* Face */
-        -6px -18px #C9A66B, -4px -18px #DEB887, -2px -18px #DEB887, 0 -18px #DEB887, 2px -18px #DEB887, 4px -18px #DEB887, 6px -18px #C9A66B,
-        /* Eyes + brow */
-        -4px -16px #1A1A1A, -2px -16px #DEB887, 0 -16px #DEB887, 2px -16px #DEB887, 4px -16px #1A1A1A,
-        /* Jaw / stubble */
-        -6px -14px #C9A66B, -4px -14px #B8956E, -2px -14px #C9A66B, 0 -14px #B8956E, 2px -14px #C9A66B, 4px -14px #B8956E, 6px -14px #C9A66B,
-        /* Neck */
-        -4px -12px #C9A66B, -2px -12px #DEB887, 0 -12px #DEB887, 2px -12px #DEB887, 4px -12px #C9A66B,
-        /* Broad shoulders (skin) + bat on right */
-        -16px -10px #C9A66B, -14px -10px #DEB887, -12px -10px #DEB887,
-        12px -10px #DEB887, 14px -10px #DEB887, 16px -10px #C9A66B,
-        18px -10px #8B6B4A, 18px -12px #8B6B4A, 18px -14px #8B6B4A, 18px -16px #6B4A30, 18px -18px #6B4A30, 18px -20px #6B4A30,
-        /* Vest over chest */
-        -10px -10px #6B4226, -8px -10px #6B4226, -6px -10px #6B4226, -4px -10px #6B4226, -2px -10px #4A2F1A, 0 -10px #6B4226, 2px -10px #4A2F1A, 4px -10px #6B4226, 6px -10px #6B4226, 8px -10px #6B4226, 10px -10px #6B4226,
-        -10px -8px #6B4226, -8px -8px #4A2F1A, -6px -8px #6B4226, -4px -8px #6B4226, -2px -8px #4A2F1A, 0 -8px #6B4226, 2px -8px #4A2F1A, 4px -8px #6B4226, 6px -8px #6B4226, 8px -8px #4A2F1A, 10px -8px #6B4226,
-        /* Left arm (skin) */
-        -16px -8px #DEB887, -14px -8px #C9A66B, -16px -6px #DEB887, -14px -6px #C9A66B,
-        -16px -4px #C9A66B, -14px -4px #C9A66B,
-        /* Right arm holding bat */
-        16px -8px #DEB887, 14px -8px #C9A66B, 16px -6px #DEB887,
-        /* Belt */
-        -10px -6px #4A3520, -8px -6px #4A3520, -6px -6px #4A3520, -4px -6px #4A3520, -2px -6px #C9A227, 0 -6px #C9A227, 2px -6px #C9A227, 4px -6px #4A3520, 6px -6px #4A3520, 8px -6px #4A3520, 10px -6px #4A3520,
-        /* Pants */
-        -8px -4px #5A4A3A, -6px -4px #5A4A3A, -4px -4px #5A4A3A, -2px -4px #5A4A3A, 2px -4px #5A4A3A, 4px -4px #5A4A3A, 6px -4px #5A4A3A, 8px -4px #5A4A3A,
-        -8px -2px #4A3A2A, -6px -2px #5A4A3A, -4px -2px #4A3A2A, 4px -2px #4A3A2A, 6px -2px #5A4A3A, 8px -2px #4A3A2A,
-        /* Legs */
-        -8px 0 #5A4A3A, -6px 0 #4A3A2A, -4px 0 #5A4A3A, 4px 0 #5A4A3A, 6px 0 #4A3A2A, 8px 0 #5A4A3A,
-        -8px 2px #4A3A2A, -6px 2px #5A4A3A, -4px 2px #4A3A2A, 4px 2px #4A3A2A, 6px 2px #5A4A3A, 8px 2px #4A3A2A,
-        /* Boots */
-        -10px 4px #3A2A1A, -8px 4px #3A2A1A, -6px 4px #3A2A1A, -4px 4px #3A2A1A,
-        4px 4px #3A2A1A, 6px 4px #3A2A1A, 8px 4px #3A2A1A, 10px 4px #3A2A1A,
-        /* Left fist */
-        -18px -2px #C9A66B, -16px -2px #DEB887`
-  },
-  {
     classes: ["wallbreaker-icon"],
     note: "WALL BREAKER - Small guy with barrel of explosives overhead",
     base: "#DEB887",
@@ -156,63 +114,6 @@ export const ICONS = [
         /* Boots */
         -6px 2px #3A2A1A, -4px 2px #3A2A1A, -2px 2px #3A2A1A,
         2px 2px #3A2A1A, 4px 2px #3A2A1A, 6px 2px #3A2A1A`
-  },
-  {
-    classes: ["ward-icon"],
-    note: "WARD - Magical guardian with green shield aura, hooded",
-    base: "#32CD32",
-    px: `
-        /* Hooded head */
-        -4px -16px #1B5E20, -2px -16px #228B22, 0 -16px #2E7D32, 2px -16px #228B22, 4px -16px #1B5E20,
-        -6px -14px #145214, -4px -14px #1B5E20, -2px -14px #228B22, 0 -14px #2E7D32, 2px -14px #228B22, 4px -14px #1B5E20, 6px -14px #145214,
-        /* Face visible under hood */
-        -4px -12px #1B5E20, -2px -12px #DEB887, 0 -12px #F5DEB3, 2px -12px #DEB887, 4px -12px #1B5E20,
-        /* Green glowing eyes */
-        -2px -12px #90EE90, 2px -12px #90EE90,
-        /* Body robes */
-        -6px -10px #0D3D0D, -4px -10px #145214, -2px -10px #1B5E20, 0 -10px #228B22, 2px -10px #1B5E20, 4px -10px #145214, 6px -10px #0D3D0D,
-        -6px -8px #0A2F0A, -4px -8px #0D3D0D, -2px -8px #145214, 0 -8px #1B5E20, 2px -8px #145214, 4px -8px #0D3D0D, 6px -8px #0A2F0A,
-        /* Shield aura (glowing green) */
-        -12px -6px #90EE90, -10px -6px #32CD32, 10px -6px #32CD32, 12px -6px #90EE90,
-        -14px -2px #228B22, -12px -2px #90EE90, 12px -2px #90EE90, 14px -2px #228B22,
-        -14px 2px #228B22, -12px 2px #90EE90, 12px 2px #90EE90, 14px 2px #228B22,
-        -12px 6px #90EE90, -10px 6px #32CD32, 10px 6px #32CD32, 12px 6px #90EE90,
-        /* Arms holding staff */
-        -8px -6px #1B5E20, 8px -6px #1B5E20,
-        /* Staff with gem */
-        -10px -10px #8B4513, -10px -8px #654321, -10px -4px #654321, -10px 0 #8B4513,
-        -10px -12px #90EE90, -10px -14px #00FF00,
-        /* Lower robes */
-        -6px -6px #145214, -4px -6px #1B5E20, -2px -6px #228B22, 0 -6px #1B5E20, 2px -6px #228B22, 4px -6px #1B5E20, 6px -6px #145214,
-        -6px -4px #0D3D0D, -4px -4px #145214, -2px -4px #1B5E20, 0 -4px #145214, 2px -4px #1B5E20, 4px -4px #145214, 6px -4px #0D3D0D,
-        -4px -2px #0D3D0D, -2px -2px #145214, 0 -2px #0D3D0D, 2px -2px #145214, 4px -2px #0D3D0D,
-        /* Feet */
-        -4px 0 #3E2723, -2px 0 #5C3317, 2px 0 #5C3317, 4px 0 #3E2723`
-  },
-  {
-    classes: ["recursion-icon"],
-    note: "RECURSION - Alien hexagonal blob with split symbol",
-    base: "#00FFAA",
-    px: `
-        /* Outer hexagon shell */
-        0 -14px #00AA77, 2px -14px #00FFAA, -2px -14px #00FFAA,
-        -6px -12px #00AA77, -4px -12px #00FFAA, -2px -12px #00DDAA, 0 -12px #00FFAA, 2px -12px #00DDAA, 4px -12px #00FFAA, 6px -12px #00AA77,
-        -8px -10px #00AA77, -6px -10px #00CC88, -4px -10px #00FFAA, -2px -10px #00FFAA, 0 -10px #00FFAA, 2px -10px #00FFAA, 4px -10px #00FFAA, 6px -10px #00CC88, 8px -10px #00AA77,
-        -10px -8px #008866, -8px -8px #00AA77, -6px -8px #00CC88, -4px -8px #00DDAA, -2px -8px #00FFAA, 0 -8px #00FFAA, 2px -8px #00FFAA, 4px -8px #00DDAA, 6px -8px #00CC88, 8px -8px #00AA77, 10px -8px #008866,
-        /* Inner hexagon (darker) */
-        -4px -6px #007755, -2px -6px #008866, 0 -6px #00AA77, 2px -6px #008866, 4px -6px #007755,
-        -10px -6px #008866, -8px -6px #00AA77, -6px -6px #00AA77, 6px -6px #00AA77, 8px -6px #00AA77, 10px -6px #008866,
-        /* Central core - white with split cross */
-        -2px -4px #007755, 0 -4px #FFFFFF, 2px -4px #007755,
-        -10px -4px #00AA77, -8px -4px #00CC88, -6px -4px #008866, 6px -4px #008866, 8px -4px #00CC88, 10px -4px #00AA77,
-        -2px -2px #FFFFFF, 0 -2px #00FFAA, 2px -2px #FFFFFF,
-        -10px -2px #008866, -8px -2px #00AA77, -6px -2px #007755, 6px -2px #007755, 8px -2px #00AA77, 10px -2px #008866,
-        -2px 0 #007755, 0 0 #FFFFFF, 2px 0 #007755,
-        /* Lower hexagon */
-        -8px 0 #00AA77, -6px 0 #00CC88, -4px 0 #00AA77, 4px 0 #00AA77, 6px 0 #00CC88, 8px 0 #00AA77,
-        -6px 2px #00AA77, -4px 2px #00FFAA, -2px 2px #00FFAA, 0 2px #00FFAA, 2px 2px #00FFAA, 4px 2px #00FFAA, 6px 2px #00AA77,
-        -4px 4px #00AA77, -2px 4px #00CC88, 0 4px #00FFAA, 2px 4px #00CC88, 4px 4px #00AA77,
-        -2px 6px #008866, 0 6px #00AA77, 2px 6px #008866`
   },
   {
     classes: ["ram-icon"],
@@ -385,50 +286,6 @@ export const ICONS = [
         2px 4px #5A9EC0, 4px 4px #468AAE, 6px 4px #35759A,
         2px 6px #468AAE, 4px 6px #5A9EC0, 6px 6px #468AAE, 8px 6px #35759A,
         2px 8px #35759A, 4px 8px #468AAE, 6px 8px #35759A, 8px 8px #266185`
-  },
-  {
-    classes: ["sharpshooter-icon"],
-    note: "SHARPSHOOTER - Elite hooded crossbow marksman with scope",
-    base: "#228B22",
-    px: `
-        /* Hood/head */
-        -4px -18px #1B5E20, -2px -18px #228B22, 0 -18px #228B22, 2px -18px #1B5E20,
-        -6px -16px #145214, -4px -16px #1B5E20, -2px -16px #228B22, 0 -16px #2E7D32, 2px -16px #228B22, 4px -16px #1B5E20, 6px -16px #145214,
-        /* Face peeking from hood */
-        -4px -14px #1B5E20, -2px -14px #DEB887, 0 -14px #F5DEB3, 2px -14px #DEB887, 4px -14px #1B5E20,
-        /* Eyes */
-        -2px -14px #654321, 2px -14px #654321,
-        /* Dark green cloak body */
-        -6px -12px #145214, -4px -12px #1B5E20, -2px -12px #228B22, 0 -12px #1B5E20, 2px -12px #228B22, 4px -12px #1B5E20, 6px -12px #145214,
-        -6px -10px #0D3D0D, -4px -10px #145214, -2px -10px #1B5E20, 0 -10px #228B22, 2px -10px #1B5E20, 4px -10px #145214, 6px -10px #0D3D0D,
-        /* Arms holding crossbow */
-        -10px -10px #DEB887, -8px -8px #DEB887, -10px -8px #145214,
-        8px -10px #DEB887, 10px -10px #145214,
-        /* CROSSBOW (held horizontally) */
-        -18px -8px #654321, -16px -8px #8B4513, -14px -8px #654321, -12px -8px #8B4513,
-        /* Crossbow bow arms */
-        -18px -12px #5C3317, -16px -12px #654321, -16px -14px #5C3317,
-        -18px -4px #5C3317, -16px -4px #654321, -16px -2px #5C3317,
-        /* Bowstring */
-        -14px -12px #A9A9A9, -12px -10px #C0C0C0, -12px -8px #A9A9A9, -12px -6px #C0C0C0, -14px -4px #A9A9A9,
-        /* Scope on crossbow */
-        -10px -10px #505050, -8px -10px #696969, -6px -10px #87CEEB,
-        /* Bolt loaded */
-        -10px -8px #8B4513, -8px -8px #654321, -6px -8px #C0C0C0,
-        /* Body/torso */
-        -6px -8px #0D3D0D, -4px -8px #145214, -2px -8px #1B5E20, 0 -8px #145214, 2px -8px #1B5E20, 4px -8px #145214, 6px -8px #0D3D0D,
-        /* Quiver on back */
-        6px -12px #5C3317, 8px -12px #654321, 10px -12px #5C3317,
-        6px -10px #654321, 8px -10px #8B4513, 10px -10px #654321,
-        8px -14px #C0C0C0, 10px -14px #C0C0C0, 12px -14px #C0C0C0,
-        /* Belt with pouches */
-        -6px -6px #5C3317, -4px -6px #654321, -2px -6px #8B4513, 0 -6px #654321, 2px -6px #8B4513, 4px -6px #654321, 6px -6px #5C3317,
-        /* Legs */
-        -4px -4px #0D3D0D, -2px -4px #145214, 2px -4px #145214, 4px -4px #0D3D0D,
-        -4px -2px #0D3D0D, -2px -2px #145214, 2px -2px #145214, 4px -2px #0D3D0D,
-        /* Boots */
-        -6px 0 #3E2723, -4px 0 #5C3317, -2px 0 #3E2723,
-        2px 0 #3E2723, 4px 0 #5C3317, 6px 0 #3E2723`
   },
   {
     classes: ["mobilemortar-icon"],

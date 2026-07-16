@@ -150,13 +150,6 @@
     },
     {
       "kind": "troops",
-      "unit": "giant",
-      "atlas": "troops/giant/atlas.png",
-      "frames": "troops/giant/atlas.json",
-      "manifest": "troops/giant/manifest.json"
-    },
-    {
-      "kind": "troops",
       "unit": "golem",
       "atlas": "troops/golem/atlas.png",
       "frames": "troops/golem/atlas.json",
@@ -192,24 +185,10 @@
     },
     {
       "kind": "troops",
-      "unit": "recursion",
-      "atlas": "troops/recursion/atlas.png",
-      "frames": "troops/recursion/atlas.json",
-      "manifest": "troops/recursion/manifest.json"
-    },
-    {
-      "kind": "troops",
       "unit": "romanwarrior",
       "atlas": "troops/romanwarrior/atlas.png",
       "frames": "troops/romanwarrior/atlas.json",
       "manifest": "troops/romanwarrior/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "sharpshooter",
-      "atlas": "troops/sharpshooter/atlas.png",
-      "frames": "troops/sharpshooter/atlas.json",
-      "manifest": "troops/sharpshooter/manifest.json"
     },
     {
       "kind": "troops",
@@ -224,13 +203,6 @@
       "atlas": "troops/wallbreaker/atlas.png",
       "frames": "troops/wallbreaker/atlas.json",
       "manifest": "troops/wallbreaker/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "ward",
-      "atlas": "troops/ward/atlas.png",
-      "frames": "troops/ward/atlas.json",
-      "manifest": "troops/ward/manifest.json"
     },
     {
       "kind": "troops",
@@ -602,13 +574,6 @@
       "atlas": "projectiles/mortar_shell/atlas.png",
       "frames": "projectiles/mortar_shell/atlas.json",
       "manifest": "projectiles/mortar_shell/manifest.json"
-    },
-    {
-      "kind": "projectiles",
-      "unit": "musket_ball",
-      "atlas": "projectiles/musket_ball/atlas.png",
-      "frames": "projectiles/musket_ball/atlas.json",
-      "manifest": "projectiles/musket_ball/manifest.json"
     },
     {
       "kind": "projectiles",

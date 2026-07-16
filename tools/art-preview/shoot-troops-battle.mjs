@@ -1,7 +1,7 @@
 // LIVE battle verification for the troop overhaul: a practice attack on the
 // account's own starter base (it has defenses), troops deployed directly via
 // spawnTroop. Verifies the real combat loop: damage-synced attack cycles,
-// musket ball + flash, archer arrows, giant slam + dust on the tick, and
+// archer arrows, golem slam + dust on the tick, and
 // level chips appearing when defenses hurt troops. Also one night shot.
 //
 //   BASE=http://127.0.0.1:5301 OUT=/tmp/verify/troops node shoot-troops-battle.mjs
@@ -65,10 +65,9 @@ try {
     const s = window.__clashGame.scene.keys.MainScene
     const th = s.buildings.find(b => b.owner === 'ENEMY' && b.type === 'town_hall') ?? s.buildings.find(b => b.owner === 'ENEMY')
     const tx = th ? th.gridX : 12, ty = th ? th.gridY : 12
-    s.spawnTroop(Math.max(1, tx - 8), ty + 5, 'giant', 'PLAYER')
+    s.spawnTroop(Math.max(1, tx - 8), ty + 5, 'golem', 'PLAYER')
     s.spawnTroop(Math.max(1, tx - 7), ty + 6.2, 'warrior', 'PLAYER')
     s.spawnTroop(Math.max(1, tx - 6), ty + 7.4, 'archer', 'PLAYER')
-    s.spawnTroop(Math.max(1, tx - 8.5), ty + 7, 'sharpshooter', 'PLAYER')
     s.spawnTroop(Math.max(1, tx - 5), ty + 8, 'stormmage', 'PLAYER')
     return { tx, ty }
   })
@@ -81,15 +80,15 @@ try {
   await sleep(1200)
   await shot('g2-battle-march2')
 
-  // Wait for the giant's first slam: poll lastAttackTime, then catch the
+  // Wait for the golem's first slam: poll lastAttackTime, then catch the
   // impact ~80ms later and the dust roll ~300ms later.
   const gotSlam = await page.evaluate(() => new Promise(resolve => {
     const s = window.__clashGame.scene.keys.MainScene
-    const g = s.troops.find(t => t.type === 'giant')
-    if (!g) return resolve('no giant')
+    const g = s.troops.find(t => t.type === 'golem')
+    if (!g) return resolve('no golem')
     const t0 = s.time.now
     const check = () => {
-      if (!g.gameObject || !g.gameObject.active) return resolve('giant died')
+      if (!g.gameObject || !g.gameObject.active) return resolve('golem died')
       if (g.lastAttackTime > t0 && s.time.now - g.lastAttackTime < 45) {
         const isoX = (g.gridX - g.gridY) * 32
         const isoY = (g.gridX + g.gridY) * 16
@@ -102,23 +101,23 @@ try {
     }
     check()
   }))
-  console.log('giant slam:', gotSlam)
+  console.log('golem slam:', gotSlam)
   if (gotSlam === 'slam') {
-    await shot('g3-giant-slam-impact-live')
+    await shot('g3-golem-slam-impact-live')
     await sleep(240)
-    await shot('g4-giant-slam-dust-live')
+    await shot('g4-golem-slam-dust-live')
   }
 
-  // Catch a musket shot: fires MUSKET_FIRE_MS (330) after the tick.
+  // Catch an archer shot: the arrow leaves on the damage tick.
   const gotShot = await page.evaluate(() => new Promise(resolve => {
     const s = window.__clashGame.scene.keys.MainScene
-    const m = s.troops.find(t => t.type === 'sharpshooter')
-    if (!m) return resolve('no sharpshooter')
+    const m = s.troops.find(t => t.type === 'archer')
+    if (!m) return resolve('no archer')
     const t0 = s.time.now
     const check = () => {
-      if (!m.gameObject || !m.gameObject.active) return resolve('sharpshooter died')
+      if (!m.gameObject || !m.gameObject.active) return resolve('archer died')
       const age = s.time.now - m.lastAttackTime
-      if (m.lastAttackTime > t0 && age > 300 && age < 380) {
+      if (m.lastAttackTime > t0 && age >= 0 && age < 80) {
         const isoX = (m.gridX - m.gridY) * 32
         const isoY = (m.gridX + m.gridY) * 16
         s.cameras.main.setZoom(3.6)
@@ -130,11 +129,11 @@ try {
     }
     check()
   }))
-  console.log('musket:', gotShot)
+  console.log('arrow:', gotShot)
   if (gotShot === 'bang') {
-    await shot('g5-musket-flash-live')
+    await shot('g5-arrow-flight-live')
     await sleep(300)
-    await shot('g6-musket-smoke-live')
+    await shot('g6-arrow-impact-live')
   }
 
   // Wide battle shot: bars + chips after defenses have dealt damage.

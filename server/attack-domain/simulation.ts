@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { BUILDING_DEFINITIONS, getBuildingStats, getTroopStats } from '../../src/game/config/GameDefinitions'
+import { BUILDING_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats } from '../../src/game/config/GameDefinitions'
 import type { BuildingType } from '../../src/game/config/GameDefinitions'
 import { defenseDps } from '../../src/game/systems/DefenseBehaviorCatalog'
 import type {
@@ -113,6 +113,9 @@ function attritionLifetimeMs(
   totalDefenseDps: number,
   deployedCount: number
 ): number {
+  // Stored aggregates may reference troop types deleted in a later build;
+  // they earn zero credit (see troopDamage), so any lifetime is safe here.
+  if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return attack.rules.maxDamageCreditMs
   if (attack.rules.simulationVersion < 3 || totalDefenseDps <= 0) return attack.rules.maxDamageCreditMs
   const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
   const hitPoints = Math.max(1, Math.floor(stats.health))
@@ -130,6 +133,10 @@ function troopDamage(
   boosts: AbilityUsedEvent[],
   lifetimeMs: number
 ): number {
+  // A troop type deleted after this aggregate was stored settles to zero
+  // credit instead of NaN-corrupting (level 1) or throwing (level 2+) in
+  // getTroopStats. Surviving types are untouched.
+  if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return 0
   const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
   const delay = Math.max(150, Math.floor(stats.attackDelay ?? 1_000))
   const firstDelay = Math.max(0, Math.floor(stats.firstAttackDelay ?? 0))

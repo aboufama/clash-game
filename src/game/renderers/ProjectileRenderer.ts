@@ -12,9 +12,9 @@ import Phaser from 'phaser';
  * (-y) as it does in its silo. Positioning, rotation, tweens, trails and
  * impact FX stay with the call sites in MainScene.
  *
- * Dynamic-geometry projectiles (tesla bolts, storm lightning, prism beam,
- * ward laser) are NOT here — their shapes depend on both endpoints per
- * frame and cannot bake to a fixed sprite.
+ * Dynamic-geometry projectiles (tesla bolts, storm lightning, prism beam)
+ * are NOT here — their shapes depend on both endpoints per frame and
+ * cannot bake to a fixed sprite.
  */
 export class ProjectileRenderer {
 
@@ -26,14 +26,6 @@ export class ProjectileRenderer {
         g.fillTriangle(7, 0, 4.5, -1.4, 4.5, 1.4);
         g.fillStyle(0x2e7d32, 1);
         g.fillTriangle(-4.5, 0, -2.8, -1.6, -2.8, 1.6);
-    }
-
-    /** Sharpshooter musket ball (the fading powder tracer stays in MainScene). */
-    static drawSharpshooterBall(g: Phaser.GameObjects.Graphics) {
-        g.fillStyle(0x2a2d33, 1);
-        g.fillCircle(0, 0, 1.4);
-        g.fillStyle(0x9aa0aa, 0.9);
-        g.fillCircle(-0.4, -0.4, 0.5);
     }
 
     /** Mobile mortar (troop) shell. */

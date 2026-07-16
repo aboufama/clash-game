@@ -11,7 +11,6 @@ import { TroopRenderer } from '../renderers/TroopRenderer';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
 import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
-import { TargetingSystem } from '../systems/TargetingSystem';
 import { DefenseSystem } from '../systems/DefenseSystem';
 import { DEFENSE_BEHAVIOR_CATALOG } from '../systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
@@ -214,7 +213,7 @@ export class MainScene extends Phaser.Scene {
     public deployedThisBattle: Record<string, number> = {};
     private botRaidSettled = false;
     private pendingBotSettlement: Promise<number> | null = null;
-    public pendingSpawnCount = 0; // Prevent battle end during troop splits (phalanx/recursion)
+    public pendingSpawnCount = 0; // Prevent battle end during troop splits (phalanx)
     private readonly HEALTH_BAR_IDLE_MS = 5000;
     private readonly HEALTH_BAR_FADE_MS = 600;
     private readonly REPLAY_LIVE_POLL_INTERVAL_MS = 300;
@@ -271,11 +270,6 @@ export class MainScene extends Phaser.Scene {
     /** Battle tweens that target plain state objects (progress drivers) but
      *  draw/spawn battle visuals from onUpdate — killed on the same sweep. */
     private battleFxTweens = new Set<Phaser.Tweens.Tween>();
-    /** Live heal-range rings for every ward on the field, redrawn per combat
-     *  frame. Baked ward sprites lose the authored aura (it exceeds the bake
-     *  capture box and the alpha snap erases it), so the range — gameplay
-     *  information — is painted here at runtime. */
-    private wardAuraGfx: Phaser.GameObjects.Graphics | null = null;
     /** Optimistic scaffolds wait for a matching authoritative world ack before
      *  their local deadline is allowed to reveal the upgraded level. */
     private pendingUpgradeAuthority = new Set<string>();
@@ -3098,7 +3092,6 @@ export class MainScene extends Phaser.Scene {
             let yOffset = 22;
             if (troop.type === 'golem' || troop.type === 'icegolem') yOffset = 70;
             else if (troop.type === 'davincitank') yOffset = 48;
-            else if (troop.type === 'giant') yOffset = 30;
             else if (troop.type === 'mobilemortar') yOffset = 26;
 
             y = pos.y - yOffset;
@@ -3240,35 +3233,6 @@ export class MainScene extends Phaser.Scene {
 
         this.defenseSystem.update(time, this.buildings, this.troops);
 
-        // Ward heal-range auras (sprite mode only — the vector fallback draws
-        // its own). One shared graphics, cleared and redrawn every combat
-        // frame as a deterministic pixel-ring pulse: pure f(time, ward id).
-        if (!this.wardAuraGfx || !this.wardAuraGfx.active) {
-            this.wardAuraGfx = this.trackBattleFx(this.add.graphics());
-            this.wardAuraGfx.setDepth(7);
-        }
-        this.wardAuraGfx.clear();
-        if (SpriteBank.backed('troops', 'ward')) {
-            for (const ward of this.troops) {
-                if (ward.type !== 'ward' || ward.health <= 0) continue;
-                const wardStats = this.getTroopCombatStats(ward);
-                // The heal check is grid distance <= healRadius; the shared
-                // conversion carries the SQRT2 iso-projection factor the
-                // defense range rings use — without it the ring reads ~29%
-                // inside the true heal edge.
-                const aura = this.gridRangeToIsoRadii(wardStats.healRadius ?? 7);
-                const pos = IsoUtils.cartToIso(ward.gridX, ward.gridY);
-                const glow = ward.owner === 'PLAYER' ? 0x58d68d : 0x45b39d;
-                const seed = hashString(`${ward.id}:aura`) % 1000;
-                const pulse = 0.5 + 0.5 * Math.sin(time / 300 + seed);
-                this.pixelRing(this.wardAuraGfx, pos.x, pos.y + 5, aura.rx, aura.ry, 2, glow, 0.2 + 0.12 * pulse);
-                // A breath sweeping outward marks it as a live heal field.
-                const sweep = ((time + seed * 20) % 1600) / 1600;
-                const sf = 0.3 + 0.7 * sweep;
-                this.pixelRing(this.wardAuraGfx, pos.x, pos.y + 5, aura.rx * sf, aura.ry * sf, 1, glow, 0.22 * (1 - sweep));
-            }
-        }
-
         // Replay watch: the frame stream owns troop state. Defenses above still
         // aim/fire (their shots and recoil are presentation, stamped on the
         // replay clock), but the local troop attack sim stays OFF — its damage
@@ -3280,48 +3244,6 @@ export class MainScene extends Phaser.Scene {
             if (troop.health <= 0) return;
 
 
-
-            if (troop.type === 'ward') {
-                // --- PASSIVE WARD HEAL ---
-                const wardStats = this.getTroopCombatStats(troop);
-                const healDelay = 500; // Heal every 0.5 seconds
-                if (!(troop as any).lastPassiveHeal || time > (troop as any).lastPassiveHeal + healDelay) {
-                    (troop as any).lastPassiveHeal = time;
-
-                    this.troops.forEach(other => {
-                        if (other.owner === troop.owner && other.health > 0 && other.health < other.maxHealth) {
-                            const d = Phaser.Math.Distance.Between(troop.gridX, troop.gridY, other.gridX, other.gridY);
-                            if (d <= (wardStats.healRadius ?? 0)) {
-                                other.health = Math.min(other.maxHealth, other.health + (wardStats.healAmount ?? 0));
-                                this.updateHealthBar(other);
-
-                                // Green plus sign heal indicator
-                                const pos = IsoUtils.cartToIso(other.gridX, other.gridY);
-                                const plusGfx = this.trackBattleFx(this.add.graphics());
-                                plusGfx.setPosition(pos.x, pos.y - 12);
-                                plusGfx.setDepth(other.gameObject.depth + 1);
-                                plusGfx.fillStyle(0x00ff88, 0.7);
-                                plusGfx.fillRect(-1, -4, 2, 8); // vertical bar
-                                plusGfx.fillRect(-4, -1, 8, 2); // horizontal bar
-                                this.tweens.add({
-                                    targets: plusGfx,
-                                    y: pos.y - 25,
-                                    alpha: 0,
-                                    scaleX: 1.5,
-                                    scaleY: 1.5,
-                                    duration: 500,
-                                    onComplete: () => plusGfx.destroy()
-                                });
-                            }
-                        }
-                    });
-                }
-
-                // Retarget if follow target is dead (Ward doesn't 'heal' single targets anymore, just follows/attacks)
-                if (troop.target && troop.target.health <= 0) {
-                    troop.target = null;
-                }
-            }
 
             // Validate strategic intent before the active damage target. A wall
             // may be the current interaction target, but never replaces the
@@ -3348,72 +3270,14 @@ export class MainScene extends Phaser.Scene {
                 const stats = this.getTroopCombatStats(troop);
                 const isEnemy = b.owner !== troop.owner;
 
-                if (troop.type === 'ward' && time > troop.lastAttackTime + troop.attackDelay) {
-                    // Ward specialized attack behavior (Grand Warden style)
-                    const wardStats = stats;
-                    const enemies = this.buildings.filter(b => b.owner !== troop.owner && b.health > 0);
-                    let attackTarget: PlacedBuilding | null = null;
-
-                    // 1. If targeting an enemy directly, use it
-                    if (isEnemy && dist <= wardStats.range + 0.1) {
-                        attackTarget = troop.target;
-                    }
-                    // 2. Otherwise ASSIST the leader if they have an enemy target
-                    else {
-                        const leader = troop.target;
-                        if (leader && leader.target && leader.target.owner !== troop.owner) {
-                            const targetBuilding = leader.target as PlacedBuilding;
-                            const tInfo = BUILDINGS[targetBuilding.type];
-                            const tdx = Math.max(targetBuilding.gridX - troop.gridX, 0, troop.gridX - (targetBuilding.gridX + (tInfo?.width || 1)));
-                            const tdy = Math.max(targetBuilding.gridY - troop.gridY, 0, troop.gridY - (targetBuilding.gridY + (tInfo?.height || 1)));
-                            const tdist = Math.sqrt(tdx * tdx + tdy * tdy);
-
-                            if (tdist <= wardStats.range) {
-                                attackTarget = targetBuilding;
-                            }
-                        }
-
-                        // A following ward retains its ally as the follow target,
-                        // but can help open the wall selected by its own route.
-                        if (!attackTarget) {
-                            const blocker = this.liveBuildingById(troop.navigationPlan?.blockerId);
-                            if (blocker && this.getTargetEdgeDistance(troop, blocker) <= wardStats.range + 0.1) {
-                                attackTarget = blocker;
-                            }
-                        }
-
-                        // 3. If no leader target, find nearest building in range (PRIORITIZE NON-WALLS)
-                        if (!attackTarget) {
-                            const buildings = enemies.filter(b => b.type !== 'wall');
-                            let minDist = wardStats.range;
-                            buildings.forEach(b => {
-                                const info = BUILDINGS[b.type];
-                                const bdx = Math.max(b.gridX - troop.gridX, 0, troop.gridX - (b.gridX + info.width));
-                                const bdy = Math.max(b.gridY - troop.gridY, 0, troop.gridY - (b.gridY + info.height));
-                                const bd = Math.sqrt(bdx * bdx + bdy * bdy);
-                                if (bd <= minDist) {
-                                    minDist = bd;
-                                    attackTarget = b;
-                                }
-                            });
-                        }
-                    }
-
-                    if (attackTarget) {
-                        troop.lastAttackTime = time;
-                        this.showWardLaser(troop, attackTarget, wardStats.damage);
-                    }
-                } else if (dist <= stats.range + 0.1) {
+                if (dist <= stats.range + 0.1) {
                     if (time > troop.lastAttackTime + troop.attackDelay) {
-                        // ATTACK LOGIC (Non-Ward Enemies)
-                        if (isEnemy && troop.type !== 'ward') {
+                        // ATTACK LOGIC
+                        if (isEnemy) {
                             troop.lastAttackTime = time;
 
                             if (troop.type === 'archer') {
                                 this.showArcherProjectile(troop, troop.target, stats.damage);
-                            } else if (troop.type === 'sharpshooter') {
-                                // Sharpshooter - enhanced archer projectile
-                                this.showSharpshooterProjectile(troop, troop.target, stats.damage);
                             } else if (troop.type === 'mobilemortar') {
                                 // Mobile Mortar - arcing splash attack like mortar building
                                 this.showMobileMortarShot(troop, troop.target, stats.damage);
@@ -3672,35 +3536,32 @@ export class MainScene extends Phaser.Scene {
                                 troop.health = 0;
                                 this.destroyTroop(troop);
                             } else {
-                                // Melee: immediate damage (Warrior, Giant, Ram)
+                                // Melee: immediate damage (Warrior, Ram)
                                 let finalDamage = stats.damage;
-                                if ((troop.type === 'ram' || troop.type === 'giant') && troop.target.type === 'wall') {
+                                if (troop.type === 'ram' && troop.target.type === 'wall') {
                                     finalDamage *= (stats as any).wallDamageMultiplier || 1;
                                 }
 
                                 troop.target.health -= finalDamage;
                                 this.updateHealthBar(troop.target);
 
-                                // Giant uses renderer-driven lean, no separate punch tween
-                                if (troop.type !== 'giant') {
-                                    const currentPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-                                    const targetPos = IsoUtils.cartToIso(bx + tw / 2, by + th / 2);
-                                    const angle = Math.atan2(targetPos.y - currentPos.y, targetPos.x - currentPos.x);
+                                const currentPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                                const targetPos = IsoUtils.cartToIso(bx + tw / 2, by + th / 2);
+                                const angle = Math.atan2(targetPos.y - currentPos.y, targetPos.x - currentPos.x);
 
-                                    // Ram gets a bigger punch animation
-                                    const punchDist = troop.type === 'ram' ? 18 : 10;
-                                    this.tweens.add({
-                                        targets: troop.gameObject,
-                                        x: currentPos.x + Math.cos(angle) * punchDist,
-                                        y: currentPos.y + Math.sin(angle) * (punchDist * 0.5),
-                                        duration: troop.type === 'ram' ? 100 : 50,
-                                        yoyo: true
-                                    });
+                                // Ram gets a bigger punch animation
+                                const punchDist = troop.type === 'ram' ? 18 : 10;
+                                this.tweens.add({
+                                    targets: troop.gameObject,
+                                    x: currentPos.x + Math.cos(angle) * punchDist,
+                                    y: currentPos.y + Math.sin(angle) * (punchDist * 0.5),
+                                    duration: troop.type === 'ram' ? 100 : 50,
+                                    yoyo: true
+                                });
 
-                                    // Screen shake for Ram impact
-                                    if (troop.type === 'ram') {
-                                        this.cameras.main.shake(40, 0.002);
-                                    }
+                                // Screen shake for Ram impact
+                                if (troop.type === 'ram') {
+                                    this.cameras.main.shake(40, 0.002);
                                 }
 
                                 if (troop.target.health <= 0) {
@@ -4952,100 +4813,6 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
-    private showSharpshooterProjectile(troop: Troop, target: PlacedBuilding, damage: number) {
-        const start = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-        const info = BUILDINGS[target.type];
-        const end = IsoUtils.cartToIso(target.gridX + info.width / 2, target.gridY + info.height / 2);
-        const angle = Math.atan2(end.y - start.y, end.x - start.x);
-
-        const targetBuilding = target;
-
-        troop.facingAngle = angle;
-
-        // The sharpshooter is a musketeer now: the pose (shoulder the piece,
-        // aim, hammer-fall recoil, powder smoke) is animated inside
-        // TroopRenderer off attackAge. The ball leaves the muzzle exactly at
-        // MUSKET_FIRE_MS after the damage tick, so the renderer's flash and
-        // this projectile are one event and can never drift apart.
-        this.scheduleBattleCall(TroopRenderer.MUSKET_FIRE_MS, () => {
-            // Body recoil nudge the instant the piece fires.
-            const g = troop.gameObject;
-            if (g && g.active && g.scene) {
-                this.tweens.add({
-                    targets: g,
-                    scaleX: 0.94,
-                    duration: 45,
-                    yoyo: true,
-                    ease: 'Power2'
-                });
-            }
-            this.launchSharpshooterArrow(troop, start, end, angle, targetBuilding, damage);
-        });
-    }
-
-    private launchSharpshooterArrow(troop: Troop, start: Phaser.Math.Vector2, end: Phaser.Math.Vector2, angle: number, targetBuilding: PlacedBuilding, damage: number) {
-        // Musket ball + a fading powder tracer. The ball spawns where the
-        // renderer draws the muzzle when the piece is shouldered.
-        const barrelLen = (troop.level || 1) >= 3 ? 12 : 10.8;
-        const mx = start.x + Math.cos(angle) * barrelLen;
-        const my = start.y - 7 + Math.sin(angle) * 0.5 * barrelLen;
-
-        // Painter's-order depth along the shot's ground track.
-        const launchGX = troop.gridX;
-        const launchGY = troop.gridY;
-        const tInfo = BUILDINGS[targetBuilding.type];
-        const shotTargetGX = targetBuilding.gridX + tInfo.width / 2;
-        const shotTargetGY = targetBuilding.gridY + tInfo.height / 2;
-
-        const ball = this.trackBattleFx(this.add.graphics());
-        ball.setPosition(mx, my);
-        ball.setDepth(depthForProjectile(launchGX, launchGY));
-        const ballBaked = this.syncProjectileSprite(ball, 'musket_ball', 1, 0, 1);
-        if (!ballBaked) ProjectileRenderer.drawSharpshooterBall(ball);
-
-        // Tracer line that fades behind the ball.
-        const trail = this.trackBattleFx(this.add.graphics());
-        trail.setDepth(ball.depth - 1);
-
-        const endY = end.y - 14;
-        const dist = Math.sqrt((end.x - mx) ** 2 + (endY - my) ** 2);
-        const duration = Math.min(220, 40 + dist * 0.16); // near-instant shot
-
-        this.tweens.add({
-            targets: ball,
-            x: end.x,
-            y: endY,
-            duration: duration,
-            ease: 'Linear',
-            onUpdate: (tween) => {
-                const t = tween.progress;
-                ball.setDepth(depthForProjectile(
-                    launchGX + (shotTargetGX - launchGX) * t,
-                    launchGY + (shotTargetGY - launchGY) * t));
-                if (ballBaked) this.syncProjectileSprite(ball, 'musket_ball', 1, 0, 1);
-                trail.clear();
-                trail.setDepth(ball.depth - 1);
-                pixelLine(trail, mx, my, ball.x, ball.y, 1, 0xe8e2d0, 0.35);
-            },
-            onComplete: () => {
-                ball.destroy();
-                trail.destroy();
-
-                if (targetBuilding && targetBuilding.health > 0) {
-                    targetBuilding.health -= damage;
-                    this.updateHealthBar(targetBuilding);
-
-                    if (targetBuilding.health <= 0) {
-                        this.destroyBuilding(targetBuilding);
-                    }
-                }
-
-                // Stone-chip impact: a grey dust pop, no arrow thud.
-                this.trackBattleFx(PixelFx.flash(this, end.x, endY, { r: 5, color: 0x8a8478, alpha: 0.7, scaleTo: 0.3, life: 150, depth: depthForGroundEffect(shotTargetGX, shotTargetGY) }));
-            }
-        });
-    }
-
     private showMobileMortarShot(troop: Troop, target: PlacedBuilding, damage: number) {
         const stats = this.getTroopCombatStats(troop);
         const start = IsoUtils.cartToIso(troop.gridX, troop.gridY);
@@ -5639,69 +5406,6 @@ export class MainScene extends Phaser.Scene {
         }));
     }
 
-    private showWardLaser(troop: Troop, target: Troop | PlacedBuilding, damage: number) {
-        const start = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-
-        const isBuilding = ('type' in target && !!BUILDINGS[target.type]);
-        const width = isBuilding ? BUILDINGS[target.type].width : 0.5;
-        const height = isBuilding ? BUILDINGS[target.type].height : 0.5;
-
-        const end = IsoUtils.cartToIso(target.gridX + width / 2, target.gridY + height / 2);
-
-        const angle = Math.atan2(end.y - start.y, end.x - start.x);
-        troop.facingAngle = angle;
-        this.redrawTroop(troop);
-
-        // Green for heal (negative damage), Cyan for attack
-        const color = damage < 0 ? 0x00ff00 : 0x88ffcc;
-
-        // Beam leaves the staff orb (villager-scale ward: orb at ~(4.6,-12)).
-        // The beam spans two tiles: painter depth of the FRONT endpoint so it
-        // clears both ends while rows in front of both still cover it.
-        const beamDepth = Math.max(
-            depthForProjectile(troop.gridX, troop.gridY),
-            depthForProjectile(target.gridX + width / 2, target.gridY + height / 2));
-        const laser = this.trackBattleFx(this.add.graphics());
-        pixelLine(laser, start.x + 4.6, start.y - 12, end.x, end.y - 20, 2, color, 0.9);
-        pixelLine(laser, start.x + 4.6, start.y - 12, end.x, end.y - 20, 1, 0xffffff, 0.6);
-        laser.setDepth(beamDepth);
-
-        // Staff-orb glow: fades on its own clock, matching the laser's 300ms.
-        this.trackBattleFx(PixelFx.flash(this, start.x + 4.6, start.y - 12, { r: 4.5, color, alpha: 0.8, life: 300, depth: depthForGroundEffect(troop.gridX, troop.gridY) }));
-
-        // DEAL DAMAGE IMMEDIATELY ON LASER SPAWN (Attack Mode Only)
-        if (damage > 0 && 'health' in target && target.health > 0) {
-            target.health -= damage;
-
-            // Only buildings show hit effect/health bar update this way
-            if ('graphics' in target) {
-                this.updateHealthBar(target);
-
-                if (target.health <= 0) {
-                    // It's a building
-                    if ('type' in target && BUILDINGS[target.type]) {
-                        this.destroyBuilding(target as PlacedBuilding);
-                    } else {
-                        // Troop death (if Ward attacks troops in future)
-                        this.destroyTroop(target as unknown as Troop);
-                    }
-                }
-            }
-        }
-
-        // Instant impact sparkle at target
-        this.trackBattleFx(PixelFx.flash(this, end.x, end.y - 20, { r: 8, color: 0x88ffcc, alpha: 0.7, scaleTo: 2, life: 200, depth: depthForGroundEffect(target.gridX + width / 2, target.gridY + height / 2) }));
-
-        // Fade out the laser visual
-        this.tweens.add({
-            targets: laser,
-            alpha: 0,
-            duration: 300,
-            onComplete: () => laser.destroy()
-        });
-    }
-
-
     private redrawTroop(troop: Troop) {
         const g = troop.gameObject;
         // Attack animations tween plain objects whose callbacks outlive the
@@ -5711,7 +5415,7 @@ export class MainScene extends Phaser.Scene {
         if (!g || !g.active || !g.scene) return;
         g.clear();
         if (SpriteBank.syncTroop(this, troop, true, this.troopAttackAge(troop), this.animClockNow())) return;
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
     }
 
     private redrawTroopWithMovement(troop: Troop, isMoving: boolean) {
@@ -5719,14 +5423,14 @@ export class MainScene extends Phaser.Scene {
         if (!g || !g.active || !g.scene) return; // see redrawTroop
         g.clear();
         if (SpriteBank.syncTroop(this, troop, isMoving, this.troopAttackAge(troop), this.animClockNow())) return;
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
     }
 
     /**
      * ms since this troop's last damage tick — the renderer keys wind-up /
      * strike animation off it so attacks land exactly when damage fires.
-     * Live troops whose tick is stale (not actually fighting: pathing pauses,
-     * wards trailing their leader) report -1 so idle stances stay idle;
+     * Live troops whose tick is stale (not actually fighting: pathing
+     * pauses) report -1 so idle stances stay idle;
      * replay troops never update lastAttackTime, so in REPLAY mode the stale
      * age passes through and the renderer free-runs the cycle instead.
      */
@@ -5766,12 +5470,6 @@ export class MainScene extends Phaser.Scene {
         ) ?? null;
     }
 
-    private isLiveTroopTarget(value: unknown): value is Troop {
-        if (!value || typeof value !== 'object') return false;
-        const candidate = value as Troop;
-        return candidate.health > 0 && this.troops.some(troop => troop.id === candidate.id);
-    }
-
     private navigationSlot(troop: Troop, span: number): number {
         let hash = 2166136261;
         for (let i = 0; i < troop.id.length; i++) {
@@ -5784,7 +5482,7 @@ export class MainScene extends Phaser.Scene {
     private nextNavigationDelay(troop: Troop): number {
         // Stable staggering avoids pathfinding bursts without injecting
         // per-frame randomness into AI decisions.
-        const base = troop.type === 'ward' ? 180 : 340;
+        const base = 340;
         return base + this.navigationSlot(troop, base);
     }
 
@@ -5818,53 +5516,6 @@ export class MainScene extends Phaser.Scene {
     /** Acquire a route-aware objective. The returned active target may be a
      * required wall, while `strategicTarget` always remains the real building. */
     private acquireTroopNavigation(troop: Troop, now: number) {
-        if (troop.type === 'ward') {
-            const followTarget = this.findWardTarget(troop);
-            const previousId = (troop.target as { id?: string } | null)?.id;
-            troop.target = followTarget;
-            troop.strategicTarget = followTarget && BUILDINGS[(followTarget as { type?: string }).type ?? '']
-                ? followTarget as PlacedBuilding
-                : null;
-
-            if (followTarget && this.isLiveTroopTarget(followTarget)) {
-                const followRange = Math.min(2.5, Math.max(1.25, this.getTroopCombatStats(troop).range));
-                const plan = CombatNavigationSystem.planToPoint(
-                    troop,
-                    { id: followTarget.id, gridX: followTarget.gridX, gridY: followTarget.gridY },
-                    followRange,
-                    this.buildings,
-                    this.troops,
-                    this.combatTopologyRevision,
-                    now
-                );
-                troop.navigationPlan = plan ?? undefined;
-                troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
-            } else if (troop.strategicTarget) {
-                const plan = CombatNavigationSystem.planToBuilding(
-                    troop,
-                    troop.strategicTarget,
-                    this.buildings,
-                    this.troops,
-                    this.combatTopologyRevision,
-                    now
-                );
-                const active = this.liveBuildingById(plan?.activeTargetId) ?? troop.strategicTarget;
-                troop.target = active;
-                troop.navigationPlan = plan ?? undefined;
-                troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
-            } else {
-                troop.navigationPlan = undefined;
-                troop.path = undefined;
-            }
-
-            troop.nextPathTime = now + this.nextNavigationDelay(troop);
-            if (previousId !== (troop.target as { id?: string } | null)?.id) {
-                troop.lastTargetSwitchTime = now;
-                this.setTroopRetargetPause(troop, 45, 110);
-            }
-            return;
-        }
-
         const selection = CombatNavigationSystem.selectTargetAndPlan(
             troop,
             this.buildings,
@@ -5877,24 +5528,6 @@ export class MainScene extends Phaser.Scene {
     }
 
     private refreshTroopNavigation(troop: Troop, now: number) {
-        if (troop.type === 'ward' && this.isLiveTroopTarget(troop.target)) {
-            const leader = troop.target as Troop;
-            const followRange = Math.min(2.5, Math.max(1.25, this.getTroopCombatStats(troop).range));
-            const plan = CombatNavigationSystem.planToPoint(
-                troop,
-                { id: leader.id, gridX: leader.gridX, gridY: leader.gridY },
-                followRange,
-                this.buildings,
-                this.troops,
-                this.combatTopologyRevision,
-                now
-            );
-            troop.navigationPlan = plan ?? undefined;
-            troop.path = plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
-            troop.nextPathTime = now + this.nextNavigationDelay(troop);
-            return;
-        }
-
         const strategic = this.liveBuildingById(troop.strategicTarget?.id);
         if (!strategic) {
             this.acquireTroopNavigation(troop, now);
@@ -5937,13 +5570,6 @@ export class MainScene extends Phaser.Scene {
     }
 
     private ensureTroopNavigation(troop: Troop, now: number) {
-        if (troop.type === 'ward' && this.isLiveTroopTarget(troop.target)) {
-            if (!troop.navigationPlan || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision) {
-                if (now >= (troop.nextPathTime ?? 0)) this.refreshTroopNavigation(troop, now);
-            }
-            return;
-        }
-
         const strategic = this.liveBuildingById(troop.strategicTarget?.id);
         const active = this.liveBuildingById((troop.target as { id?: string } | null)?.id);
         const planIsCurrent = !!troop.navigationPlan
@@ -5993,16 +5619,6 @@ export class MainScene extends Phaser.Scene {
             if (urgent) {
                 this.setTroopRetargetPause(troop, 30, 90);
             }
-        }
-    }
-
-    private invalidateWardFollowers(removedTroopId: string) {
-        for (const ward of this.troops) {
-            if (ward.type !== 'ward' || (ward.target as { id?: string } | null)?.id !== removedTroopId) continue;
-            ward.target = null;
-            ward.navigationPlan = undefined;
-            ward.path = undefined;
-            ward.nextPathTime = 0;
         }
     }
 
@@ -6129,16 +5745,11 @@ export class MainScene extends Phaser.Scene {
             const dx = Math.max(bx - troop.gridX, 0, troop.gridX - (bx + width));
             const dy = Math.max(by - troop.gridY, 0, troop.gridY - (by + height));
             const stats = this.getTroopCombatStats(troop);
-            const followsAlly = troop.type === 'ward'
-                && !isBuilding
-                && target.owner === troop.owner;
             // The planner accepts attack slots out to range+0.08; movement
             // must accept the same verdict, or a troop parked in
             // (range, range+0.08] replan-thrashes forever without attacking.
             // The attack tick's own gate is range+0.1, so it still fires.
-            const stopRange = (followsAlly
-                ? Math.min(2.5, Math.max(1.25, stats.range))
-                : stats.range) + 0.08;
+            const stopRange = stats.range + 0.08;
             return {
                 centerX: bx + width / 2,
                 centerY: by + height / 2,
@@ -6725,7 +6336,6 @@ export class MainScene extends Phaser.Scene {
         // site for the rest of the battle. Bar + roster bookkeeping first;
         // the branch-local repeats below are harmless no-ops after this.
         this.troops = this.troops.filter(x => x.id !== t.id);
-        this.invalidateWardFollowers(t.id);
         t.healthBar.destroy();
 
         const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
@@ -6861,30 +6471,9 @@ export class MainScene extends Phaser.Scene {
 
             // Remove troop and skip default death effects
             this.troops = this.troops.filter(x => x.id !== t.id);
-            this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
             return;
-        }
-
-        // RECURSION SPLIT: Spawn two smaller recursions on death if generation < 2
-        if (t.type === 'recursion' && (t.recursionGen ?? 0) < 2) {
-            const nextGen = (t.recursionGen ?? 0) + 1;
-            // Spawn split effect
-            this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y, { r: 15, color: 0x00ffaa, alpha: 0.8, scaleTo: 2.5, life: 200, depth: 30002 }));
-
-            // Spawn two smaller recursions slightly offset
-            const offsets = [
-                { dx: -0.5, dy: -0.3 },
-                { dx: 0.5, dy: 0.3 }
-            ];
-            for (const off of offsets) {
-                this.pendingSpawnCount++;
-                this.scheduleBattleCall(50, () => {
-                    this.spawnTroop(t.gridX + off.dx, t.gridY + off.dy, 'recursion', t.owner, nextGen, t.level || 1);
-                    this.pendingSpawnCount--;
-                });
-            }
         }
 
         // === GOLEM DEATH ANIMATION (stone + ice share the collapse hook) ===
@@ -6894,7 +6483,6 @@ export class MainScene extends Phaser.Scene {
             // watch via showReplayTroopDeath).
             this.playStoneGolemDeath(t);
             this.troops = this.troops.filter(x => x.id !== t.id);
-            this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
             return; // Skip normal death effects
@@ -6906,7 +6494,6 @@ export class MainScene extends Phaser.Scene {
             // via showReplayTroopDeath; the debuff is client battle-sim
             // only — server settlement ignores debuffs by design).
             this.troops = this.troops.filter(x => x.id !== t.id);
-            this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
 
@@ -6932,7 +6519,7 @@ export class MainScene extends Phaser.Scene {
                 const off = offsets[i];
                 this.pendingSpawnCount++;
                 this.scheduleBattleCall(i * 30, () => { // Staggered spawn
-                    this.spawnTroop(t.gridX + off.dx, t.gridY + off.dy, 'romanwarrior', t.owner, 0, t.level || 1);
+                    this.spawnTroop(t.gridX + off.dx, t.gridY + off.dy, 'romanwarrior', t.owner, t.level || 1);
                     this.pendingSpawnCount--;
                 });
             }
@@ -6958,7 +6545,6 @@ export class MainScene extends Phaser.Scene {
 
             // Remove the troop from active list
             this.troops = this.troops.filter(x => x.id !== t.id);
-            this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
 
@@ -7047,8 +6633,7 @@ export class MainScene extends Phaser.Scene {
         // Particle burst (pixelated rectangles)
         const particleColors = t.type === 'warrior' ? [0xffff00, 0xffcc00] :
             t.type === 'archer' ? [0x00ccff, 0x0088cc] :
-                t.type === 'recursion' ? [0x00ffaa, 0x00cc88] :
-                    [0xff8800, 0xcc6600];
+                [0xff8800, 0xcc6600];
         for (let i = 0; i < 8; i++) {
             const angle = (i / 8) * Math.PI * 2;
             const particle = this.trackBattleFx(this.add.graphics());
@@ -7080,7 +6665,6 @@ export class MainScene extends Phaser.Scene {
         });
 
         this.troops = this.troops.filter(x => x.id !== t.id);
-        this.invalidateWardFollowers(t.id);
         t.gameObject.destroy();
         t.healthBar.destroy();
     }
@@ -7569,7 +7153,6 @@ export class MainScene extends Phaser.Scene {
         gy: number,
         type: TroopType = 'warrior',
         owner: 'PLAYER' | 'ENEMY' = 'PLAYER',
-        recursionGen: number = 0,
         troopLevelOverride?: number
     ) {
         // Bounds check - Relaxed for deployment margin
@@ -7589,15 +7172,12 @@ export class MainScene extends Phaser.Scene {
         gy = legalSpawn.y;
         const pos = IsoUtils.cartToIso(gx, gy);
 
-        // Scale factor for recursions based on generation (each split = 75% size)
-        const scaleFactor = type === 'recursion' ? Math.pow(0.75, recursionGen) : 1;
-
         // Create detailed troop graphic
         const troopGraphic = this.add.graphics();
         troopGraphic.setPosition(pos.x, pos.y);
         troopGraphic.setDepth(depthForTroop(gx, gy, type));
         if (!SpriteBank.syncLooseTroop(this, troopGraphic, type, owner, troopLevel, 0, true, this.time.now)) {
-            TroopRenderer.drawTroopVisual(troopGraphic, type, owner, 0, true, 0, 0, 0, false, 0, troopLevel, this.time.now);
+            TroopRenderer.drawTroopVisual(troopGraphic, type, owner, 0, true, 0, 0, false, 0, troopLevel, this.time.now);
         }
 
         // Spawn dust effect - depth just below troop for proper layering
@@ -7609,19 +7189,17 @@ export class MainScene extends Phaser.Scene {
         });
 
         // Landing bounce animation
-        troopGraphic.setScale(0.5 * scaleFactor);
+        troopGraphic.setScale(0.5);
         troopGraphic.y -= 20;
         this.tweens.add({
             targets: troopGraphic,
-            scaleX: scaleFactor, scaleY: scaleFactor,
+            scaleX: 1, scaleY: 1,
             y: pos.y,
             duration: 200,
             ease: 'Bounce.easeOut'
         });
 
-        // Recursions have reduced health per generation (70% per gen)
-        const healthMod = type === 'recursion' ? Math.pow(0.7, recursionGen) : 1;
-        const troopHealth = stats.health * healthMod;
+        const troopHealth = stats.health;
 
         const troop: Troop = {
             id: Phaser.Utils.String.UUID(),
@@ -7636,14 +7214,13 @@ export class MainScene extends Phaser.Scene {
             attackDelay,
             speedMult: 0.9 + Math.random() * 0.2,
             hasTakenDamage: false,
-            facingAngle: 0,
-            recursionGen: type === 'recursion' ? recursionGen : undefined
+            facingAngle: 0
         };
 
         this.troops.push(troop);
         this.hasDeployed = true;
-        if (owner === 'PLAYER' && this.mode === 'ATTACK' && type !== 'romanwarrior' && recursionGen === 0) {
-            // First-generation deploys leave the camp; splits are battlefield spawns.
+        if (owner === 'PLAYER' && this.mode === 'ATTACK' && type !== 'romanwarrior') {
+            // Deploys leave the camp; split spawns (romanwarrior) never publish.
             this.deployedThisBattle[type] = (this.deployedThisBattle[type] ?? 0) + 1;
             const attackId = this.currentEnemyWorld?.attackId;
             if (attackId) {
@@ -8673,9 +8250,6 @@ export class MainScene extends Phaser.Scene {
             zone.graphics.destroy();
         });
         this.spikeZones = [];
-        // The homecoming march keeps the wrecked village on view while combat
-        // has stopped ticking — a stale ward ring must not float over it.
-        this.wardAuraGfx?.clear();
     }
 
     private clearScene() {
@@ -9199,7 +8773,6 @@ export class MainScene extends Phaser.Scene {
                     gridY: troop.gridY,
                     health: Math.max(0, troop.health),
                     maxHealth: Math.max(1, troop.maxHealth),
-                    recursionGen: troop.recursionGen,
                     facingAngle: troop.facingAngle,
                     hasTakenDamage: troop.hasTakenDamage
                 }))
@@ -9284,7 +8857,6 @@ export class MainScene extends Phaser.Scene {
                 true,
                 0,
                 0,
-                0,
                 false,
                 0,
                 snapshot.level,
@@ -9309,7 +8881,6 @@ export class MainScene extends Phaser.Scene {
             speedMult: 0,
             hasTakenDamage: Boolean(snapshot.hasTakenDamage),
             facingAngle: snapshot.facingAngle ?? 0,
-            recursionGen: snapshot.recursionGen,
             replayPrevSampleX: snapshot.gridX,
             replayPrevSampleY: snapshot.gridY,
             replayPrevSampleT: 0,
@@ -9418,7 +8989,6 @@ export class MainScene extends Phaser.Scene {
                 troop.owner = snapshot.owner;
                 troop.health = Math.max(0, snapshot.health);
                 troop.maxHealth = Math.max(1, snapshot.maxHealth);
-                troop.recursionGen = snapshot.recursionGen;
                 troop.hasTakenDamage = snapshot.hasTakenDamage ?? troop.health < troop.maxHealth;
                 troop.facingAngle = Number.isFinite(snapshot.facingAngle) ? Number(snapshot.facingAngle) : troop.facingAngle;
                 const troopStats = getTroopStats(troop.type, troop.level);
@@ -9596,19 +9166,15 @@ export class MainScene extends Phaser.Scene {
             if (onScreen && (
                 troop.type === 'warrior' ||
                 troop.type === 'archer' ||
-                troop.type === 'giant' ||
                 troop.type === 'ram' ||
                 troop.type === 'golem' ||
                 troop.type === 'icegolem' ||
-                troop.type === 'sharpshooter' ||
                 troop.type === 'mobilemortar' ||
                 troop.type === 'davincitank' ||
                 troop.type === 'phalanx' ||
                 troop.type === 'romanwarrior' ||
                 troop.type === 'wallbreaker' ||
-                troop.type === 'stormmage' ||
-                troop.type === 'ward' ||
-                troop.type === 'recursion'
+                troop.type === 'stormmage'
             )) {
                 this.redrawTroopWithMovement(troop, moving);
             } else if (onScreen && moving) {
@@ -9852,38 +9418,6 @@ export class MainScene extends Phaser.Scene {
     }
 
 
-    private findWardTarget(ward: Troop): Troop | PlacedBuilding | null {
-        // Wards support combat troops, never other wards. If the healers are
-        // all that remain they must fall through to an enemy building instead
-        // of selecting each other as permanent follow targets.
-        const allies = this.troops.filter(t =>
-            t.owner === ward.owner && t !== ward && t.type !== 'ward' && t.health > 0
-        );
-
-        // 1. Closest INJURED ally (Priority)
-        const injured = allies.filter(t => t.health < t.maxHealth);
-        if (injured.length > 0) {
-            injured.sort((a, b) => {
-                const da = Phaser.Math.Distance.Between(ward.gridX, ward.gridY, a.gridX, a.gridY);
-                const db = Phaser.Math.Distance.Between(ward.gridX, ward.gridY, b.gridX, b.gridY);
-                return da - db;
-            });
-            return injured[0];
-        }
-
-        // 2. Closest Ally (to follow)
-        if (allies.length > 0) {
-            allies.sort((a, b) => {
-                const da = Phaser.Math.Distance.Between(ward.gridX, ward.gridY, a.gridX, a.gridY);
-                const db = Phaser.Math.Distance.Between(ward.gridX, ward.gridY, b.gridX, b.gridY);
-                return da - db;
-            });
-            return allies[0];
-        }
-
-        // 3. Enemy
-        return TargetingSystem.findTarget(ward, this.buildings);
-    }
     public createSmokeEffect(x: number, y: number, depth: number = 10005) {
         particleManager.emitDustBurst(x, y, depth);
     }

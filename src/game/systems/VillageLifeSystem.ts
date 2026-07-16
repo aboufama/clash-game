@@ -2773,7 +2773,7 @@ export class VillageLifeSystem {
             f.facing === -1 ? Math.PI : 0, moving, this.scene.time.now,
             f.facing === -1
         )) return;
-        TroopRenderer.drawTroopVisual(f.gfx, f.type as Parameters<typeof TroopRenderer.drawTroopVisual>[1], 'PLAYER', 0, moving, 0, 0, 0, false, 0, 1, this.scene.time.now);
+        TroopRenderer.drawTroopVisual(f.gfx, f.type as Parameters<typeof TroopRenderer.drawTroopVisual>[1], 'PLAYER', 0, moving, 0, 0, false, 0, 1, this.scene.time.now);
     }
 
     // ------------------------------------------------------------- helpers

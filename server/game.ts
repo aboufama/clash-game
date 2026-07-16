@@ -439,7 +439,6 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
         const type = sanitizeId(troop?.type)
         if (!id || !type) return []
         const facing = Number(troop.facingAngle)
-        const recursionGen = Number(troop.recursionGen)
         return [{
           id,
           type,
@@ -449,7 +448,6 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
           gridY: Number(troop.gridY) || 0,
           health: Math.max(0, Number(troop.health) || 0),
           maxHealth: Math.max(1, Number(troop.maxHealth) || 1),
-          ...(Number.isFinite(recursionGen) ? { recursionGen: Math.max(0, Math.floor(recursionGen)) } : {}),
           ...(Number.isFinite(facing) ? { facingAngle: facing } : {}),
           hasTakenDamage: Boolean(troop.hasTakenDamage)
         }]
@@ -3027,10 +3025,7 @@ export class GameService {
     }
 
     let perVolley = stats.damage
-    if (type === 'recursion') {
-      // root -> 2 children -> 4 grandchildren (generation 2 is terminal).
-      perVolley *= 7
-    } else if (type === 'stormmage') {
+    if (type === 'stormmage') {
       const targets = this.destructibleTargets(world).length
       const extraChains = Math.min(Math.max(0, stats.chainCount ?? 0), Math.max(0, targets - 1))
       let chainMultiplier = 1
@@ -3044,9 +3039,6 @@ export class GameService {
     } else if (type === 'wallbreaker') {
       const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2.5, false)
       perVolley *= 1 + Math.max(0, hits - 1) * 0.6
-    } else if (type === 'ward') {
-      // The current client applies the beam hit plus its 20% pulse tick.
-      perVolley *= 1.2
     }
     return perVolley * attacks
   }
@@ -3619,11 +3611,8 @@ export class GameService {
         if (seenTroops.has(troop.id)) return false
         seenTroops.add(troop.id)
         if (troop.owner !== 'PLAYER') return true
-        const generatedRoman = troop.type === 'romanwarrior'
-        const generatedRecursion = troop.type === 'recursion' && (troop.recursionGen ?? 0) > 0 && (troop.recursionGen ?? 0) <= 2
-        if (generatedRoman || generatedRecursion) {
-          const sourceType = generatedRoman ? 'phalanx' : 'recursion'
-          if ((deployedCounts[sourceType] ?? 0) <= 0) return false
+        if (troop.type === 'romanwarrior') {
+          if ((deployedCounts.phalanx ?? 0) <= 0) return false
           troop.level = normalizeTroopLevel(replay.troopLevel ?? 1)
           return true
         }
@@ -3749,8 +3738,7 @@ export class GameService {
       const validPlayerTroop = frame.troops.some(troop =>
         troop.owner === 'PLAYER' && (
           hasOwn(validated, troop.id) ||
-          (troop.type === 'romanwarrior' && (deployedCounts.phalanx ?? 0) > 0) ||
-          (troop.type === 'recursion' && (troop.recursionGen ?? 0) > 0 && (deployedCounts.recursion ?? 0) > 0)
+          (troop.type === 'romanwarrior' && (deployedCounts.phalanx ?? 0) > 0)
         )
       )
       const damagedBuilding = frame.buildings.some(state => {

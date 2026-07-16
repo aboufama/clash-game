@@ -39,19 +39,6 @@
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAABCElEQVR42u2WPQrCQBCFc4FUBixsNBZ2FlqrhXgBa7Gz8BCWYmHpKVJrYZkLeIXcwnpkFp7gwJAfkazLPHjF7G42X3i7Q6LoR6LkQs77m3Pki1oD6237xE7P6YcxroGGA7ZbDohdF2h8mDiXgb0B60brHdh51SF2lmXOVT+kuJ+I/Syuzlrd+Kx4CyYjzPOc2Nr6ZJ0QW0aq1VgfDhiilOOIVkYSz2JiS0Ctxvra0XoLJqN8HBfExkYAR8QArgqmXRq85//AZJRlh1+LVF4OzH/dx7wDQ5RNG6yMRB6F8MC0dlGmzbRLbDyPxooa8+GB1f3tgeajIbElAGrMhwtmMplMJpPJZGpFL5eMiQtzj52RAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
-/* GIANT - Large muscular human with leather vest, dark hair, wooden bat */
-.giant-icon::before {
-    content: '';
-    position: absolute;
-    width: 38px;
-    height: 46px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAuCAYAAABEbmvDAAAA80lEQVR42u2XsQ3CMBBFPYcrKpDSQEPjktIjsIIl1qCgZgEKZsgKWYJVDtniGpOzzxEg29yXfnHJxfeci61YqYUygwaO1a9VHRgWtGYI5sbc8Z3dgXc/YNPdgfdjPLOM+f8LhtJagzcFhPdLx+0PDFszXk/B3Jg7/sVZ8O4HjLsISoHaA6MKucM6abvVwVRMmZpIO2BUC3IFuWDxdeqFvPW2OTC7X0HK020z69xzVP12wBCIWuZHayDl0rzifakasOzHhy19/fhhAYw/ld8OGFdxgbg18cRy+f2DVdvK6sCWHmi/fhCuFkwkEolEIpFIJKpKT26GOMUJAZ+7AAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
-}
-
 /* WALL BREAKER - Small guy with barrel of explosives overhead */
 .wallbreaker-icon::before {
     content: '';
@@ -63,33 +50,6 @@
     transform: translate(-50%, -50%);
     image-rendering: pixelated;
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAA2CAYAAADK88l3AAAAv0lEQVR42u2TsQ3DIBBFbw6XKWnpqF2lp/EAaTxCBkgmSZEJskIkz+BVLoLop0CROJuzFUX3pVcAxxMcgqgSvhNn+je0NmqiEBwnqDWLRUPoODEenQjU64tKwXkIGen4I1QTxRg5Ib1SCfbriebHhRPP25iRvjLqsV9fhILJe5aAen1RGSzUqN69WXSNntewvejUHzLS8fai3+kRgqOD2vx+ovLoZbP3FwF8ieYeLRYF1/E3pOv6IovFYrFY/iAvgeG5w6UW+boAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
-}
-
-/* WARD - Magical guardian with green shield aura, hooded */
-.ward-icon::before {
-    content: '';
-    position: absolute;
-    width: 30px;
-    height: 34px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAiCAYAAABIiGl0AAAA6klEQVR42mNgIBJIxyn8B2GlbiUw1qs1AmMYHybPQG1Ae4v/QyEUiASJ/AdhYi2GqR86Fk94N+E/COMK6ns72sH4673NYAzjUxzUA2Zxt6vwfxCG8Xltef+DMK4gRw9imPqhY3Gqs+J/EIbxufS5/oMwLgegWwhTP/gthiUqo7NGYIxuMK4gxhXkMD7MPFyJduAsxhXUhIKYZomLZhbDgopQUKA7ABefUBqC2TdwFhMqQGDATl35PwjHGIuDMSzRwPgweaoVmTSzmNigphSQHcdUt3jkAvQik1rmklxW083iUTAKRsEoGDIAANJuSlNqVsavAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
-}
-
-
-/* RECURSION - Alien hexagonal blob with split symbol */
-.recursion-icon::before {
-    content: '';
-    position: absolute;
-    width: 22px;
-    height: 30px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAeCAYAAAAo5+5WAAAApklEQVR42u2U0QnAIAxEXbIrdAVXcBZn6QqdxYJ6fpwEbRvFDw/uIyQ+0WiMaSn4EO1tMuLfUgMz4M6WYtTPB6PgcsnB9xn14gbqYHeGaAbzkdnIMxi8eWDYHsmcR4w8rxsP5isoiawMgAqQe1Q1cRiYj0oLCzA3rcS0cfuO1cDSB+GN8MwY9PrnqYGlIdTy5+mmBm4Npe6jTwdL0696TsuBt7bW1wM1Yv63s9ZzhQAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* RAM - Battering ram siege weapon with log, metal head, wooden frame, wheels */
@@ -145,20 +105,6 @@
     image-rendering: pixelated;
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAABHElEQVR42u2WsQ3CQAxFMw0bsAJD0NHQUjECEmIECtiAAjEABQ0dEhUF1BENFbXRBf3GYNkJUnJG/tIvzPmcR3xnKIoftT6XlLy7Pb4a60XXyh50frhSMgc9ls/KHBT5ASppsj1R8p2o8vjyNoD458gPUE3D1Z6SATJYbCojxnrnt94NqAScHWDnoHggH0N8zGh5/BJZ8/4HlLeQF9LAtFiqU/vIZA+KsaJdCumLYL8UW+shxn6/oNbxIuVprWxa1y8ob7306rUjosXWuuYzmh2o1rq6U4JbfUPCD8fHEXADah1LdVtlPnPWMeUGtKn60yUlcyD+YKwjv/X/n9mDSoDW1rcG7Aa0N5pRMgfmANI69gdoKBQKhUIhl3oBmH3nq3aiLPcAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
-
-/* SHARPSHOOTER - Elite hooded crossbow marksman with scope */
-.sharpshooter-icon::before {
-    content: '';
-    position: absolute;
-    width: 38px;
-    height: 38px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAA7ElEQVR42u2VIQ7CMBSGd4EpliAwMAQOARoM4QJogkP0EGjETlKNQfYkuwW6pC/5BS80XTeSFnhf8ou3Nc3XvrUrip5MTlPrUjf1S/C8SEV2YtWhsi5cbHlZUbggxv+e2HE9ti6xrWzvV8qjvVFQ85YaY+y7fJ8YhM67GUVrTYltpa/GeMzfeQOyFfOBrUZrlFKUclNSQoJ4j/GYZ/BhSC6GLW72IwqvMREmhjAX89UQi96ZbMVCrQwdFt+CPvaxZycWe10Afgj4dTK4hdmK9f0liVhXtou5dcFCUOOC9b3/XzFBEARBEARBSMoTAOB3mzbpo2QAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
-}
-
 
 /* MOBILEMORTAR - Soldier dragging mortar on wheeled cart */
 .mobilemortar-icon::before {

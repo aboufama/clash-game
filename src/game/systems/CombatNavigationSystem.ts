@@ -275,35 +275,6 @@ export class CombatNavigationSystem {
         );
     }
 
-    static planToPoint(
-        troop: Troop,
-        point: { id?: string; gridX: number; gridY: number },
-        followRange: number,
-        buildings: PlacedBuilding[],
-        allTroops: Troop[],
-        topologyRevision: number,
-        plannedAt: number
-    ): CombatNavigationPlan | null {
-        const stats = getTroopStats(troop.type, troop.level || 1);
-        const context = this.buildContext(troop, buildings, allTroops, stats);
-        const id = point.id ?? `point:${point.gridX.toFixed(2)},${point.gridY.toFixed(2)}`;
-        return this.planToRegion(
-            troop,
-            {
-                id,
-                minX: point.gridX,
-                minY: point.gridY,
-                maxX: point.gridX,
-                maxY: point.gridY,
-                range: Math.max(0.2, followRange)
-            },
-            context,
-            topologyRevision,
-            plannedAt,
-            stats
-        );
-    }
-
     static isPositionWalkable(
         troop: Pick<Troop, 'type' | 'level'>,
         x: number,

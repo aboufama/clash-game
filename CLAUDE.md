@@ -79,7 +79,8 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   panic, cheer, sleep, lantern, rock/pack carries), dogs, chickens, all
   birds, the dragon shadow (16 headings), merchant, stall, thief, owl.
   `figures/` (10 units): the 8 road-traveller kinds (walk + camp), caravan
-  soldiers (14 troop palettes), the postcard fish. `projectiles/` (10
+  soldiers (one palette per troop; four are stale since the 2026-07
+  troop deletion, pruned on the next figures bake), the postcard fish. `projectiles/` (10
   units, 326 frames): every RIGID projectile at 16 rotation variants ×
   material levels (arrow, bolts, shells, cannonball, crystal, rocket, spike
   ball) — runtime picks the nearest baked angle, never rotates the sprite.
@@ -139,8 +140,9 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   fuse ember + rim glint (1750 ms), spike launcher breathing loader +
   4-site spike-tip glint gated off during combat (2000 ms), dragons_breath
   vein surge + fuse sputter + L2 head breath (2000 ms). Roster now
-  **22,343 frames / ~109 MB / 88 manifests** (regression enforces the
-  exact counts). Harness upgrades: `shoot-defenses.mjs` gained
+  **23,788 frames / 84 manifests** after the 2026-07 troop deletion
+  (ward/recursion/giant/sharpshooter + musket_ball removed; the
+  regression enforces the exact counts). Harness upgrades: `shoot-defenses.mjs` gained
   `VECTOR=1` (sprites-off authoring shots), `ONLY=<types>`, `BURST=<n>`/
   `BURST_MS` (idle-motion series); both harnesses resume ONE shared
   identity from `tools/art-preview/.shared-device-token.json` (guest

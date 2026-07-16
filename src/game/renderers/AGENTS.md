@@ -79,7 +79,7 @@ hydrology renderers documented in `src/game/systems/AGENTS.md`.
 1. Add a `switch` case in `drawTroopVisual` + write the bespoke `drawX` (art +
    parametric walk/idle/attack via `hRig`/`attackAnim`; use `facingAngle` to aim).
 2. Add a bespoke anim field to `Troop` (`types/GameTypes.ts`) only if the draw
-   needs persistent state (e.g. `bowDrawProgress`, `slamOffset`).
+   needs persistent state (e.g. `slamOffset`, `mortarRecoil`).
 3. Screenshot with `tools/art-preview/shoot-troops.mjs` (walk + attack poses).
 
 ## What the sprite-asset rework changes here

@@ -1,4 +1,5 @@
 import type { SerializedBuilding, SerializedObstacle, SerializedWorld } from '../../src/game/data/Models'
+import { TROOP_DEFINITIONS } from '../../src/game/config/GameDefinitions'
 import { resourceCapacity } from '../../src/game/config/Economy'
 import type { PlayerProfile, PublicWorldSnapshot } from '../protocol'
 import {
@@ -30,7 +31,17 @@ export function villageObstacles(village: Pick<VillageRecord, 'obstacles'>): Ser
 }
 
 export function villageArmy(village: Pick<VillageRecord, 'army'>): Record<string, number> {
-  return village.army as unknown as Record<string, number>
+  const raw = village.army as unknown as Record<string, number>
+  // Mirror the legacy runtime's sanitizeArmy: persisted counts for troop
+  // types deleted from the catalog must not survive reads — they would eat
+  // camp housing and make attack preparation throw on the unknown type.
+  const supported = (type: string) => Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, type) && type !== 'romanwarrior'
+  if (Object.keys(raw).every(supported)) return raw
+  const army: Record<string, number> = {}
+  for (const [type, count] of Object.entries(raw)) {
+    if (supported(type)) army[type] = count
+  }
+  return army
 }
 
 export function villagePopulation(village: Pick<VillageRecord, 'population'>): VillagePopulationState {

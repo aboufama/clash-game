@@ -1,6 +1,6 @@
 // Depth-layering regression: stages the wall-overlap matrix deterministically
 // (a level-3 wall row + corner + east column), walks representative
-// characters (warrior, giant, 16-dir golem, davincitank, and a home
+// characters (warrior, 16-dir golem, davincitank, and a home
 // villager) through sub-tile offsets behind and in front of segments, and
 // PIXEL-asserts the occluder-band contract from docs/RENDERING_AND_DEPTH.md:
 // no character pixel may render over a wall crest while the character's
@@ -58,7 +58,7 @@ const APPROACHES = {
     target: [11, 12],
     segs: [[9, 12], [10, 12], [11, 12], [12, 12], [13, 12]],
     place: d => [11.5, 12.5 + d],
-    troops: ['warrior', 'giant', 'golem', 'davincitank']
+    troops: ['warrior', 'golem', 'davincitank']
   },
   colE: {
     cam: [16.5, 14.5],
@@ -503,7 +503,7 @@ try {
       // crest. At +0.3 a SMALL character standing between crest tops is
       // legitimately covered by the next segment (which he is behind), so
       // only tall/wide troops must still cover crest pixels there.
-      const tallEnough = ['giant', 'golem', 'davincitank'].includes(charLabel)
+      const tallEnough = ['golem', 'davincitank'].includes(charLabel)
       let front = null
       if (offset > ROW_MARGIN && (offset <= 0.1 || tallEnough)) {
         front = await page.evaluate(([all, shot, maskNames, noise]) =>

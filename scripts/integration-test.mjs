@@ -1100,7 +1100,7 @@ async function main() {
   const clockLeap = await api('POST', '/world/save', { token: clockUser.token, body: { world: clockLeapWorld, requestId: 'clock-leap' } })
   ok(clockLeap.status === 400, 'multi-level jumps are refused: one step per work')
 
-  // A level-3 lab plus Recursion's full 1+2+4 family must fit inside the
+  // A level-3 lab plus a chain-credit Storm Mage squad must fit inside the
   // honest ceiling even though the client-reported troop level is untrusted.
   const mechanics = (await api('POST', '/auth/session', { body: {} })).json
   await api('POST', '/resources/apply', { token: mechanics.token, body: { delta: 30_000, reason: 'debug_grant', requestId: 'mechanics-gold' } })
@@ -1130,22 +1130,22 @@ async function main() {
   mechanicsWorld.buildings.push({ id: 'mechanics-lab', type: 'lab', gridX: 5, gridY: 2, level: 3 })
   const mechanicsSaved = await api('POST', '/world/save', { token: mechanics.token, body: { world: mechanicsWorld, requestId: 'mechanics-lab-save' } })
   ok(mechanicsSaved.status === 200, 'a researched army setup is persisted for combat authority')
-  const recursionTrain = await api('POST', '/army/train', { token: mechanics.token, body: { type: 'recursion', count: 6, requestId: 'mechanics-recursion-train' } })
-  ok(recursionTrain.status === 200, 'six researched Recursion roots are trained')
+  const stormmageTrain = await api('POST', '/army/train', { token: mechanics.token, body: { type: 'stormmage', count: 3, requestId: 'mechanics-stormmage-train' } })
+  ok(stormmageTrain.status === 200, 'three researched Storm Mages train at the level-4 barracks')
   const mechanicsAttack = (await api('POST', '/attacks/matchmake', { token: mechanics.token, body: { requestId: 'mechanics-attack' } })).json
   const mechanicsTarget = mechanicsAttack.world.buildings.find(building => building.type !== 'wall')
-  const recursionRoots = Array.from({ length: 6 }, (_, i) => ({
-    id: `mechanics-r${i}`, type: 'recursion', level: 99, owner: 'PLAYER', gridX: 2 + i / 10, gridY: 2,
-    health: 248, maxHealth: 248, recursionGen: 0
+  const stormmageSquad = Array.from({ length: 3 }, (_, i) => ({
+    id: `mechanics-r${i}`, type: 'stormmage', level: 99, owner: 'PLAYER', gridX: 2 + i / 10, gridY: 2,
+    health: 330, maxHealth: 330
   }))
   await api('POST', '/attacks/frames', { token: mechanics.token, body: { attackId: mechanicsAttack.attackId, frames: [{
     t: 10, destruction: 100, goldLooted: 999999,
-    buildings: [{ id: mechanicsTarget.id, health: 0, isDestroyed: true }], troops: recursionRoots
+    buildings: [{ id: mechanicsTarget.id, health: 0, isDestroyed: true }], troops: stormmageSquad
   }] } })
   const mechanicsEnd = (await api('POST', '/attacks/end', { token: mechanics.token, body: { attackId: mechanicsAttack.attackId, status: 'finished' } })).json
   const mechanicsReplay = (await api('GET', `/replays/${mechanicsAttack.attackId}`, { token: mechanics.token })).json.replay
   ok(mechanicsEnd.lootApplied > 0 && mechanicsReplay.frames[0].troops.every(troop => troop.level === 3),
-    'lab scaling and all Recursion descendants are credited from the private level-3 snapshot')
+    'lab scaling is credited from the private level-3 snapshot')
 
   // 2. Frames must stream forward in time.
   const flow = (await api('POST', '/attacks/matchmake', { token: rotB.token, body: { requestId: 'flow-match' } })).json
@@ -1415,7 +1415,7 @@ async function main() {
   ok(untrained.army.warrior === 1 && untrained.gold === trained.gold + 25 && untrained.food === trained.food + 2,
     'untraining refunds the full bill')
 
-  // NEW TROOP ACCEPTANCE — icegolem: locked below its barracks unlock (13,
+  // NEW TROOP ACCEPTANCE — icegolem: locked below its barracks unlock (9,
   // right after golem), then trains as a server transaction and deploys
   // through the authoritative command machine. Isolated on fresh sessions so
   // the eco/battle flows above and below stay undisturbed.
@@ -1424,20 +1424,20 @@ async function main() {
   ok(igLocked.status === 403, `icegolem stays locked behind the barracks unlock (${igLocked.status})`)
   // Levels only step one at a time on an EXISTING building, but a fresh id is
   // a charged placement at any level (the mechanics-lab pattern) — swap the
-  // starter barracks for a new level-13 one on the same plot, funded upfront.
+  // starter barracks for a new level-9 one on the same plot, funded upfront.
   await api('POST', '/resources/apply', { token: ig.token, body: { delta: 40000, reason: 'debug_grant', requestId: 'ig-gold' } })
   await api('POST', '/resources/apply', { token: ig.token, body: { delta: 5000, resource: 'ore', reason: 'debug_grant', requestId: 'ig-ore' } })
   await api('POST', '/resources/apply', { token: ig.token, body: { delta: 2000, resource: 'food', reason: 'debug_grant', requestId: 'ig-food' } })
   const igWorld = (await api('GET', '/world', { token: ig.token })).json.world
-  igWorld.buildings = igWorld.buildings.map(bl => bl.type === 'barracks' ? { ...bl, id: 'ig-barracks-13', level: 13 } : bl)
+  igWorld.buildings = igWorld.buildings.map(bl => bl.type === 'barracks' ? { ...bl, id: 'ig-barracks-9', level: 9 } : bl)
   // A watchtower opens the map sight the bot raid below needs (the eco flow's pattern).
   igWorld.buildings.push({ id: 'ig_watch', type: 'watchtower', gridX: 2, gridY: 18, level: 1 })
-  const igSaved = await api('POST', '/world/save', { token: ig.token, body: { world: igWorld, requestId: 'ig-barracks-13' } })
-  ok(igSaved.status === 200 && igSaved.json.world.buildings.some(bl => bl.id === 'ig-barracks-13' && bl.level === 13),
-    `a funded level-13 barracks placement is accepted (${igSaved.status})`)
+  const igSaved = await api('POST', '/world/save', { token: ig.token, body: { world: igWorld, requestId: 'ig-barracks-9' } })
+  ok(igSaved.status === 200 && igSaved.json.world.buildings.some(bl => bl.id === 'ig-barracks-9' && bl.level === 9),
+    `a funded level-9 barracks placement is accepted (${igSaved.status})`)
   const igTrained = await api('POST', '/army/train', { token: ig.token, body: { type: 'icegolem', count: 1, requestId: 'ig-train' } })
   ok(igTrained.status === 200 && igTrained.json.army?.icegolem === 1,
-    `an icegolem trains once the barracks reaches level 13 (${igTrained.status})`)
+    `an icegolem trains once the barracks reaches level 9 (${igTrained.status})`)
   // Deploy through a bot raid: same authoritative command machine, no real
   // victim to perturb (targeted PvP is range-gated; matchmake picks live accounts).
   const igMap = (await api('GET', `/map?x=${ig.player.plotX}&y=${ig.player.plotY}&r=1`, { token: ig.token })).json
@@ -1475,7 +1475,6 @@ async function main() {
   const march = (await api('POST', '/attacks/matchmake', { token: eco.token, body: { requestId: 'eco-march' } })).json
   const marchTroops = t => [
     { id: 'w1', type: 'warrior', level: 1, owner: 'PLAYER', gridX: 2, gridY: 2, health: 100, maxHealth: 100 },
-    { id: 'r1', type: 'recursion', level: 1, owner: 'PLAYER', gridX: 3, gridY: 2, health: 80, maxHealth: 80, recursionGen: 1 },
     { id: 'rw1', type: 'romanwarrior', level: 1, owner: 'PLAYER', gridX: 4, gridY: 2, health: 60, maxHealth: 60 }
   ].map(tr => ({ ...tr, gridX: tr.gridX + t / 1000 }))
   await api('POST', '/attacks/frames', { token: eco.token, body: { attackId: march.attackId, frames: [
@@ -1486,8 +1485,8 @@ async function main() {
   ok((marchEnd.army?.warrior ?? 0) === 0,
     `battle consumption takes the deployed warrior (${JSON.stringify(marchEnd.army)})`)
   const armyAfterMarch = (await api('GET', '/world', { token: eco.token })).json.world.army
-  ok((armyAfterMarch.warrior ?? 0) === 0 && Object.keys(armyAfterMarch).every(k => k !== 'romanwarrior' && k !== 'recursion'),
-    'splits and phalanx soldiers are not consumed (they were never trained)')
+  ok((armyAfterMarch.warrior ?? 0) === 0 && Object.keys(armyAfterMarch).every(k => k !== 'romanwarrior'),
+    'phalanx soldiers are not consumed (they were never trained)')
 
   // Bot camps: deterministic loot, capped, once per cooldown; never a player plot.
   const botSeedAt = (x, y) => {

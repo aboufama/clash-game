@@ -76,21 +76,17 @@ const IDLE_BREATH_MS = Math.round(Math.PI * 2 * 640)
 // `time % stride` base) — a mismatched table stride makes the baked walk
 // sample a partial/overlong window and the loop pops at the seam.
 // `idleMs` overrides the shared breath window for troops whose idle terms
-// close on their own exact period (recursion: 2000 ms).
+// close on their own exact period (golem: 2000 ms).
 const TROOP_PARAMS = {
   warrior:      { stride: 420, delay: 800,  windup: 280, strike: 170, dirs: 1 },
   archer:       { stride: 380, delay: 900,  windup: 380, strike: 150, dirs: 8 },
-  giant:        { stride: 1300, delay: 3600, windup: 950, strike: 550, dirs: 1 }, // (time % 1300) lumber
   golem:        { stride: 1000, delay: 0,   windup: 0,   strike: 0,   dirs: 16, idleMs: 2000, // canonical = promoted design C (GolemC STRIDE=1000, idle closes on 2000 ms)
                   designStride: { B: 1500 }, // GolemB's authored walk period (DESIGN=B bakes; also the icegolem authoring base)
                   attackDriver: { key: 'slamOffset', values: [0, 4, 9, 12, 7, 2] } }, // scene tweens 0→12→0; golems consume facing → 16 dirs (CoC turret pitch)
   icegolem:     { stride: 1500, delay: 0,   windup: 0,   strike: 0,   dirs: 16, idleMs: 2000, // GolemB rig values (STRIDE_MS=1500, IDLE_MS=2000) — the icy redesign must keep these periods
                   attackDriver: { key: 'slamOffset', values: [0, 4, 9, 12, 7, 2] } }, // same slam-class contract as golem
-  sharpshooter: { stride: 430, delay: 1400, windup: 420, strike: 0,   dirs: 8 },
   mobilemortar: { stride: 600, delay: 2200, windup: 420, strike: 0,   dirs: 8, big: true,
                   recoilSeq: [0, 0, 0, 0, 5, 2.5] }, // paired with attack ages: recoil after the tick
-  ward:         { stride: 520, delay: 1000, windup: 420, strike: 300, dirs: 1 },
-  recursion:    { stride: 1250, delay: 0,   windup: 0,   strike: 0,   dirs: 1, attack: false, idleMs: 2000 },
   ram:          { stride: 300, delay: 1100, windup: 320, strike: 160, dirs: 8, big: true },
   stormmage:    { stride: 480, delay: 1700, windup: 620, strike: 380, dirs: 1 },
   davincitank:  { stride: 480, delay: 0,    windup: 0,   strike: 0,   dirs: 8, big: true, attack: false,
@@ -938,7 +934,7 @@ try {
     async (type, level, owner, params, frames, dirs, cell) => {
       const B = window.__clashBake
       const scene = B.scene
-      const big = params.big || type === 'giant' || type === 'golem' || type === 'icegolem'
+      const big = params.big || type === 'golem' || type === 'icegolem'
       const minX = big ? -56 : -32, maxX = big ? 56 : 32
       const minY = big ? -66 : -38, maxY = big ? 28 : 20
       const W = maxX - minX, H = maxY - minY
@@ -958,7 +954,7 @@ try {
           try {
             B.TroopRenderer.drawTroopVisual(
               g, type, owner, facing, f.isMoving,
-              f.slamOffset ?? 0, 0, f.mortarRecoil ?? 0,
+              f.slamOffset ?? 0, f.mortarRecoil ?? 0,
               f.deactivated === true, f.phalanxSpearOffset ?? 0,
               level, f.time, f.attackAge, params.delay
             )
@@ -1056,7 +1052,7 @@ try {
     mkdirSync(dir, { recursive: true })
     // idle: the breath is sin(time/640) → exact loop over 2π·640 ms.
     // Troops with their own exact idle period (params.idleMs) sample that
-    // window instead — recursion's pulse/wisps close every 2000 ms.
+    // window instead — the golems' slam-class idles close every 2000 ms.
     const idleMs = params.idleMs ?? IDLE_BREATH_MS
     // Design variants may re-author the walk period — resolve THIS slot's true
     // stride so the baked walk samples one exact cycle in order, and write the
@@ -1129,7 +1125,6 @@ try {
     }]
     const projectileUnits = () => Object.fromEntries([
       projRot('arrow', 'drawArcherArrow', [1], 16),
-      projRot('musket_ball', 'drawSharpshooterBall', [1], 1),
       projRot('mm_shell', 'drawMobileMortarShell', [1], 1),
       projRot('cannonball', 'drawCannonball', [1, 2, 3, 4], 1),
       projRot('mortar_shell', 'drawMortarShell', [1, 2, 3, 4], 16),

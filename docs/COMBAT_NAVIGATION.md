@@ -64,7 +64,7 @@ deployment apron, deterministic/coordinated breach choice, opened gaps,
 ranged attacks over walls, diagonal corners, large-delta tunneling, target
 priority and lock hysteresis, and 150-troop planning. The browser suite covers
 the real combat loop, including abandoning an obsolete wall, resuming through
-a breach, ranged fire, cohort convergence, and Ram, Wall Breaker, and Ward
+a breach, ranged fire, cohort convergence, and Ram and Wall Breaker
 behavior.
 
 When adding a troop, preserve these invariants:

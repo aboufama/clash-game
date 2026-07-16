@@ -222,9 +222,9 @@ try {
 
 const cannon = building('priority-cannon', 'cannon', 18, 18);
 const storage = building('near-storage', 'storage', 6, 6);
-const giant = troop('giant-priority', 'giant', 4, 4);
-const giantSelection = CombatNavigationSystem.selectTargetAndPlan(giant, [storage, cannon], [giant], 1, 0);
-assert.equal(giantSelection.strategicTarget?.id, cannon.id, 'defense-priority troop ignored its target tier');
+const golem = troop('golem-priority', 'golem', 4, 4);
+const golemSelection = CombatNavigationSystem.selectTargetAndPlan(golem, [storage, cannon], [golem], 1, 0);
+assert.equal(golemSelection.strategicTarget?.id, cannon.id, 'defense-priority troop ignored its target tier');
 
 const ram = troop('ram-priority', 'ram', 4.5, 11.5);
 const ramSelection = CombatNavigationSystem.selectTargetAndPlan(ram, closed, [ram], 1, 0);
