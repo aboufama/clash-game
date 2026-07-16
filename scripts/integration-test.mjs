@@ -1415,42 +1415,86 @@ async function main() {
   ok(untrained.army.warrior === 1 && untrained.gold === trained.gold + 25 && untrained.food === trained.food + 2,
     'untraining refunds the full bill')
 
-  // NEW TROOP ACCEPTANCE — icegolem: locked below its barracks unlock (9,
-  // right after golem), then trains as a server transaction and deploys
-  // through the authoritative command machine. Isolated on fresh sessions so
-  // the eco/battle flows above and below stay undisturbed.
-  const ig = (await api('POST', '/auth/session')).json
-  const igLocked = await api('POST', '/army/train', { token: ig.token, body: { type: 'icegolem', count: 1, requestId: 'ig-locked' } })
-  ok(igLocked.status === 403, `icegolem stays locked behind the barracks unlock (${igLocked.status})`)
-  // Levels only step one at a time on an EXISTING building, but a fresh id is
-  // a charged placement at any level (the mechanics-lab pattern) — swap the
-  // starter barracks for a new level-9 one on the same plot, funded upfront.
-  await api('POST', '/resources/apply', { token: ig.token, body: { delta: 40000, reason: 'debug_grant', requestId: 'ig-gold' } })
-  await api('POST', '/resources/apply', { token: ig.token, body: { delta: 5000, resource: 'ore', reason: 'debug_grant', requestId: 'ig-ore' } })
-  await api('POST', '/resources/apply', { token: ig.token, body: { delta: 2000, resource: 'food', reason: 'debug_grant', requestId: 'ig-food' } })
-  const igWorld = (await api('GET', '/world', { token: ig.token })).json.world
-  igWorld.buildings = igWorld.buildings.map(bl => bl.type === 'barracks' ? { ...bl, id: 'ig-barracks-9', level: 9 } : bl)
-  // A watchtower opens the map sight the bot raid below needs (the eco flow's pattern).
-  igWorld.buildings.push({ id: 'ig_watch', type: 'watchtower', gridX: 2, gridY: 18, level: 1 })
-  const igSaved = await api('POST', '/world/save', { token: ig.token, body: { world: igWorld, requestId: 'ig-barracks-9' } })
-  ok(igSaved.status === 200 && igSaved.json.world.buildings.some(bl => bl.id === 'ig-barracks-9' && bl.level === 9),
-    `a funded level-9 barracks placement is accepted (${igSaved.status})`)
-  const igTrained = await api('POST', '/army/train', { token: ig.token, body: { type: 'icegolem', count: 1, requestId: 'ig-train' } })
-  ok(igTrained.status === 200 && igTrained.json.army?.icegolem === 1,
-    `an icegolem trains once the barracks reaches level 9 (${igTrained.status})`)
-  // Deploy through a bot raid: same authoritative command machine, no real
-  // victim to perturb (targeted PvP is range-gated; matchmake picks live accounts).
-  const igMap = (await api('GET', `/map?x=${ig.player.plotX}&y=${ig.player.plotY}&r=1`, { token: ig.token })).json
-  const igCamp = igMap.plots.find(plot => plot.kind === 'bot')
-  ok(Boolean(igCamp), 'a nearby camp is visible for the icegolem deployment raid')
-  const igRaid = (await api('POST', '/attacks/bot-start', { token: ig.token, body: { x: igCamp.x, y: igCamp.y, requestId: 'ig-bot-start' } })).json
-  const igDeploy = await api('POST', '/attacks/commands', { token: ig.token, body: {
-    attackId: igRaid.raidId,
-    commands: [{ type: 'DEPLOY', commandId: 'ig-deploy-1', sequence: 1, troopInstanceId: 'ig_g1', troopType: 'icegolem', gridX: 0, gridY: 0 }]
+  // NEW TROOP ACCEPTANCE — every troop introduced by the 2-per-level unlock
+  // rework, plus icegolem (the original acceptance precedent). Each is:
+  // locked below its barracks unlock (403 on the level-1 starter barracks),
+  // then trains as a server transaction on a funded fresh-id barracks at the
+  // exact unlock level (levels only step one at a time on an EXISTING
+  // building, but a fresh id is a charged placement at any level — the
+  // mechanics-lab pattern), and deploys through the authoritative command
+  // machine via a bot raid (no real victim to perturb). Isolated on fresh
+  // sessions so the eco/battle flows above and below stay undisturbed.
+  // Unlock levels follow getTroopUnlockLevel = floor(index / 2) + 1 over the
+  // 21-troop order (two troops per barracks level, barracks maxLevel 11).
+  const troopAcceptance = [
+    { type: 'goblinplunderer', unlock: 2 },
+    { type: 'clockworkbeetle', unlock: 3 },
+    { type: 'physicianscart', unlock: 3 },
+    { type: 'pavisebearer', unlock: 4 },
+    { type: 'quartermaster', unlock: 6 },
+    { type: 'siegetower', unlock: 7 },
+    { type: 'icegolem', unlock: 8 },
+    { type: 'necromancer', unlock: 8 },
+    { type: 'trebuchet', unlock: 9 },
+    { type: 'hawkeyeassassin', unlock: 10 },
+    { type: 'warelephant', unlock: 10 },
+    { type: 'ornithopter', unlock: 11 }
+  ]
+  for (const { type, unlock } of troopAcceptance) {
+    const tag = `nta-${type}`
+    const session = (await api('POST', '/auth/session')).json
+    const lockedTrain = await api('POST', '/army/train', { token: session.token, body: { type, count: 1, requestId: `${tag}-locked` } })
+    ok(lockedTrain.status === 403, `${type} stays locked below barracks level ${unlock} (${lockedTrain.status})`)
+    await api('POST', '/resources/apply', { token: session.token, body: { delta: 40000, reason: 'debug_grant', requestId: `${tag}-gold` } })
+    await api('POST', '/resources/apply', { token: session.token, body: { delta: 5000, resource: 'ore', reason: 'debug_grant', requestId: `${tag}-ore` } })
+    await api('POST', '/resources/apply', { token: session.token, body: { delta: 2000, resource: 'food', reason: 'debug_grant', requestId: `${tag}-food` } })
+    const troopWorld = (await api('GET', '/world', { token: session.token })).json.world
+    troopWorld.buildings = troopWorld.buildings.map(bl => bl.type === 'barracks' ? { ...bl, id: `${tag}-barracks-${unlock}`, level: unlock } : bl)
+    // A watchtower opens the map sight the bot raid below needs (the eco
+    // flow's pattern). Level 2 (5x5 horizon): with many guest plots allocated
+    // by earlier checks, the immediate 3x3 ring can fill up with players.
+    troopWorld.buildings.push({ id: `${tag}-watch`, type: 'watchtower', gridX: 2, gridY: 18, level: 2 })
+    const troopSaved = await api('POST', '/world/save', { token: session.token, body: { world: troopWorld, requestId: `${tag}-barracks` } })
+    ok(troopSaved.status === 200 && troopSaved.json.world.buildings.some(bl => bl.id === `${tag}-barracks-${unlock}` && bl.level === unlock),
+      `a funded level-${unlock} barracks placement is accepted for ${type} (${troopSaved.status})`)
+    const troopTrained = await api('POST', '/army/train', { token: session.token, body: { type, count: 1, requestId: `${tag}-train` } })
+    ok(troopTrained.status === 200 && troopTrained.json.army?.[type] === 1,
+      `a ${type} trains once the barracks reaches level ${unlock} (${troopTrained.status})`)
+    const troopMap = (await api('GET', `/map?x=${session.player.plotX}&y=${session.player.plotY}&r=2`, { token: session.token })).json
+    const troopCamp = troopMap.plots.find(plot => plot.kind === 'bot')
+    ok(Boolean(troopCamp), `a nearby camp is visible for the ${type} deployment raid`)
+    const troopRaid = (await api('POST', '/attacks/bot-start', { token: session.token, body: { x: troopCamp.x, y: troopCamp.y, requestId: `${tag}-bot-start` } })).json
+    const troopDeploy = await api('POST', '/attacks/commands', { token: session.token, body: {
+      attackId: troopRaid.raidId,
+      commands: [{ type: 'DEPLOY', commandId: `${tag}-deploy-1`, sequence: 1, troopInstanceId: `${tag}_t1`, troopType: type, gridX: 0, gridY: 0 }]
+    } })
+    ok(troopDeploy.status === 200 && troopDeploy.json.phase === 'ACTIVE',
+      `a reserved ${type} deploys through /attacks/commands (${troopDeploy.status})`)
+    await api('POST', '/attacks/bot-settle', { token: session.token, body: { raidId: troopRaid.raidId, x: troopCamp.x, y: troopCamp.y, destruction: 0, deployed: { [type]: 1 }, requestId: `${tag}-bot-settle` } })
+  }
+
+  // GENERATED-ONLY GATE — skeleton (the necromancer's summon) mirrors the
+  // romanwarrior rules: never trainable, dropped by sanitizeArmy, and a
+  // direct deploy is rejected because it can never be reserved.
+  const sk = (await api('POST', '/auth/session')).json
+  const skTrain = await api('POST', '/army/train', { token: sk.token, body: { type: 'skeleton', count: 1, requestId: 'sk-train' } })
+  ok(skTrain.status === 404, `skeleton is generated-only and cannot be trained (${skTrain.status})`)
+  await api('POST', '/resources/apply', { token: sk.token, body: { delta: 5000, reason: 'debug_grant', requestId: 'sk-gold' } })
+  await api('POST', '/resources/apply', { token: sk.token, body: { delta: 1000, resource: 'ore', reason: 'debug_grant', requestId: 'sk-ore' } })
+  await api('POST', '/resources/apply', { token: sk.token, body: { delta: 100, resource: 'food', reason: 'debug_grant', requestId: 'sk-food' } })
+  const skWorld = (await api('GET', '/world', { token: sk.token })).json.world
+  skWorld.buildings.push({ id: 'sk_watch', type: 'watchtower', gridX: 2, gridY: 18, level: 2 })
+  await api('POST', '/world/save', { token: sk.token, body: { world: skWorld, requestId: 'sk-watch' } })
+  await api('POST', '/army/train', { token: sk.token, body: { type: 'warrior', count: 1, requestId: 'sk-warrior' } })
+  const skMap = (await api('GET', `/map?x=${sk.player.plotX}&y=${sk.player.plotY}&r=2`, { token: sk.token })).json
+  const skCamp = skMap.plots.find(plot => plot.kind === 'bot')
+  ok(Boolean(skCamp), 'a nearby camp is visible for the skeleton rejection raid')
+  const skRaid = (await api('POST', '/attacks/bot-start', { token: sk.token, body: { x: skCamp.x, y: skCamp.y, requestId: 'sk-bot-start' } })).json
+  const skDeploy = await api('POST', '/attacks/commands', { token: sk.token, body: {
+    attackId: skRaid.raidId,
+    commands: [{ type: 'DEPLOY', commandId: 'sk-deploy-1', sequence: 1, troopInstanceId: 'sk_t1', troopType: 'skeleton', gridX: 0, gridY: 0 }]
   } })
-  ok(igDeploy.status === 200 && igDeploy.json.phase === 'ACTIVE',
-    `a reserved icegolem deploys through /attacks/commands (${igDeploy.status})`)
-  await api('POST', '/attacks/bot-settle', { token: ig.token, body: { raidId: igRaid.raidId, x: igCamp.x, y: igCamp.y, destruction: 0, deployed: { icegolem: 1 }, requestId: 'ig-bot-settle' } })
+  ok(skDeploy.status === 409, `a skeleton can never be reserved, so a direct deploy is rejected (${skDeploy.status})`)
 
   // Frequent reads must not floor away each short production slice. A level-2
   // farm makes 1+ food over this interval, while every individual poll sees

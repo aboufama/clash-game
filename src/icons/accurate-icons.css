@@ -146,6 +146,149 @@
 }
 
 
+/* GOBLIN PLUNDERER - Scrawny green goblin sprinting with oversized loot sack, coins spilling */
+.goblinplunderer-icon::before {
+    content: '';
+    position: absolute;
+    width: 30px;
+    height: 42px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAqCAYAAACk2+sZAAAAz0lEQVR42mNgoBLoTjX5D8ILKrzAGMZnoDWgu8XoFm7oigJjmjuAahbHrbD4D8J1JwKwYnT12V4q/0GYYgcMmMUwALPojJISGM+4kwPG6A5AtxhXIoOpG3wWowc1jP/ixQUwRrcYxsflAKJ9OmAWE+sQGCbWnP/XGf6D8OC1GN0i9GxFqsVEA7pbjMtAXA4h1fwPBxz+g/DgsRgXQM8uZGcTUsGAWYwetDRL1QNuMbGJbehbTGp2waWe5OwzYBaPglEwCkbBKBgFo2AU0AwAABxFW0uJszHlAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
+}
+
+/* CLOCKWORK BEETLE - Dark-brass da Vinci wind-up bomb beetle, top view, big winding key */
+.clockworkbeetle-icon::before {
+    content: '';
+    position: absolute;
+    width: 26px;
+    height: 46px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAuCAYAAAA2oQl1AAAAv0lEQVR42mNgIBKcOHPlPzbMQG1Ad4usdATAeOhbBAOzFqz5D8IMtAY0s8jLQug/COOyCF1+8Fv0IsPgPwhXxSiA8YoWPTCG8WHyg8ciXF5HNxiGYerRxWHqcZpPN4vQBdAtOLnIBoxxWYQuD9OPM5HQzSJCQUYo6AgFIf0tghmAHoTk8gnGEc0sQhfAFXS4DCYUdDjzEc0sIpTM0TGx8kQXSTSzCJcCcg0mGGQ0t2gUjIJRMApGwSgYBaNgRAEA0IikJ+woT9sAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
+}
+
+/* PHYSICIAN'S CART - Plague-doctor medic pushing a two-wheel apothecary cart with a red cross */
+.physicianscart-icon::before {
+    content: '';
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAA40lEQVR42mNggAIrK5f/IMww2MCgc5iWltF/bHjUYYTAiyc3/oPwjStHwJhcc3a82fEfhIevw2CJ3ssrDIxh/BNHNoAxqebl78//D8Ijz2EwPrr6bC+V/yDcnWoCxgsqvMAYFx+mfvg7DF0e3UGwRE4Iw9QPH4fBClSYAwgVsDCL+m/2o+AzxsZgjC4+6jB0h8EchI6Hr8NwVeYDHpWD1mFSUgr/kTEhcVixge4AXJjsAnbQOoxSEGUn9x+EYQ6A8Qe8gTnoHIbuIPRKe8AcOGgdNprGRsEoGAWjYBSMglGAFQAA2GD1wzeMOrcAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
+}
+
+/* PAVISE BEARER - Full-body slate-blue tower shield with white double chevron, helmet peeking over */
+.pavisebearer-icon::before {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 42px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAqCAYAAAC3DKvtAAAAnUlEQVR42mNgIAAaGhr+g/CECRPAGMZnoBTQzODMzMz/IAwzEMYfeIPlvJL+g7DXlC1kYZh++husl9dHFh41mHKDb7z4AMaD32B0A3FZQD+D7+1o/w/C6AYT8jq6PEw/zDzaGTyaKgbOYHIjj/4Gq8ZUkIXpbzC6BaRioitVqhtsp678H4RjjMXBGJc6mDxM/cAZPApGwSgYBcMCAABBS82GA9YM8AAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
+}
+
+/* QUARTERMASTER - Barrel-chested drummer, gold-laced war drum, both sticks raised, banner pole */
+.quartermaster-icon::before {
+    content: '';
+    position: absolute;
+    width: 30px;
+    height: 50px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAyCAYAAABLXmvvAAAA7ElEQVR42u2VsQrCMBBAs/sB3SvoGnAX8Tv8Av0PHfyJjroVXDq6ujs4FUfHLs4nVzjQwyPB1KaBe/CGkLSvhLYxpmM2ywmgzXnxofk30cPXIms1feEdftwOgIYGm3sJKIWdvWhh4nJcAypdsM9zQAtrv0rzUli8f7QwUVc7QF3zz/rUytfzsOt+8cN8a6UwBaSwdP1ww/wBSmu9DA4OLky/QmmcfpjgW8qDZOenTu9hCvCDXbKzczha2Pel4uN0w/xz8h2nG662I0BpK13S+nTDxGqWAfrrfDrh+XQM74auG35YURRFURRFCeYFBSXvC4ReAVkAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
+}
+
+/* SIEGE TOWER - Tall three-tier timber belfry, hide panels, raised drop-ramp at the crown, wheels */
+.siegetower-icon::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 54px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAA2CAYAAADK88l3AAAAuklEQVR42mNgIACy/fX+g/AGAwMUzEAqINqgIyvq/oMwIYMI2kg1g7rynf6DMMxAdI2E+NQ3CB3Mqvb/Twymn0Ewp8M0aMkJgDGMT7TXhqFBMAWw5EAI4zSQ6gbBvABLoOiYoBdpbhB6FqK9QaQGMs5Ap7pB6JkSlhDRMbq6UYMGk0HEYuobZKeu/B+EY4zFwRjG9zJVwIpxqaeeQVpSAv9BGCYA4+MqSXGqp5pBo2AUjIJRMApGAdkAABB/Y+r+SqQDAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
+}
+
+/* NECROMANCER - Gaunt hooded purple robe, glowing green eyes, skull-topped bone staff, grave-light orb */
+.necromancer-icon::before {
+    content: '';
+    position: absolute;
+    width: 26px;
+    height: 46px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAuCAYAAAA2oQl1AAAA80lEQVR42u2UMQ7CMAxFewRmxMTAwNixQ8WMOjFyAIQ4A2JmZ2FjzRE6MpYbwA16iEoGRzISRhahbawO/tIboiR9iuMmSXrOvtkAksROb6JlugUkuji6iATr/ODhwuKxAKSu7x+0Pkk0UTZbASKJaP69PksBqarSMxyRJOAiSVhdHSDDEXEhtel4NPXQmAso7nIERF/k4AxIaOl2xckjNcWtdJ6v0qmJ+FPBN/JLJxFfN5/knp93pCbioY1cGCoKbm81kdQUJJIEnf+j6CJewlDR36VTE9GTQx8kEY1pvnPp1EW8OaT51lETWSwWi8VisbzyBDTgk4dy88rFAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
+}
+
+/* TREBUCHET CREW - Counterweight trebuchet: long arm up-right, hanging sling stone, iron weight box, wheels */
+.trebuchet-icon::before {
+    content: '';
+    position: absolute;
+    width: 30px;
+    height: 38px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAmCAYAAADTGStiAAAA0ElEQVR42u2UsQrCMBBA8xeCk7ODi7hkdMwiOBaHgE4VIZM4SWanLO6OfoIf4H+dXOAcAgFbm8TIPXjDldKXHqVCJOZx3QIqcpM9TMH9auZ93s/e/wvfTgpQCtJ15xygxhhv/eFYkLDWAqq19tYTvhwUoJ8GByN7WKk1oO95MQE0+ZsmDzfNDtC2PXppjq28/jCtlILhiikUhr8+QLGwlEtAKUhz+ODYqnsfoFi4648keShbOPyIutr7QMXCcjoGdDMfeWke6v7fCzMMwzBMMV6pNrvsC1jhTwAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
+}
+
+/* HAWK-EYE ASSASSIN - Hooded slate sniper kneeling with long scoped wheellock, single gold eye glint */
+.hawkeyeassassin-icon::before {
+    content: '';
+    position: absolute;
+    width: 30px;
+    height: 34px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAiCAYAAABIiGl0AAAAvklEQVR42mNgIAC0LJz/g7CldyQYw/gMtAZ0txjdQrfILDCmuQPobjEhC4efxTAAs0BAQg4FvziRAMYwPtzBWkb/kXHNzRdgPHQsRgcxVkr/QTjPSw+MYXwrKycw9vIKAmNcfJiDpKQUwHjwWBxV0vIfhNETGQyfXGQDxjumZIAxTBzGJztIB8xiGFAysPwPwrgcQLPsNGAWS6kZ/AdhdAfg4g99i2EAvQAhVMAMfYtHwSgYBaNgFIyCUUBzAABzqI4whzqO0gAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
+}
+
+/* WAR ELEPHANT - Armored elephant head-on: plated forehead with gold boss, fanned ears, white tusks, trunk, red howdah crest */
+.warelephant-icon::before {
+    content: '';
+    position: absolute;
+    width: 26px;
+    height: 42px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAqCAYAAACtMEtjAAAAzklEQVR42mNgIAA2GBj8B2Fi+WQDulnUraT0H4RhBp5cZAPGMD5MfvBblJdX9R+Ee3tngvGKFVuwYpg8TP3AW4RuICELYEFHyEIMB9DNIpgAuoSWlhEY4woydAxTj24RDNPPoqiotP8gDFNQVdUGxoQSAa6gg+mHmQczn34WoQN0i9AxsfIE8w/NLfrx5cF/ZIwrKGF8dAxTj27OwFkEAy+eXPiPjGHiGMmVSH0DbxGhREJ0qhr0FhEKuqFn0fCNq1EwCkbBKBgFo2AUEAEACYmVkliJ25EAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
+}
+
+/* ORNITHOPTER - Da Vinci flapping-wing machine head-on: canvas bat wings on spruce spars, pilot gondola, tail fan */
+.ornithopter-icon::before {
+    content: '';
+    position: absolute;
+    width: 38px;
+    height: 34px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAiCAYAAAAzrKu4AAAAsElEQVR42mPI9tf7j4wZBghguGPQOgwGbhyf9x+E6eVQdHtg9mMoHLQOW9Eb9x+EYQpIdWh3lPZ/ECbVITAMs3/oOAzdgbgMQLegK98JjO/taAdjGJ+QQ2DiBB006B0GAzALiHUouoMIOQSmnuRcM2gdhu5AQnxcFhLiDz+HkRrldLN4yDoMV+IfdRixBTPDYAOD1mGDLgoHrcPQqx6cDb5Rh42CUTAKRsEoGAUjAwAA33uIL1626gAAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
+}
+
 /* ROMAN WARRIOR - Individual soldier with Scutum shield */
 
 /* RESOURCE ICON - Green juice vial */

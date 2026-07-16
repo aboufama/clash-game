@@ -139,7 +139,10 @@ function App() {
   // Ticking HUD values: base balances + predicted accrual (see the predictive block below).
   const [displayResources, setDisplayResources] = useState(resources);
   const spendableResources = infiniteResources ? INFINITE_SPENDABLE_RESOURCES : displayResources;
-  const [army, setArmy] = useState({ warrior: 0, archer: 0, wallbreaker: 0, ram: 0, stormmage: 0, golem: 0, icegolem: 0, mobilemortar: 0, davincitank: 0, phalanx: 0 });
+  // Derived from the canonical tuple — never restate the troop list.
+  const [army, setArmy] = useState<Record<PlayerTroopType, number>>(
+    () => Object.fromEntries(PLAYER_TROOP_TYPES.map(type => [type, 0])) as Record<PlayerTroopType, number>
+  );
   const [isMobile, setIsMobile] = useState(() => MobileUtils.isMobile());
   // MobileUtils re-evaluates the heuristic on resize/orientation and keeps
   // the body class fresh; mirror those flips into React so `.hud.mobile`

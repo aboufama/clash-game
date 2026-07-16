@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import type { TroopType } from '../config/GameDefinitions';
+import { TROOP_DEFINITIONS, type TroopType } from '../config/GameDefinitions';
 import { drawGolemC } from './redesign/GolemC';
 import { drawIceGolem as drawIceGolemArt } from './redesign/IceGolem';
+import { activeDesign, type DesignUnit } from './redesign/DesignRegistry';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -99,7 +100,120 @@ export class TroopRenderer {
             case 'wallbreaker':
                 TroopRenderer.drawWallBreaker(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
+            // ===== 2026-07 troop-overhaul units: tournament slot when filled,
+            // neutral placeholder until then (art phase pending) =====
+            case 'goblinplunderer':
+                TroopRenderer.drawNewTroop(graphics, 'goblinplunderer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'clockworkbeetle':
+                TroopRenderer.drawNewTroop(graphics, 'clockworkbeetle', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'physicianscart':
+                TroopRenderer.drawNewTroop(graphics, 'physicianscart', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'pavisebearer':
+                TroopRenderer.drawNewTroop(graphics, 'pavisebearer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'quartermaster':
+                TroopRenderer.drawNewTroop(graphics, 'quartermaster', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'siegetower':
+                // driver = parked01 (the davincitank isDeactivated plumbing).
+                TroopRenderer.drawNewTroop(graphics, 'siegetower', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, isDeactivated ? 1 : 0);
+                break;
+            case 'necromancer':
+                TroopRenderer.drawNewTroop(graphics, 'necromancer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'trebuchet':
+                TroopRenderer.drawNewTroop(graphics, 'trebuchet', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'hawkeyeassassin':
+                TroopRenderer.drawNewTroop(graphics, 'hawkeyeassassin', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'warelephant':
+                TroopRenderer.drawNewTroop(graphics, 'warelephant', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'ornithopter':
+                TroopRenderer.drawNewTroop(graphics, 'ornithopter', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                break;
+            case 'skeleton':
+                // Generated-only summon: placeholder at romanwarrior scale
+                // until the necromancer tournament ships its art.
+                TroopRenderer.drawPlaceholder(graphics, 'skeleton', isPlayer, isMoving, time);
+                break;
         }
+    }
+
+    /** New-troop dispatch: the live tournament design when a slot is filled,
+     *  else the neutral placeholder. `driver` = the unit's bespoke tweened
+     *  driver (parked01 for siegetower), 0 when unused. */
+    private static drawNewTroop(
+        g: G,
+        unit: Exclude<DesignUnit, 'frostfall'>,
+        isPlayer: boolean,
+        isMoving: boolean,
+        facingAngle: number,
+        troopLevel: number,
+        time: number,
+        attackAge: number,
+        attackDelay: number,
+        driver: number
+    ): void {
+        const design = activeDesign(unit);
+        if (design) {
+            design(g, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, driver);
+            return;
+        }
+        TroopRenderer.drawPlaceholder(g, unit, isPlayer, isMoving, time);
+    }
+
+    /** Multiply a 0xRRGGBB colour toward dark (m<1) or light (m>1). */
+    private static shade(c: number, m: number): number {
+        const r = Math.max(0, Math.min(255, Math.round(((c >> 16) & 0xff) * m)));
+        const g = Math.max(0, Math.min(255, Math.round(((c >> 8) & 0xff) * m)));
+        const b = Math.max(0, Math.min(255, Math.round((c & 0xff) * m)));
+        return (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * Neutral tournament placeholder — a readable capsule figure in the
+     * troop's definition colour, bulk scaled by housing space (space 1 ≈ the
+     * villager-scale humanoid) so battle silhouettes stay honest before the
+     * real art lands. All motion is a deterministic f(time): the walk bounce
+     * closes on a 500 ms stride and the idle bob on an exact 2000 ms period
+     * (250 ms harmonics — bake-safe, iron rule 3). Air units hover with a
+     * detached ground shadow. Safe at every level and for both owners.
+     */
+    private static drawPlaceholder(g: G, type: TroopType, isPlayer: boolean, isMoving: boolean, time: number): void {
+        const def = TROOP_DEFINITIONS[type];
+        const color = def?.color ?? 0x9a9a9a;
+        const space = def?.space ?? 1;
+        const air = def?.movementType === 'air';
+        const s = 0.85 + Math.sqrt(space) * 0.32; // space 1 ≈ ~19 px tall
+        const bodyW = 6.6 * s;
+        const bodyH = 13.5 * s;
+        const bob = isMoving
+            ? Math.abs(Math.sin(((time % 500) / 500) * Math.PI * 2)) * 1.1
+            : (Math.sin(((time % 2000) / 2000) * Math.PI * 2) * 0.5 + 0.5) * 0.8;
+        const hover = air ? 7 + Math.sin(((time % 2000) / 2000) * Math.PI * 2) * 1.2 : 0;
+        const groundY = 9.5;
+        const top = groundY - bodyH - bob - hover;
+        const owner = isPlayer ? 1 : 0.7; // enemies darken (palette convention)
+
+        // Contact shadow stays on the ground (air units cast it detached).
+        g.fillStyle(0x000000, air ? 0.14 : 0.22);
+        g.fillEllipse(0, groundY + 0.1, bodyW * (air ? 0.9 : 1.25), bodyW * 0.45);
+
+        // Capsule body with a darker rim for silhouette read.
+        g.fillStyle(TroopRenderer.shade(color, 0.55 * owner), 1);
+        g.fillRoundedRect(-bodyW / 2 - 0.7, top - 0.7, bodyW + 1.4, bodyH + 1.4, (bodyW + 1.4) / 2);
+        g.fillStyle(TroopRenderer.shade(color, owner), 1);
+        g.fillRoundedRect(-bodyW / 2, top, bodyW, bodyH, bodyW / 2);
+        // NW-light cap highlight + visor band so the figure reads as a unit.
+        g.fillStyle(TroopRenderer.shade(color, 1.35 * owner), 1);
+        g.fillEllipse(-bodyW * 0.14, top + bodyH * 0.18, bodyW * 0.52, bodyH * 0.2);
+        g.fillStyle(TroopRenderer.shade(color, 0.4 * owner), 1);
+        g.fillRect(-bodyW * 0.32, top + bodyH * 0.32, bodyW * 0.64, 1.4);
     }
 
     // ================= villager-scale humanoid toolkit =================

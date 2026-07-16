@@ -1,5 +1,6 @@
 import {
   BUILDING_DEFINITIONS,
+  GENERATED_ONLY,
   MAP_SIZE,
   TROOP_DEFINITIONS,
   normalizeTroopLevel,
@@ -86,7 +87,7 @@ function normalizedCounts(raw: TroopCounts, label: string): TroopCounts {
   domainAssert(raw && typeof raw === 'object' && !Array.isArray(raw), `${label} must be a troop-count object`)
   const out: TroopCounts = {}
   for (const [rawType, rawCount] of Object.entries(raw)) {
-    domainAssert(Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, rawType) && rawType !== 'romanwarrior', `${label} contains an unknown or generated troop`, { troopType: rawType })
+    domainAssert(Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, rawType) && !GENERATED_ONLY.has(rawType), `${label} contains an unknown or generated troop`, { troopType: rawType })
     const count = boundedInt(rawCount, 0, 10_000, `${label}.${rawType}`)
     if (count > 0) out[rawType as keyof TroopCounts] = count
   }

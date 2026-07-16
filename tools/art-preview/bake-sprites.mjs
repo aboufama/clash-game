@@ -94,7 +94,22 @@ const TROOP_PARAMS = {
   phalanx:      { stride: 600, delay: 0,    windup: 0,   strike: 0,   dirs: 8,
                   attackDriver: { key: 'phalanxSpearOffset', values: [0, 0.45, 1, 0.55, 0.15] } },
   romanwarrior: { stride: 600, delay: 900,  windup: 260, strike: 150, dirs: 8 },
-  wallbreaker:  { stride: 260, delay: 500,  windup: 240, strike: 0,   dirs: 1 }
+  wallbreaker:  { stride: 260, delay: 500,  windup: 240, strike: 0,   dirs: 1 },
+  // ===== 2026-07 troop overhaul (TROOP_DESIGN.md v2) — params pinned ahead
+  // of the art phase; do NOT bake these until their authored rigs land and
+  // strides are re-synced to the authored walk periods. =====
+  goblinplunderer: { stride: 240, delay: 600, windup: 200, strike: 120, dirs: 8 }, // fast mover needs 8 headings
+  clockworkbeetle: { stride: 240, delay: 500, windup: 240, strike: 0,   dirs: 8 },
+  physicianscart:  { stride: 500, delay: 6000, windup: 800, strike: 400, dirs: 8, big: true }, // heal pulse baked as attack seq on 6s cadence
+  pavisebearer:    { stride: 500, delay: 1200, windup: 350, strike: 180, dirs: 8 },
+  quartermaster:   { stride: 450, delay: 0, windup: 0, strike: 0, dirs: 1, attack: false, idleMs: 2000 }, // drum beat = exact 2000ms idle harmonics; damage 0 so attack:false is consistent
+  siegetower:      { stride: 700, delay: 0, windup: 0, strike: 0, dirs: 8, big: true, attack: false, deactivated: true }, // deactivated = parked ramp idle
+  necromancer:     { stride: 480, delay: 5000, windup: 700, strike: 400, dirs: 1 },
+  trebuchet:       { stride: 700, delay: 4000, windup: 900, strike: 400, dirs: 8, big: true },
+  hawkeyeassassin: { stride: 340, delay: 1300, windup: 420, strike: 0,   dirs: 8 },
+  warelephant:     { stride: 1200, delay: 3000, windup: 900, strike: 500, dirs: 8, big: true },
+  ornithopter:     { stride: 500, delay: 0, windup: 0, strike: 0, dirs: 8, attack: false, idleMs: 500 }, // 'walk'=flap loop, idle=hover bob; bombs are projectiles, no attack frames
+  skeleton:        { stride: 300, delay: 900, windup: 260, strike: 150, dirs: 8 }
 }
 const WALK_FRAMES = 6
 // Idle breath is the archetypal "subtle ambient" — doubled for smoothness

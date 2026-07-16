@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { BUILDING_DEFINITIONS, TROOP_DEFINITIONS, getTroopStats, getTroopUnlockLevel, normalizeTroopLevel, troopFoodCostOf, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
+import { BUILDING_DEFINITIONS, GENERATED_ONLY, TROOP_DEFINITIONS, getTroopStats, getTroopUnlockLevel, normalizeTroopLevel, troopFoodCostOf, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
 import {
   BOT_RAID_COOLDOWN_MS,
   RAIDABLE_SHARE,
@@ -1984,7 +1984,7 @@ export class GameService {
   trainTroop(player: PlayerRecord, body: { type?: unknown; count?: unknown; requestId?: unknown }): { army: Record<string, number>; gold: number; ore: number; food: number; revision: number } {
     const type = sanitizeId(body?.type) as TroopType
     const def = hasOwn(TROOP_DEFINITIONS, type) ? TROOP_DEFINITIONS[type] : undefined
-    if (!def || type === 'romanwarrior') throw new ApiError(404, 'Unknown troop type')
+    if (!def || GENERATED_ONLY.has(type)) throw new ApiError(404, 'Unknown troop type')
     const count = clamp(toInt(body?.count, 1), 1, 50)
 
     const key = this.normalizeKey(body?.requestId)
@@ -2331,7 +2331,7 @@ export class GameService {
     if (!ALLOW_LEGACY_FRAME_COMMANDS) return
     const desired = sanitizeArmy(rawDeployed)
     for (const [type, count] of Object.entries(desired)) {
-      if (!hasOwn(TROOP_DEFINITIONS, type) || type === 'romanwarrior') throw new ApiError(400, 'Unknown deployed troop')
+      if (!hasOwn(TROOP_DEFINITIONS, type) || GENERATED_ONLY.has(type)) throw new ApiError(400, 'Unknown deployed troop')
       if (count <= 0 || count > (raid.reservedArmy[type] ?? 0) || count > (player.army[type] ?? 0)) {
         throw new ApiError(409, `Not enough reserved ${type} troops`)
       }
@@ -2951,7 +2951,7 @@ export class GameService {
   private deploymentCounts(replay: AttackRecord): Record<string, number> {
     const counts = Object.create(null) as Record<string, number>
     for (const type of Object.values(replay.validatedDeployments ?? {})) {
-      if (hasOwn(TROOP_DEFINITIONS, type) && type !== 'romanwarrior') counts[type] = (counts[type] ?? 0) + 1
+      if (hasOwn(TROOP_DEFINITIONS, type) && !GENERATED_ONLY.has(type)) counts[type] = (counts[type] ?? 0) + 1
     }
     return counts
   }
@@ -3012,7 +3012,7 @@ export class GameService {
 
   /** Worst-case honest building damage from one trained root troop. */
   private rootDamageCeiling(world: SerializedWorld, type: TroopType, level: number, activeMs: number): number {
-    if (type === 'romanwarrior' || !hasOwn(TROOP_DEFINITIONS, type)) return 0
+    if (GENERATED_ONLY.has(type) || !hasOwn(TROOP_DEFINITIONS, type)) return 0
     const stats = getTroopStats(type, level)
     const attacks = this.attackCountCeiling(type, level, activeMs)
     if (attacks <= 0) return 0
@@ -3628,7 +3628,7 @@ export class GameService {
         // Production authority accepts deployments only through the compact
         // command endpoint. The opt-in bridge exists solely for legacy data
         // migration and the old HTTP compatibility regression suite.
-        if (!ALLOW_LEGACY_FRAME_COMMANDS || troop.type === 'romanwarrior') return false
+        if (!ALLOW_LEGACY_FRAME_COMMANDS || GENERATED_ONLY.has(troop.type)) return false
         this.applyAuthorityCommand(replay, attacker, {
           type: 'DEPLOY',
           commandId: `legacy_${troop.id}`,
