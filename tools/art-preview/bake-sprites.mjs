@@ -84,7 +84,7 @@ const TROOP_PARAMS = {
                   designStride: { B: 1500 }, // GolemB's authored walk period (DESIGN=B bakes; also the icegolem authoring base)
                   attackDriver: { key: 'slamOffset', values: [0, 4, 9, 12, 7, 2] } }, // scene tweens 0→12→0; golems consume facing → 16 dirs (CoC turret pitch)
   icegolem:     { stride: 1500, delay: 0,   windup: 0,   strike: 0,   dirs: 16, idleMs: 2000, // GolemB rig values (STRIDE_MS=1500, IDLE_MS=2000) — the icy redesign must keep these periods
-                  attackDriver: { key: 'slamOffset', values: [0, 4, 9, 12, 7, 2] } }, // same slam-class contract as golem
+                  attackDriver: { key: 'slamOffset', values: [0, 4, 7, 12, 16, 20] } }, // 0→12 crush (7 ≈ overhead apex), >12 = authored settle poses; MainScene sweeps 12→24 in recovery and the runtime picks by nearest VALUE, so the hoist never re-displays after the crash
   mobilemortar: { stride: 600, delay: 2200, windup: 420, strike: 0,   dirs: 8, big: true,
                   recoilSeq: [0, 0, 0, 0, 5, 2.5] }, // paired with attack ages: recoil after the tick
   ram:          { stride: 300, delay: 1100, windup: 320, strike: 160, dirs: 8, big: true },

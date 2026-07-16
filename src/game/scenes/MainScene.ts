@@ -3311,8 +3311,14 @@ export class MainScene extends Phaser.Scene {
 
                                         // Ground crack effect (moved higher to align with
                                         // slam), scaled to the DAMAGE radius so the art
-                                        // covers everything the slam actually hits.
-                                        this.showGolemCrackEffect(currentPos.x, currentPos.y + 15, aoeTiles);
+                                        // covers everything the slam actually hits. The
+                                        // ice golem lands its own frost vocabulary (rime
+                                        // fissures, not stone dust) — same envelope.
+                                        if (troop.type === 'icegolem') {
+                                            this.showIceGolemCrackEffect(currentPos.x, currentPos.y + 15, aoeTiles, troop.owner);
+                                        } else {
+                                            this.showGolemCrackEffect(currentPos.x, currentPos.y + 15, aoeTiles);
+                                        }
                                         [...this.buildings].forEach(b => {
                                             if (b.owner !== troop.owner && b.health > 0) {
                                                 const bdx = (b.gridX + BUILDINGS[b.type].width / 2) - troop.gridX;
@@ -3328,14 +3334,26 @@ export class MainScene extends Phaser.Scene {
                                             }
                                         });
 
-                                        // Rise back up
+                                        // Rise back up. The ice golem settles FORWARD through
+                                        // slamOffset 12→24 (drawIceGolem maps >12 to its own
+                                        // authored recovery poses): SpriteBank picks attack
+                                        // frames by nearest slamOffset VALUE, so the 12→0
+                                        // retrace would re-display the overhead hoist right
+                                        // after the crash. pose(24) ≡ pose(0); onComplete
+                                        // snaps the driver back to 0 so the attack branch
+                                        // releases to idle. The stone golem keeps its
+                                        // original 12→0 retrace untouched.
                                         this.tweens.add({
                                             targets: slamTarget,
-                                            offset: 0,
+                                            offset: troop.type === 'icegolem' ? 24 : 0,
                                             duration: 400,
                                             ease: 'Quad.easeOut',
                                             onUpdate: () => {
                                                 troop.slamOffset = slamTarget.offset;
+                                                this.redrawTroopWithMovement(troop, false);
+                                            },
+                                            onComplete: () => {
+                                                troop.slamOffset = 0;
                                                 this.redrawTroopWithMovement(troop, false);
                                             }
                                         });
@@ -6679,21 +6697,127 @@ export class MainScene extends Phaser.Scene {
             : { chip: 0xac9cc2, chipLit: 0xe0d8e8, core: 0xce70f6, hot: 0xf2dcff, deep: 0x564288 };
     }
 
-    /** Visual half of the ice golem death: the body bursts into shards and
-     *  a freeze front rolls out over the debuff radius. Presentation only —
+    /** Visual half of the ice golem death — THE GLACIER CALVES. Staged like
+     *  playStoneGolemDeath: Stage 1 the frozen heart flares and the eye-
+     *  lights wink out; Stage 2 the hewn bergs of the Warden's stack calve
+     *  off and fall along arcs, each landing in a frost puff; Stage 3 the
+     *  freeze front rolls out, shards and haze fly, and an icicle-spear
+     *  eruption ring melts away with the rime patch. Deterministic from
+     *  death time + troop id (stoneGolemFxRng). Presentation only —
      *  shared verbatim by destroyTroop and showReplayTroopDeath. */
     private showIceGolemShatterFx(t: Troop, pos: { x: number; y: number }) {
         const c = this.iceGolemColors(t.owner);
         const radiusPx = 2.5 * this.tileWidth * 0.5 * Math.SQRT2; // = the debuff radius
         const groundDepth = depthForGroundEffect(t.gridX, t.gridY);
+        const baseDepth = depthForTroop(t.gridX, t.gridY, t.type);
+        const groundY = pos.y + 12; // IceGolem GROUND_Y — the feet line
+        const rng = this.stoneGolemFxRng(t.id, Math.floor(this.time.now));
+        const fa = Number.isFinite(t.facingAngle) ? t.facingAngle : 0;
+        const dirX = Math.cos(fa);
+        const dirY = Math.sin(fa) * 0.5;
 
-        this.cameras.main.shake(50, 0.0015);
+        // Impact weight: heavier than the old pop (stays under the frostfall
+        // ceiling 130/0.0022), plus a delayed micro-thud as the torso berg
+        // lands (playStoneGolemDeath precedent).
+        this.cameras.main.shake(110, 0.0022);
+        this.scheduleBattleCall(380, () => this.cameras.main.shake(40, 0.001));
 
-        // Core flash at the torso — the frozen heart letting go.
+        // --- Stage 1: the frozen heart lets go ------------------------------
         this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 22, {
             r: 14, color: c.hot, alpha: 0.95, life: 220, scaleTo: 2.2, depth: 30004
         }));
+        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 22, {
+            r: 8, color: c.core, alpha: 0.85, life: 160, scaleTo: 1.4,
+            blend: Phaser.BlendModes.ADD, depth: 30004
+        }));
+        // …and the cold eye-lights wink out at the keystone head.
+        for (const eside of [-1, 1]) {
+            this.trackBattleFx(PixelFx.flash(this,
+                pos.x + dirX * 8 - Math.sin(fa) * 2.2 * eside,
+                pos.y - 34 + dirY * 4 + Math.cos(fa) * 1.1 * eside, {
+                r: 2.5, color: c.hot, alpha: 0.9, life: 140, scaleTo: 0.25,
+                blend: Phaser.BlendModes.ADD, depth: baseDepth + 0.4
+            }));
+        }
+        // Ground frost bloom under the collapse.
+        this.trackBattleFx(PixelFx.flash(this, pos.x, groundY - 5, {
+            r: 16, squash: 0.5, color: c.hot, alpha: 0.55, life: 320,
+            scaleTo: 2.0, ease: 'Quad.easeOut', depth: groundDepth + 1
+        }));
 
+        // --- Stage 2: the bergs calve and fall -------------------------------
+        // Hewn ice chunk: 3-tone berg (chip body, deep shadow facet, lit rim)
+        // via whole-cell primitives; some pieces keep a dying inner light.
+        const drawBerg = (g: Phaser.GameObjects.Graphics, rx: number, ry: number, slab: boolean, seed: number) => {
+            if (slab) {
+                pixelRect(g, -rx, -ry, rx * 2, ry * 2, c.chip, 1);
+                pixelRect(g, -rx + 1.35, ry * 0.1, rx * 2 - 2.7, ry * 0.9, c.deep, 0.9);
+                pixelRect(g, -rx + 1.35, -ry, rx * 2 - 2.7, Math.max(1.35, ry * 0.45), c.chipLit, 0.9);
+            } else {
+                pixelEllipse(g, 0, 0, rx, ry, c.chip, 1);
+                pixelEllipse(g, rx * 0.28, ry * 0.32, rx * 0.55, ry * 0.5, c.deep, 0.9);
+                pixelEllipse(g, -rx * 0.3, -ry * 0.38, rx * 0.42, ry * 0.36, c.chipLit, 0.9);
+            }
+            if (seed % 2 === 0) pixelRect(g, -1.35, -1.35, 2.7, 2.7, c.core, 0.35);
+        };
+        // Piece rig mirrors the Warden's stack (pelvis 15-24.6 / torso 24-44 /
+        // capstones 38-48.5 / keystone head 40-55 / lintel fists low). dOff
+        // keeps painter's order inside the character band.
+        const pieces = [
+            // keystone head + brow — topples forward along the facing
+            { sx: dirX * 8, sy: -35 + dirY * 4, rx: 5.5, ry: 4.5, slab: false, landDx: dirX * 18, landDy: -3 + dirY * 6, fall: 300, delay: 40, dOff: 0.10 },
+            // capstone shoulders — calve off either side
+            { sx: -12, sy: -31, rx: 6.5, ry: 4, slab: true, landDx: -17, landDy: -3, fall: 280, delay: 100, dOff: 0.03 },
+            { sx: 12, sy: -31, rx: 6.5, ry: 4, slab: true, landDx: 17, landDy: -2, fall: 270, delay: 130, dOff: 0.06 },
+            // torso stele — the heaviest berg, drops onto the pelvis
+            { sx: 0, sy: -22, rx: 11, ry: 6.5, slab: true, landDx: 2, landDy: -8, fall: 260, delay: 190, dOff: 0.02 },
+            // pelvis block — barely falls
+            { sx: 0, sy: -8, rx: 9, ry: 5.5, slab: false, landDx: 0, landDy: -5, fall: 180, delay: 250, dOff: 0.04 },
+            // lintel fists — thud early either side
+            { sx: 13 + dirX * 4, sy: 1, rx: 5.5, ry: 4, slab: true, landDx: 15 + dirX * 4, landDy: -2, fall: 130, delay: 60, dOff: 0.08 },
+            { sx: -13 + dirX * 3, sy: 1.5, rx: 5, ry: 4, slab: false, landDx: -15 + dirX * 3, landDy: -2, fall: 120, delay: 80, dOff: 0.07 },
+        ];
+        pieces.forEach((piece, i) => {
+            const g = this.trackBattleFx(this.add.graphics());
+            drawBerg(g, piece.rx, piece.ry, piece.slab, i);
+            g.setPosition(pos.x + piece.sx, pos.y + piece.sy);
+            g.setDepth(baseDepth + piece.dOff);
+            const landX = pos.x + piece.landDx + (rng() - 0.5) * 5;
+            const landY = groundY + piece.landDy + (rng() - 0.5) * 2;
+            this.tweens.add({
+                targets: g, x: landX,
+                duration: piece.fall, delay: piece.delay, ease: 'Sine.easeOut'
+            });
+            // fall → tiny bounce (yoyo) → settle, then the berg melts out
+            this.tweens.add({
+                targets: g, y: landY,
+                duration: piece.fall, delay: piece.delay, ease: 'Quad.easeIn',
+                onComplete: () => {
+                    this.tweens.add({
+                        targets: g, y: landY - 2, duration: 70, yoyo: true, ease: 'Quad.easeOut',
+                        onComplete: () => {
+                            this.tweens.add({
+                                targets: g, alpha: 0,
+                                delay: 800 + rng() * 400, duration: 700, ease: 'Quad.easeIn',
+                                onComplete: () => g.destroy()
+                            });
+                        }
+                    });
+                }
+            });
+            // landfall frost puff
+            this.scheduleBattleCall(piece.delay + piece.fall, () => {
+                if (!g.active) return;
+                PixelFx.burst(this, landX, landY + piece.ry * 0.7, {
+                    count: 3, colors: [c.hot, 0xffffff], alpha: 0.55,
+                    r: 1.3, rJitter: 0.7, spread: 11, up: 6, upJitter: 4,
+                    life: 240, lifeJitter: 60, scaleTo: 1.7,
+                    depth: groundDepth + 1, rng
+                });
+            });
+        });
+
+        // --- Stage 3: the released cold rolls out ----------------------------
         // Freeze front: an expanding iso ring out to the debuff radius, with
         // a fainter trailing ring — cold rolling across the ground.
         this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 6, {
@@ -6709,18 +6833,41 @@ export class MainScene extends Phaser.Scene {
 
         // Body shards: chunky berg fragments thrown outward and up...
         PixelFx.burst(this, pos.x, pos.y - 18, {
-            count: 16, colors: [c.chipLit, c.chip, c.hot], square: true,
+            count: 24, colors: [c.chipLit, c.chip, c.hot], square: true,
             r: 2.6, rJitter: 2, spread: 12, spreadY: 14,
-            radial: 26, radialJitter: 12, ySquash: 0.5, up: 14, upJitter: 12,
+            radial: 34, radialJitter: 12, ySquash: 0.5, up: 14, upJitter: 12,
             alpha: 0.95, life: 520, lifeJitter: 220, rot0: 0.6, spin: 2.4,
-            depth: depthForTroop(t.gridX, t.gridY, t.type) + 1
+            depth: baseDepth + 1, rng
         });
         // ...and a fine frost haze that hangs, then settles.
         PixelFx.burst(this, pos.x, pos.y - 14, {
             count: 12, colors: [c.hot, 0xffffff, c.core],
             r: 1.4, rJitter: 0.8, spread: 20, spreadY: 12, up: 6, upJitter: 6,
             alpha: 0.75, life: 700, lifeJitter: 250, fadeDelay: 0.3,
-            depth: groundDepth + 3
+            depth: groundDepth + 3, rng
+        });
+
+        // Icicle-spear eruption ring around the footprint — snaps up with
+        // the freeze front, melts away with the rime patch (spear vocabulary
+        // shared with applyDefenseFreezeVisual).
+        const spears = this.trackBattleFx(this.add.graphics());
+        const spearR = 24;
+        for (let i = 0; i < 6; i++) {
+            const ang = (i / 6) * Math.PI * 2 + 0.35 + (rng() - 0.5) * 0.3;
+            const sxp = Math.cos(ang) * spearR;
+            const syp = Math.sin(ang) * spearR * 0.5;
+            const hgt = 8 + rng() * 4;
+            pixelRect(spears, sxp - 1.6, syp - hgt, 3.2, hgt, c.chipLit, 0.95);
+            pixelRect(spears, sxp - 0.6, syp - hgt - 2.5, 1.4, 3, c.hot, 0.95);
+            pixelRect(spears, sxp + 0.2, syp - hgt + 1, 1, hgt - 2, c.deep, 0.6);
+        }
+        spears.setPosition(pos.x, groundY - 4);
+        spears.setDepth(groundDepth + 2);
+        spears.setAlpha(0);
+        this.tweens.add({ targets: spears, alpha: 1, duration: 130, delay: 60 });
+        this.tweens.add({
+            targets: spears, alpha: 0, duration: 1400, delay: 900,
+            ease: 'Quad.easeIn', onComplete: () => spears.destroy()
         });
 
         // Rime patch where the Warden stood — fades out over the freeze
@@ -6931,6 +7078,85 @@ export class MainScene extends Phaser.Scene {
         this.tweens.add({
             targets: carrier, fxProgress: 1, duration: 800, ease: 'Linear',
             onUpdate: () => { if (g.active) drawCracks(carrier.fxProgress); },
+            onComplete: () => g.destroy()
+        });
+    }
+
+    /** ICE GOLEM SLAM IMPACT — the overhead glacier crush lands: a frost
+     *  shockfront over the damage radius, radiating RIME fissures (pale,
+     *  crystalline — grown by stepped redraw like the stone cracks) and
+     *  thrown ice chips. Modelled line-for-line on showGolemCrackEffect —
+     *  same depths, same envelope, same damage tick — but speaking the
+     *  iceGolemColors vocabulary so the two golems' attacks read apart. */
+    private showIceGolemCrackEffect(x: number, y: number, radiusTiles: number, owner: 'PLAYER' | 'ENEMY') {
+        const c = this.iceGolemColors(owner);
+        const radiusPx = radiusTiles * this.tileWidth * 0.5 * Math.SQRT2;
+        const grid = IsoUtils.isoToCart(x, y);
+        const groundDepth = depthForGroundEffect(grid.x, grid.y);
+        const rng = this.stoneGolemFxRng(`iceslam:${Math.round(x)}:${Math.round(y)}`, 0x1ce5);
+
+        // Frost shockfront expanding to the damage radius.
+        this.trackBattleFx(PixelFx.ring(this, x, y, {
+            r0: 8, r1: radiusPx, squash: 0.5, thick0: 2, thick1: 1,
+            color: c.core, alpha: 0.55, life: 380, ease: 'Quad.easeOut',
+            fadePow: 1.6, depth: groundDepth + 1
+        }));
+        // Central cold bloom right under the joined fists.
+        this.trackBattleFx(PixelFx.flash(this, x, y, {
+            r: 13, squash: 0.45, color: c.hot, alpha: 0.55,
+            life: 260, scaleTo: 1.8, ease: 'Quad.easeOut', depth: groundDepth
+        }));
+        // Thrown ice chips, iso-squashed radially.
+        PixelFx.burst(this, x, y, {
+            count: 10, square: true, colors: [c.chipLit, c.chip, c.hot],
+            r: 1.6, rJitter: 1, radial: radiusPx * 0.4, radialJitter: radiusPx * 0.3,
+            ySquash: 0.5, up: 12, upJitter: 8, life: 320, lifeJitter: 140,
+            scaleTo: 0.5, ease: 'Quad.easeOut', depth: groundDepth + 2, rng
+        });
+
+        // Radiating rime fissures: pale crystalline polylines grown outward
+        // over the first ~240 ms, held, then faded — REDRAWN per step so the
+        // cells stay 1.35 px (never a scale tween).
+        const g = this.trackBattleFx(this.add.graphics());
+        g.setPosition(x, y);
+        g.setDepth(groundDepth + 1.5);
+        const fissures: Array<Array<{ px: number; py: number }>> = [];
+        const arms = 6;
+        for (let i = 0; i < arms; i++) {
+            let ang = (i / arms) * Math.PI * 2 + (rng() - 0.5) * 0.8;
+            let reach = 0;
+            const line = [{ px: 0, py: 0 }];
+            for (let sSeg = 0; sSeg < 3; sSeg++) {
+                reach += radiusPx * (0.17 + rng() * 0.13);
+                ang += (rng() - 0.5) * 0.7;
+                line.push({ px: Math.cos(ang) * reach, py: Math.sin(ang) * reach * 0.5 });
+            }
+            fissures.push(line);
+        }
+        const drawFissures = (p: number) => {
+            g.clear();
+            const grow = Math.min(1, p / 0.3);
+            const fade = p < 0.5 ? 1 : 1 - (p - 0.5) / 0.5;
+            for (const line of fissures) {
+                const segs = line.length - 1;
+                for (let sSeg = 0; sSeg < segs; sSeg++) {
+                    const segP = Math.max(0, Math.min(1, grow * segs - sSeg));
+                    if (segP <= 0) break;
+                    const a = line[sSeg], b = line[sSeg + 1];
+                    pixelLine(g, a.px, a.py,
+                        a.px + (b.px - a.px) * segP, a.py + (b.py - a.py) * segP,
+                        sSeg === 0 ? 2 : 1, c.hot, 0.65 * fade);
+                }
+            }
+        };
+        drawFissures(0);
+        // Progress rides ON the graphics so killTweensOf(g) — and therefore
+        // the battle-FX sweep — reaches this tween (PixelFx.flash pattern).
+        const carrier = g as Phaser.GameObjects.Graphics & { fxProgress: number };
+        carrier.fxProgress = 0;
+        this.tweens.add({
+            targets: carrier, fxProgress: 1, duration: 800, ease: 'Linear',
+            onUpdate: () => { if (g.active) drawFissures(carrier.fxProgress); },
             onComplete: () => g.destroy()
         });
     }
