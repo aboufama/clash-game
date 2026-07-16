@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitions';
 import type { PlacedBuilding } from '../types/GameTypes';
 import { IsoUtils } from '../utils/IsoUtils';
+import { pixelEllipse, pixelRect } from '../render/PixelDraw';
 
 /**
  * Day/night cycle — the village's mood lighting.
@@ -179,6 +180,8 @@ export class DayNightSystem {
     /** Ad-hoc light sources (traveller bonfires, forge flares) with a lifespan. */
     private transient = new Map<number, { gx: number; gy: number; radius: number; tint: number; until: number; phase: number; pool: Phaser.GameObjects.Image; core: Phaser.GameObjects.Image }>();
     private nextTransientId = 1;
+    /** Discovered-world cart-square (fog inner edge); clamps roaming lights. */
+    private sightBound: { min: number; max: number } | null = null;
     private lastUpdateAt = 0;
 
     constructor(scene: LightHost) {
@@ -254,6 +257,18 @@ export class DayNightSystem {
     /** Rain intensity 0..1 — open flames (fire/molten rigs, bonfires) dim in the wet. */
     setRainFactor(v: number) {
         this.rainFactor = Math.max(0, Math.min(1, v));
+    }
+
+    /**
+     * The discovered world's cart-square bounds (WorldMapSystem's fog inner
+     * edge). Transient lights roam the roads right up to the cloud wall; the
+     * undiscovered-world clouds always win over light, so pools shrink as
+     * their source nears the boundary instead of washing warm light across
+     * the night-blue bank (ADD-blend images ignore depth against the fog's
+     * higher layers). Null disables the clamp (no world map).
+     */
+    setSightBound(bound: { min: number; max: number } | null) {
+        this.sightBound = bound;
     }
 
     /**
@@ -524,12 +539,29 @@ export class DayNightSystem {
                 + 0.07 * Math.sin(T * 23 + light.phase * 1.7)) * (1 - this.rainFactor * 0.45);
             // Fade in the last few seconds of life (embers dying down).
             const lifeLeft = Math.min(1, (light.until - nowMs) / 6000);
+            // The cloud wall always wins over firelight: an edge camp's pool
+            // must never brighten the undiscovered-world bank (these ADD
+            // images draw above the fog layers by design, for the night
+            // grade). Shrink the pool so its reach stays inside the sight
+            // square, minus the ~2 tiles the front cloud billows lap inward;
+            // dim it in step so a hemmed-in fire reads as embers, not a
+            // clipped disc.
+            let reach = 1;
+            if (this.sightBound) {
+                const CLOUD_LAP = 2.0;   // tiles the front puffs overhang inward
+                const PX_PER_TILE = 30;  // screen px of pool reach per cart tile toward an edge
+                const distTiles = Math.min(
+                    light.gx - this.sightBound.min, this.sightBound.max - light.gx,
+                    light.gy - this.sightBound.min, this.sightBound.max - light.gy
+                ) - CLOUD_LAP;
+                reach = Math.max(0, Math.min(1, (distTiles * PX_PER_TILE) / light.radius));
+            }
             light.pool.setPosition(pos.x, pos.y + 2);
-            light.pool.setAlpha(nf * 0.34 * f * lifeLeft);
-            light.pool.setScale(light.radius * 2.6 / 256, light.radius * 1.3 / 256);
+            light.pool.setAlpha(nf * 0.34 * f * lifeLeft * Math.min(1, reach * 1.4));
+            light.pool.setScale(light.radius * reach * 2.6 / 256, light.radius * reach * 1.3 / 256);
             light.core.setPosition(pos.x + Math.sin(T * 7 + light.phase) * 1.2, pos.y - 5);
-            light.core.setAlpha(nf * 0.22 * f * lifeLeft);
-            light.core.setScale(light.radius * 0.9 / 256);
+            light.core.setAlpha(nf * 0.22 * f * lifeLeft * Math.min(1, reach * 2.5));
+            light.core.setScale(light.radius * Math.min(1, reach * 1.6) * 0.9 / 256);
         }
 
         this.drawNightLife(T, nf);
@@ -563,10 +595,8 @@ export class DayNightSystem {
             if (a < 0.03) continue;
             const p = IsoUtils.cartToIso(gx, gy);
             const fy = p.y - 6 - Math.sin(T * 0.9 + seed) * 3;
-            g.fillStyle(0xd8f077, a * 0.28);
-            g.fillCircle(p.x, fy, 4.5);
-            g.fillStyle(0xeaffb0, a);
-            g.fillCircle(p.x, fy, 1.4);
+            pixelEllipse(g, p.x, fy, 4.5, 4.5, 0xd8f077, a * 0.28);
+            pixelEllipse(g, p.x, fy, 1.4, 1.4, 0xeaffb0, a);
         }
 
         // Moths drawn to the warm lights.
@@ -581,8 +611,7 @@ export class DayNightSystem {
                 const mx = cx + Math.cos(T * (1.7 + m * 0.4) + ph) * r;
                 const my = cy + Math.sin(T * (2.3 - m * 0.5) + ph * 1.7) * r * 0.55;
                 const flut = 0.55 + Math.abs(Math.sin(T * 26 + ph)) * 0.45;
-                g.fillStyle(0xe8e0c8, nf * 0.5 * flut);
-                g.fillRect(mx - 1, my - 1, 2, 2);
+                pixelRect(g, mx - 1, my - 1, 2, 2, 0xe8e0c8, nf * 0.5 * flut);
             }
         }
 
@@ -590,10 +619,8 @@ export class DayNightSystem {
         if (this.festivalSpot) {
             const p = IsoUtils.cartToIso(this.festivalSpot.x, this.festivalSpot.y);
             const warm = 0.5 + Math.sin(T * 5.3) * 0.08 + Math.sin(T * 12.7) * 0.05;
-            g.fillStyle(0xffc36a, nf * 0.16 * warm);
-            g.fillEllipse(p.x, p.y, 150, 75);
-            g.fillStyle(0xffd98a, nf * 0.22 * warm);
-            g.fillEllipse(p.x, p.y - 10, 70, 40);
+            pixelEllipse(g, p.x, p.y, 75, 37.5, 0xffc36a, nf * 0.16 * warm);
+            pixelEllipse(g, p.x, p.y - 10, 35, 20, 0xffd98a, nf * 0.22 * warm);
         }
     }
 

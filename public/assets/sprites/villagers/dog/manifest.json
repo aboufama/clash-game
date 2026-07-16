@@ -1,0 +1,804 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "dog",
+  "variants": {
+    "p0": {
+      "states": {
+        "idle": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p0_idle0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_idle1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_idle2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_idle3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_idle4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_idle5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        },
+        "walk": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p0_walk0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_walk1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_walk2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_walk3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_walk4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_walk5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        },
+        "sit": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p0_sit0.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p0_sit1.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p0_sit2.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p0_sit3.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            }
+          ]
+        },
+        "sleep": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "dog_p0_sleep0.png",
+              "texelW": 9,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.4650205761316871,
+              "originY": 0.5117845117845113
+            }
+          ]
+        },
+        "panic": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p0_panic0.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p0_panic1.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p0_panic2.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p0_panic3.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p0_panic4.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p0_panic5.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            }
+          ]
+        },
+        "excited": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p0_excited0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_excited1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_excited2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_excited3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_excited4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p0_excited5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        }
+      }
+    },
+    "p1": {
+      "states": {
+        "idle": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p1_idle0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_idle1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_idle2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_idle3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_idle4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_idle5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        },
+        "walk": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p1_walk0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_walk1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_walk2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_walk3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_walk4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_walk5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        },
+        "sit": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p1_sit0.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p1_sit1.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p1_sit2.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p1_sit3.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            }
+          ]
+        },
+        "sleep": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "dog_p1_sleep0.png",
+              "texelW": 9,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.4650205761316871,
+              "originY": 0.5117845117845113
+            }
+          ]
+        },
+        "panic": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p1_panic0.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p1_panic1.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p1_panic2.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p1_panic3.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p1_panic4.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p1_panic5.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            }
+          ]
+        },
+        "excited": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p1_excited0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_excited1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_excited2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_excited3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_excited4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p1_excited5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        }
+      }
+    },
+    "p2": {
+      "states": {
+        "idle": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p2_idle0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_idle1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_idle2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_idle3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_idle4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_idle5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        },
+        "walk": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p2_walk0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_walk1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_walk2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_walk3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_walk4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_walk5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        },
+        "sit": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p2_sit0.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p2_sit1.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p2_sit2.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            },
+            {
+              "file": "dog_p2_sit3.png",
+              "texelW": 11,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.5622895622895621,
+              "originY": 0.42087542087542085
+            }
+          ]
+        },
+        "sleep": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "dog_p2_sleep0.png",
+              "texelW": 9,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.4650205761316871,
+              "originY": 0.5117845117845113
+            }
+          ]
+        },
+        "panic": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p2_panic0.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p2_panic1.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p2_panic2.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p2_panic3.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p2_panic4.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            },
+            {
+              "file": "dog_p2_panic5.png",
+              "texelW": 13,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.6460905349794238
+            }
+          ]
+        },
+        "excited": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "dog_p2_excited0.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_excited1.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_excited2.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_excited3.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_excited4.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            },
+            {
+              "file": "dog_p2_excited5.png",
+              "texelW": 13,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.47578347578347563,
+              "originY": 0.2921810699588475
+            }
+          ]
+        }
+      }
+    }
+  }
+}

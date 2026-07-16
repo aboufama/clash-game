@@ -56,6 +56,10 @@ interface TraversalContext {
     /** Nearby allies committed to the same objective lend a bounded preference
      * to one breach. It remains only a cost hint: an opened gap always wins. */
     breachAffinity: Map<string, string>;
+    /** Attack-slot claims by allied plans: strategicTargetId → goal cell index
+     * → claimant count. Soft costs that fan a cohort across a target's rim
+     * instead of letting everyone stop on the same corridor-exit cell. */
+    goalClaims: Map<string, Map<number, number>>;
 }
 
 interface SearchResult {
@@ -83,6 +87,13 @@ export class CombatNavigationSystem {
     private static readonly NODE_COUNT = CombatNavigationSystem.GRID_SIZE * CombatNavigationSystem.GRID_SIZE;
     private static readonly COST_OPEN = 10;
     private static readonly COST_IMPASSABLE = 1_000_000_000;
+    /** Per-troop directional preference on goal cells (≈1.8 open cells at the
+     * far side of the rim). Small against wall-break cost, so it spreads a
+     * cohort around the rim without ever changing a breach decision. */
+    private static readonly GOAL_DIRECTION_COST = 18;
+    /** Cost per allied claim on a goal cell (≈2.6 open cells). Soft, so a big
+     * cohort saturates gracefully to a few claimants per cell. */
+    private static readonly GOAL_CLAIM_COST = 26;
     private static readonly MAX_HEAP = CombatNavigationSystem.NODE_COUNT * 16;
 
     private static readonly gridScratch = new Float64Array(CombatNavigationSystem.NODE_COUNT);
@@ -418,21 +429,51 @@ export class CombatNavigationSystem {
             region.maxX,
             region.maxY
         );
-        if (exactDistance <= region.range + 0.08) {
-            return {
-                strategicTargetId: region.id,
-                activeTargetId: region.id,
-                topologyRevision,
-                routeCost: 0,
-                goal: { x: troop.gridX, y: troop.gridY },
-                waypoints: [],
-                plannedAt
-            };
-        }
+        const stopPlan = (): CombatNavigationPlan => ({
+            strategicTargetId: region.id,
+            activeTargetId: region.id,
+            topologyRevision,
+            routeCost: 0,
+            goal: { x: troop.gridX, y: troop.gridY },
+            waypoints: [],
+            plannedAt
+        });
+
+        const startCellX = this.clamp(Math.floor(troop.gridX), this.GRID_MIN, this.GRID_MAX);
+        const startCellY = this.clamp(Math.floor(troop.gridY), this.GRID_MIN, this.GRID_MAX);
+        const startX = startCellX - this.GRID_MIN;
+        const startY = startCellY - this.GRID_MIN;
+        const startIndex = startY * this.GRID_SIZE + startX;
+
+        // Deterministic goal spreading: allied claims and a stable per-id
+        // approach preference are folded into goal-cell costs, so a cohort
+        // deployed at one point fans across the rim instead of stacking on
+        // the first in-range cell of a shared corridor.
+        const claims = context.goalClaims.get(region.id);
+        const spreadGoals = !!claims && claims.size > 0;
+        const startClaims = claims?.get(startIndex) ?? 0;
+        const inRangeNow = exactDistance <= region.range + 0.08;
+        if (inRangeNow && startClaims === 0) return stopPlan();
+
+        const regionCenterX = (region.minX + region.maxX) / 2;
+        const regionCenterY = (region.minY + region.maxY) / 2;
+        const preferredAngle = this.approachAngle(troop.id);
+        const directionBias = (cellX: number, cellY: number): number => {
+            if (!spreadGoals) return 0;
+            const cellAngle = Math.atan2(
+                cellY + 0.5 - regionCenterY,
+                cellX + 0.5 - regionCenterX
+            );
+            let delta = cellAngle - preferredAngle;
+            while (delta > Math.PI) delta -= Math.PI * 2;
+            while (delta < -Math.PI) delta += Math.PI * 2;
+            return (Math.abs(delta) / Math.PI) * this.GOAL_DIRECTION_COST;
+        };
 
         const goals = this.goalScratch;
         goals.fill(0);
         let goalCount = 0;
+        const goalAdjustRestore: Array<{ index: number; cost: number }> = [];
         for (let gridY = 0; gridY < this.GRID_SIZE; gridY++) {
             for (let gridX = 0; gridX < this.GRID_SIZE; gridX++) {
                 const index = gridY * this.GRID_SIZE + gridX;
@@ -455,10 +496,25 @@ export class CombatNavigationSystem {
                 if (distance <= region.range + 0.08) {
                     goals[index] = 1;
                     goalCount++;
+                    const bias = (claims?.get(index) ?? 0) * this.GOAL_CLAIM_COST
+                        + directionBias(cellX, cellY);
+                    if (bias > 0) {
+                        goalAdjustRestore.push({ index, cost: context.grid[index] });
+                        context.grid[index] += bias;
+                    }
                 }
             }
         }
-        if (goalCount === 0) return null;
+        if (goalCount === 0) return inRangeNow ? stopPlan() : null;
+
+        // In range but the current cell is claimed: unmark it so the search
+        // must price an alternative slot (A* would otherwise terminate on the
+        // start cell immediately, where entry costs never apply).
+        if (inRangeNow && goals[startIndex]) {
+            if (goalCount === 1) return stopPlan();
+            goals[startIndex] = 0;
+            goalCount--;
+        }
 
         // A local cohort should tend to break one useful opening instead of
         // shaving several adjacent walls. The discount is deliberately small
@@ -474,11 +530,6 @@ export class CombatNavigationSystem {
             }
         }
 
-        const startCellX = this.clamp(Math.floor(troop.gridX), this.GRID_MIN, this.GRID_MAX);
-        const startCellY = this.clamp(Math.floor(troop.gridY), this.GRID_MIN, this.GRID_MAX);
-        const startX = startCellX - this.GRID_MIN;
-        const startY = startCellY - this.GRID_MIN;
-        const startIndex = startY * this.GRID_SIZE + startX;
         // A troop displaced into geometry by an old save/area impulse must be
         // allowed to plan an exit; continuous collision still requires each
         // committed step to reduce penetration.
@@ -487,7 +538,17 @@ export class CombatNavigationSystem {
         const search = this.aStar(startX, startY, region, context);
         context.grid[startIndex] = originalStartCost;
         for (const restore of affinityRestore) context.grid[restore.index] = restore.cost;
-        if (!search) return null;
+        for (const restore of goalAdjustRestore) context.grid[restore.index] = restore.cost;
+        if (!search) return inRangeNow ? stopPlan() : null;
+
+        // Contested in-range slot: relocate only when a cheaper slot exists.
+        // Soft claim costs make big cohorts saturate to shared cells instead
+        // of orbiting a full rim forever.
+        if (inRangeNow) {
+            const stayCost = startClaims * this.GOAL_CLAIM_COST
+                + directionBias(startCellX, startCellY);
+            if (stayCost <= search.cost + this.COST_OPEN) return stopPlan();
+        }
 
         const firstWallAt = search.nodes.findIndex(index => !!context.wallAt[index]);
         const blocker = firstWallAt >= 0 ? context.wallAt[search.nodes[firstWallAt]] : null;
@@ -623,7 +684,40 @@ export class CombatNavigationSystem {
             }
         }
 
-        return { grid, occupied, wallAt, canBypassStructures, breachAffinity };
+        // Attack-slot claims from allied plans (any mobility): a plan whose
+        // goal is a rim cell reserves it softly, so later planners prefer
+        // free cells. Stopped in-range troops claim the cell they stand on.
+        const goalClaims = new Map<string, Map<number, number>>();
+        for (const other of allTroops) {
+            if (other.id === troop.id || other.health <= 0 || other.owner !== troop.owner) continue;
+            const plan = other.navigationPlan;
+            if (!plan) continue;
+            const cellX = Math.floor(plan.goal.x);
+            const cellY = Math.floor(plan.goal.y);
+            if (cellX < this.GRID_MIN || cellY < this.GRID_MIN
+                || cellX > this.GRID_MAX || cellY > this.GRID_MAX) continue;
+            const index = (cellY - this.GRID_MIN) * this.GRID_SIZE + (cellX - this.GRID_MIN);
+            let cells = goalClaims.get(plan.strategicTargetId);
+            if (!cells) {
+                cells = new Map();
+                goalClaims.set(plan.strategicTargetId, cells);
+            }
+            cells.set(index, (cells.get(index) ?? 0) + 1);
+        }
+
+        return { grid, occupied, wallAt, canBypassStructures, breachAffinity, goalClaims };
+    }
+
+    /** Stable per-troop approach preference derived from the id hash — the
+     * deterministic substitute for randomness when fanning a cohort around a
+     * target (identical inputs still yield identical plans). */
+    private static approachAngle(id: string): number {
+        let hash = 2166136261;
+        for (let i = 0; i < id.length; i++) {
+            hash ^= id.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return ((hash >>> 0) / 4294967296) * Math.PI * 2;
     }
 
     private static aStar(

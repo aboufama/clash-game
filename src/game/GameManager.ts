@@ -28,7 +28,23 @@ type UIHandlers = {
     updateBattleStats: (destruction: number, gold: number, ore?: number, food?: number) => void;
     onBuildingSelected: (data: BuildingSelection) => void;
     onPlacementCancelled: () => void;
-    onRaidEnded: (goldLooted: number) => void | Promise<void>;
+    /** `applied` carries the SERVER-applied ore/food from the attack
+     *  settlement when one landed — the raid report must show what was
+     *  banked, not the client-inflated battle counters. `settlementDelayed`
+     *  means the settlement request failed in transport: the payout is NOT
+     *  zero, it just hasn't been confirmed yet. */
+    onRaidEnded: (goldLooted: number, applied?: { ore?: number; food?: number; settlementDelayed?: boolean }) => void | Promise<void>;
+    /** A mid-raid retreat settled: queue the raid report ("Retreated"
+     *  variant) for when the clouds open on home. Never triggers its own
+     *  home transition — goHome is already running inside one. */
+    onRetreatEnded: (results: {
+        destruction: number;
+        goldLooted: number;
+        oreLooted: number;
+        foodLooted: number;
+        trophyDelta?: number;
+        settlementDelayed?: boolean;
+    }) => void;
     getArmy: () => Record<string, number>;
     getResources: () => { gold: number; ore: number; food: number };
     getSelectedTroopType: () => string | null;
@@ -40,6 +56,8 @@ type UIHandlers = {
     collectResource: (kind: 'ore' | 'food', amount: number) => void;
     /** Open the jukebox track list (jukebox building selected). */
     openJukebox: () => void;
+    /** Open the village banner picker (own town hall selected). */
+    openBannerPicker: () => void;
     /** Open the traveling merchant's trade sheet. */
     openMerchant: (offers: MerchantOffer[]) => void;
     /** Open/close the world-map neighbour action sheet. */
@@ -63,6 +81,8 @@ type SceneCommands = {
     watchReplay: (attackId: string) => void;
     findNewMap: () => void;
     deleteSelectedBuilding: () => boolean;
+    /** Drop the in-world selection (ring + range indicator) and tell the UI. */
+    deselectBuilding: () => void;
     moveSelectedBuilding: () => void;
     upgradeSelectedBuilding: () => number | null;
     loadBase: () => Promise<boolean>;
@@ -134,12 +154,23 @@ class GameManager {
         this.uiHandlers.onPlacementCancelled?.();
     }
 
-    onRaidEnded(goldLooted: number) {
+    onRaidEnded(goldLooted: number, applied?: { ore?: number; food?: number; settlementDelayed?: boolean }) {
         if (this.uiHandlers.onRaidEnded) {
-            this.uiHandlers.onRaidEnded(goldLooted);
+            this.uiHandlers.onRaidEnded(goldLooted, applied);
             return true;
         }
         return false;
+    }
+
+    onRetreatEnded(results: {
+        destruction: number;
+        goldLooted: number;
+        oreLooted: number;
+        foodLooted: number;
+        trophyDelta?: number;
+        settlementDelayed?: boolean;
+    }) {
+        this.uiHandlers.onRetreatEnded?.(results);
     }
 
     getArmy() {
@@ -206,6 +237,10 @@ class GameManager {
         return this.sceneCommands.deleteSelectedBuilding?.() ?? false;
     }
 
+    deselectBuilding() {
+        this.sceneCommands.deselectBuilding?.();
+    }
+
     moveSelectedBuilding() {
         this.sceneCommands.moveSelectedBuilding?.();
     }
@@ -247,7 +282,19 @@ class GameManager {
     }
 
     openJukebox() {
+        // One surface at a time: the scene must drop its selection ring too.
+        // The InfoPanel TRACKS button path would otherwise leave the ring
+        // pulsing under the modal (the in-scene double-tap path has already
+        // deselected — this is a no-op there).
+        this.sceneCommands.deselectBuilding?.();
         this.uiHandlers.openJukebox?.();
+    }
+
+    openBannerPicker() {
+        // Same surface discipline as the jukebox: the selection ring under
+        // the town hall drops before the modal takes the screen.
+        this.sceneCommands.deselectBuilding?.();
+        this.uiHandlers.openBannerPicker?.();
     }
 
     openMerchant(offers: MerchantOffer[]) {

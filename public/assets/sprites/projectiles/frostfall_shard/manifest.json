@@ -1,0 +1,822 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "frostfall_shard",
+  "variants": {
+    "l1_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a00_idle0.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.489417989417989,
+              "originY": 0.5140740740740739
+            }
+          ]
+        }
+      }
+    },
+    "l1_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a01_idle0.png",
+              "texelW": 14,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.489417989417989,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l1_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a02_idle0.png",
+              "texelW": 18,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.4917695473251027,
+              "originY": 0.4917695473251027
+            }
+          ]
+        }
+      }
+    },
+    "l1_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a03_idle0.png",
+              "texelW": 24,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.5270655270655267
+            }
+          ]
+        }
+      }
+    },
+    "l1_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a04_idle0.png",
+              "texelW": 25,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5140740740740739,
+              "originY": 0.489417989417989
+            }
+          ]
+        }
+      }
+    },
+    "l1_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a05_idle0.png",
+              "texelW": 24,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.5270655270655267
+            }
+          ]
+        }
+      }
+    },
+    "l1_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a06_idle0.png",
+              "texelW": 19,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.5185185185185184,
+              "originY": 0.5185185185185184
+            }
+          ]
+        }
+      }
+    },
+    "l1_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a07_idle0.png",
+              "texelW": 14,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.489417989417989,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l1_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a08_idle0.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.489417989417989,
+              "originY": 0.5140740740740739
+            }
+          ]
+        }
+      }
+    },
+    "l1_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a09_idle0.png",
+              "texelW": 14,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.489417989417989,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l1_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a10_idle0.png",
+              "texelW": 18,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.4917695473251027,
+              "originY": 0.4917695473251027
+            }
+          ]
+        }
+      }
+    },
+    "l1_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a11_idle0.png",
+              "texelW": 24,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.45014245014245
+            }
+          ]
+        }
+      }
+    },
+    "l1_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a12_idle0.png",
+              "texelW": 25,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5140740740740739,
+              "originY": 0.489417989417989
+            }
+          ]
+        }
+      }
+    },
+    "l1_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a13_idle0.png",
+              "texelW": 24,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.489417989417989
+            }
+          ]
+        }
+      }
+    },
+    "l1_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a14_idle0.png",
+              "texelW": 19,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.5185185185185184,
+              "originY": 0.5185185185185184
+            }
+          ]
+        }
+      }
+    },
+    "l1_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l1_a15_idle0.png",
+              "texelW": 14,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.489417989417989,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l2_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a00_idle0.png",
+              "texelW": 15,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.4950617283950617
+            }
+          ]
+        }
+      }
+    },
+    "l2_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a01_idle0.png",
+              "texelW": 15,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.49470899470899454
+            }
+          ]
+        }
+      }
+    },
+    "l2_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a02_idle0.png",
+              "texelW": 21,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.5167548500881833,
+              "originY": 0.5167548500881833
+            }
+          ]
+        }
+      }
+    },
+    "l2_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a03_idle0.png",
+              "texelW": 28,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.49470899470899454,
+              "originY": 0.5234567901234565
+            }
+          ]
+        }
+      }
+    },
+    "l2_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a04_idle0.png",
+              "texelW": 30,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.4950617283950617,
+              "originY": 0.5234567901234565
+            }
+          ]
+        }
+      }
+    },
+    "l2_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a05_idle0.png",
+              "texelW": 28,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.49470899470899454,
+              "originY": 0.5234567901234565
+            }
+          ]
+        }
+      }
+    },
+    "l2_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a06_idle0.png",
+              "texelW": 21,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.5167548500881833,
+              "originY": 0.5167548500881833
+            }
+          ]
+        }
+      }
+    },
+    "l2_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a07_idle0.png",
+              "texelW": 15,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.49470899470899454
+            }
+          ]
+        }
+      }
+    },
+    "l2_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a08_idle0.png",
+              "texelW": 15,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.4950617283950617
+            }
+          ]
+        }
+      }
+    },
+    "l2_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a09_idle0.png",
+              "texelW": 15,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.49470899470899454
+            }
+          ]
+        }
+      }
+    },
+    "l2_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a10_idle0.png",
+              "texelW": 21,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.5167548500881833,
+              "originY": 0.5167548500881833
+            }
+          ]
+        }
+      }
+    },
+    "l2_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a11_idle0.png",
+              "texelW": 28,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.49470899470899454,
+              "originY": 0.5234567901234565
+            }
+          ]
+        }
+      }
+    },
+    "l2_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a12_idle0.png",
+              "texelW": 30,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.4950617283950617,
+              "originY": 0.5234567901234565
+            }
+          ]
+        }
+      }
+    },
+    "l2_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a13_idle0.png",
+              "texelW": 28,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.49470899470899454,
+              "originY": 0.5234567901234565
+            }
+          ]
+        }
+      }
+    },
+    "l2_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a14_idle0.png",
+              "texelW": 21,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.5167548500881833,
+              "originY": 0.5167548500881833
+            }
+          ]
+        }
+      }
+    },
+    "l2_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l2_a15_idle0.png",
+              "texelW": 15,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.49470899470899454
+            }
+          ]
+        }
+      }
+    },
+    "l3_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a00_idle0.png",
+              "texelW": 16,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.4907407407407404,
+              "originY": 0.4953703703703703
+            }
+          ]
+        }
+      }
+    },
+    "l3_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a01_idle0.png",
+              "texelW": 15,
+              "texelH": 31,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.5113500597371564
+            }
+          ]
+        }
+      }
+    },
+    "l3_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a02_idle0.png",
+              "texelW": 24,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l3_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a03_idle0.png",
+              "texelW": 31,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.5113500597371564,
+              "originY": 0.4907407407407404
+            }
+          ]
+        }
+      }
+    },
+    "l3_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a04_idle0.png",
+              "texelW": 32,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.4953703703703703,
+              "originY": 0.4907407407407404
+            }
+          ]
+        }
+      }
+    },
+    "l3_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a05_idle0.png",
+              "texelW": 31,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.5113500597371564,
+              "originY": 0.4907407407407404
+            }
+          ]
+        }
+      }
+    },
+    "l3_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a06_idle0.png",
+              "texelW": 24,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l3_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a07_idle0.png",
+              "texelW": 15,
+              "texelH": 31,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.5113500597371564
+            }
+          ]
+        }
+      }
+    },
+    "l3_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a08_idle0.png",
+              "texelW": 16,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.4907407407407404,
+              "originY": 0.4953703703703703
+            }
+          ]
+        }
+      }
+    },
+    "l3_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a09_idle0.png",
+              "texelW": 15,
+              "texelH": 31,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.5113500597371564
+            }
+          ]
+        }
+      }
+    },
+    "l3_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a10_idle0.png",
+              "texelW": 24,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l3_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a11_idle0.png",
+              "texelW": 31,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.5113500597371564,
+              "originY": 0.4907407407407404
+            }
+          ]
+        }
+      }
+    },
+    "l3_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a12_idle0.png",
+              "texelW": 32,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.4953703703703703,
+              "originY": 0.4907407407407404
+            }
+          ]
+        }
+      }
+    },
+    "l3_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a13_idle0.png",
+              "texelW": 31,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.5113500597371564,
+              "originY": 0.4907407407407404
+            }
+          ]
+        }
+      }
+    },
+    "l3_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a14_idle0.png",
+              "texelW": 24,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.4938271604938271,
+              "originY": 0.4938271604938271
+            }
+          ]
+        }
+      }
+    },
+    "l3_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "frostfall_shard_l3_a15_idle0.png",
+              "texelW": 15,
+              "texelH": 31,
+              "cellWorldPx": 1.35,
+              "originX": 0.5234567901234565,
+              "originY": 0.5113500597371564
+            }
+          ]
+        }
+      }
+    }
+  }
+}

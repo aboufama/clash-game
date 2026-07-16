@@ -1,0 +1,126 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "chicken",
+  "variants": {
+    "c": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "chicken_c_idle0.png",
+              "texelW": 5,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.43703703703703695,
+              "originY": 0.3259259259259253
+            }
+          ]
+        },
+        "walk": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "chicken_c_walk0.png",
+              "texelW": 5,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.43703703703703695,
+              "originY": 0.3259259259259253
+            },
+            {
+              "file": "chicken_c_walk1.png",
+              "texelW": 5,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.43703703703703695,
+              "originY": 0.27160493827160437
+            },
+            {
+              "file": "chicken_c_walk2.png",
+              "texelW": 5,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.43703703703703695,
+              "originY": 0.27160493827160437
+            },
+            {
+              "file": "chicken_c_walk3.png",
+              "texelW": 5,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.43703703703703695,
+              "originY": 0.3259259259259253
+            },
+            {
+              "file": "chicken_c_walk4.png",
+              "texelW": 5,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.43703703703703695,
+              "originY": 0.27160493827160437
+            },
+            {
+              "file": "chicken_c_walk5.png",
+              "texelW": 5,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.43703703703703695,
+              "originY": 0.27160493827160437
+            }
+          ]
+        },
+        "peck": {
+          "loopMs": 460,
+          "frames": [
+            {
+              "file": "chicken_c_peck0.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.36419753086419737,
+              "originY": -0.12345679012345677
+            },
+            {
+              "file": "chicken_c_peck1.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.36419753086419737,
+              "originY": -0.12345679012345677
+            },
+            {
+              "file": "chicken_c_peck2.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.36419753086419737,
+              "originY": -0.12345679012345677
+            },
+            {
+              "file": "chicken_c_peck3.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.36419753086419737,
+              "originY": -0.12345679012345677
+            }
+          ]
+        },
+        "sleep": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "chicken_c_sleep0.png",
+              "texelW": 5,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.6370370370370366,
+              "originY": -0.12345679012345677
+            }
+          ]
+        }
+      }
+    }
+  }
+}

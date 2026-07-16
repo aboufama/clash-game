@@ -1,18 +1,21 @@
 
 import Phaser from 'phaser';
 import { Backend, type AttackEndResult, type AttackReplayState, type ReplayFrameSnapshot, type ReplayTroopSnapshot } from '../backend/GameBackend';
-import type { SerializedBuilding, SerializedWorld } from '../data/Models';
+import type { SerializedBuilding, SerializedWorld, VillageBanner } from '../data/Models';
+import { bannerDesignFor, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
 import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
 import { LootSystem } from '../systems/LootSystem';
 import type { PlacedBuilding, Troop, PlacedObstacle } from '../types/GameTypes';
 import { drawBuildingVisual, type WallNeighborTopology } from '../renderers/BuildingVisualDispatcher';
 import { TroopRenderer } from '../renderers/TroopRenderer';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
+import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
 import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
 import { TargetingSystem } from '../systems/TargetingSystem';
 import { DefenseSystem } from '../systems/DefenseSystem';
+import { DEFENSE_BEHAVIOR_CATALOG } from '../systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
-import { depthForBuilding, depthForGroundPlane, depthForObstacle, depthForRubble, depthForTroop } from '../systems/DepthSystem';
+import { depthForBuilding, depthForGroundEffect, depthForGroundPlane, depthForObstacle, depthForProjectile, depthForRubble, depthForTroop } from '../systems/DepthSystem';
 import { IsoUtils, TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
 import { cameraCssHeight, cameraCssWidth, getRenderScale, toBackingZoom, toLogicalZoom } from '../utils/DisplayResolution';
 import { MobileUtils } from '../utils/MobileUtils';
@@ -27,7 +30,8 @@ import { DayNightSystem } from '../systems/DayNightSystem';
 import { WeatherSystem } from '../systems/WeatherSystem';
 import { windAtScreen } from '../systems/Wind';
 import { WorldMapSystem } from '../systems/WorldMapSystem';
-import { hashString, mulberry32, upgradeDurationMs, watchtowerSightOf } from '../config/Economy';
+import { hashString, mulberry32, watchtowerSightOf } from '../config/Economy';
+import { serverUpgradeDurationMs } from '../config/UpgradePolicy';
 import { drawGrassTile, grassPaletteFor, type GrassCornerCut } from '../renderers/GrassRenderer';
 import { PLOT_PITCH } from '../systems/WorldMapSystem';
 import type { BattleOverlayScene } from './BattleOverlayScene';
@@ -36,9 +40,14 @@ import { SceneInputController } from './controllers/SceneInputController';
 import { installBakeBridge } from '../dev/BakeBridge';
 import { SpriteBank } from '../render/SpriteBank';
 import { installPixelModeHandle, registerPixelSurface, settleLogicalZoom, zoomSettleEnabled } from '../renderers/TextureRenderPolicy';
+import { pixelBitmap, pixelEllipse, pixelLine, pixelRect, PIXEL_CELL } from '../render/PixelDraw';
+import { PixelFx } from '../systems/PixelFx';
 
 const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
+
+type UpgradeTimedSerializedBuilding = SerializedBuilding & { upgradeStartedAt?: number };
+type UpgradeTimedPlacedBuilding = PlacedBuilding & { upgradeStartedAt?: number };
 
 interface EnemyInstantiationSummary {
     requested: number;
@@ -85,6 +94,10 @@ interface ReplayWatchState {
     pollInFlight: boolean;
     frames: ReplayFrameSnapshot[];
     pollEvent?: Phaser.Time.TimerEvent;
+    /** Peeked troop positions from the first UNAPPLIED frame — the forward
+     *  bracket for interpolation (rebuilt whenever that frame's t changes). */
+    nextSampleT?: number;
+    nextSamples?: Map<string, { x: number; y: number }>;
 }
 
 
@@ -108,12 +121,16 @@ export class MainScene extends Phaser.Scene {
     public tileHeight = 32;
     public mapSize = 25;
     public buildings: PlacedBuilding[] = [];
-    public rubble: { gridX: number; gridY: number; width: number; height: number; type: string; level: number; graphics: Phaser.GameObjects.Graphics; baseGraphics: Phaser.GameObjects.Graphics; createdAt: number; animationDone?: boolean }[] = [];
+    public rubble: { gridX: number; gridY: number; width: number; height: number; type: string; level: number; graphics: Phaser.GameObjects.Graphics; baseGraphics: Phaser.GameObjects.Graphics; createdAt: number; animationDone?: boolean; fxGraphics?: Phaser.GameObjects.Graphics }[] = [];
     public obstacles: PlacedObstacle[] = [];
     public troops: Troop[] = [];
     public ghostBuilding!: Phaser.GameObjects.Graphics;
     public deploymentGraphics!: Phaser.GameObjects.Graphics;
     public forbiddenGraphics!: Phaser.GameObjects.Graphics;
+    /** Geometry cache key for updateDeploymentHighlight: the zone diamonds
+     *  (~5–7k world-anchored pixel cells) re-record only when this changes;
+     *  the per-frame fades ride the Graphics objects' own alpha. */
+    private deployZoneSignature = '';
     public cursorKeys!: Phaser.Types.Input.Keyboard.CursorKeys;
     public inputController!: SceneInputController;
 
@@ -182,6 +199,15 @@ export class MainScene extends Phaser.Scene {
     public goldLooted = 0;
     public oreLooted = 0;
     public foodLooted = 0;
+    /** Capped raidable pools for the current enemy world — the client mirror
+     *  of the server's lootCaps. The HUD loot counter is pool × destruction%
+     *  (HP-weighted, like the settlement), recomputed in updateBattleStats. */
+    private battleLootPools: { gold: number; ore: number; food: number } | null = null;
+    /** Total max HP of the enemy's scoring (non-wall) buildings at battle
+     *  start — the denominator of the server's HP-weighted destruction%. */
+    private initialEnemyScoringHP = 0;
+    /** Coarse tick for the HP-weighted battle-stats refresh in updateCore. */
+    private nextBattleStatsRefreshAt = 0;
     public hasDeployed = false;
     public raidEndScheduled = false; // Prevent multiple end calls
     /** First-generation troops deployed this battle, by type — the server consumes these on bot raids. */
@@ -199,6 +225,9 @@ export class MainScene extends Phaser.Scene {
 
     public villageNameLabel!: Phaser.GameObjects.Text;
     public attackModeSelectedBuilding: PlacedBuilding | null = null;
+    /** The range ring's infinite pulse tween — killed on reselect/hide
+     *  (destroying the graphics alone leaves the tween running forever). */
+    private rangeIndicatorPulseTween: Phaser.Tweens.Tween | null = null;
 
     // Online attack tracking
     public currentEnemyWorld: EnemyWorldMeta | null = null;
@@ -221,13 +250,41 @@ export class MainScene extends Phaser.Scene {
     private replayWatchState: ReplayWatchState | null = null;
     private replaySimulationTime = 0;
     private isApplyingReplayFrame = false;
+    /** True only while a baseline/catch-up frame rebuilds mid-battle state on
+     *  join — destruction lands silently (no FX) instead of detonating every
+     *  already-dead building at once. */
+    private isApplyingReplayBaseline = false;
     private replayAutoExitQueued = false;
+    /** Bumped on every replay-watch start/teardown so a stale auto-exit timer
+     *  from the previous session can never fire into the next one. */
+    private replayWatchEpoch = 0;
     /** One exclusive navigation at a time; stale async continuations must not commit. */
     private transitionEpoch = 0;
     private transitionBusy = false;
     private transitionLabel = '';
     private battleEpoch = 0;
     private battleTimerEvents = new Set<Phaser.Time.TimerEvent>();
+    /** Loose battle-effect objects (projectiles, blooms, craters, scorch…)
+     *  not owned by any building/troop. clearScene sweeps them so no effect
+     *  can outlive a mode transition and land re-anchored on the home lawn. */
+    private battleFx = new Set<Phaser.GameObjects.GameObject>();
+    /** Battle tweens that target plain state objects (progress drivers) but
+     *  draw/spawn battle visuals from onUpdate — killed on the same sweep. */
+    private battleFxTweens = new Set<Phaser.Tweens.Tween>();
+    /** Live heal-range rings for every ward on the field, redrawn per combat
+     *  frame. Baked ward sprites lose the authored aura (it exceeds the bake
+     *  capture box and the alpha snap erases it), so the range — gameplay
+     *  information — is painted here at runtime. */
+    private wardAuraGfx: Phaser.GameObjects.Graphics | null = null;
+    /** Optimistic scaffolds wait for a matching authoritative world ack before
+     *  their local deadline is allowed to reveal the upgraded level. */
+    private pendingUpgradeAuthority = new Set<string>();
+    /** Whose heraldry the CURRENT scene's town hall flies: the owner's at
+     *  home, the DEFENDER's during raids/replays. Null = no banner planted. */
+    private villageBannerMeta: { identity: string; banner: VillageBanner | null } | null = null;
+    private hallBannerGfx: Phaser.GameObjects.Graphics | null = null;
+    private hallBannerDesign: FlagDesign | null = null;
+    private hallBannerDesignKey = '';
     /** Invalidates network continuations when this scene is stopped/destroyed. */
     private lifecycleEpoch = 0;
 
@@ -250,6 +307,16 @@ export class MainScene extends Phaser.Scene {
 
     constructor() {
         super('MainScene');
+    }
+
+    /**
+     * Stroked-ellipse ring rasterized as whole pixel cells — thin wrapper over
+     * PixelFx.stampRing (the shared primitive) so the many call sites keep
+     * their shape. rx/ry are RADII. `thick` is in cells (≈ old lineWidth /
+     * 1.35, min 1). One-shot expanding rings should use PixelFx.ring instead.
+     */
+    private pixelRing(g: Phaser.GameObjects.Graphics, cx: number, cy: number, rx: number, ry: number, thick: number, color: number, alpha = 1) {
+        PixelFx.stampRing(g, cx, cy, rx, ry, thick, color, alpha);
     }
 
     private normalizeBuildingType(type: string): BuildingType | null {
@@ -276,7 +343,9 @@ export class MainScene extends Phaser.Scene {
 
     private snapshotPlayerLabLevel() {
         const maxLab = this.buildings.reduce((max, building) => {
-            if (building.owner !== 'PLAYER' || building.type !== 'lab') return max;
+            // Mirror the server rule (troopLevelOf): a lab that is mid-upgrade
+            // is offline and contributes NOTHING — troops drop to level 1.
+            if (building.owner !== 'PLAYER' || building.type !== 'lab' || building.upgradingTo) return max;
             return Math.max(max, Math.max(1, building.level || 1));
         }, 0);
         // A NEXT transition may already have cleared the enemy scene. Keep the
@@ -331,6 +400,39 @@ export class MainScene extends Phaser.Scene {
         this.raidEndScheduled = false;
     }
 
+    /** Register a loose battle-effect object; it self-deregisters on destroy
+     *  and is force-destroyed (tweens killed) by clearBattleFx. */
+    private trackBattleFx<T extends Phaser.GameObjects.GameObject>(obj: T): T {
+        this.battleFx.add(obj);
+        obj.once(Phaser.GameObjects.Events.DESTROY, () => this.battleFx.delete(obj));
+        return obj;
+    }
+
+    /** Register a battle tween whose TARGET is a plain state object (so
+     *  killTweensOf(gameObject) cannot reach it) but whose callbacks draw or
+     *  spawn battle visuals. Self-deregisters when it finishes. */
+    private trackBattleFxTween(tween: Phaser.Tweens.Tween): Phaser.Tweens.Tween {
+        this.battleFxTweens.add(tween);
+        const forget = () => this.battleFxTweens.delete(tween);
+        tween.once(Phaser.Tweens.Events.TWEEN_COMPLETE, forget);
+        tween.once(Phaser.Tweens.Events.TWEEN_STOP, forget);
+        return tween;
+    }
+
+    /** Destroy every registered loose battle effect and stop its tweens.
+     *  Timer-scheduled cleanups may already be cancelled by
+     *  cancelBattleAsyncWork — this sweep is what guarantees no effect
+     *  survives into the next scene. */
+    private clearBattleFx() {
+        for (const tween of this.battleFxTweens) tween.remove();
+        this.battleFxTweens.clear();
+        for (const obj of this.battleFx) {
+            this.tweens.killTweensOf(obj);
+            obj.destroy();
+        }
+        this.battleFx.clear();
+    }
+
     /** Shared preamble for every attack-mode transition. */
     private async beginAttackSession(scouting: boolean, epoch?: number): Promise<boolean> {
         if (!await this.flushPendingSaveForTransition()) return false;
@@ -348,6 +450,9 @@ export class MainScene extends Phaser.Scene {
     /** Reset per-raid battle stats once the enemy world is in place. */
     private resetBattleStats() {
         this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
+        this.initialEnemyScoringHP = this.getAttackEnemyBuildings()
+            .filter(b => b.type !== 'wall')
+            .reduce((sum, b) => sum + Math.max(0, b.maxHealth), 0);
         this.destroyedBuildings = 0;
         this.goldLooted = 0;
         this.oreLooted = 0;
@@ -364,7 +469,9 @@ export class MainScene extends Phaser.Scene {
             return Math.max(0, this.playerLabLevel);
         }
         const maxLab = this.buildings.reduce((max, building) => {
-            if (building.owner !== owner || building.type !== 'lab') return max;
+            // Server rule (troopLevelOf): labs mid-upgrade are offline and
+            // grant no troop level, so the client must not simulate the old one.
+            if (building.owner !== owner || building.type !== 'lab' || building.upgradingTo) return max;
             return Math.max(max, Math.max(1, building.level || 1));
         }, 0);
         if (owner === 'PLAYER') {
@@ -458,6 +565,16 @@ export class MainScene extends Phaser.Scene {
         // Baked sprite atlases (buildings/troops/wrecks/obstacles) — loads in
         // the background; until ready every draw falls back to vector.
         SpriteBank.init(this);
+        // The bank finishing AFTER first paint left one-shot art stuck on the
+        // vector fallback forever — walls especially, whose change gate skips
+        // them outside explicit repaints. Bust every building's draw cache
+        // once so the next update repaints the whole village from the bank.
+        this.events.once('spritebank:ready', () => {
+            for (const b of this.buildings) b.lastDrawHealth = undefined;
+            // Obstacles are one-shot too: only foliage re-draws (for sway), so
+            // rocks and the rest would keep their smooth vector fallback.
+            for (const o of this.obstacles) this.drawObstacle(o, this.time.now);
+        });
 
         this.inputController = new SceneInputController(this);
         this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -527,6 +644,41 @@ export class MainScene extends Phaser.Scene {
             void this.goHome();
         };
         window.addEventListener('clash:attack-invalidated', onAttackInvalidated);
+        const onWorldSynced = (event: Event) => {
+            const world = (event as CustomEvent<{ world?: SerializedWorld }>).detail?.world;
+            if (world) this.reconcileUpgradeAuthority(world);
+        };
+        window.addEventListener('clash:world-synced', onWorldSynced);
+        const onBannerChanged = (event: Event) => {
+            const detail = (event as CustomEvent<{ userId?: string; banner?: VillageBanner | null }>).detail;
+            // Only the OWN standard hot-swaps; an enemy scene keeps the
+            // defender's snapshot heraldry for the whole battle.
+            if (!detail || detail.userId !== this.userId || this.mode !== 'HOME') return;
+            if (this.villageBannerMeta) {
+                this.villageBannerMeta = { ...this.villageBannerMeta, banner: detail.banner ?? null };
+            }
+        };
+        window.addEventListener('clash:banner-changed', onBannerChanged);
+        const onDesignChanged = (event: Event) => {
+            const unit = (event as CustomEvent<{ unit?: string }>).detail?.unit;
+            // Design Lab switched a unit's variant slot (DesignRegistry
+            // setActiveSlot). Baked frames resolve the slot on every pick and
+            // the vector delegators re-read the same key per draw, so all
+            // that's needed is a repaint of anything CACHED:
+            //  - placed buildings: bust the draw cache (the spritebank:ready
+            //    pattern) so the next update repaints body art, and re-stamp
+            //    the ground decal (designs ship their own pads) — unbake
+            //    restores the grass + overlapping neighbours underneath.
+            //  - troops/figures: redrawn every frame (battle troops, camp
+            //    figures on the 24 Hz tick), so they re-pick automatically.
+            for (const b of this.buildings) {
+                if (unit && b.type !== unit) continue;
+                b.lastDrawHealth = undefined;
+                this.unbakeBuildingFromGround(b);
+                this.bakeBuildingToGround(b);
+            }
+        };
+        window.addEventListener('clash:design-changed', onDesignChanged);
 
         let sceneCleanedUp = false;
         const cleanupScene = () => {
@@ -551,6 +703,9 @@ export class MainScene extends Phaser.Scene {
             this.time.removeAllEvents();
             this.tweens.killAll();
             window.removeEventListener('clash:attack-invalidated', onAttackInvalidated);
+            window.removeEventListener('clash:world-synced', onWorldSynced);
+            window.removeEventListener('clash:banner-changed', onBannerChanged);
+            window.removeEventListener('clash:design-changed', onDesignChanged);
             gameManager.clearScene();
             particleManager.clearAll();
         };
@@ -600,21 +755,47 @@ export class MainScene extends Phaser.Scene {
 
         if (this.input.keyboard) {
             this.cursorKeys = this.input.keyboard.createCursorKeys();
+            // createCursorKeys() registers key CAPTURES (arrows, Space,
+            // Shift) that preventDefault at the keyboard-manager level —
+            // before any DOM input sees the event. The isTypingInDomField
+            // guards silence game ACTIONS while typing, but captures still
+            // swallowed the characters (Space never reached the Village
+            // Name field). Release global capture while a DOM text field
+            // owns the keyboard; restore it when focus returns to the game.
+            const syncKeyCapture = () => {
+                const kb = this.input.keyboard;
+                if (!kb) return;
+                if (this.isTypingInDomField()) kb.disableGlobalCapture();
+                else kb.enableGlobalCapture();
+            };
+            document.addEventListener('focusin', syncKeyCapture);
+            document.addEventListener('focusout', syncKeyCapture);
+            this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+                document.removeEventListener('focusin', syncKeyCapture);
+                document.removeEventListener('focusout', syncKeyCapture);
+            });
             this.input.keyboard.on('keydown-ESC', () => {
+                // Same focus guard as App.tsx's M-key: typing in a DOM field
+                // (username, chat...) must never leak hotkeys into the game.
+                if (this.isTypingInDomField()) return;
                 this.cancelPlacement();
             });
-            this.input.keyboard.on('keydown-M', () => {
-                if (this.selectedInWorld) {
-                    this.unbakeBuildingFromGround(this.selectedInWorld);
-                    this.isMoving = true;
-                    this.selectedBuildingType = null;
-                    this.villageLife.onBuildingLifted(this.selectedInWorld);
-                    this.inputController.onPointerMove(this.input.activePointer);
-                }
-            });
+            // NOTE: no keydown-M here. The ONE move-building hotkey path is
+            // App.tsx's window listener (which also guards typing in inputs)
+            // -> gameManager.moveSelectedBuilding() -> the scene command
+            // registered below. A second Phaser-side binding used to run a
+            // divergent copy of the move side effects on every M press.
         }
 
-        this.input.on('gameout', () => {
+        this.input.on('gameout', (_time: number, event: MouseEvent | TouchEvent | undefined) => {
+            // 'gameout' fires whenever the pointer leaves the CANVAS —
+            // including onto DOM HUD elements floating over the lawn (the
+            // shield bubble, panels, toasts). Crossing those must not
+            // silently drop a carried building or a shop placement:
+            // relatedTarget is the DOM element the pointer entered, so only
+            // a true exit from the page (relatedTarget null) cancels.
+            const related = event && 'relatedTarget' in event ? event.relatedTarget : null;
+            if (related) return;
             if (this.selectedBuildingType || this.isMoving) {
                 this.cancelPlacement();
             }
@@ -637,8 +818,23 @@ export class MainScene extends Phaser.Scene {
     private centerCamera() {
         const centerGrid = this.mapSize / 2;
         const pos = IsoUtils.cartToIso(centerGrid, centerGrid);
-        this.cameras.main.centerOn(pos.x, pos.y);
+        const cam = this.cameras.main;
+        // Every mode transition lands here behind cloud cover (attack swap,
+        // replay start, homecoming): a camera parked at the watchtower's
+        // zoomed-out world view — or any stale battle zoom — must not carry
+        // over, so the recenter snaps zoom back to the boot default too.
+        this.cancelPendingZoomSettle();
+        cam.zoomEffect.reset();
+        const defaultZoom = zoomSettleEnabled()
+            ? settleLogicalZoom(MobileUtils.getDefaultZoom(), getRenderScale())
+            : MobileUtils.getDefaultZoom();
+        cam.setZoom(toBackingZoom(defaultZoom));
+        cam.centerOn(pos.x, pos.y);
         this.hasUserMovedCamera = false;
+        // The nameplate's on-screen clamp depends on the final framing, and
+        // updateVillageName often runs before this recenter — lay it out
+        // again now that scroll/zoom are settled.
+        this.layoutVillageNameLabel();
     }
 
     /**
@@ -651,7 +847,7 @@ export class MainScene extends Phaser.Scene {
      */
     public minGestureZoom(): number {
         const camera = this.cameras.main;
-        const APRON_TILES = 12; // meadow ring + the front row of fog cumulus
+        const APRON_TILES = 16; // slightly wider meadow/fog ring for more zoom-out headroom
         const CLOUD_HEADROOM = 130; // world px: cloud puffs stand above their base line
         const span = this.mapSize + APRON_TILES * 2;
         const fit = Math.max(
@@ -731,7 +927,11 @@ export class MainScene extends Phaser.Scene {
 
     private showNeighborhood() {
         if (this.mode !== 'HOME') return;
-        const sight = watchtowerSightOf(this.buildings as unknown as SerializedBuilding[]);
+        // Same completion gate as WorldMapSystem.computeViewRadius: a tower
+        // whose placement scaffold is still up has earned no sight yet.
+        const completed = this.buildings.filter(b => b.health > 0
+            && !(b.type === 'watchtower' && this.villageLife?.isPlacementUnderConstruction(b.id)));
+        const sight = watchtowerSightOf(completed as unknown as SerializedBuilding[]);
         if (sight <= 0) {
             gameManager.showToast('Build a Watchtower to discover the surrounding world.');
             return;
@@ -783,6 +983,9 @@ export class MainScene extends Phaser.Scene {
     public cancelPlacement() {
         if (this.isMoving && this.selectedInWorld) {
             this.bakeBuildingToGround(this.selectedInWorld);
+            // The carry hid the carrier (and with it the baked shadow sprite).
+            this.selectedInWorld.graphics.setVisible(true);
+            this.selectedInWorld.baseGraphics?.setVisible(true);
         }
         this.selectedBuildingType = null;
         this.isMoving = false;
@@ -821,22 +1024,39 @@ export class MainScene extends Phaser.Scene {
             this.handleCameraMovement(delta);
             this.updateReplayWatchPlayback(time, delta);
             this.updateReplayTroopSmoothing(delta);
-            this.updateCombat(this.replaySimulationTime);
+            this.updateCombat(this.animClockNow());
             this.updateSpikeZones();
             this.refreshBuildingHealthBars();
-            this.updateBuildingAnimations(time);
+            // Building redraws measure firing/charge ages, so they ride the
+            // replay clock — the same one the defense sim stamps with.
+            this.updateBuildingAnimations(this.animClockNow());
+            this.updateHallBanner(time);
             this.updateObstacleAnimations(time);
             this.updateRubbleAnimations(time);
             this.dayNight.update(time);
             this.weather.update(time);
             this.dayNight.setRainFactor(this.weather.rainFactor());
+            this.maybeQuantizeGround(time);
             this.worldMap.update(time);
+            // Carrier→shadow reconciliation runs LAST in every mode, once all
+            // systems have moved/hidden/faded their carriers this frame.
+            SpriteBank.update(time);
             return;
         }
 
         this.checkBattleEnd();
 
+        // Partial structural damage moves the (HP-weighted) loot counter
+        // between destructions too — refresh on a coarse tick, not per hit.
+        if (this.mode === 'ATTACK' && this.hasDeployed && time >= this.nextBattleStatsRefreshAt) {
+            this.nextBattleStatsRefreshAt = time + 250;
+            this.updateBattleStats();
+        }
+
         this.handleCameraMovement(delta);
+        // Clock-driven input repeats (hold-to-deploy) — event handlers only
+        // fire on pointer MOVEMENT, and a still hold must keep deploying.
+        this.inputController.update();
         this.updateCombat(time);
         this.updateSpikeZones();
         this.updateTroops(delta);
@@ -845,19 +1065,15 @@ export class MainScene extends Phaser.Scene {
         this.updateSelectionHighlight();
         this.updateDeploymentHighlight();
         this.updateBuildingAnimations(time);
+        this.updateHallBanner(time);
         this.updateObstacleAnimations(time);
         this.dayNight.update(time);
         this.weather.update(time);
         this.dayNight.setRainFactor(this.weather.rainFactor());
         this.stepGroundBake();
         this.maybeQuantizeGround(time);
-        SpriteBank.sweep(time);
         this.worldMap.update(time);
         this.villageBubbles.update(time);
-        if (this.wallGateRecomputeAt !== 0 && time >= this.wallGateRecomputeAt) {
-            this.wallGateRecomputeAt = 0;
-            this.recomputeWallGates();
-        }
         soundSystem.setNightFactor(this.dayNight.nightFactor());
         // The audible wind rides the same gust field the flags sample (throttled).
         if (time >= this.nextAmbienceAt) {
@@ -870,6 +1086,55 @@ export class MainScene extends Phaser.Scene {
         this.growGrass(time);
         this.updateRubbleAnimations(time);
         this.resolveLocalUpgrades(time);
+        // Carrier→shadow reconciliation runs LAST: every baked sprite copies
+        // its carrier's position/depth/alpha/visibility/scale after all the
+        // systems above have moved, hidden or faded their carriers. Nothing
+        // else propagates carrier changes between stamps (this also reaps
+        // dead carriers at 1 Hz — the old standalone sweep call).
+        SpriteBank.update(time);
+    }
+
+    /**
+     * The village banner on the town hall's ROOF flagpole — the same heraldry
+     * the war camp carries and the world-map postcards fly (owner priority
+     * #1). The baked hall sprite ships only the gold apex ball (the old baked
+     * red pennant was removed from the vector art); the real cloth is redrawn
+     * per frame here (a pure function of time via drawVillageFlag) so it
+     * always shows the OWNER's banner at home and the DEFENDER's during
+     * raids/replays, hot-swapping on 'clash:banner-changed'. The pole foot
+     * plants on the apex ball — drawTownHall's story (24) + roof (30) put the
+     * apex at centre − 54, ball centre at − 55 — and the pole/cloth sizes
+     * reproduce the old baked flag's visual weight (pole to peak − 17, cloth
+     * ~15 × 9.5 from peak − 16.5 down). One depth step above the hall keeps
+     * the cloth over its own roof without crossing the next iso row.
+     * A destroyed hall drops its standard.
+     */
+    private updateHallBanner(time: number) {
+        const meta = this.villageBannerMeta;
+        const hall = meta ? this.buildings.find(b => b.type === 'town_hall' && b.health > 0) : undefined;
+        if (!meta || !hall) {
+            if (this.hallBannerGfx) {
+                this.hallBannerGfx.destroy();
+                this.hallBannerGfx = null;
+            }
+            return;
+        }
+        const key = `${meta.identity}|${meta.banner ? `${meta.banner.palette}.${meta.banner.emblem}.${meta.banner.pattern ?? 'd'}` : 'default'}`;
+        if (!this.hallBannerDesign || this.hallBannerDesignKey !== key) {
+            this.hallBannerDesign = bannerDesignFor(meta.identity, meta.banner);
+            this.hallBannerDesignKey = key;
+        }
+        if (!this.hallBannerGfx) this.hallBannerGfx = this.add.graphics();
+        const def = BUILDINGS[hall.type];
+        const apex = IsoUtils.cartToIso(
+            hall.gridX + (def?.width ?? 3) / 2,
+            hall.gridY + (def?.height ?? 3) / 2
+        );
+        const g = this.hallBannerGfx;
+        g.clear();
+        g.setDepth(depthForBuilding(hall.gridX, hall.gridY, 'town_hall') + 1);
+        drawVillageFlag(g, apex.x, apex.y - 55, time, this.hallBannerDesign, 1,
+            { poleH: 16, clothW: 15, clothH: 9.5 });
     }
 
     /**
@@ -877,40 +1142,123 @@ export class MainScene extends Phaser.Scene {
      * next read — resolveUpgrades in server/game.ts; both derive the same
      * level from the same deadline, so they never disagree).
      */
-    private nextUpgradeScanAt = 0;
-    private resolveLocalUpgrades(time: number) {
-        if (time < this.nextUpgradeScanAt) return;
-        this.nextUpgradeScanAt = time + 500;
+    private resolveLocalUpgrades(_time: number) {
         if (this.mode !== 'HOME') return;
-        const now = Date.now();
+        const now = this.serverEpochNow();
         for (const b of this.buildings) {
+            if (this.pendingUpgradeAuthority.has(b.id)) continue;
             if (!b.upgradingTo || (b.upgradeEndsAt ?? 0) > now) continue;
             const target = Math.min(b.upgradingTo, BUILDINGS[b.type]?.maxLevel ?? b.upgradingTo);
-            b.upgradingTo = undefined;
-            b.upgradeEndsAt = undefined;
-            b.level = target;
-            b.builtAt = now;
-            const stats = getBuildingStats(b.type as BuildingType, target);
-            b.maxHealth = stats.maxHealth;
-            b.health = stats.maxHealth;
-            b.graphics.clear();
-            if (b.baseGraphics) b.baseGraphics.clear();
-            this.drawBuildingVisuals(b.graphics, b.gridX, b.gridY, b.type, 1, null, b, b.baseGraphics);
-            this.updateHealthBar(b);
-            this.unbakeBuildingFromGround(b);
-            this.bakeBuildingToGround(b);
-            this.playUpgradeEffect(b);
-            if (b.type === 'army_camp') {
-                const campLevels = this.buildings.filter(x => x.type === 'army_camp').map(x => x.level ?? 1);
-                gameManager.refreshCampCapacity(campLevels);
+            this.completeLocalUpgrade(b, target, now);
+        }
+    }
+
+    private serverEpochNow(): number {
+        return Date.now() + DayNightSystem.serverOffsetMs;
+    }
+
+    private completeLocalUpgrade(b: PlacedBuilding, target: number, now: number) {
+        const completedAt = Number.isFinite(Number(b.upgradeEndsAt)) ? Number(b.upgradeEndsAt) : now;
+        b.upgradingTo = undefined;
+        b.upgradeEndsAt = undefined;
+        delete (b as UpgradeTimedPlacedBuilding).upgradeStartedAt;
+        b.level = Math.min(target, BUILDINGS[b.type]?.maxLevel ?? target);
+        b.builtAt = completedAt;
+        // Backend owns the durable save, but its in-memory cache must mature
+        // with the live scene. Otherwise the next rapid dev upgrade sees the
+        // stale `upgradingTo` marker and returns before sending a save; balance
+        // syncs would also keep cloning/rebroadcasting that stale timer.
+        const cached = Backend.getCachedWorld(this.userId);
+        const cachedBuilding = cached?.buildings.find(candidate => candidate.id === b.id);
+        if (cachedBuilding) {
+            cachedBuilding.level = Math.max(cachedBuilding.level ?? 1, b.level);
+            cachedBuilding.builtAt = completedAt;
+            cachedBuilding.upgradingTo = undefined;
+            cachedBuilding.upgradeEndsAt = undefined;
+            delete (cachedBuilding as UpgradeTimedSerializedBuilding).upgradeStartedAt;
+        }
+        const stats = getBuildingStats(b.type as BuildingType, b.level);
+        b.maxHealth = stats.maxHealth;
+        b.health = stats.maxHealth;
+        b.graphics.clear();
+        if (b.baseGraphics) b.baseGraphics.clear();
+        this.drawBuildingVisuals(b.graphics, b.gridX, b.gridY, b.type, 1, null, b, b.baseGraphics);
+        this.updateHealthBar(b);
+        this.unbakeBuildingFromGround(b);
+        this.bakeBuildingToGround(b);
+        // A live scaffold owns the topping-out celebration. Hydrated upgrades
+        // without a site still get the compact legacy sparkle as a fallback.
+        if (!this.villageLife.completeConstruction(b)) this.playUpgradeEffect(b);
+        if (b.type === 'army_camp') {
+            const campLevels = this.buildings.filter(x => x.type === 'army_camp').map(x => x.level ?? 1);
+            gameManager.refreshCampCapacity(campLevels);
+        }
+        if (b.type === 'lab' && b.owner === 'PLAYER') {
+            this.playerLabLevel = Math.max(this.playerLabLevel, b.level);
+        }
+        // The bubble may be open on this building: refresh it to the finished
+        // level so the countdown gives way to the new stats.
+        if (this.selectedInWorld === b) {
+            gameManager.onBuildingSelected({ id: b.id, type: b.type as BuildingType, level: b.level, gridX: b.gridX, gridY: b.gridY });
+        }
+    }
+
+    /** Reconcile only upgrade clock fields from a merged server world. Layout
+     *  edits stay under the existing Backend rebase path and are not applied here. */
+    private reconcileUpgradeAuthority(world: SerializedWorld) {
+        if (this.mode !== 'HOME' || (world.ownerId && world.ownerId !== this.userId)) return;
+        const remoteById = new Map(world.buildings.map(building => [building.id, building as UpgradeTimedSerializedBuilding]));
+        const now = this.serverEpochNow();
+        for (const b of this.buildings) {
+            if (b.owner !== 'PLAYER') continue;
+            const remote = remoteById.get(b.id);
+            if (!remote) continue;
+            const localTiming = b as UpgradeTimedPlacedBuilding;
+            const target = Number(remote.upgradingTo);
+            const endsAt = Number(remote.upgradeEndsAt);
+            if (Number.isFinite(target) && target > 0 && Number.isFinite(endsAt)) {
+                // A duplicate pending snapshot can arrive after this client
+                // already landed the same deadline. Never resurrect its site
+                // or replay the topping-out celebration.
+                if (!b.upgradingTo && b.level >= target) {
+                    this.pendingUpgradeAuthority.delete(b.id);
+                    continue;
+                }
+                const remoteStart = Number(remote.upgradeStartedAt);
+                const localStart = Number(localTiming.upgradeStartedAt);
+                const fallbackDuration = serverUpgradeDurationMs(b.type, target);
+                localTiming.upgradeStartedAt = Number.isFinite(remoteStart)
+                    ? remoteStart
+                    : (Number.isFinite(localStart) ? localStart : endsAt - fallbackDuration);
+                b.upgradingTo = Math.floor(target);
+                b.upgradeEndsAt = endsAt;
+                this.pendingUpgradeAuthority.delete(b.id);
+                if (endsAt <= now) this.completeLocalUpgrade(b, b.upgradingTo, now);
+                else this.villageLife.syncUpgradeConstruction(b);
+                continue;
             }
-            if (b.type === 'lab' && b.owner === 'PLAYER') {
-                this.playerLabLevel = Math.max(this.playerLabLevel, target);
-            }
-            // The bubble may be open on this building: refresh it to the
-            // finished level so the countdown gives way to the new stats.
-            if (this.selectedInWorld === b) {
-                gameManager.onBuildingSelected({ id: b.id, type: b.type as BuildingType, level: target, gridX: b.gridX, gridY: b.gridY });
+
+            if (!b.upgradingTo) continue;
+            const localTarget = b.upgradingTo;
+            const remoteLevel = Number(remote.level);
+            const remoteBuiltAt = Number(remote.builtAt);
+            const localEndsAt = Number(b.upgradeEndsAt);
+            // An unrelated earlier response can arrive while this optimistic
+            // save is in flight. Only a pending timer or the completed target
+            // with a NEW server completion stamp is proof that this particular
+            // upgrade reached authority; balance-only syncs clone the old stamp.
+            const provesCompletedUpgrade = Number.isFinite(remoteLevel) && remoteLevel >= localTarget
+                && Number.isFinite(remoteBuiltAt) && Number.isFinite(localEndsAt)
+                && remoteBuiltAt >= localEndsAt;
+            if (this.pendingUpgradeAuthority.has(b.id) && !provesCompletedUpgrade) continue;
+            this.pendingUpgradeAuthority.delete(b.id);
+            if (Number.isFinite(remoteLevel) && remoteLevel >= localTarget) {
+                this.completeLocalUpgrade(b, localTarget, now);
+            } else {
+                b.upgradingTo = undefined;
+                b.upgradeEndsAt = undefined;
+                delete localTiming.upgradeStartedAt;
+                this.villageLife.cancelConstruction(b.id);
             }
         }
     }
@@ -918,7 +1266,11 @@ export class MainScene extends Phaser.Scene {
     private refreshBuildingHealthBars() {
         this.buildings.forEach(building => {
             if (building.isDestroyed) return;
-            if (building.health >= building.maxHealth && !building.healthBar.visible) return;
+            // Optional-chained: a building with a missing/destroyed bar must
+            // not throw here — one bad entry would freeze every later
+            // building's bar mid-fade for the rest of the battle (the
+            // update() bulkhead swallows the error each frame).
+            if (building.health >= building.maxHealth && !building.healthBar?.visible) return;
             this.updateHealthBar(building);
         });
     }
@@ -951,42 +1303,66 @@ export class MainScene extends Phaser.Scene {
         const noEnemiesRemaining = remaining === 0 && (this.destroyedBuildings > 0 || this.initialEnemyBuildings > 0);
         if ((armyRemaining <= 0 && activeTroops === 0 && this.pendingSpawnCount === 0) || noEnemiesRemaining) {
             this.raidEndScheduled = true;
-            const settlement = this.endAttackReplayCapture('finished');
 
             // 2-second delay to let final animations play / player realize what happened
             const raidEpoch = this.battleEpoch;
             this.scheduleBattleCall(2000, () => {
                 void (async () => {
+                    // Settle AFTER the grace window, not before it: splash
+                    // damage, burn ticks and deaths landing in these 2 seconds
+                    // must reach the final replay frame and the server
+                    // settlement. (A retreat during the grace cancels this
+                    // timer and settles through goHome instead.)
+                    const settlement = this.endAttackReplayCapture('finished');
                     // The authoritative balance/army revision must land before
                     // React switches HUDs or home reload reads the cache.
+                    let settlementDelayed = false;
                     const attackResult = await settlement?.catch(error => {
                         console.warn('Attack settlement failed before raid handoff:', error);
+                        settlementDelayed = true;
                         return null;
-                    });
+                    }) ?? null;
                     // World-map bot camps settle server-side (capped loot on a
                     // cooldown + troop consumption) BEFORE the payout reaches
                     // the UI — the number shown is the number banked.
                     let payout = Math.max(0, Math.floor(attackResult?.lootApplied ?? 0));
                     if (this.currentEnemyWorld?.isBot) {
-                        payout = await this.settleBotRaid().catch(() => 0);
+                        try {
+                            payout = await this.settleBotRaid();
+                        } catch {
+                            payout = 0;
+                            // Only a real pending camp settlement is "delayed";
+                            // practice drills settle nothing.
+                            settlementDelayed = settlementDelayed
+                                || (!!this.currentEnemyWorld?.botRaidId && !this.botRaidSettled);
+                        }
                     }
                     if (raidEpoch !== this.battleEpoch || this.mode !== 'ATTACK') return;
                     // Trigger the end sequence via the game manager callback (same pathway as "Return Home").
                     let handled = false;
                     try {
-                        handled = gameManager.onRaidEnded(payout);
+                        // Pass the server-APPLIED ore/food alongside the gold
+                        // payout: the client battle counters over-count (loot
+                        // caps, concurrent raids), and the report must show
+                        // what was actually banked. A transport failure is NOT
+                        // a zero payout — flag it so the report reads
+                        // "settling" instead of a false 0 (the loot still
+                        // lands when the settlement goes through).
+                        handled = gameManager.onRaidEnded(payout, {
+                            ore: attackResult?.oreApplied,
+                            food: attackResult?.foodApplied,
+                            settlementDelayed: settlementDelayed || undefined
+                        });
                     } catch (error) {
                         console.error('onRaidEnded handler failed:', error);
                     }
                     if (!handled) {
-                        if (this.battleInPlace) {
-                            await this.goHome(); // marches home, no clouds
-                        } else {
-                            this.showCloudTransition(async () => {
-                                gameManager.setGameMode('HOME');
-                                await this.goHome();
-                            });
-                        }
+                        // Every retreat — battles-in-place included — closes
+                        // behind the clouds; nobody walks the roads home.
+                        this.showCloudTransition(async () => {
+                            gameManager.setGameMode('HOME');
+                            await this.goHome();
+                        });
                     }
                 })();
             });
@@ -1023,11 +1399,22 @@ export class MainScene extends Phaser.Scene {
             if (shouldAnimateBuilding) {
                 if (this.isOffScreen(b.gridX, b.gridY, (BUILDINGS[b.type]?.width || 1))) return;
 
-                // Hide original building if being moved (ghost is shown instead)
+                // Hide original building if being moved (ghost is shown instead).
+                // clear() only empties the vector art — the baked shadow sprite
+                // follows carrier VISIBILITY (SpriteBank.update), so hide the
+                // carrier too or the sprite stays behind as a second copy.
                 if (this.isMoving && this.selectedInWorld === b) {
                     b.graphics.clear();
+                    b.graphics.setVisible(false);
                     b.baseGraphics?.clear();
+                    b.baseGraphics?.setVisible(false);
                     return;
+                }
+                // Self-heal after the carry ends by ANY path (drop, cancel,
+                // shop selection): a live building draws visible.
+                if (!b.graphics.visible && !b.isDestroyed && b.health > 0) {
+                    b.graphics.setVisible(true);
+                    b.baseGraphics?.setVisible(true);
                 }
 
                 // Smoothly interpolate ballista, xbow, and cannon angle towards target
@@ -1063,7 +1450,18 @@ export class MainScene extends Phaser.Scene {
                 // === IDLE SWIVEL for rotating defenses ===
                 // When not firing, swivel on an absolute, seeded clock. This
                 // remains identical at 30/60/144fps and across redraw skips.
-                if ((b.type === 'ballista' || b.type === 'xbow' || b.type === 'cannon') && !b.isFiring) {
+                // A frozen turret (ice golem freeze-on-death) holds its
+                // bearing solid — no idle swivel while the ice grips it.
+                if ((b.type === 'ballista' || b.type === 'xbow' || b.type === 'cannon') && !b.isFiring
+                    && !(b.frozenUntil !== undefined && time < b.frozenUntil)) {
+                    // Shots stamp ballistaTargetAngle but nothing ever cleared
+                    // it, so turrets froze on their last combat bearing
+                    // forever. Release it after a target-less grace (one fire
+                    // interval plus slack) so the ambient swivel resumes.
+                    if (b.ballistaTargetAngle !== undefined
+                        && time - (b.lastFireTime ?? 0) > (this.getDefenseStats(b).fireRate || 2500) + 1500) {
+                        b.ballistaTargetAngle = undefined;
+                    }
                     // Only apply idle swivel if no combat target
                     if (b.ballistaTargetAngle === undefined) {
                         const seed = hashString(`${b.id}:idle-swivel`);
@@ -1073,7 +1471,16 @@ export class MainScene extends Phaser.Scene {
                             + Math.sin(phase) * 0.34
                             + Math.sin(phase * 0.47 + 1.7) * 0.14;
                         b.idleTargetAngle = idleAngle;
-                        b.ballistaAngle = idleAngle;
+                        // Re-entry from a combat bearing eases back; once
+                        // converged the swivel is a pure function of absolute
+                        // time again (framerate-independent).
+                        const currentIdle = b.ballistaAngle ?? idleAngle;
+                        let drift = idleAngle - currentIdle;
+                        while (drift > Math.PI) drift -= Math.PI * 2;
+                        while (drift < -Math.PI) drift += Math.PI * 2;
+                        b.ballistaAngle = Math.abs(drift) > 0.05
+                            ? currentIdle + drift * 0.08
+                            : idleAngle;
                     }
                 }
 
@@ -1117,8 +1524,8 @@ export class MainScene extends Phaser.Scene {
                     Math.abs((b.doorOpen ?? 0) - (b.lastDrawDoorOpen ?? 0)) > 0.01 ||
                     Math.abs((b.fillLevel ?? 0) - (b.lastDrawFill ?? 0)) > 0.04 ||
                     Math.abs(angle - (b.lastDrawAngle ?? 0)) > 0.002;
-                // Wall art has no time-driven state. Neighbor/gate changes are
-                // repainted explicitly by refreshWallNeighbors/recomputeGates,
+                // Wall art has no time-driven state. Neighbor changes are
+                // repainted explicitly by refreshWallNeighbors,
                 // so an unchanged wall never needs the ambient stagger pass.
                 if (!changed && b.type === 'wall') return;
                 if (!changed && b.drawStagger !== this.buildingAnimFrame) return;
@@ -1133,17 +1540,23 @@ export class MainScene extends Phaser.Scene {
                 // If baseGraphics is missing (baked), skipBase=true. If present (moving), skipBase=false.
                 this.drawBuildingVisuals(b.graphics, b.gridX, b.gridY, b.type, alpha, null, b, b.baseGraphics, !b.baseGraphics);
 
-                // JUKEBOX: floating notes while a chosen track plays.
-                if (b.type === 'jukebox' && soundSystem.overrideActive) {
+                // JUKEBOX: floating notes while a chosen track plays \u2014
+                // hand-authored cell glyphs (quaver / beamed pair), not AA
+                // text glyphs on the world layer. AUDIBLE state only: a
+                // muted game emits no notes.
+                if (b.type === 'jukebox' && soundSystem.overrideActive && !soundSystem.muted) {
                     const noteSlot = Math.floor(time / 900);
                     if (b.lastTrailTime !== noteSlot) {
                         b.lastTrailTime = noteSlot;
                         const noteRng = mulberry32(hashString(`${b.id}:jukebox-note:${noteSlot}`));
                         const notePos = IsoUtils.cartToIso(b.gridX + 0.5, b.gridY + 0.5);
-                        const note = this.add.text(notePos.x + 10, notePos.y - 38, ['\u266A', '\u266B'][Math.floor(noteRng() * 2)], {
-                            fontSize: '12px',
-                            color: '#d8a8ff'
-                        }).setDepth(b.graphics.depth + 2).setAlpha(0.9);
+                        const note = this.add.graphics();
+                        const glyph = Math.floor(noteRng() * 2) === 0
+                            ? ['.ff.', '.f.f', '.f..', '.f..', 'ff..', 'ff..']            // quaver
+                            : ['ffffff', 'f....f', 'f....f', 'f....f', 'ff..ff', 'ff..ff']; // beamed pair
+                        pixelBitmap(note, 0, 0, glyph, { f: 0xd8a8ff }, 1);
+                        note.setPosition(notePos.x + 10, notePos.y - 38);
+                        note.setDepth(b.graphics.depth + 2).setAlpha(0.9);
                         this.tweens.add({
                             targets: note,
                             y: note.y - 22,
@@ -1186,6 +1599,14 @@ export class MainScene extends Phaser.Scene {
 
         // Clear existing graphics and state before instantiation
         this.clearScene();
+        this.pendingUpgradeAuthority.clear();
+
+        // The home lawn flies the OWNER's banner (explicit choice, or the
+        // deterministic identity default when none was ever picked).
+        this.villageBannerMeta = {
+            identity: world.ownerId || this.userId,
+            banner: world.banner ?? null
+        };
 
         const maxWallFromWorld = (Array.isArray(world.buildings) ? world.buildings : []).reduce((max, building) => {
             const normalizedType = this.normalizeBuildingType(String((building as { type?: unknown }).type ?? ''));
@@ -1195,6 +1616,9 @@ export class MainScene extends Phaser.Scene {
         const maxLabFromWorld = (Array.isArray(world.buildings) ? world.buildings : []).reduce((max, building) => {
             const normalizedType = this.normalizeBuildingType(String((building as { type?: unknown }).type ?? ''));
             if (normalizedType !== 'lab') return max;
+            // Server rule (troopLevelOf): a lab mid-upgrade is offline and
+            // grants no troop level until the work lands.
+            if (Number((building as { upgradingTo?: unknown }).upgradingTo) > 0) return max;
             return Math.max(max, Math.max(1, Number((building as { level?: unknown }).level) || 1));
         }, 0);
         this.preferredWallLevel = Math.max(1, Math.max(world.wallLevel || 1, maxWallFromWorld));
@@ -1222,8 +1646,10 @@ export class MainScene extends Phaser.Scene {
                 : Phaser.Utils.String.UUID();
 
             try {
-                const inst = this.instantiateBuilding(
-                    {
+                const rawUpgradeStartedAt = Number((rawBuilding as UpgradeTimedSerializedBuilding).upgradeStartedAt);
+                const rawUpgradingTo = Number((rawBuilding as UpgradeTimedSerializedBuilding).upgradingTo);
+                const rawUpgradeEndsAt = Number((rawBuilding as UpgradeTimedSerializedBuilding).upgradeEndsAt);
+                const hydratedBuilding = {
                         id,
                         type: normalizedType,
                         gridX,
@@ -1231,10 +1657,12 @@ export class MainScene extends Phaser.Scene {
                         level,
                         builtAt: Number.isFinite(Number((rawBuilding as { builtAt?: unknown }).builtAt))
                             ? Number((rawBuilding as { builtAt?: unknown }).builtAt)
-                            : undefined
-                    },
-                    'PLAYER'
-                );
+                            : undefined,
+                        ...(Number.isFinite(rawUpgradeStartedAt) ? { upgradeStartedAt: rawUpgradeStartedAt } : {}),
+                        ...(Number.isFinite(rawUpgradingTo) && rawUpgradingTo > 0 ? { upgradingTo: Math.floor(rawUpgradingTo) } : {}),
+                        ...(Number.isFinite(rawUpgradeEndsAt) ? { upgradeEndsAt: rawUpgradeEndsAt } : {})
+                    } as UpgradeTimedSerializedBuilding;
+                const inst = this.instantiateBuilding(hydratedBuilding, 'PLAYER');
                 if (!inst) return;
                 placed++;
                 if (inst.type !== 'wall') {
@@ -1259,8 +1687,6 @@ export class MainScene extends Phaser.Scene {
         const campLevels = this.buildings.filter(b => b.type === 'army_camp').map(b => b.level ?? 1);
         gameManager.refreshCampCapacity(campLevels);
         gameManager.closeMenus?.(); // Ensure UI is reset when loading
-        this.scheduleGateRecompute();
-
         // Bring the village to life: villagers, dogs, chickens, camp troops.
         // Head-count comes from the server-authoritative population when present.
         if (playablePlaced > 0 && this.mode === 'HOME') {
@@ -1269,6 +1695,11 @@ export class MainScene extends Phaser.Scene {
                 identity: world.ownerId || this.userId,
                 bornAt: world.population?.bornAt
             });
+            const now = this.serverEpochNow();
+            for (const building of this.buildings) {
+                if (building.owner !== 'PLAYER' || !building.upgradingTo || (building.upgradeEndsAt ?? 0) <= now) continue;
+                this.villageLife.onConstruction(building, 'upgrade');
+            }
         }
 
         return { requested, placed, playablePlaced };
@@ -1464,7 +1895,10 @@ export class MainScene extends Phaser.Scene {
         })
             .setOrigin(0, 1)
             .setAlpha(1.0) // Full brightness
-            .setDepth(-500)
+            // Above the world-map road band (-450) and roadside props (-440),
+            // below all plot content (ground RT at 0). At -500 it TIED the
+            // void backdrop and sat under the roads painted next to the lawn.
+            .setDepth(-430)
             .setAngle(-26.5); // Align with isometric left axis
 
         this.updateVillageName();
@@ -1483,79 +1917,22 @@ export class MainScene extends Phaser.Scene {
     }
 
     /**
-     * Attack a bot clan straight off the global map. The server first issues
-     * the raid session and canonical seeded world; only then may the caravan
-     * leave, so a canceled/failed march can close that exact reservation.
+     * Attack a bot clan straight off the global map, behind the cloud
+     * transition. The server issues the raid session and canonical seeded
+     * world; the clouds part directly on the target with the war standard
+     * already planted (no march — see plantWarCamp).
      */
     public attackBotPlot(seed: number, username: string, plotX?: number, plotY?: number) {
         const requestedSeed = seed >>> 0;
-        // A camp one lawn over is not a cloud trip: the army marches there
-        // down the roads and the battle happens ON the world map.
-        const travel = plotX !== undefined && plotY !== undefined
-            ? this.worldMap.travelOffsetFor(plotX, plotY)
-            : null;
-        if (travel) {
-            const epoch = this.beginExclusiveTransition('A war caravan');
-            if (epoch === null) return;
-            let issuedMeta: EnemyWorldMeta | null = null;
-            void (async () => {
-                if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) {
-                    this.finishExclusiveTransition(epoch);
-                    return;
-                }
-                const started = await Backend.botStart(plotX, plotY);
-                if (!started) {
-                    gameManager.showToast('That camp cannot be raided right now.');
-                    this.finishExclusiveTransition(epoch);
-                    return;
-                }
-                if (started.seed !== requestedSeed) {
-                    console.warn('Bot camp seed changed between map view and raid start.', { requestedSeed, issuedSeed: started.seed });
-                }
-                const meta = {
-                    id: `bot_${started.seed >>> 0}`,
-                    username,
-                    isBot: true,
-                    attackId: started.raidId,
-                    botRaidId: started.raidId,
-                    botPlot: { x: started.x, y: started.y }
-                };
-                issuedMeta = meta;
-                if (!this.isTransitionCurrent(epoch)) {
-                    await this.abortBotSession(meta);
-                    return;
-                }
-                const world = started.world;
-                world.username = username;
-                // Start every allocation before installing the moving callback.
-                // If either setup step throws, no caravan is left behind to
-                // invoke a second cancellation path.
-                this.worldMap.prepareFocus({ x: started.x, y: started.y });
-                this.prepareGroundBake(meta.id);
-                this.worldMap.marchTo(
-                    { x: started.x, y: started.y },
-                    this.armyFigures(),
-                    () => this.arriveAndFightSafely({ x: started.x, y: started.y }, world, meta, epoch),
-                    () => {
-                        void this.abortBotSession(meta).finally(() => this.finishExclusiveTransition(epoch));
-                    }
-                );
-            })().catch(error => {
-                if (issuedMeta) {
-                    return this.recoverIssuedAttackFailure(issuedMeta, epoch, error);
-                }
-                console.error('Bot road attack setup failed:', error);
-                gameManager.showToast('The war caravan could not depart. Please try again.');
-                this.finishExclusiveTransition(epoch);
-            });
-            return;
-        }
         this.showCloudTransition(async epoch => {
             if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
             const started = await Backend.botStart(plotX, plotY);
             if (!started) {
                 gameManager.showToast('That camp cannot be raided right now.');
                 return;
+            }
+            if (plotX !== undefined && started.seed !== requestedSeed) {
+                console.warn('Bot camp seed changed between map view and raid start.', { requestedSeed, issuedSeed: started.seed });
             }
             const meta = {
                 id: `bot_${started.seed >>> 0}`,
@@ -1586,137 +1963,20 @@ export class MainScene extends Phaser.Scene {
     }
 
     /**
-     * One failure boundary for a server-issued road attack. Rendering and GPU
-     * allocation can fail after the server has reserved both participants; the
-     * reservation must close and the scene must leave transition mode even in
-     * that exceptional path.
+     * Attack a neighbouring PLAYER straight off the global map. Rides the
+     * exact same cloud flow as a leaderboard attack (registration, shields,
+     * aborts): clouds close, the battle frame swaps in, and the clouds part
+     * with the war standard already planted — no road march.
      */
-    private async recoverIssuedAttackFailure(meta: EnemyWorldMeta, epoch: number, error: unknown): Promise<void> {
-        console.error('Issued road attack could not enter its battle frame:', error);
-        try {
-            try {
-                if (meta.isBot) {
-                    await this.abortBotSession(meta);
-                } else if (meta.attackId) {
-                    this.settledAttackIds.add(meta.attackId);
-                    await Backend.endAttack(meta.attackId, 'aborted', 0, 0);
-                }
-            } catch (closeError) {
-                // Backend recovery metadata remains durable when the close call
-                // itself is interrupted, so scene recovery must still continue.
-                console.warn('Failed to close the issued road attack immediately:', closeError);
-            }
-
-            if (!this.isTransitionCurrent(epoch)) return;
-            this.currentEnemyWorld = null;
-            this.battleInPlace = false;
-            this.worldMap.teardown();
-            this.dropGroundBake();
-            gameManager.showToast('The destination could not be rendered. Returning home.');
-            try {
-                await this.goHome();
-            } catch (homeError) {
-                console.error('Failed to restore home after an attack handoff error:', homeError);
-            }
-        } catch (recoveryError) {
-            // Never let recovery itself become an unhandled callback rejection.
-            console.error('Unexpected road attack recovery failure:', recoveryError);
-        } finally {
-            this.finishExclusiveTransition(epoch);
-        }
-    }
-
-    /** Fire-and-contain the asynchronous gate-to-battle handoff. */
-    private arriveAndFightSafely(
-        plot: { x: number; y: number },
-        world: SerializedWorld,
-        meta: EnemyWorldMeta,
-        epoch: number
-    ): void {
-        void this.arriveAndFight(plot, world, meta, epoch).catch(error =>
-            this.recoverIssuedAttackFailure(meta, epoch, error));
+    public attackPlayerPlotByRoad(ownerId: string, username: string, _plotX: number, _plotY: number) {
+        gameManager.startAttackOnUser(ownerId, username);
     }
 
     /**
-     * Attack a neighbouring PLAYER by road. The attack is registered with the
-     * server BEFORE the army marches (shields refuse it at the gate, not after
-     * a pointless walk); a cancelled march aborts the registered attack.
-     */
-    public attackPlayerPlotByRoad(ownerId: string, username: string, plotX: number, plotY: number) {
-        const travel = this.worldMap.travelOffsetFor(plotX, plotY);
-        if (!travel) {
-            gameManager.startAttackOnUser(ownerId, username);
-            return;
-        }
-        const epoch = this.beginExclusiveTransition('A war caravan');
-        if (epoch === null) return;
-        let issuedMeta: EnemyWorldMeta | null = null;
-        void (async () => {
-            if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) {
-                this.finishExclusiveTransition(epoch);
-                return;
-            }
-            let started: Awaited<ReturnType<typeof Backend.startAttackOnUser>> = null;
-            try {
-                started = await Backend.startAttackOnUser(ownerId);
-            } catch (error) {
-                console.warn('road attack registration failed:', error);
-            }
-            if (!this.isTransitionCurrent(epoch)) {
-                if (started?.attackId) void Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
-                return;
-            }
-            if (!started || !Array.isArray(started.world?.buildings) || started.world.buildings.length === 0) {
-                // Registration may have succeeded even when the returned combat
-                // snapshot is unusable. Close that exact server reservation now;
-                // otherwise both attacker and defender stay locked until later
-                // recovery or expiry.
-                if (started?.attackId) {
-                    await Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
-                }
-                gameManager.showToast('That village cannot be attacked right now.');
-                this.finishExclusiveTransition(epoch);
-                return;
-            }
-            const attackId = started.attackId;
-            const world = started.world;
-            const targetPlot = { x: started.target.x, y: started.target.y };
-            const meta: EnemyWorldMeta = {
-                id: ownerId,
-                username,
-                isBot: false,
-                attackId,
-                lootPreCapped: true
-            };
-            issuedMeta = meta;
-            this.worldMap.prepareFocus(targetPlot);
-            this.prepareGroundBake(ownerId);
-            this.worldMap.marchTo(
-                targetPlot,
-                this.armyFigures(),
-                () => this.arriveAndFightSafely(targetPlot, world, meta, epoch),
-                () => {
-                    // March called off before the gate: a frameless abort — the
-                    // server settles it as a complete no-op.
-                    void Backend.endAttack(attackId, 'aborted', 0, 0).catch(() => undefined);
-                    this.finishExclusiveTransition(epoch);
-                }
-            );
-        })().catch(error => {
-            if (issuedMeta) {
-                return this.recoverIssuedAttackFailure(issuedMeta, epoch, error);
-            }
-            console.error('Player road attack setup failed:', error);
-            gameManager.showToast('The war caravan could not depart. Please try again.');
-            this.finishExclusiveTransition(epoch);
-        });
-    }
-
-    /**
-     * The caravan is at their gate: swap the battle in WITHOUT leaving the
-     * world — the neighbourhood re-renders around the battlefield (the
-     * player's own home becomes one of the postcards) and the fight happens
-     * right there on the map. No cloud transition.
+     * The clouds have closed: swap the battle in WITHOUT leaving the world —
+     * the neighbourhood re-renders around the battlefield (the player's own
+     * home becomes one of the postcards), the war standard is planted at
+     * their gate, and the fight happens right there on the map.
      */
     private async arriveAndFight(
         plot: { x: number; y: number },
@@ -1778,8 +2038,12 @@ export class MainScene extends Phaser.Scene {
             finish();
             return;
         }
-        // No transition means no UI theatre either: the name label stays
-        // hidden — the only change on screen is the attack HUD arriving.
+        // The bearer is ALREADY at their gate — standard planted, standing in
+        // his final position — from the very first frame the clouds part.
+        // Placed, never walked; his audio handover (drums, horn) rides along.
+        this.worldMap.plantWarCamp(shift);
+        // No UI theatre either: the name label stays hidden — the only
+        // change on screen is the attack HUD arriving.
         this.setVillageNameVisible(false);
         if (shift && cameraArrivedAtGate) {
             // The world re-anchored by exactly (-dx, -dy) plots; the camera
@@ -1862,15 +2126,11 @@ export class MainScene extends Phaser.Scene {
         if (assigned) {
             // Ring pulse so the click clearly landed (gold for the lucky find).
             const pos = IsoUtils.cartToIso(patch.gridX + 0.5, patch.gridY + 0.5);
-            const ring = this.add.graphics();
-            ring.lineStyle(2, golden ? 0xffd84a : 0xffffff, 0.8);
-            ring.strokeEllipse(0, 0, 22, 11);
-            ring.setPosition(pos.x, pos.y);
-            ring.setDepth(patch.graphics.depth + 1);
-            this.tweens.add({
-                targets: ring, scaleX: 1.6, scaleY: 1.6, alpha: 0,
-                duration: 380, ease: 'Quad.easeOut',
-                onComplete: () => ring.destroy()
+            PixelFx.ring(this, pos.x, pos.y, {
+                r0: 11, r1: 17.6, squash: 0.5, thick0: 1,
+                color: golden ? 0xffd84a : 0xffffff, alpha: 0.8,
+                life: 380, ease: 'Quad.easeOut',
+                depth: patch.graphics.depth + 1
             });
         }
         return assigned;
@@ -1894,25 +2154,26 @@ export class MainScene extends Phaser.Scene {
             // Quick ring pulse so the click clearly landed.
             const info = OBSTACLES[rock.type];
             const pos = IsoUtils.cartToIso(rock.gridX + (info?.width ?? 1) / 2, rock.gridY + (info?.height ?? 1) / 2);
-            const ring = this.add.graphics();
-            ring.lineStyle(2, 0xffffff, 0.8);
-            ring.strokeEllipse(0, 0, 24, 12);
-            ring.setPosition(pos.x, pos.y);
-            ring.setDepth(rock.graphics.depth + 1);
-            this.tweens.add({
-                targets: ring, scaleX: 1.6, scaleY: 1.6, alpha: 0,
-                duration: 380, ease: 'Quad.easeOut',
-                onComplete: () => ring.destroy()
+            PixelFx.ring(this, pos.x, pos.y, {
+                r0: 12, r1: 19.2, squash: 0.5, thick0: 1,
+                color: 0xffffff, alpha: 0.8,
+                life: 380, ease: 'Quad.easeOut',
+                depth: rock.graphics.depth + 1
             });
         }
         return assigned;
     }
 
-    public updateUsername(name: string) {
+    /** Renames arrive from the App; the label itself never shows the OWN
+     * village's name (owner call), so a rename only needs the home label
+     * to stay hidden. Foreign titles come from updateVillageName. */
+    public updateUsername(_name: string) {
         if (!this.villageNameLabel) return;
 
         if (this.mode === 'HOME') {
-            this.villageNameLabel.setText(`${name.toUpperCase()}'S VILLAGE`);
+            // No title floats over your OWN village — you know whose it is.
+            // The label exists to identify TARGETS (attack, scout, replay).
+            this.villageNameLabel.setVisible(false);
         } else {
             this.villageNameLabel.setText(`ENEMY VILLAGE`);
         }
@@ -1921,20 +2182,65 @@ export class MainScene extends Phaser.Scene {
     private updateVillageName() {
         if (!this.villageNameLabel) return;
 
-        let name = 'COMMANDER';
         if (this.mode === 'HOME') {
-            name = Auth.getCurrentUser()?.username || 'COMMANDER';
-        } else {
-            // Use the enemy's username if attacking an online base
-            name = this.currentEnemyWorld?.username || 'ENEMY';
+            // Own village: never titled (see updateUsername).
+            this.villageNameLabel.setVisible(false);
+            return;
         }
-
+        // The enemy's username identifies the target of an attack/scout.
+        const name = this.currentEnemyWorld?.username || 'ENEMY';
         this.villageNameLabel.setText(`${name.toUpperCase()}'S VILLAGE`);
+        this.layoutVillageNameLabel();
+    }
+
+    /**
+     * Keep the angled nameplate on screen: its home anchor is the plot's
+     * west corner, but the default scout/attack/replay framing (centerCamera)
+     * can put that corner outside the viewport — the ribbon then reads
+     * "…9'S VILLAGE" cut at x=0 for the whole session. When that happens,
+     * slide the label ALONG its -26.5° edge (toward the north corner) just
+     * far enough to clear the camera's left edge. It stays a world-anchored
+     * signpost on the same edge line — only its perch moves.
+     */
+    private layoutVillageNameLabel() {
+        const label = this.villageNameLabel;
+        if (!label) return;
+        const corner = IsoUtils.cartToIso(0, this.mapSize);
+        const baseX = corner.x + 20;
+        const baseY = corner.y - 15;
+        label.setPosition(baseX, baseY);
+        if (!label.visible) return;
+
+        // worldView is stale until the camera's next preRender, so derive
+        // the view from the just-set scroll/zoom instead.
+        const cam = this.cameras.main;
+        const viewLeft = cam.scrollX + (cam.width - cam.width / cam.zoom) / 2;
+        const margin = 16;
+        const bounds = label.getBounds();
+        const deficit = (viewLeft + margin) - bounds.x;
+        if (deficit <= 0) return;
+
+        // Unit step along the NW edge (one grid tile toward (0,0)):
+        // iso delta (+TILE_W/2, -TILE_H/2) — the label's own -26.5° line.
+        const step = IsoUtils.cartToIso(0, this.mapSize - 1);
+        const dx = step.x - corner.x;
+        const dy = step.y - corner.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const ux = dx / len;
+        const uy = dy / len;
+        // Never slide past the north corner: keep the whole ribbon on the edge.
+        const edgeLen = this.mapSize * len;
+        const labelAlongEdge = bounds.width / Math.max(0.0001, ux);
+        const maxSlide = Math.max(0, edgeLen - labelAlongEdge - 30);
+        const slide = Math.min(deficit / ux, maxSlide);
+        label.setPosition(baseX + ux * slide, baseY + uy * slide);
     }
 
     private setVillageNameVisible(visible: boolean) {
         if (!this.villageNameLabel) return;
-        this.villageNameLabel.setVisible(visible);
+        // The home village never wears a nameplate; only foreign villages
+        // (attack, scout, replay targets) are titled.
+        this.villageNameLabel.setVisible(visible && this.mode !== 'HOME');
     }
 
     /** The four plot-corner tiles get their outer corner rounded off — the
@@ -2028,6 +2334,7 @@ export class MainScene extends Phaser.Scene {
 
     private instantiateBuilding(data: SerializedBuilding, owner: 'PLAYER' | 'ENEMY') {
         const { gridX, gridY, type, id, level = 1, builtAt, upgradingTo, upgradeEndsAt } = data;
+        const upgradeStartedAt = Number((data as UpgradeTimedSerializedBuilding).upgradeStartedAt);
         const normalizedType = this.normalizeBuildingType(type as string);
         if (!normalizedType) {
             console.warn('Unknown building type skipped:', type);
@@ -2046,16 +2353,20 @@ export class MainScene extends Phaser.Scene {
             maxHealth: stats.maxHealth || 100,
             owner
         };
+        if (Number.isFinite(upgradeStartedAt)) (building as UpgradeTimedPlacedBuilding).upgradeStartedAt = upgradeStartedAt;
 
         // Bake the base to the ground texture
         this.bakeBuildingToGround(building);
 
+        // Depth BEFORE the first draw: the baked-sprite stamp copies carrier
+        // depth immediately, and a fresh Graphics still sits at depth 0 — the
+        // first frame would paint the building under the whole village.
+        const depth = depthForBuilding(gridX, gridY, normalizedType as BuildingType);
+        graphics.setDepth(depth);
+
         // Draw dynamic visuals (skipBase=true implied by bake, but drawBuildingVisuals handles default)
         // We pass skipBase=true to ensure only dynamic parts are drawn to 'graphics'
         this.drawBuildingVisuals(graphics, gridX, gridY, normalizedType, 1, null, building, baseGraphics, true);
-
-        const depth = depthForBuilding(gridX, gridY, normalizedType as BuildingType);
-        graphics.setDepth(depth);
 
         // Initialize cannon angle
         if (normalizedType === 'cannon') {
@@ -2075,7 +2386,9 @@ export class MainScene extends Phaser.Scene {
             this.preferredWallLevel = Math.max(this.preferredWallLevel, level || 1);
         }
 
-        if (normalizedType === 'lab' && owner === 'PLAYER') {
+        if (normalizedType === 'lab' && owner === 'PLAYER' && !upgradingTo) {
+            // A lab hydrated mid-upgrade is offline (server troopLevelOf rule);
+            // completeLocalUpgrade raises the level when the clock matures.
             this.playerLabLevel = Math.max(this.playerLabLevel, level || 1);
         }
 
@@ -2194,6 +2507,12 @@ export class MainScene extends Phaser.Scene {
     private markGroundPixelDirty() {
         this.groundPixelDirtyAt = this.time.now + 250;
         this.groundPixelEpoch++;
+        // A quantize snapshot may be in flight from the PREVIOUS epoch: its
+        // async callback would write pre-write pixels back over the bake that
+        // just landed. Invalidate so that callback discards itself.
+        if (this.groundRenderTexture) {
+            SpriteBank.invalidateQuantize(this.groundRenderTexture);
+        }
     }
     private maybeQuantizeGround(time: number) {
         if (!SpriteBank.enabled || this.groundPixelDirtyAt === 0 || time < this.groundPixelDirtyAt) return;
@@ -2243,6 +2562,11 @@ export class MainScene extends Phaser.Scene {
                 this.bakeBuildingToGround(other);
             }
         }
+
+        // The restored tiles are a fresh smooth-vector write: without a dirty
+        // mark they'd skip re-quantization (and an in-flight snapshot could
+        // clobber them) whenever no overlapping neighbor re-baked above.
+        this.markGroundPixelDirty();
     }
 
     public drawBuildingVisuals(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, type: string, alpha: number = 1, tint: number | null = null, building?: PlacedBuilding, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
@@ -2268,17 +2592,27 @@ export class MainScene extends Phaser.Scene {
         // ground pass keeps its own path via bakeBuildingToGround.
         if (!onlyBase && SpriteBank.backed('buildings', type)) {
             const wallTag = type === 'wall' && wallNeighbors
-                ? SpriteBank.wallTag(wallNeighbors, Boolean(building?.isGate))
+                ? SpriteBank.wallTag(wallNeighbors)
                 : undefined;
             graphics.clear();
             const synced = SpriteBank.syncBuilding(
                 this, graphics, gridX, gridY, type, building?.level ?? 1, alpha, tint,
-                building, this.time.now,
+                building, this.animClockNow(),
                 { wallTag, jukeboxPlaying: soundSystem.overrideActive }
             );
-            if (synced) return;
+            if (synced) {
+                // The carrier still renders (a hair ABOVE its shadow sprite,
+                // see SpriteBank.syncBuilding) — so age patina keeps working
+                // on the baked path instead of vanishing with the vector body.
+                this.drawBuildingPatina(graphics, gridX, gridY, type, alpha, building, onlyBase);
+                return;
+            }
             SpriteBank.release(graphics);
         }
+        // Walls never bake into the ground RT (fully dynamic), so the redraw
+        // paths' skipBase — which exists to avoid re-painting RT-baked bases —
+        // would silently drop the wall contact shadow on the vector fallback.
+        // Force the wall ground pass back on; every other type keeps the flag.
         const visual = drawBuildingVisual({
             graphics,
             gridX,
@@ -2288,152 +2622,51 @@ export class MainScene extends Phaser.Scene {
             tint,
             building,
             baseGraphics,
-            skipBase,
+            skipBase: type === 'wall' ? false : skipBase,
             onlyBase,
-            time: this.time.now,
+            time: this.animClockNow(),
             jukeboxPlaying: soundSystem.overrideActive,
             wallNeighbors
         });
         if (!visual) return;
-        const { c1, c2, c3, c4, center } = visual;
-
-        // ---- patina: buildings age, upgrades scrub them clean ----
-        // Weeks since the server's builtAt stamp grow a whisper of moss and
-        // soot along the lower edges. Deliberately faint (a texture you feel
-        // more than see), deterministic per building, skipped for walls (a
-        // hundred mossy stubs would read as noise) and for ghost previews.
-        if (!onlyBase && building?.builtAt && building.type !== 'wall' && alpha >= 1) {
-            const weeks = (Date.now() - building.builtAt) / (7 * 86_400_000);
-            const strength = Math.min(0.4, weeks * 0.1);
-            if (strength > 0.05) {
-                const rng = mulberry32(hashString(`${building.id}:patina`));
-                const foot = [c1, c2, c3, c4];
-                const specks = 3 + Math.floor(rng() * 3) + Math.floor(Math.min(4, weeks));
-                for (let s = 0; s < specks; s++) {
-                    const a = foot[Math.floor(rng() * 4)];
-                    const b = foot[(Math.floor(rng() * 4) + 1) % 4];
-                    const f = rng();
-                    const px = a.x + (b.x - a.x) * f + (rng() - 0.5) * 6;
-                    const py = a.y + (b.y - a.y) * f - rng() * 5;
-                    graphics.fillStyle(rng() < 0.6 ? 0x51683a : 0x2a241c, strength * (0.5 + rng() * 0.5));
-                    graphics.fillRect(px, py, 1.6 + rng() * 1.2, 1.2 + rng() * 0.8);
-                }
-                // One faint weather streak down a front face.
-                const sx = center.x + (rng() - 0.5) * 14;
-                graphics.fillStyle(0x1c1410, strength * 0.35);
-                graphics.fillRect(sx, center.y - 10 - rng() * 6, 1.1, 7 + rng() * 5);
-            }
-        }
+        this.drawBuildingPatina(graphics, gridX, gridY, type, alpha, building, onlyBase);
     }
 
-    // ---- wall gates: every enclosed pocket keeps a door ----
-    private wallGateRecomputeAt = 0;
-
-    /** Debounced: wall layouts change in bursts (drags, loads, breaks). */
-    public scheduleGateRecompute() {
-        this.wallGateRecomputeAt = this.time.now + 150;
-    }
-
-    /**
-     * Designate GATES so a villager can walk from any pocket of the village
-     * to any other: flood-fill the open ground into regions, then connect
-     * every region to the outside with one doorway per wall it shares —
-     * a deterministic spanning tree over straight wall pieces (posts and
-     * double-thick ramparts are skipped; the ambient pathfinder keeps its
-     * expensive hop as the fallback of last resort). Purely decorative in
-     * battle: a gate fights exactly like the wall it is.
-     */
-    private recomputeWallGates() {
-        // Home decor only: battle walls (enemy layouts, mid-raid breaks) keep
-        // whatever they were instantiated with — no doorways popping open as
-        // loops fall.
-        if (this.mode !== 'HOME') return;
-        const size = this.mapSize;
-        const walls = this.buildings.filter(b => b.type === 'wall' && b.health > 0 && !b.isDestroyed && b.owner === 'PLAYER');
-        const wallAt = new Map<number, PlacedBuilding>();
-        for (const w of walls) wallAt.set(w.gridY * size + w.gridX, w);
-
-        // Region labels: 0 = outside (connected to the border), 1.. = pockets.
-        const region = new Int16Array(size * size).fill(-1);
-        const flood = (seeds: number[], label: number) => {
-            const queue = [...seeds];
-            for (const s of queue) region[s] = label;
-            while (queue.length) {
-                const at = queue.pop() as number;
-                const ax = at % size;
-                const ay = Math.floor(at / size);
-                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-                    const nx = ax + dx;
-                    const ny = ay + dy;
-                    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-                    const ni = ny * size + nx;
-                    if (region[ni] !== -1 || wallAt.has(ni)) continue;
-                    region[ni] = label;
-                    queue.push(ni);
-                }
-            }
-        };
-        const border: number[] = [];
-        for (let i = 0; i < size; i++) {
-            for (const cell of [i, (size - 1) * size + i, i * size, i * size + size - 1]) {
-                if (!wallAt.has(cell) && region[cell] === -1) border.push(cell);
-            }
+    // ---- patina: buildings age, upgrades scrub them clean ----
+    // Weeks since the server's builtAt stamp grow a whisper of moss and
+    // soot along the lower edges. Deliberately faint (a texture you feel
+    // more than see), deterministic per building, skipped for walls (a
+    // hundred mossy stubs would read as noise) and for ghost previews.
+    // Shared by the vector body and the baked-sprite path (where it draws
+    // into the carrier graphics, which renders just above the sprite).
+    private drawBuildingPatina(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, type: string, alpha: number, building: PlacedBuilding | undefined, onlyBase: boolean) {
+        if (onlyBase || !building?.builtAt || building.type === 'wall' || alpha < 1) return;
+        const info = BUILDINGS[type];
+        if (!info) return;
+        const weeks = (Date.now() - building.builtAt) / (7 * 86_400_000);
+        const strength = Math.min(0.4, weeks * 0.1);
+        if (strength <= 0.05) return;
+        const c1 = IsoUtils.cartToIso(gridX, gridY);
+        const c2 = IsoUtils.cartToIso(gridX + info.width, gridY);
+        const c3 = IsoUtils.cartToIso(gridX + info.width, gridY + info.height);
+        const c4 = IsoUtils.cartToIso(gridX, gridY + info.height);
+        const center = IsoUtils.cartToIso(gridX + info.width / 2, gridY + info.height / 2);
+        const rng = mulberry32(hashString(`${building.id}:patina`));
+        const foot = [c1, c2, c3, c4];
+        const specks = 3 + Math.floor(rng() * 3) + Math.floor(Math.min(4, weeks));
+        for (let s = 0; s < specks; s++) {
+            const a = foot[Math.floor(rng() * 4)];
+            const b = foot[(Math.floor(rng() * 4) + 1) % 4];
+            const f = rng();
+            const px = a.x + (b.x - a.x) * f + (rng() - 0.5) * 6;
+            const py = a.y + (b.y - a.y) * f - rng() * 5;
+            graphics.fillStyle(rng() < 0.6 ? 0x51683a : 0x2a241c, strength * (0.5 + rng() * 0.5));
+            graphics.fillRect(px, py, 1.6 + rng() * 1.2, 1.2 + rng() * 0.8);
         }
-        flood(border, 0);
-        let regions = 1;
-        for (let i = 0; i < size * size; i++) {
-            if (region[i] === -1 && !wallAt.has(i)) flood([i], regions++);
-        }
-
-        const newGates = new Set<string>();
-        if (regions > 1) {
-            // Candidate doorways: straight wall pieces separating two regions.
-            const candidates: Array<{ a: number; b: number; wall: PlacedBuilding; straight: boolean }> = [];
-            for (const w of walls) {
-                const x = w.gridX;
-                const y = w.gridY;
-                const has = (dx: number, dy: number) => wallAt.has((y + dy) * size + (x + dx));
-                const straight = (has(0, -1) && has(0, 1) && !has(1, 0) && !has(-1, 0))
-                    || (has(1, 0) && has(-1, 0) && !has(0, -1) && !has(0, 1));
-                const touching = new Set<number>();
-                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-                    const nx = x + dx;
-                    const ny = y + dy;
-                    if (nx < 0 || ny < 0 || nx >= size || ny >= size) { touching.add(0); continue; }
-                    const r = region[ny * size + nx];
-                    if (r >= 0) touching.add(r);
-                }
-                if (touching.size >= 2) {
-                    const [a, b] = [...touching].sort((p, q) => p - q);
-                    candidates.push({ a, b, wall: w, straight });
-                }
-            }
-            // Deterministic spanning tree: straight pieces first, then reading order.
-            candidates.sort((p, q) =>
-                Number(q.straight) - Number(p.straight)
-                || (p.wall.gridY - q.wall.gridY)
-                || (p.wall.gridX - q.wall.gridX));
-            const parent = Array.from({ length: regions }, (_, i) => i);
-            const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
-            for (const c of candidates) {
-                const ra = find(c.a);
-                const rb = find(c.b);
-                if (ra === rb) continue;
-                parent[ra] = rb;
-                if (c.straight) newGates.add(c.wall.id);
-                // Non-straight separators connect regions for the solver but
-                // carry no doorway art — the pathfinder's hop covers them.
-            }
-        }
-
-        // Apply the diff and repaint only what changed.
-        for (const w of walls) {
-            const gate = newGates.has(w.id);
-            if (Boolean(w.isGate) === gate) continue;
-            w.isGate = gate;
-            w.graphics.clear();
-            this.drawBuildingVisuals(w.graphics, w.gridX, w.gridY, 'wall', 1, null, w);
-        }
+        // One faint weather streak down a front face.
+        const sx = center.x + (rng() - 0.5) * 14;
+        graphics.fillStyle(0x1c1410, strength * 0.35);
+        graphics.fillRect(sx, center.y - 10 - rng() * 6, 1.1, 7 + rng() * 5);
     }
 
     /**
@@ -2441,7 +2674,6 @@ export class MainScene extends Phaser.Scene {
      * Call this after moving/placing/removing a wall.
      */
     public refreshWallNeighbors(gridX: number, gridY: number, owner: 'PLAYER' | 'ENEMY') {
-        this.scheduleGateRecompute();
         const offsets = [
             { dx: 0, dy: -1 },  // North
             { dx: 0, dy: 1 },   // South
@@ -2484,10 +2716,20 @@ export class MainScene extends Phaser.Scene {
         graphics.setDepth(depthForRubble(gridX, gridY, width, height));
         baseGraphics.setDepth(depthForGroundPlane());
 
-        // Baked wreck sprites (clean rubble; burn/smoke become runtime FX).
+        // Baked wreck sprites (clean rubble; burn/smoke are runtime FX below).
         const spriteBacked = SpriteBank.syncWreck(this, graphics, baseGraphics, type, level, gridX, gridY, width, height);
         if (!spriteBacked) {
             WreckRenderer.drawWreck(graphics, gridX, gridY, width, height, type, level, 0, 1, baseGraphics);
+        }
+
+        // Sprite-backed wrecks burn too: the baked stamp stays clean while
+        // the authored 15s burn + 30s smolder plays on a runtime FX layer
+        // (updateRubbleAnimations redraws it in whole pixel cells).
+        const wantsBurn = wreckNeedsAnimation(type, width, height, 1);
+        let fxGraphics: Phaser.GameObjects.Graphics | undefined;
+        if (spriteBacked && wantsBurn) {
+            fxGraphics = this.trackBattleFx(this.add.graphics());
+            fxGraphics.setDepth(graphics.depth + 1);
         }
 
         this.rubble.push({
@@ -2500,7 +2742,8 @@ export class MainScene extends Phaser.Scene {
             graphics,
             baseGraphics,
             createdAt: Date.now(),
-            animationDone: spriteBacked || !wreckNeedsAnimation(type, width, height, 1),
+            animationDone: !wantsBurn,
+            fxGraphics,
         });
     }
 
@@ -2556,6 +2799,24 @@ export class MainScene extends Phaser.Scene {
             // Fire fades out over time: full for 15s, then fades over 30s.
             const age = (now - r.createdAt) / 1000;
             const fireIntensity = age > 15 ? Math.max(0, 1 - (age - 15) / 30) : 1;
+            // Sprite-backed wrecks: the baked stamp is untouched; the burn +
+            // smolder redraws on its own overlay until the fire dies.
+            if (r.fxGraphics) {
+                if (!r.fxGraphics.scene) {
+                    r.fxGraphics = undefined;
+                    r.animationDone = true;
+                    return;
+                }
+                r.fxGraphics.clear();
+                if (fireIntensity > 0.01) {
+                    this.drawWreckBurnFx(r.fxGraphics, r, time, fireIntensity);
+                    return;
+                }
+                r.fxGraphics.destroy();
+                r.fxGraphics = undefined;
+                r.animationDone = true;
+                return;
+            }
             if (!r.graphics.scene || !r.baseGraphics.scene) return;
             r.graphics.clear();
             r.baseGraphics.clear();
@@ -2570,10 +2831,69 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
+    /**
+     * Runtime burn + smolder for SPRITE-BACKED wrecks — the same fire-spot /
+     * rising-ember / smoke language WreckRenderer.burnFx bakes into vector
+     * wrecks (identical 15s-burn → 30s-fade windows), rebuilt from whole
+     * pixel cells and sized to the wreck footprint. Deterministic f(time);
+     * per-wreck variation comes from the grid-position seed.
+     */
+    private drawWreckBurnFx(
+        g: Phaser.GameObjects.Graphics,
+        r: { gridX: number; gridY: number; width: number; height: number },
+        time: number,
+        fire: number
+    ) {
+        const seed = r.gridX * 1000 + r.gridY;
+        const R = (i: number, k: number) => Math.sin(seed + i * k) * 0.5 + 0.5;
+        // Footprint centre + spread in iso px (matches WreckRenderer's P map;
+        // spreads sized like its burnFx call sites, e.g. 3x3 → ~74×38).
+        const cx = (r.gridX + r.width / 2 - r.gridY - r.height / 2) * 32;
+        const cy = (r.gridX + r.width / 2 + r.gridY + r.height / 2) * 16;
+        const sx = r.width * 24;
+        const sy = r.height * 12;
+        if (fire > 0.05) {
+            for (let i = 0; i < 3; i++) {
+                const fx = cx + (R(i, 30.3) - 0.5) * sx;
+                const fy = cy + (R(i, 31.4) - 0.5) * sy;
+                const flicker = Math.sin(time / 100 + i * 2) * 0.3 + 0.7;
+                const fs = Math.floor((5 + Math.sin(time / 150 + i) * 2.5) * fire);
+                const gs = fs + 6;
+                pixelRect(g, fx - gs / 2, fy - gs / 2, gs, gs, 0xff6600, 0.4 * flicker * fire);
+                if (fs > 0) {
+                    pixelRect(g, fx - fs / 2, fy - 2 - fs / 2, fs, fs, 0xff4400, 0.7 * flicker * fire);
+                    const ts = Math.max(2, fs * 0.5);
+                    const ty = fy - 5 - Math.sin(time / 80 + i) * 2;
+                    pixelRect(g, fx - ts / 2, ty - ts / 2, ts, ts, 0xffaa00, 0.8 * flicker * fire);
+                }
+            }
+            for (let i = 0; i < 5; i++) {
+                const r1 = R(i, 40.4), r2 = R(i, 41.5);
+                const cyc = ((time / 2000) + r1) % 1;
+                const ex = cx + (r1 - 0.5) * sx * 0.7 + Math.sin(time / 300 + i) * 5;
+                const ey = cy + (r2 - 0.5) * sy * 0.7 - cyc * 30;
+                pixelRect(g, ex - 1, ey - 1, 3, 3, 0xff6600, (1 - cyc) * 0.8 * fire);
+            }
+        }
+        // Smoke trails the dying fire and dies with it (same law as the bake).
+        const smokeIntensity = Math.min(1, Math.max(0, fire * 1.4));
+        if (smokeIntensity <= 0.01) return;
+        const n = fire > 0.3 ? 3 : 5;
+        for (let i = 0; i < n; i++) {
+            const r1 = R(i, 50.5), r2 = R(i, 51.6);
+            const cyc = ((time / 3000) + r1) % 1;
+            const sxp = cx + (r1 - 0.5) * sx * 0.5 + Math.sin(time / 500 + i) * 8;
+            const syp = cy + (r2 - 0.5) * sy * 0.5 - cyc * 50;
+            const ss = Math.floor(4 + cyc * 10);
+            pixelRect(g, sxp - ss / 2, syp - ss / 2, ss, ss, 0x555555, (1 - cyc) * 0.3 * smokeIntensity);
+        }
+    }
+
     private clearRubble() {
         this.rubble.forEach(r => {
             r.graphics.destroy();
             r.baseGraphics.destroy();
+            r.fxGraphics?.destroy();
         });
         this.rubble = [];
     }
@@ -2749,7 +3069,23 @@ export class MainScene extends Phaser.Scene {
             width = 36 + info.width * 8;
             height = 8;
             x = p.x - width / 2;
-            y = p.y - 50 - (info.height * 10);
+            // Anchor the bar just above the baked silhouette's top (stable
+            // first idle frame, cached per level). The old blind
+            // "-50 - h*10" guess floats 30-60px of air above squat sprites
+            // (walls, storages, mines), so their bars landed over whatever
+            // tile lay behind — reading as unowned bars hovering over rubble
+            // or open grass. Vector fallback keeps the formula.
+            // `== null` on purpose: a null lookup (bank still loading, or a
+            // vector-fallback type) is retried on every draw instead of being
+            // cached forever — the lookup is two map reads, and the anchor
+            // must upgrade itself the moment the atlases land.
+            if (item.barAnchorTop == null || item.barAnchorLevel !== (item.level ?? 1)) {
+                item.barAnchorLevel = item.level ?? 1;
+                item.barAnchorTop = SpriteBank.buildingTopOffset(item.type, item.level ?? 1);
+            }
+            y = item.barAnchorTop != null
+                ? p.y - item.barAnchorTop - height - 4
+                : p.y - 50 - (info.height * 10);
         } else {
             const troop = item as Troop;
             const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
@@ -2760,7 +3096,7 @@ export class MainScene extends Phaser.Scene {
             // Adjust health bar height based on unit size (humanoids are
             // villager-scale now, so the default rides much lower).
             let yOffset = 22;
-            if (troop.type === 'golem') yOffset = 70;
+            if (troop.type === 'golem' || troop.type === 'icegolem') yOffset = 70;
             else if (troop.type === 'davincitank') yOffset = 48;
             else if (troop.type === 'giant') yOffset = 30;
             else if (troop.type === 'mobilemortar') yOffset = 26;
@@ -2883,11 +3219,62 @@ export class MainScene extends Phaser.Scene {
         g.fillRect(x + w - cell, y + cell, cell, h - cell * 2);
     }
 
+    /**
+     * THE animation clock. Replay watch stamps combat state (lastFireTime,
+     * teslaChargeStart, lastAttackTime) on the stream clock, so every reader
+     * (building/troop redraws, baked frame pickers) must measure ages against
+     * the same clock — otherwise recoil/tension/charge animations never play
+     * while spectating. Everywhere else it is plain scene time.
+     */
+    private animClockNow(): number {
+        return this.mode === 'REPLAY' ? this.replaySimulationTime : this.time.now;
+    }
+
     private updateCombat(time: number) {
         const isReplayWatch = this.mode === 'REPLAY';
         if (this.mode !== 'ATTACK' && !isReplayWatch) return;
 
+        // Thaw pass BEFORE the defense tick so an expired freeze drops its
+        // icy dressing on the same frame the defense resumes firing.
+        this.updateFrozenDefenses(time);
+
         this.defenseSystem.update(time, this.buildings, this.troops);
+
+        // Ward heal-range auras (sprite mode only — the vector fallback draws
+        // its own). One shared graphics, cleared and redrawn every combat
+        // frame as a deterministic pixel-ring pulse: pure f(time, ward id).
+        if (!this.wardAuraGfx || !this.wardAuraGfx.active) {
+            this.wardAuraGfx = this.trackBattleFx(this.add.graphics());
+            this.wardAuraGfx.setDepth(7);
+        }
+        this.wardAuraGfx.clear();
+        if (SpriteBank.backed('troops', 'ward')) {
+            for (const ward of this.troops) {
+                if (ward.type !== 'ward' || ward.health <= 0) continue;
+                const wardStats = this.getTroopCombatStats(ward);
+                // The heal check is grid distance <= healRadius; the shared
+                // conversion carries the SQRT2 iso-projection factor the
+                // defense range rings use — without it the ring reads ~29%
+                // inside the true heal edge.
+                const aura = this.gridRangeToIsoRadii(wardStats.healRadius ?? 7);
+                const pos = IsoUtils.cartToIso(ward.gridX, ward.gridY);
+                const glow = ward.owner === 'PLAYER' ? 0x58d68d : 0x45b39d;
+                const seed = hashString(`${ward.id}:aura`) % 1000;
+                const pulse = 0.5 + 0.5 * Math.sin(time / 300 + seed);
+                this.pixelRing(this.wardAuraGfx, pos.x, pos.y + 5, aura.rx, aura.ry, 2, glow, 0.2 + 0.12 * pulse);
+                // A breath sweeping outward marks it as a live heal field.
+                const sweep = ((time + seed * 20) % 1600) / 1600;
+                const sf = 0.3 + 0.7 * sweep;
+                this.pixelRing(this.wardAuraGfx, pos.x, pos.y + 5, aura.rx * sf, aura.ry * sf, 1, glow, 0.22 * (1 - sweep));
+            }
+        }
+
+        // Replay watch: the frame stream owns troop state. Defenses above still
+        // aim/fire (their shots and recoil are presentation, stamped on the
+        // replay clock), but the local troop attack sim stays OFF — its damage
+        // and kills would saw-tooth against every authoritative frame sync and
+        // re-detonate suicide units the frames already resolved.
+        if (isReplayWatch) return;
 
         this.troops.forEach(troop => {
             if (troop.health <= 0) return;
@@ -2910,7 +3297,7 @@ export class MainScene extends Phaser.Scene {
 
                                 // Green plus sign heal indicator
                                 const pos = IsoUtils.cartToIso(other.gridX, other.gridY);
-                                const plusGfx = this.add.graphics();
+                                const plusGfx = this.trackBattleFx(this.add.graphics());
                                 plusGfx.setPosition(pos.x, pos.y - 12);
                                 plusGfx.setDepth(other.gameObject.depth + 1);
                                 plusGfx.fillStyle(0x00ff88, 0.7);
@@ -2940,8 +3327,11 @@ export class MainScene extends Phaser.Scene {
             // may be the current interaction target, but never replaces the
             // building this troop is actually trying to reach.
             this.ensureTroopNavigation(troop, time);
-            if (!troop.navigationPlan
-                || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision) return;
+            // A missing/stale plan must not silence the attack tick: a troop
+            // already standing in range keeps swinging while its staggered
+            // replan slot is pending (the range gates below stay in force).
+            // Gating attacks on plan presence fed the stuck-replan cycle.
+            if (!troop.target) return;
 
             if (troop.target) {
                 const b = troop.target;
@@ -3029,8 +3419,9 @@ export class MainScene extends Phaser.Scene {
                                 this.showMobileMortarShot(troop, troop.target, stats.damage);
                             } else if (troop.type === 'stormmage') {
                                 this.showStormLightning(troop, troop.target, stats.damage);
-                            } else if (troop.type === 'golem') {
+                            } else if (troop.type === 'golem' || troop.type === 'icegolem') {
                                 // GOLEM GROUND POUND - Single slam with AoE damage
+                                // (icegolem shares the slam-class attack contract)
                                 const currentPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
 
                                 // Initialize slamOffset if not set
@@ -3051,11 +3442,13 @@ export class MainScene extends Phaser.Scene {
                                         // Screen shake at impact
                                         this.cameras.main.shake(50, 0.0015);
 
-                                        // Ground crack effect (moved higher to align with slam)
-                                        this.showGolemCrackEffect(currentPos.x, currentPos.y + 15);
-
                                         // Deal damage to all buildings within 3 tile radius
                                         const aoeTiles = 3;
+
+                                        // Ground crack effect (moved higher to align with
+                                        // slam), scaled to the DAMAGE radius so the art
+                                        // covers everything the slam actually hits.
+                                        this.showGolemCrackEffect(currentPos.x, currentPos.y + 15, aoeTiles);
                                         [...this.buildings].forEach(b => {
                                             if (b.owner !== troop.owner && b.health > 0) {
                                                 const bdx = (b.gridX + BUILDINGS[b.type].width / 2) - troop.gridX;
@@ -3115,18 +3508,21 @@ export class MainScene extends Phaser.Scene {
                                 const ballX = tankPos.x + Math.cos(firingAngle) * ballOffset;
                                 const ballY = tankPos.y + Math.sin(firingAngle) * ballOffset * 0.5 - 12;
 
-                                // Adjust depth: when shooting upward (negative Y direction), put ball behind tank
-                                const isShootingUp = firingAngle < 0 || firingAngle > Math.PI;
-                                const ballDepth = isShootingUp ? 5000 : 25000;
+                                // Painter's-order depth from the shot's ground track: launch at
+                                // the tank's tile, then per-frame along the track (onUpdate below)
+                                // — "behind when shooting up" falls out of the row math for free.
+                                const launchGX = troop.gridX;
+                                const launchGY = troop.gridY;
+                                const shotTargetGX = targetBuilding.gridX + targetInfo.width / 2;
+                                const shotTargetGY = targetBuilding.gridY + targetInfo.height / 2;
+                                const ballDepth = depthForProjectile(launchGX, launchGY);
 
                                 // Muzzle flash
-                                const flash = this.add.graphics();
-                                flash.fillStyle(0xffaa00, 0.9);
-                                flash.fillCircle(0, 0, 8);
-                                flash.fillStyle(0xffff00, 0.7);
-                                flash.fillCircle(0, 0, 4);
+                                const flash = this.trackBattleFx(this.add.graphics());
+                                pixelEllipse(flash, 0, 0, 8, 8, 0xffaa00, 0.9);
+                                pixelEllipse(flash, 0, 0, 4, 4, 0xffff00, 0.7);
                                 flash.setPosition(muzzleX, muzzleY);
-                                flash.setDepth(ballDepth);
+                                flash.setDepth(depthForGroundEffect(launchGX, launchGY));
                                 this.tweens.add({
                                     targets: flash,
                                     scale: 2, alpha: 0,
@@ -3135,16 +3531,14 @@ export class MainScene extends Phaser.Scene {
                                 });
 
                                 // Cannonball projectile - 2x SMALLER (3px radius)
-                                const ball = this.add.graphics();
-                                ball.fillStyle(0x2a2a2a, 1);
-                                ball.fillCircle(0, 0, 3);
-                                ball.fillStyle(0x4a4a4a, 1);
-                                ball.fillCircle(-0.5, -0.5, 1);
+                                const ball = this.trackBattleFx(this.add.graphics());
+                                pixelEllipse(ball, 0, 0, 3, 3, 0x2a2a2a, 1);
+                                pixelEllipse(ball, -0.5, -0.5, 1, 1, 0x4a4a4a, 1);
                                 ball.setPosition(ballX, ballY);
                                 ball.setDepth(ballDepth);
 
                                 // Smoke puff at muzzle - smaller
-                                particleManager.emitSmokeTracker('troop_fire_' + troop.id, muzzleX, muzzleY, time, ballDepth - 1, 3, 0);
+                                particleManager.emitSmokeTracker('troop_fire_' + troop.id, muzzleX, muzzleY, time, depthForGroundEffect(launchGX, launchGY), 3, 0);
 
                                 // Light screen shake on fire
                                 this.cameras.main.shake(25, 0.0005);
@@ -3176,13 +3570,19 @@ export class MainScene extends Phaser.Scene {
                                     y: targetPos.y - 10,
                                     duration: 200,  // Faster flight
                                     ease: 'Quad.easeIn',
+                                    onUpdate: (tween) => {
+                                        // Depth follows the ground track under the shot.
+                                        const t = tween.progress;
+                                        ball.setDepth(depthForProjectile(
+                                            launchGX + (shotTargetGX - launchGX) * t,
+                                            launchGY + (shotTargetGY - launchGY) * t));
+                                    },
                                     onComplete: () => {
                                         // Impact effect - isometric oval
-                                        const impact = this.add.graphics();
-                                        impact.fillStyle(0xff6600, 0.6);
-                                        impact.fillEllipse(0, 0, 16, 8);
+                                        const impact = this.trackBattleFx(this.add.graphics());
+                                        pixelEllipse(impact, 0, 0, 8, 4, 0xff6600, 0.6);
                                         impact.setPosition(targetPos.x, targetPos.y - 10);
-                                        impact.setDepth(5000);
+                                        impact.setDepth(depthForGroundEffect(shotTargetGX, shotTargetGY));
                                         this.tweens.add({
                                             targets: impact,
                                             scale: 1.5, alpha: 0,
@@ -3248,13 +3648,14 @@ export class MainScene extends Phaser.Scene {
                                 const wallMult = troop.target.type === 'wall' ? ((stats as any).wallDamageMultiplier || 3) : 1;
                                 const sRadius = (stats as any).splashRadius || 2.5;
 
-                                // Apply splash damage to all buildings in radius
+                                // Apply splash damage to all buildings in radius.
+                                // Splash is measured to the FOOTPRINT EDGE (the
+                                // same geometry the movement stop uses) — the
+                                // center measure let a bomber die adjacent to a
+                                // large building's corner for zero damage.
                                 [...this.buildings].forEach(b => {
                                     if (b.owner !== troop.owner && b.health > 0) {
-                                        const bInfo = BUILDINGS[b.type];
-                                        const bCenterX = b.gridX + bInfo.width / 2;
-                                        const bCenterY = b.gridY + bInfo.height / 2;
-                                        const bdist = Phaser.Math.Distance.Between(troop.gridX, troop.gridY, bCenterX, bCenterY);
+                                        const bdist = this.getTargetEdgeDistance(troop, b);
                                         if (bdist <= sRadius) {
                                             const bMult = b.type === 'wall' ? wallMult : 1;
                                             const dmg = bdist < 0.5 ? stats.damage * bMult : stats.damage * bMult * 0.6;
@@ -3329,49 +3730,32 @@ export class MainScene extends Phaser.Scene {
         // Level-based scaling - L3 is 1.3x bigger
         const level = mortar.level ?? 1;
         const shellScale = level >= 3 ? 1.3 : 1.0;
-        const shellRadius = 8 * shellScale;
         const mortarDamage = stats.damage || 62;
 
-        // Mortar shell - starts invisible, appears as it leaves barrel
-        const ball = this.add.graphics();
-        if (level >= 4) {
-            // Gold-studded shell
-            ball.fillStyle(0xb8860b, 1);
-            ball.fillCircle(0, 0, shellRadius);
-            ball.fillStyle(0xdaa520, 1);
-            ball.fillCircle(-2 * shellScale, -2 * shellScale, 4 * shellScale);
-            // Gold studs
-            ball.fillStyle(0xffd700, 0.9);
-            ball.fillCircle(shellRadius * 0.5, -shellRadius * 0.3, 1.5);
-            ball.fillCircle(-shellRadius * 0.3, shellRadius * 0.5, 1.5);
-            ball.fillCircle(shellRadius * 0.4, shellRadius * 0.4, 1.5);
-            ball.fillCircle(-shellRadius * 0.6, -shellRadius * 0.1, 1.5);
-        } else {
-            ball.fillStyle(0x3a3a3a, 1);
-            ball.fillCircle(0, 0, shellRadius);
-            ball.fillStyle(0x5a5a5a, 1);
-            ball.fillCircle(-2 * shellScale, -2 * shellScale, 3 * shellScale);
-            if (level >= 3) {
-                ball.fillStyle(0xaaaaaa, 0.6);
-                ball.fillCircle(-3 * shellScale, -3 * shellScale, 2);
-            }
-        }
+        // Mortar shell - starts invisible, appears as it leaves barrel.
+        // Depth is painter's order along the shot's ground track (launch tile
+        // now, per-frame in onUpdate below).
+        const launchGX = mortar.gridX + info.width / 2;
+        const launchGY = mortar.gridY + info.height / 2;
+        const shotTargetGX = troop.gridX;
+        const shotTargetGY = troop.gridY;
+        const ball = this.trackBattleFx(this.add.graphics());
         ball.setPosition(start.x, start.y - 35);
-        ball.setDepth(5000);
+        ball.setDepth(depthForProjectile(launchGX, launchGY));
         ball.setAlpha(0);
+        const ballBaked = this.syncProjectileSprite(ball, 'mortar_shell', Math.min(level, 4), 0);
+        if (!ballBaked) ProjectileRenderer.drawMortarShell(ball, level);
 
         const midY = (start.y + end.y) / 2 - 350;
 
         // Muzzle flash and smoke effect
-        this.createSmokeEffect(start.x, start.y - 35);
+        this.createSmokeEffect(start.x, start.y - 35, depthForGroundEffect(launchGX, launchGY) + 1);
 
-        const flash = this.add.graphics();
-        flash.fillStyle(0xff8800, 0.8);
-        flash.fillCircle(0, 0, 8 * shellScale);
-        flash.fillStyle(0xffcc00, 0.6);
-        flash.fillCircle(0, 0, 5 * shellScale);
+        const flash = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(flash, 0, 0, 8 * shellScale, 8 * shellScale, 0xff8800, 0.8);
+        pixelEllipse(flash, 0, 0, 5 * shellScale, 5 * shellScale, 0xffcc00, 0.6);
         flash.setPosition(start.x, start.y - 35);
-        flash.setDepth(5001);
+        flash.setDepth(depthForGroundEffect(launchGX, launchGY));
         this.tweens.add({
             targets: flash,
             alpha: 0,
@@ -3397,6 +3781,10 @@ export class MainScene extends Phaser.Scene {
                 const scale = 0.5 + (1 - Math.abs(t - 0.5) * 2) * 0.6;
                 ball.setScale(scale);
                 ball.setRotation(t * Math.PI * 4);
+                ball.setDepth(depthForProjectile(
+                    launchGX + (shotTargetGX - launchGX) * t,
+                    launchGY + (shotTargetGY - launchGY) * t));
+                if (ballBaked) this.syncProjectileSprite(ball, 'mortar_shell', Math.min(level, 4), t * Math.PI * 4);
             },
             onComplete: () => {
                 ball.destroy();
@@ -3415,22 +3803,24 @@ export class MainScene extends Phaser.Scene {
         damage: number = 62
     ) {
         const scale = level >= 3 ? 1.3 : 1.0;
+        // Airborne explosion layers sort with the world at the impact tile;
+        // small ±N offsets keep the effect's internal stacking.
+        const fxDepth = depthForGroundEffect(targetGx, targetGy);
         this.cameras.main.shake(50, 0.001 * scale);
 
-        // Ground crater/scorch mark (L1-L2 only, L3 uses cracks instead)
+        // Ground crater/scorch mark (L1-L2 only, L3 uses cracks instead) —
+        // ground-decal band: above the stone-lanes RT (2.5), below scorches (5/6).
         if (level < 3) {
-            const crater = this.add.graphics();
-            crater.fillStyle(0x2a1a0a, 0.6);
-            crater.fillEllipse(x, y + 5, 40 * scale, 20 * scale);
-            crater.setDepth(1);
+            const crater = this.trackBattleFx(this.add.graphics());
+            pixelEllipse(crater, x, y + 5, 20 * scale, 10 * scale, 0x2a1a0a, 0.6);
+            crater.setDepth(3);
             this.tweens.add({ targets: crater, alpha: 0, duration: 2000, delay: 500, onComplete: () => crater.destroy() });
         }
 
         // L3: Ground cracks radiating from impact (no circular crater)
         if (level >= 3) {
-            const cracks = this.add.graphics();
-            cracks.lineStyle(2, 0x1a1a1a, 0.7);
-            cracks.setDepth(1);
+            const cracks = this.trackBattleFx(this.add.graphics());
+            cracks.setDepth(3); // ground-decal band, above the stone-lanes RT (2.5)
             // Draw 6 cracks radiating outward
             for (let i = 0; i < 6; i++) {
                 const angle = (i / 6) * Math.PI * 2 + Math.random() * 0.3;
@@ -3439,61 +3829,52 @@ export class MainScene extends Phaser.Scene {
                 const midY = y + Math.sin(angle) * length * 0.3; // Flatten for isometric
                 const endX = x + Math.cos(angle) * length;
                 const endY = y + Math.sin(angle) * length * 0.5;
-                cracks.beginPath();
-                cracks.moveTo(x, y);
                 // Jagged crack line
-                cracks.lineTo(midX + (Math.random() - 0.5) * 8, midY + (Math.random() - 0.5) * 4);
-                cracks.lineTo(endX, endY);
-                cracks.strokePath();
+                const jagX = midX + (Math.random() - 0.5) * 8;
+                const jagY = midY + (Math.random() - 0.5) * 4;
+                pixelLine(cracks, x, y, jagX, jagY, 1, 0x1a1a1a, 0.7);
+                pixelLine(cracks, jagX, jagY, endX, endY, 1, 0x1a1a1a, 0.7);
                 // Branch cracks
                 if (Math.random() > 0.5) {
                     const branchAngle = angle + (Math.random() - 0.5) * 0.8;
-                    cracks.beginPath();
-                    cracks.moveTo(midX, midY);
-                    cracks.lineTo(midX + Math.cos(branchAngle) * 12, midY + Math.sin(branchAngle) * 6);
-                    cracks.strokePath();
+                    pixelLine(cracks, midX, midY, midX + Math.cos(branchAngle) * 12, midY + Math.sin(branchAngle) * 6, 1, 0x1a1a1a, 0.7);
                 }
             }
             this.tweens.add({ targets: cracks, alpha: 0, duration: 3000, delay: 800, onComplete: () => cracks.destroy() });
         }
 
-        // Initial flash (isometric oval)
-        const flash = this.add.graphics();
-        flash.fillStyle(0xffffcc, 1);
-        flash.fillEllipse(0, 0, 10 * scale, 5 * scale);
-        flash.setPosition(x, y);
-        flash.setDepth(10001);
-        this.tweens.add({ targets: flash, alpha: 0, scaleX: 10, scaleY: 10, duration: 100, onComplete: () => flash.destroy() });
+        // Initial flash (isometric oval) — stepped redraw, never cell-scaling
+        this.trackBattleFx(PixelFx.flash(this, x, y, {
+            r: 5 * scale, squash: 0.5, color: 0xffffcc, alpha: 1,
+            scaleTo: 10, life: 100, depth: fxDepth + 1
+        }));
 
         // Primary shockwave ring (isometric oval)
-        const shock = this.add.graphics();
-        shock.lineStyle(4, 0xff6600, 0.8);
-        shock.strokeEllipse(x, y, 20 * scale, 10 * scale);
-        shock.setDepth(10000);
+        const shock = this.trackBattleFx(this.add.graphics());
+        this.pixelRing(shock, x, y, 10 * scale, 5 * scale, 3, 0xff6600, 0.8);
+        shock.setDepth(fxDepth);
         this.tweens.add({
             targets: shock, alpha: 0, duration: 400,
             onUpdate: (tween) => {
                 shock.clear();
                 const r = 10 * scale + tween.progress * 70 * scale;
-                shock.lineStyle(4 - tween.progress * 3, 0xff6600, 0.8 - tween.progress * 0.8);
-                shock.strokeEllipse(x, y, r * 2, r);
+                const shockThick = Math.max(1, Math.round((4 - tween.progress * 3) / 1.35));
+                this.pixelRing(shock, x, y, r, r / 2, shockThick, 0xff6600, 0.8 - tween.progress * 0.8);
             },
             onComplete: () => shock.destroy()
         });
 
         // Secondary shockwave (isometric oval)
         this.scheduleBattleCall(50, () => {
-            const shock2 = this.add.graphics();
-            shock2.lineStyle(2, 0xffaa00, 0.5);
-            shock2.strokeEllipse(x, y, 30 * scale, 15 * scale);
-            shock2.setDepth(9999);
+            const shock2 = this.trackBattleFx(this.add.graphics());
+            this.pixelRing(shock2, x, y, 15 * scale, 7.5 * scale, 1, 0xffaa00, 0.5);
+            shock2.setDepth(fxDepth - 1);
             this.tweens.add({
                 targets: shock2, alpha: 0, duration: 350,
                 onUpdate: (tween) => {
                     shock2.clear();
                     const r2 = 15 * scale + tween.progress * 60 * scale;
-                    shock2.lineStyle(2, 0xffaa00, 0.5 - tween.progress * 0.5);
-                    shock2.strokeEllipse(x, y, r2 * 2, r2);
+                    this.pixelRing(shock2, x, y, r2, r2 / 2, 1, 0xffaa00, 0.5 - tween.progress * 0.5);
                 },
                 onComplete: () => shock2.destroy()
             });
@@ -3506,11 +3887,10 @@ export class MainScene extends Phaser.Scene {
             const dist = (15 + Math.random() * 25) * scale;
             const fireColors = [0xff4400, 0xff6600, 0xff8800, 0xffaa00];
             const fireSize = (6 + Math.floor(Math.random() * 8)) * scale;
-            const fire = this.add.graphics();
-            fire.fillStyle(fireColors[Math.floor(Math.random() * 4)], 0.9);
-            fire.fillRect(-fireSize / 2, -fireSize / 2, fireSize, fireSize);
+            const fire = this.trackBattleFx(this.add.graphics());
+            pixelRect(fire, -fireSize / 2, -fireSize / 2, fireSize, fireSize, fireColors[Math.floor(Math.random() * 4)], 0.9);
             fire.setPosition(x, y);
-            fire.setDepth(10002);
+            fire.setDepth(fxDepth + 2);
             this.tweens.add({
                 targets: fire,
                 x: x + Math.cos(angle) * dist,
@@ -3528,11 +3908,10 @@ export class MainScene extends Phaser.Scene {
             this.scheduleBattleCall(delay, () => {
                 const smokeColors = [0x444444, 0x555555, 0x666666];
                 const smokeSize = 8 + Math.floor(Math.random() * 12);
-                const smoke = this.add.graphics();
-                smoke.fillStyle(smokeColors[Math.floor(Math.random() * 3)], 0.6);
-                smoke.fillRect(-smokeSize / 2, -smokeSize / 2, smokeSize, smokeSize);
+                const smoke = this.trackBattleFx(this.add.graphics());
+                pixelRect(smoke, -smokeSize / 2, -smokeSize / 2, smokeSize, smokeSize, smokeColors[Math.floor(Math.random() * 3)], 0.6);
                 smoke.setPosition(x + (Math.random() - 0.5) * 30, y);
-                smoke.setDepth(9998);
+                smoke.setDepth(fxDepth - 2);
                 this.tweens.add({
                     targets: smoke,
                     y: smoke.y - 60 - Math.random() * 40,
@@ -3548,11 +3927,10 @@ export class MainScene extends Phaser.Scene {
         // Debris/dirt chunks
         for (let i = 0; i < 6; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const debris = this.add.graphics();
-            debris.fillStyle(0x5a4a3a, 1);
-            debris.fillRect(-3, -3, 6, 6);
+            const debris = this.trackBattleFx(this.add.graphics());
+            pixelRect(debris, -3, -3, 6, 6, 0x5a4a3a, 1);
             debris.setPosition(x, y);
-            debris.setDepth(10003);
+            debris.setDepth(fxDepth + 3);
 
             const dist = 30 + Math.random() * 40;
             const peakY = y - 40 - Math.random() * 30;
@@ -3577,17 +3955,16 @@ export class MainScene extends Phaser.Scene {
         this.troops.slice().forEach(t => {
             const d = Phaser.Math.Distance.Between(t.gridX, t.gridY, targetGx, targetGy);
             if (d < splashRadius && t.owner !== owner) {
-                t.health -= damage;
-                t.hasTakenDamage = true;
-                this.updateHealthBar(t);
-                if (t.health <= 0) this.destroyTroop(t);
+                this.applyLocalTroopDamage(t, damage);
             }
         });
     }
 
 
-    private shootAt(cannon: PlacedBuilding, troop: Troop) {
-        if (cannon.isFiring) return;
+    private shootAt(cannon: PlacedBuilding, troop: Troop): boolean {
+        // Previous ball still in flight: refuse the shot WITHOUT consuming
+        // the cooldown (DefenseSystem skips its lastFireTime stamp on false).
+        if (cannon.isFiring) return false;
         cannon.isFiring = true;
 
         // Capture target reference at the start
@@ -3603,7 +3980,14 @@ export class MainScene extends Phaser.Scene {
         // Set target angle for smooth rotation (same system as ballista/xbow)
         cannon.ballistaTargetAngle = angle;
 
-        const ballDepth = cannon.graphics.depth + 50;
+        // Painter's-order depth along the shot's ground track: launch tile
+        // now, per-frame in the flight tween's onUpdate (the old
+        // `cannon.depth + 50` left the ball behind anything a row south of
+        // the cannon for its whole flight).
+        const launchGX = cannon.gridX + info.width / 2;
+        const launchGY = cannon.gridY + info.height / 2;
+        const ballDepth = depthForProjectile(launchGX, launchGY);
+        const muzzleFxDepth = depthForGroundEffect(launchGX, launchGY);
 
         // Calculate barrel tip position for muzzle flash
         const barrelLength = 28;
@@ -3612,27 +3996,24 @@ export class MainScene extends Phaser.Scene {
         const barrelTipY = start.y + barrelHeight + Math.sin(angle) * 0.5 * barrelLength;
 
         // Muzzle flash at barrel tip - pixelated rectangles
-        const flash = this.add.graphics();
-        flash.fillStyle(0xffcc00, 0.9);
-        flash.fillRect(barrelTipX - 12, barrelTipY - 12, 24, 24);
-        flash.fillStyle(0xffffff, 0.9);
-        flash.fillRect(barrelTipX - 6, barrelTipY - 6, 12, 12);
-        flash.setDepth(ballDepth + 10);
+        const flash = this.trackBattleFx(this.add.graphics());
+        pixelRect(flash, barrelTipX - 12, barrelTipY - 12, 24, 24, 0xffcc00, 0.9);
+        pixelRect(flash, barrelTipX - 6, barrelTipY - 6, 12, 12, 0xffffff, 0.9);
+        flash.setDepth(muzzleFxDepth);
         this.tweens.add({ targets: flash, alpha: 0, duration: 100, onComplete: () => flash.destroy() });
 
         // Gunpowder smoke - pixelated rectangles
         for (let i = 0; i < 3; i++) {
-            const smoke = this.add.graphics();
+            const smoke = this.trackBattleFx(this.add.graphics());
             const smokeSize = 4 + Math.floor(Math.random() * 4);
             const smokeAngle = angle + (Math.random() - 0.5) * 0.5;
             const dist = 10 + Math.random() * 15;
             const sx = barrelTipX + Math.cos(smokeAngle) * dist * 0.2; // Start near tip
             const sy = barrelTipY + Math.sin(smokeAngle) * dist * 0.2;
 
-            smoke.fillStyle(0xdddddd, 0.6);
-            smoke.fillRect(-smokeSize / 2, -smokeSize / 2, smokeSize, smokeSize);
+            pixelRect(smoke, -smokeSize / 2, -smokeSize / 2, smokeSize, smokeSize, 0xdddddd, 0.6);
             smoke.setPosition(sx, sy);
-            smoke.setDepth(ballDepth + 20); // Above flash
+            smoke.setDepth(muzzleFxDepth + 1); // Above flash
 
             this.tweens.add({
                 targets: smoke,
@@ -3657,57 +4038,61 @@ export class MainScene extends Phaser.Scene {
 
         // Cannonball (pixelated rectangle)
         const cLevel = cannon.level ?? 1;
-        const ball = this.add.graphics();
-        if (cLevel >= 4) {
-            // Gold cannonball with marble core
-            ball.fillStyle(0xb8860b, 1);
-            ball.fillRect(-7, -7, 14, 14);
-            ball.fillStyle(0xdaa520, 1);
-            ball.fillRect(-6, -6, 8, 8);
-            ball.fillStyle(0xffd700, 0.6);
-            ball.fillRect(-4, -4, 4, 4);
-        } else {
-            ball.fillStyle(0x1a1a1a, 1);
-            ball.fillRect(-7, -7, 14, 14);
-            ball.fillStyle(0x3a3a3a, 1);
-            ball.fillRect(-6, -6, 8, 8);
-        }
+        const ball = this.trackBattleFx(this.add.graphics());
         ball.setPosition(barrelTipX, barrelTipY);
         ball.setDepth(ballDepth);
+        const ballBaked = this.syncProjectileSprite(ball, 'cannonball', Math.min(cLevel, 4), 0, 1);
+        if (!ballBaked) ProjectileRenderer.drawCannonball(ball, cLevel);
 
-        // Projectile flies to target
+        // Projectile HOMES onto the troop's live position: the flight tween
+        // drives progress only; each update re-aims at where the troop is
+        // now, so the impact effect and the damage land on the same spot.
+        const aim = { x: end.x, y: end.y };
         const dist = Phaser.Math.Distance.Between(barrelTipX, barrelTipY, end.x, end.y);
-        this.tweens.add({
-            targets: ball, x: end.x, y: end.y, duration: dist / 0.8, ease: 'Quad.easeIn',
+        const flight = { t: 0 };
+        this.trackBattleFxTween(this.tweens.add({
+            targets: flight, t: 1, duration: dist / 0.8, ease: 'Quad.easeIn',
+            onUpdate: () => {
+                if (targetTroop.health > 0 && targetTroop.gameObject.active) {
+                    const live = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
+                    aim.x = live.x;
+                    aim.y = live.y;
+                }
+                ball.setPosition(
+                    barrelTipX + (aim.x - barrelTipX) * flight.t,
+                    barrelTipY + (aim.y - barrelTipY) * flight.t
+                );
+                // Depth follows the ground track under the shot.
+                ball.setDepth(depthForProjectile(
+                    launchGX + (targetTroop.gridX - launchGX) * flight.t,
+                    launchGY + (targetTroop.gridY - launchGY) * flight.t));
+                if (ballBaked) this.syncProjectileSprite(ball, 'cannonball', Math.min(cLevel, 4), 0, 1);
+            },
             onComplete: () => {
                 ball.destroy();
                 cannon.isFiring = false;
 
                 // Impact effect (pixelated rectangle)
-                const impact = this.add.graphics();
-                impact.fillStyle(0x8b7355, 0.6);
-                impact.fillRect(end.x - 8, end.y, 16, 8);
-                impact.setDepth(ballDepth - 10);
+                const impact = this.trackBattleFx(this.add.graphics());
+                pixelRect(impact, aim.x - 8, aim.y, 16, 8, 0x8b7355, 0.6);
+                impact.setDepth(depthForGroundEffect(targetTroop.gridX, targetTroop.gridY) - 1);
                 this.tweens.add({ targets: impact, alpha: 0, duration: 300, onComplete: () => impact.destroy() });
 
                 // Apply damage to captured target using level-based damage
                 if (targetTroop && targetTroop.health > 0) {
-                    targetTroop.health -= cannonDamage;
-                    targetTroop.hasTakenDamage = true;
-                    this.updateHealthBar(targetTroop);
-
-                    // Hit flash effect (pixelated rectangle)
+                    // Hit flash effect (pixelated rectangle) — presentation,
+                    // shown whether or not the local damage sim is live.
                     const troopPos = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
-                    const hitFlash = this.add.graphics();
-                    hitFlash.fillStyle(0xffffff, 0.6);
-                    hitFlash.fillRect(troopPos.x - 8, troopPos.y - 18, 16, 16);
-                    hitFlash.setDepth(ballDepth + 5);
+                    const hitFlash = this.trackBattleFx(this.add.graphics());
+                    pixelRect(hitFlash, troopPos.x - 8, troopPos.y - 18, 16, 16, 0xffffff, 0.6);
+                    hitFlash.setDepth(depthForGroundEffect(targetTroop.gridX, targetTroop.gridY));
                     this.tweens.add({ targets: hitFlash, alpha: 0, duration: 80, onComplete: () => hitFlash.destroy() });
 
-                    if (targetTroop.health <= 0) this.destroyTroop(targetTroop);
+                    this.applyLocalTroopDamage(targetTroop, cannonDamage);
                 }
             }
-        });
+        }));
+        return true;
     }
 
 
@@ -3715,13 +4100,16 @@ export class MainScene extends Phaser.Scene {
         const stats = this.getDefenseStats(tesla);
         const start = IsoUtils.cartToIso(tesla.gridX + 0.5, tesla.gridY + 0.5);
         start.y -= 40; // From the orb
+        // World-sorted depths via DepthSystem, like every other combat FX —
+        // fixed 10000-band depths floated the zap over unrelated rows.
+        const towerGX = tesla.gridX + 0.5;
+        const towerGY = tesla.gridY + 0.5;
 
         // Orb pulse effect (pixelated rectangle)
-        const orbPulse = this.add.graphics();
-        orbPulse.fillStyle(0x88eeff, 0.6);
-        orbPulse.fillRect(-12, -12, 24, 24);
+        const orbPulse = this.trackBattleFx(this.add.graphics());
+        pixelRect(orbPulse, -12, -12, 24, 24, 0x88eeff, 0.6);
         orbPulse.setPosition(start.x, start.y);
-        orbPulse.setDepth(10001);
+        orbPulse.setDepth(depthForGroundEffect(towerGX, towerGY) + 2);
         this.tweens.add({ targets: orbPulse, scale: 1.5, alpha: 0, duration: 150, onComplete: () => orbPulse.destroy() });
 
         const chainCount = 3;
@@ -3751,19 +4139,37 @@ export class MainScene extends Phaser.Scene {
             validTargets.forEach((t, idx) => {
                 const end = IsoUtils.cartToIso(t.gridX, t.gridY);
 
-                // Draw multiple lightning layers for thickness effect
+                // Draw multiple lightning layers for thickness effect. Each
+                // chain segment sorts at the FORWARD end of its span in the
+                // projectile band (small -layer offsets keep the core on top).
+                const segDepth = Math.max(
+                    depthForProjectile(towerGX, towerGY),
+                    depthForProjectile(t.gridX, t.gridY)
+                );
                 for (let layer = 0; layer < 3; layer++) {
-                    const lightning = this.add.graphics();
+                    const lightning = this.trackBattleFx(this.add.graphics());
                     const alpha = layer === 0 ? 1 : (layer === 1 ? 0.6 : 0.3);
                     const width = layer === 0 ? 3 : (layer === 1 ? 5 : 8);
                     const color = layer === 0 ? 0xffffff : (layer === 1 ? 0x88eeff : 0x00ccff);
 
-                    lightning.lineStyle(width, color, alpha);
-                    lightning.setDepth(10000 - layer);
+                    const thick = Math.max(1, Math.round(width / 1.35));
+                    lightning.setDepth(segDepth - layer);
+
+                    // Only the FIRST bolt is visible from frame 0 — later
+                    // "successive" bolts stay dark until their 50ms slot, so
+                    // the crackle actually crackles instead of stacking all
+                    // four at once. (A cancelled reveal just leaves the bolt
+                    // invisible until the battle-FX sweep destroys it.)
+                    if (bolt > 0) {
+                        lightning.setAlpha(0);
+                        this.scheduleBattleCall(bolt * boltInterval, () => {
+                            if (lightning.active) lightning.setAlpha(1);
+                        });
+                    }
 
                     // Jagged branching path with unique random jitter per bolt
-                    lightning.beginPath();
-                    lightning.moveTo(boltLastTarget.x, boltLastTarget.y);
+                    let prevX = boltLastTarget.x;
+                    let prevY = boltLastTarget.y;
 
                     const segments = 6;
                     const jitter = layer === 0 ? 8 : 12;
@@ -3771,26 +4177,39 @@ export class MainScene extends Phaser.Scene {
                         const progress = j / segments;
                         const tx = boltLastTarget.x + (end.x - boltLastTarget.x) * progress;
                         const ty = boltLastTarget.y + (end.y - boltLastTarget.y) * progress;
-                        lightning.lineTo(
-                            tx + (Math.random() - 0.5) * jitter,
-                            ty + (Math.random() - 0.5) * jitter
-                        );
+                        const nx = tx + (Math.random() - 0.5) * jitter;
+                        const ny = ty + (Math.random() - 0.5) * jitter;
+                        pixelLine(lightning, prevX, prevY, nx, ny, thick, color, alpha);
+                        prevX = nx;
+                        prevY = ny;
                     }
-                    lightning.lineTo(end.x, end.y);
-                    lightning.strokePath();
+                    pixelLine(lightning, prevX, prevY, end.x, end.y, thick, color, alpha);
 
                     if (isFinalBolt) {
-                        // Final bolt fades out normally
+                        // Final bolt fades out normally. Explicit from:1 —
+                        // the bolt was created dark for its stagger slot and
+                        // the reveal timer can race this tween's start.
                         this.tweens.add({
                             targets: lightning,
-                            alpha: 0,
+                            alpha: { from: 1, to: 0 },
                             duration: 150 + layer * 50,
                             delay: bolt * boltInterval + idx * 40,
                             onComplete: () => lightning.destroy()
                         });
                     } else {
-                        // Non-final bolts get destroyed when next bolt appears
-                        this.scheduleBattleCall(bolt * boltInterval + boltInterval, () => lightning.destroy());
+                        // Non-final bolts die as the next bolt strikes. This is
+                        // a TWEEN, not a scheduleBattleCall: cancelBattleAsyncWork
+                        // removes battle timers WITHOUT firing them, which used
+                        // to strand up to 9 bolts forever on a fast exit. The
+                        // tween is killed by the battle-FX sweep, which also
+                        // destroys the registered bolt graphic itself.
+                        this.tweens.add({
+                            targets: lightning,
+                            alpha: 0,
+                            duration: 20,
+                            delay: bolt * boltInterval + boltInterval - 20,
+                            onComplete: () => lightning.destroy()
+                        });
                     }
                 }
 
@@ -3802,19 +4221,20 @@ export class MainScene extends Phaser.Scene {
         validTargets.forEach((t, idx) => {
             const end = IsoUtils.cartToIso(t.gridX, t.gridY);
             const impactDelay = (boltCount - 1) * boltInterval;
+            const impactFxDepth = depthForGroundEffect(t.gridX, t.gridY);
 
             // Electric spark particles at impact
             for (let s = 0; s < 4; s++) {
-                const spark = this.add.graphics();
-                spark.lineStyle(1, 0x88eeff, 0.8);
+                const spark = this.trackBattleFx(this.add.graphics());
                 const sparkLen = 5 + Math.random() * 10;
                 const sparkAngle = Math.random() * Math.PI * 2;
-                spark.lineBetween(
+                pixelLine(spark,
                     end.x, end.y,
                     end.x + Math.cos(sparkAngle) * sparkLen,
-                    end.y + Math.sin(sparkAngle) * sparkLen
+                    end.y + Math.sin(sparkAngle) * sparkLen,
+                    1, 0x88eeff, 0.8
                 );
-                spark.setDepth(10002);
+                spark.setDepth(impactFxDepth + 1);
                 this.tweens.add({
                     targets: spark,
                     alpha: 0,
@@ -3825,21 +4245,18 @@ export class MainScene extends Phaser.Scene {
             }
 
             // Glow at impact point
-            const impactGlow = this.add.circle(end.x, end.y, 8, 0x00ccff, 0.5);
-            impactGlow.setDepth(9999);
-            this.tweens.add({
-                targets: impactGlow,
-                scale: 2, alpha: 0,
-                duration: 200,
-                delay: impactDelay + idx * 40,
-                onComplete: () => impactGlow.destroy()
-            });
+            this.trackBattleFx(PixelFx.flash(this, end.x, end.y, {
+                r: 8, color: 0x00ccff, alpha: 0.5, scaleTo: 2,
+                life: 200, delay: impactDelay + idx * 40, depth: impactFxDepth
+            }));
 
-            // Use stats.damage instead of hardcoded 25
-            t.health -= stats.damage! / (idx + 1);
-            t.hasTakenDamage = true;
-            this.updateHealthBar(t);
-            if (t.health <= 0) this.destroyTroop(t);
+            // Damage lands WITH the visible final-bolt impact (150ms + chain
+            // step), not at cast time — the health bar used to drop before
+            // any bolt had visibly arrived. (Use stats.damage, not 25.)
+            const chainDamage = stats.damage! / (idx + 1);
+            this.scheduleBattleCall(impactDelay + idx * 40, () => {
+                if (t.health > 0) this.applyLocalTroopDamage(t, chainDamage);
+            });
         });
     }
 
@@ -3853,40 +4270,44 @@ export class MainScene extends Phaser.Scene {
         start.y -= 55; // From the crystal tip
         const end = IsoUtils.cartToIso(target.gridX, target.gridY);
 
-        // Calculate beam thickness based on time for pulsing effect
-        const pulseThickness = 8 + Math.sin(time / 30) * 4;
-        const coreThickness = 3 + Math.sin(time / 20) * 1.5;
-
         // Rainbow cycling color
         const hue = (time / 10) % 360;
         const beamColor = Phaser.Display.Color.HSLToColor(hue / 360, 1, 0.5).color;
         const glowColor = Phaser.Display.Color.HSLToColor(hue / 360, 1, 0.7).color;
 
+        // World-sorted beam depth via DepthSystem (refreshed every redraw —
+        // the target moves): the beam rides the projectile band at the
+        // FORWARD end of its span; the old fixed 10000s floated it over rows
+        // in front of the fight.
+        const prismCenterGX = prism.gridX + info.width / 2;
+        const prismCenterGY = prism.gridY + info.height / 2;
+        const beamDepth = Math.max(
+            depthForProjectile(prismCenterGX, prismCenterGY),
+            depthForProjectile(target.gridX, target.gridY)
+        );
+
         // Create or update the laser graphics
         if (!prism.prismLaserGraphics) {
             prism.prismLaserGraphics = this.add.graphics();
-            prism.prismLaserGraphics.setDepth(10000);
         }
         if (!prism.prismLaserCore) {
             prism.prismLaserCore = this.add.graphics();
-            prism.prismLaserCore.setDepth(10001);
         }
+        prism.prismLaserGraphics.setDepth(beamDepth);
+        prism.prismLaserCore.setDepth(beamDepth + 1);
 
         // Clear and redraw laser every frame
         prism.prismLaserGraphics.clear();
         prism.prismLaserCore.clear();
 
         // Outer glow beam
-        prism.prismLaserGraphics.lineStyle(pulseThickness + 8, glowColor, 0.3);
-        prism.prismLaserGraphics.lineBetween(start.x, start.y, end.x, end.y);
+        pixelLine(prism.prismLaserGraphics, start.x, start.y, end.x, end.y, 3, glowColor, 0.3);
 
         // Main beam with multiple layers for intense effect
-        prism.prismLaserGraphics.lineStyle(pulseThickness, beamColor, 0.9);
-        prism.prismLaserGraphics.lineBetween(start.x, start.y, end.x, end.y);
+        pixelLine(prism.prismLaserGraphics, start.x, start.y, end.x, end.y, 2, beamColor, 0.9);
 
         // Inner bright core
-        prism.prismLaserCore.lineStyle(coreThickness, 0xffffff, 1);
-        prism.prismLaserCore.lineBetween(start.x, start.y, end.x, end.y);
+        pixelLine(prism.prismLaserCore, start.x, start.y, end.x, end.y, 1, 0xffffff, 1);
 
 
         // Crazy sparkle particles along beam
@@ -3899,12 +4320,12 @@ export class MainScene extends Phaser.Scene {
                 const px = start.x + (end.x - start.x) * t + (Math.random() - 0.5) * 15;
                 const py = start.y + (end.y - start.y) * t + (Math.random() - 0.5) * 10;
 
-                const particle = this.add.graphics();
+                const particle = this.trackBattleFx(this.add.graphics());
                 const particleColor = Phaser.Display.Color.HSLToColor(((hue + Math.random() * 60) % 360) / 360, 1, 0.5).color;
-                particle.fillStyle(particleColor, 1);
-                particle.fillCircle(0, 0, 2 + Math.random() * 3);
+                const particleR = 2 + Math.random() * 3;
+                pixelEllipse(particle, 0, 0, particleR, particleR, particleColor, 1);
                 particle.setPosition(px, py);
-                particle.setDepth(10002);
+                particle.setDepth(beamDepth + 2);
 
                 // Particles fly outward
                 const perpAngle = angle + Math.PI / 2 * (Math.random() > 0.5 ? 1 : -1);
@@ -3944,10 +4365,10 @@ export class MainScene extends Phaser.Scene {
 
         if (distLast > 2) {
             // MOVING: Draw connected segment
-            const scorch = this.add.graphics();
+            const scorch = this.trackBattleFx(this.add.graphics());
 
-            scorch.lineStyle(6, 0x0a0505, 0.7); // Thick, dark charcoal
-            scorch.lineBetween(prism.prismTrailLastPos.x, prism.prismTrailLastPos.y, jaggedEndX, jaggedEndY);
+            // Thick, dark charcoal
+            pixelLine(scorch, prism.prismTrailLastPos.x, prism.prismTrailLastPos.y, jaggedEndX, jaggedEndY, 4, 0x0a0505, 0.7);
             scorch.setDepth(5);
 
             // Persist for a while, then fade out slowly
@@ -3964,12 +4385,11 @@ export class MainScene extends Phaser.Scene {
 
         } else if (time % 200 < 20) {
             // STATIONARY: Random scratch around target (static)
-            const scratch = this.add.graphics();
-            scratch.lineStyle(4, 0x0a0505, 0.6);
+            const scratch = this.trackBattleFx(this.add.graphics());
 
             const sx = end.x + (Math.random() - 0.5) * 15;
             const sy = end.y + (Math.random() - 0.5) * 15;
-            scratch.lineBetween(sx, sy, sx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 8);
+            pixelLine(scratch, sx, sy, sx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 8, 3, 0x0a0505, 0.6);
 
             scratch.setDepth(5);
 
@@ -3981,11 +4401,11 @@ export class MainScene extends Phaser.Scene {
             });
         }
 
-        // Impact sparkles at target
-        const impactGlow = this.add.graphics();
-        impactGlow.fillStyle(beamColor, 0.6);
-        impactGlow.fillCircle(end.x, end.y, 12 + Math.sin(time / 25) * 5);
-        impactGlow.setDepth(10003);
+        // Impact sparkles at target — ground-effect band at the impact tile.
+        const impactGlow = this.trackBattleFx(this.add.graphics());
+        const impactGlowR = 12 + Math.sin(time / 25) * 5;
+        pixelEllipse(impactGlow, end.x, end.y, impactGlowR, impactGlowR, beamColor, 0.6);
+        impactGlow.setDepth(depthForGroundEffect(target.gridX, target.gridY) + 1);
         this.tweens.add({
             targets: impactGlow,
             alpha: 0,
@@ -3993,11 +4413,10 @@ export class MainScene extends Phaser.Scene {
             onComplete: () => impactGlow.destroy()
         });
 
-        // Crystal charging glow
-        const crystalGlow = this.add.graphics();
-        crystalGlow.fillStyle(0xffffff, 0.4 + Math.sin(time / 15) * 0.3);
-        crystalGlow.fillCircle(start.x, start.y, 10);
-        crystalGlow.setDepth(10002);
+        // Crystal charging glow — rides just above the beam at the tower.
+        const crystalGlow = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(crystalGlow, start.x, start.y, 10, 10, 0xffffff, 0.4 + Math.sin(time / 15) * 0.3);
+        crystalGlow.setDepth(depthForProjectile(prismCenterGX, prismCenterGY) + 2);
         this.tweens.add({
             targets: crystalGlow,
             alpha: 0,
@@ -4009,11 +4428,7 @@ export class MainScene extends Phaser.Scene {
         if (prismDps > 0 && shouldApplyDamage) {
             prism.prismLastDamageTime = time;
             const damagePerTick = prismDps * (tickInterval / 1000);
-            target.health -= damagePerTick;
-            target.hasTakenDamage = true;
-            this.updateHealthBar(target);
-            if (target.health <= 0) {
-                this.destroyTroop(target);
+            if (this.applyLocalTroopDamage(target, damagePerTick) && target.health <= 0) {
                 this.cleanupPrismLaser(prism);
             }
         }
@@ -4036,7 +4451,10 @@ export class MainScene extends Phaser.Scene {
         prism.prismLastDamageTime = undefined;
     }
 
-    private shootFrostfallShard(frostfall: PlacedBuilding, time: number) {
+    // The dispatch passes the fire `time`, but every timestamp inside this
+    // effect must anchor on the clock at IMPACT (~4.8s later) — see the
+    // impactTime notes below — so the fire time is deliberately unused.
+    private shootFrostfallShard(frostfall: PlacedBuilding, _time: number): boolean {
         const info = BUILDINGS['frostfall'];
         const stats = this.getDefenseStats(frostfall);
         const damage = stats.damage || 15;
@@ -4060,7 +4478,9 @@ export class MainScene extends Phaser.Scene {
             }
         });
 
-        if (!bestTarget) return;
+        // Nothing in the monolith's own range: refuse the shot so the
+        // cooldown is not consumed (DefenseSystem honors a false return).
+        if (!bestTarget) return false;
 
         // Signal the renderer to start the trapdoor + crystal rise animation
         frostfall.isFiring = true;
@@ -4096,6 +4516,9 @@ export class MainScene extends Phaser.Scene {
                 });
                 if (!fallback) {
                     frostfall.frostfallProjectileActive = false;
+                    // Fire animation is over with nothing launched — without
+                    // this the 20fps stagger redraw stays defeated forever.
+                    frostfall.isFiring = false;
                     return; // No targets
                 }
                 // TS cannot see the assignment inside the forEach closure, so it
@@ -4108,49 +4531,16 @@ export class MainScene extends Phaser.Scene {
             const end = IsoUtils.cartToIso(targetX, targetY);
 
             // Create the projectile — smaller, matching renderer crystal size
-            const shard = this.add.graphics();
+            // (shape + level sizing live in ProjectileRenderer).
+            const shard = this.trackBattleFx(this.add.graphics());
 
-            // Simple diamond shape matching renderer
-            shard.fillStyle(0xaaddff, 0.9);
-            shard.beginPath();
-            shard.moveTo(0, -crystalHeight * 0.5);
-            shard.lineTo(crystalWidth * 0.5, 0);
-            shard.lineTo(0, crystalHeight * 0.5);
-            shard.lineTo(-crystalWidth * 0.5, 0);
-            shard.closePath();
-            shard.fillPath();
-
-            // Left face
-            shard.fillStyle(0x77bbee, 0.5);
-            shard.beginPath();
-            shard.moveTo(0, -crystalHeight * 0.5);
-            shard.lineTo(0, crystalHeight * 0.5);
-            shard.lineTo(-crystalWidth * 0.5, 0);
-            shard.closePath();
-            shard.fillPath();
-
-            // Highlight
-            shard.fillStyle(0xcceeFF, 0.4);
-            shard.beginPath();
-            shard.moveTo(0, -crystalHeight * 0.5);
-            shard.lineTo(crystalWidth * 0.5, 0);
-            shard.lineTo(crystalWidth * 0.15, -crystalHeight * 0.1);
-            shard.closePath();
-            shard.fillPath();
-
-            // Outline
-            shard.lineStyle(1, 0x5599cc, 0.6);
-            shard.strokePoints([
-                new Phaser.Math.Vector2(0, -crystalHeight * 0.5),
-                new Phaser.Math.Vector2(crystalWidth * 0.5, 0),
-                new Phaser.Math.Vector2(0, crystalHeight * 0.5),
-                new Phaser.Math.Vector2(-crystalWidth * 0.5, 0),
-            ], true, true);
-
-            // Start from the crystal's position near the top beam
+            // Start from the crystal's position near the top beam.
+            // Painter's-order depth along the ground track (per-frame below).
             const startY = start.y - baseHeight;
             shard.setPosition(start.x, startY);
-            shard.setDepth(10000);
+            shard.setDepth(depthForProjectile(centerX, centerY));
+            const shardBaked = this.syncProjectileSprite(shard, 'frostfall_shard', Math.min(level, 3), 0);
+            if (!shardBaked) ProjectileRenderer.drawFrostfallShard(shard, level);
 
             const travelTime = 600;
 
@@ -4172,87 +4562,95 @@ export class MainScene extends Phaser.Scene {
                     shard.setRotation(t * Math.PI * 0.4);
                     // Keep scale consistent (no growth)
                     shard.setScale(1.0);
+                    shard.setDepth(depthForProjectile(
+                        centerX + (targetX - centerX) * t,
+                        centerY + (targetY - centerY) * t));
+                    if (shardBaked) this.syncProjectileSprite(shard, 'frostfall_shard', Math.min(level, 3), t * Math.PI * 0.4);
                 },
                 onComplete: () => {
                     shard.destroy();
                     frostfall.frostfallProjectileActive = false; // New crystal can rise on next cycle
+                    // The fire-animation window (rise + swing + flight) ends
+                    // here. Only cannon used to reset isFiring; frostfall left
+                    // it stuck true, forcing a full redraw every frame for the
+                    // rest of the battle.
+                    frostfall.isFiring = false;
 
                     // === IMPACT: a real cold snap ===
                     this.cameras.main.shake(130, 0.0022);
 
                     // Pale flash of the freeze.
-                    const iceFlash = this.add.graphics();
+                    const iceFlash = this.trackBattleFx(this.add.graphics());
                     iceFlash.setBlendMode(Phaser.BlendModes.ADD);
-                    iceFlash.fillStyle(0xdcf2ff, 0.85);
-                    iceFlash.fillEllipse(0, 0, 30, 15);
+                    pixelEllipse(iceFlash, 0, 0, 15, 7.5, 0xdcf2ff, 0.85);
                     iceFlash.setPosition(end.x, end.y);
-                    iceFlash.setDepth(10004);
+                    iceFlash.setDepth(depthForGroundEffect(targetX, targetY) + 1);
                     this.tweens.add({ targets: iceFlash, alpha: 0, scale: 2.1, duration: 130, onComplete: () => iceFlash.destroy() });
 
                     // Frost rime rushes across the ground to the exact edge of
                     // the slow zone — the debuff painted where it applies.
-                    const rime = this.add.graphics();
+                    // STEPPED REDRAW while it rushes out (never a scale tween:
+                    // the cells must stay 1.35px at every radius).
+                    const rime = this.trackBattleFx(this.add.graphics());
                     const rimeR = 2.5 * 32; // AoE radius in iso px (half-width)
-                    rime.lineStyle(2, 0xcfeaff, 0.75);
-                    rime.strokeEllipse(0, 0, rimeR * 2, rimeR);
-                    rime.fillStyle(0xdcf2ff, 0.16);
-                    rime.fillEllipse(0, 0, rimeR * 2, rimeR);
-                    // Rime crystals sparkling inside the ring.
-                    for (let i = 0; i < 14; i++) {
-                        const a = (i / 14) * Math.PI * 2 + 0.4;
-                        const rr = rimeR * (0.35 + ((i * 37) % 10) / 16);
-                        rime.fillStyle(0xffffff, 0.55);
-                        rime.fillTriangle(
-                            Math.cos(a) * rr, Math.sin(a) * rr * 0.5 - 2,
-                            Math.cos(a) * rr - 1.6, Math.sin(a) * rr * 0.5 + 1.2,
-                            Math.cos(a) * rr + 1.6, Math.sin(a) * rr * 0.5 + 1.2
-                        );
-                    }
+                    const drawRime = (p: number) => {
+                        rime.clear();
+                        const r = rimeR * (0.2 + 0.8 * p);
+                        this.pixelRing(rime, 0, 0, r, r / 2, 1, 0xcfeaff, 0.75);
+                        pixelEllipse(rime, 0, 0, r, r / 2, 0xdcf2ff, 0.16);
+                        // Rime crystals sparkling inside the ring.
+                        for (let i = 0; i < 14; i++) {
+                            const a = (i / 14) * Math.PI * 2 + 0.4;
+                            const rr = r * (0.35 + ((i * 37) % 10) / 16);
+                            pixelBitmap(rime,
+                                Math.cos(a) * rr - 1.5 * PIXEL_CELL, Math.sin(a) * rr * 0.5 - 2,
+                                ['.f.', 'fff'], { f: 0xffffff }, 0.55);
+                        }
+                    };
+                    drawRime(0);
                     rime.setPosition(end.x, end.y);
                     rime.setDepth(7);
-                    rime.setScale(0.2);
                     rime.setAlpha(0.9);
-                    this.tweens.add({ targets: rime, scaleX: 1, scaleY: 1, duration: 240, ease: 'Cubic.easeOut' });
+                    const rimeRush = { p: 0 };
+                    this.trackBattleFxTween(this.tweens.add({
+                        targets: rimeRush, p: 1, duration: 240, ease: 'Cubic.easeOut',
+                        onUpdate: () => { if (rime.active) drawRime(rimeRush.p); }
+                    }));
                     this.tweens.add({ targets: rime, alpha: 0, delay: 2600, duration: 1600, onComplete: () => rime.destroy() });
 
-                    // The EMBEDDED crystal, stuck tip-up in the ground.
-                    const embedded = this.add.graphics();
+                    // The EMBEDDED crystal, stuck tip-up in the ground —
+                    // scanline-rasterized in whole cells (body, shaded left
+                    // facet, crown light), no AA fill paths on the live layer.
+                    const embedded = this.trackBattleFx(this.add.graphics());
                     const embedHeight = crystalHeight;
                     const embedWidth = crystalWidth;
-                    embedded.fillStyle(0xaaddff, 0.92);
-                    embedded.beginPath();
-                    embedded.moveTo(0, -embedHeight * 0.8);
-                    embedded.lineTo(embedWidth * 0.5, -embedHeight * 0.3);
-                    embedded.lineTo(0, embedHeight * 0.1);
-                    embedded.lineTo(-embedWidth * 0.5, -embedHeight * 0.3);
-                    embedded.closePath();
-                    embedded.fillPath();
-                    embedded.fillStyle(0x77bbee, 0.5);
-                    embedded.beginPath();
-                    embedded.moveTo(0, -embedHeight * 0.8);
-                    embedded.lineTo(0, embedHeight * 0.1);
-                    embedded.lineTo(-embedWidth * 0.5, -embedHeight * 0.3);
-                    embedded.closePath();
-                    embedded.fillPath();
-                    embedded.fillStyle(0xcceeFF, 0.4);
-                    embedded.beginPath();
-                    embedded.moveTo(0, -embedHeight * 0.8);
-                    embedded.lineTo(embedWidth * 0.5, -embedHeight * 0.3);
-                    embedded.lineTo(embedWidth * 0.15, -embedHeight * 0.5);
-                    embedded.closePath();
-                    embedded.fillPath();
-                    embedded.lineStyle(1, 0x5599cc, 0.6);
-                    embedded.beginPath();
-                    embedded.moveTo(0, -embedHeight * 0.8);
-                    embedded.lineTo(embedWidth * 0.5, -embedHeight * 0.3);
-                    embedded.lineTo(0, embedHeight * 0.1);
-                    embedded.lineTo(-embedWidth * 0.5, -embedHeight * 0.3);
-                    embedded.closePath();
-                    embedded.strokePath();
+                    // Half-width of the rhombus at local yy: 0 at the tip
+                    // (-0.8H), widest at the shoulder (-0.3H), 0 at +0.1H.
+                    const crystalHalfW = (yy: number): number => {
+                        if (yy <= -embedHeight * 0.3) {
+                            return embedWidth * 0.5 * (yy + embedHeight * 0.8) / (embedHeight * 0.5);
+                        }
+                        return embedWidth * 0.5 * (embedHeight * 0.1 - yy) / (embedHeight * 0.4);
+                    };
+                    for (let yy = -embedHeight * 0.8; yy < embedHeight * 0.1; yy += PIXEL_CELL) {
+                        const hw = Math.max(0, crystalHalfW(yy + PIXEL_CELL / 2));
+                        if (hw < 0.3) continue;
+                        pixelRect(embedded, -hw, yy, hw * 2, PIXEL_CELL, 0xaaddff, 0.92);
+                        // Left interior facet, in shadow.
+                        pixelRect(embedded, -hw, yy, hw, PIXEL_CELL, 0x77bbee, 0.5);
+                        // Crown light on the upper-right facet.
+                        if (yy > -embedHeight * 0.75 && yy < -embedHeight * 0.5) {
+                            pixelRect(embedded, hw * 0.25, yy, hw * 0.75, PIXEL_CELL, 0xcceeff, 0.4);
+                        }
+                    }
+                    pixelLine(embedded, 0, -embedHeight * 0.8, embedWidth * 0.5, -embedHeight * 0.3, 1, 0x5599cc, 0.6);
+                    pixelLine(embedded, embedWidth * 0.5, -embedHeight * 0.3, 0, embedHeight * 0.1, 1, 0x5599cc, 0.6);
+                    pixelLine(embedded, 0, embedHeight * 0.1, -embedWidth * 0.5, -embedHeight * 0.3, 1, 0x5599cc, 0.6);
+                    pixelLine(embedded, -embedWidth * 0.5, -embedHeight * 0.3, 0, -embedHeight * 0.8, 1, 0x5599cc, 0.6);
                     // Painter's order at its own tile — the crystal stands IN
                     // the world (in front of walls behind it, behind troops
                     // that walk past), instead of hiding under everything.
-                    const crystalDepth = 1000 + (targetX + targetY) * 100 + 60;
+                    const crystalDepth = depthForProjectile(targetX, targetY);
                     embedded.setDepth(crystalDepth);
                     // It EMBEDS: arrives above the dirt and rams itself in —
                     // a hard drop, a squash, and a ring of broken earth.
@@ -4265,19 +4663,16 @@ export class MainScene extends Phaser.Scene {
                         ease: 'Quad.easeIn',
                         onComplete: () => {
                             // Broken soil heaped around the shaft.
-                            const mound = this.add.graphics();
-                            mound.fillStyle(0x5c4c34, 0.8);
-                            mound.fillEllipse(0, 0, 16, 6);
-                            mound.fillStyle(0x6e5c3e, 0.9);
-                            mound.fillEllipse(-4, -1, 6, 2.6);
-                            mound.fillEllipse(5, 0.5, 5, 2.2);
+                            const mound = this.trackBattleFx(this.add.graphics());
+                            pixelEllipse(mound, 0, 0, 8, 3, 0x5c4c34, 0.8);
+                            pixelEllipse(mound, -4, -1, 3, 1.3, 0x6e5c3e, 0.9);
+                            pixelEllipse(mound, 5, 0.5, 2.5, 1.1, 0x6e5c3e, 0.9);
                             mound.setPosition(end.x, end.y + 3);
                             mound.setDepth(crystalDepth - 1);
                             this.tweens.add({ targets: mound, alpha: 0, delay: 6200, duration: 1200, onComplete: () => mound.destroy() });
                             for (let d = 0; d < 4; d++) {
-                                const clod = this.add.graphics();
-                                clod.fillStyle(0x6e5c3e, 0.95);
-                                clod.fillEllipse(0, 0, 3, 2);
+                                const clod = this.trackBattleFx(this.add.graphics());
+                                pixelEllipse(clod, 0, 0, 1.5, 1, 0x6e5c3e, 0.95);
                                 clod.setPosition(end.x, end.y + 1);
                                 clod.setDepth(crystalDepth + 1);
                                 const ca = Math.random() * Math.PI * 2;
@@ -4299,25 +4694,25 @@ export class MainScene extends Phaser.Scene {
                     // spreads by exactly that much, streaks run down its
                     // faces, drips fall from the tip, and at the end it
                     // collapses with a splash and the puddle dries.
-                    const puddle = this.add.graphics();
-                    puddle.fillStyle(0x6fb4e8, 0.42);
-                    puddle.fillEllipse(0, 2, 44, 20);
-                    puddle.fillStyle(0xa8d8f8, 0.35);
-                    puddle.fillEllipse(-3, 1, 26, 11);
-                    puddle.fillStyle(0xe8f6ff, 0.5);
-                    puddle.fillEllipse(-7, -1, 7, 3);
+                    const puddle = this.trackBattleFx(this.add.graphics());
+                    pixelEllipse(puddle, 0, 2, 22, 10, 0x6fb4e8, 0.42);
+                    pixelEllipse(puddle, -3, 1, 13, 5.5, 0xa8d8f8, 0.35);
+                    pixelEllipse(puddle, -7, -1, 3.5, 1.5, 0xe8f6ff, 0.5);
                     puddle.setPosition(end.x, end.y + 2);
                     puddle.setDepth(6);
                     puddle.setScale(0.1);
                     puddle.setAlpha(0);
 
-                    const meltFx = this.add.graphics();
+                    const meltFx = this.trackBattleFx(this.add.graphics());
                     meltFx.setPosition(end.x, end.y);
                     meltFx.setDepth(crystalDepth + 1);
 
                     const melt = { t: 0 };
                     let lastDripAt = 0;
-                    this.tweens.add({
+                    // Tracked: this progress tween spawns drip graphics from
+                    // onUpdate — left running after a scene swap it would keep
+                    // sprinkling meltwater over the home lawn for 6.5s.
+                    this.trackBattleFxTween(this.tweens.add({
                         targets: melt,
                         t: 1,
                         duration: 6500,
@@ -4336,22 +4731,19 @@ export class MainScene extends Phaser.Scene {
                             meltFx.clear();
                             if (t < 0.94) {
                                 const topY = -embedHeight * 0.8 * (1 - t * 0.98);
-                                meltFx.lineStyle(1.2, 0xe8f6ff, 0.7 * (1 - t * 0.5));
-                                meltFx.lineBetween(-embedWidth * 0.4 * (1 + t * 0.4), topY * 0.45, embedWidth * 0.4 * (1 + t * 0.4), topY * 0.55);
+                                pixelLine(meltFx, -embedWidth * 0.4 * (1 + t * 0.4), topY * 0.45, embedWidth * 0.4 * (1 + t * 0.4), topY * 0.55, 1, 0xe8f6ff, 0.7 * (1 - t * 0.5));
                                 for (let s = 0; s < 3; s++) {
                                     const run = ((t * 3.2 + s * 0.37) % 1);
                                     const sx = (s - 1) * embedWidth * 0.24 * (1 + t * 0.4);
-                                    meltFx.lineStyle(1, 0xbfe4ff, 0.65 * (1 - run));
-                                    meltFx.lineBetween(sx, topY * (1 - run * 0.8), sx + 0.8, topY * (1 - run * 0.8) + 4.5);
+                                    pixelLine(meltFx, sx, topY * (1 - run * 0.8), sx + 0.8, topY * (1 - run * 0.8) + 4.5, 1, 0xbfe4ff, 0.65 * (1 - run));
                                 }
                             }
                             // Drips off the tip, steady as a thaw.
                             const now = this.time.now;
                             if (now - lastDripAt > 420 && melt.t > 0.08 && melt.t < 0.92) {
                                 lastDripAt = now;
-                                const drip = this.add.graphics();
-                                drip.fillStyle(0xbfe4ff, 0.85);
-                                drip.fillEllipse(0, 0, 2, 3);
+                                const drip = this.trackBattleFx(this.add.graphics());
+                                pixelEllipse(drip, 0, 0, 1, 1.5, 0xbfe4ff, 0.85);
                                 const tipY = end.y - embedHeight * 0.8 * (1 - melt.t * 0.98);
                                 drip.setPosition(end.x + (Math.random() - 0.5) * embedWidth * 0.5, tipY);
                                 drip.setDepth(crystalDepth + 2);
@@ -4364,8 +4756,7 @@ export class MainScene extends Phaser.Scene {
                                     onComplete: () => {
                                         // A tiny ripple where it lands.
                                         drip.clear();
-                                        drip.lineStyle(1, 0xd8eeff, 0.5);
-                                        drip.strokeEllipse(0, 0, 4, 2);
+                                        this.pixelRing(drip, 0, 0, 2, 1, 1, 0xd8eeff, 0.5);
                                         this.tweens.add({ targets: drip, alpha: 0, scale: 2, duration: 260, onComplete: () => drip.destroy() });
                                     }
                                 });
@@ -4375,9 +4766,8 @@ export class MainScene extends Phaser.Scene {
                             // The last of it collapses — one soft splash ring.
                             meltFx.destroy();
                             embedded.destroy();
-                            const splash = this.add.graphics();
-                            splash.lineStyle(1.4, 0xd8eeff, 0.7);
-                            splash.strokeEllipse(0, 0, 12, 6);
+                            const splash = this.trackBattleFx(this.add.graphics());
+                            this.pixelRing(splash, 0, 0, 6, 3, 1, 0xd8eeff, 0.7);
                             splash.setPosition(end.x, end.y + 2);
                             splash.setDepth(crystalDepth + 1);
                             this.tweens.add({ targets: splash, alpha: 0, scale: 2.4, duration: 320, onComplete: () => splash.destroy() });
@@ -4385,20 +4775,20 @@ export class MainScene extends Phaser.Scene {
                             // ...and the sun takes the puddle back.
                             this.tweens.add({ targets: puddle, alpha: 0, delay: 1500, duration: 2800, ease: 'Quad.easeIn', onComplete: () => puddle.destroy() });
                         }
-                    });
+                    }));
 
                     // === ICE SHATTER FRAGMENTS on impact ===
+                    // Chunky cell diamonds (two sizes) — no AA fill paths.
                     for (let i = 0; i < 12; i++) {
-                        const frag = this.add.graphics();
-                        frag.fillStyle(i % 3 === 0 ? 0xdcf2ff : (i % 3 === 1 ? 0xaaddff : 0x88ccff), 0.95);
-                        const fragSize = 2 + Math.random() * 4.4;
-                        frag.beginPath();
-                        frag.moveTo(0, -fragSize);
-                        frag.lineTo(fragSize * 0.6, 0);
-                        frag.lineTo(0, fragSize * 0.5);
-                        frag.lineTo(-fragSize * 0.6, 0);
-                        frag.closePath();
-                        frag.fillPath();
+                        const frag = this.trackBattleFx(this.add.graphics());
+                        const fragColor = i % 3 === 0 ? 0xdcf2ff : (i % 3 === 1 ? 0xaaddff : 0x88ccff);
+                        if (Math.random() > 0.45) {
+                            pixelBitmap(frag, -2.5 * PIXEL_CELL, -2.5 * PIXEL_CELL,
+                                ['..f..', '.fff.', 'fffff', '.fff.', '..f..'], { f: fragColor }, 0.95);
+                        } else {
+                            pixelBitmap(frag, -1.5 * PIXEL_CELL, -1.5 * PIXEL_CELL,
+                                ['.f.', 'fff', '.f.'], { f: fragColor }, 0.95);
+                        }
                         frag.setPosition(end.x, end.y - embedHeight * 0.3);
                         frag.setDepth(10001);
                         const fragAngle = (i / 12) * Math.PI * 2;
@@ -4416,6 +4806,13 @@ export class MainScene extends Phaser.Scene {
                     }
 
                     // === APPLY AOE DAMAGE AND DEBUFF ===
+                    // Impact happens ~4.8s after the captured fire `time`
+                    // (4200ms crystal rise + 600ms flight). The knockback and
+                    // pause windows must anchor on the clock NOW — stamped on
+                    // the stale fire time they are born expired and the
+                    // impulse never integrates (updateTroops gates the shove
+                    // on `now < knockbackUntil`).
+                    const impactTime = this.time.now;
                     this.troops.forEach(troop => {
                         if (troop.health <= 0 || troop.owner === frostfall.owner) return;
 
@@ -4424,30 +4821,32 @@ export class MainScene extends Phaser.Scene {
                         const distToImpact = Math.sqrt(dx * dx + dy * dy);
 
                         if (distToImpact <= 2.5) {
-                            troop.health -= damage;
-                            troop.hasTakenDamage = true;
-                            this.updateHealthBar(troop);
-
-                            (troop as any).chillRemainingMs = 4000; // Massive Slow
-
-                            // Physical Pushback & Stun
-                            if (troop.velocityX !== undefined && troop.velocityY !== undefined && distToImpact > 0.1) {
-                                troop.velocityX += (dx / distToImpact) * 5;
-                                troop.velocityY += (dy / distToImpact) * 5;
-                                troop.retargetPauseUntil = time + 600;
-                            }
-
                             // Hit flash on troop
                             const troopPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
                             particleManager.emitHitFlash(troopPos.x, troopPos.y, 10006);
 
-                            if (troop.health <= 0) {
-                                this.destroyTroop(troop);
+                            if (this.applyLocalTroopDamage(troop, damage)) {
+                                (troop as any).chillRemainingMs = 4000; // Massive Slow
+
+                                // Physical Pushback & Stun: a per-frame
+                                // impulse (grid units/frame) integrated by
+                                // the knockback window in updateTroops via
+                                // the collision resolver — total shove ≈ 1
+                                // tile as the pause branch decays it.
+                                if (distToImpact > 0.1) {
+                                    troop.velocityX = (troop.velocityX ?? 0) + (dx / distToImpact) * 0.45;
+                                    troop.velocityY = (troop.velocityY ?? 0) + (dy / distToImpact) * 0.45;
+                                    troop.knockbackUntil = impactTime + 450;
+                                    troop.retargetPauseUntil = impactTime + 600;
+                                }
                             }
                         }
                     });
 
-                    // Emit frost burst particles
+                    // Emit frost burst particles — stamped with the IMPACT
+                    // clock, not the ~4.8s-stale fire `time` (a stale stamp
+                    // makes the tracker's lifetime math treat them as long
+                    // expired).
                     if (particleManager) {
                         for (let i = 0; i < 30; i++) {
                             const angle = Math.random() * Math.PI * 2;
@@ -4456,14 +4855,15 @@ export class MainScene extends Phaser.Scene {
                                 `${frostfall.id}:chill-burst:${i}`,
                                 end.x + Math.cos(angle) * r,
                                 end.y + Math.sin(angle) * r * 0.5 - 10,
-                                time,
-                                10001
+                                impactTime,
+                                depthForGroundEffect(targetX, targetY)
                             );
                         }
                     }
                 }
             });
         });
+        return true;
     }
 
     private showArcherProjectile(troop: Troop, target: PlacedBuilding, damage: number) {
@@ -4490,18 +4890,20 @@ export class MainScene extends Phaser.Scene {
 
         // Arrow drawn identical to the nocked arrow in TroopRenderer (small,
         // villager-scale) so the loosed shaft is the one we saw on the string.
-        const arrow = this.add.graphics();
-        arrow.fillStyle(0x4a341f, 1);
-        arrow.fillRect(-4.5, -0.6, 9, 1.2);
-        arrow.fillStyle(0xaab0ba, 1);
-        arrow.fillTriangle(7, 0, 4.5, -1.4, 4.5, 1.4);
-        arrow.fillStyle(0x2e7d32, 1);
-        arrow.fillTriangle(-4.5, 0, -2.8, -1.6, -2.8, 1.6);
+        const arrow = this.trackBattleFx(this.add.graphics());
+
+        // Painter's-order depth along the shot's ground track.
+        const launchGX = troop.gridX;
+        const launchGY = troop.gridY;
+        const shotTargetGX = target.gridX + info.width / 2;
+        const shotTargetGY = target.gridY + info.height / 2;
 
         // Leave from the bow itself (arm's reach toward the aim, chest high).
         arrow.setPosition(start.x + Math.cos(angle) * 5.2, start.y - 4 + Math.sin(angle) * 2.6);
         arrow.setRotation(angle);
-        arrow.setDepth(10000);
+        arrow.setDepth(depthForProjectile(launchGX, launchGY));
+        const arrowBaked = this.syncProjectileSprite(arrow, 'arrow', 1, angle);
+        if (!arrowBaked) ProjectileRenderer.drawArcherArrow(arrow);
 
         // Straight line trajectory
         const endY = end.y - 25;
@@ -4512,6 +4914,13 @@ export class MainScene extends Phaser.Scene {
             y: endY,
             duration: 200,
             ease: 'Linear',
+            onUpdate: (tween) => {
+                const t = tween.progress;
+                arrow.setDepth(depthForProjectile(
+                    launchGX + (shotTargetGX - launchGX) * t,
+                    launchGY + (shotTargetGY - launchGY) * t));
+                if (arrowBaked) this.syncProjectileSprite(arrow, 'arrow', 1, angle);
+            },
             onComplete: () => {
                 arrow.destroy();
 
@@ -4531,26 +4940,14 @@ export class MainScene extends Phaser.Scene {
                 }
 
                 // Small impact effect
-                const thud = this.add.circle(end.x, endY, 3, 0x8b4513, 0.6);
-                thud.setDepth(100);
-                this.tweens.add({ targets: thud, scale: 0.5, alpha: 0, duration: 120, onComplete: () => thud.destroy() });
+                this.trackBattleFx(PixelFx.flash(this, end.x, endY, { r: 3, color: 0x8b4513, alpha: 0.6, scaleTo: 0.5, life: 120, depth: depthForGroundEffect(shotTargetGX, shotTargetGY) }));
 
                 // Impact sparkle
-                for (let i = 0; i < 2; i++) {
-                    const spark = this.add.circle(
-                        end.x + (Math.random() - 0.5) * 8,
-                        endY + (Math.random() - 0.5) * 8,
-                        1.5, 0x88ccff, 0.7
-                    );
-                    spark.setDepth(101);
-                    this.tweens.add({
-                        targets: spark,
-                        y: spark.y - 8,
-                        alpha: 0,
-                        duration: 80,
-                        onComplete: () => spark.destroy()
-                    });
-                }
+                PixelFx.burst(this, end.x, endY, {
+                    count: 2, colors: [0x88ccff], alpha: 0.7, r: 1.5,
+                    spread: 8, spreadY: 8, speed: 0, up: 8, life: 80,
+                    depth: depthForGroundEffect(shotTargetGX, shotTargetGY) + 1
+                });
             }
         });
     }
@@ -4593,17 +4990,22 @@ export class MainScene extends Phaser.Scene {
         const mx = start.x + Math.cos(angle) * barrelLen;
         const my = start.y - 7 + Math.sin(angle) * 0.5 * barrelLen;
 
-        const ball = this.add.graphics();
-        ball.fillStyle(0x2a2d33, 1);
-        ball.fillCircle(0, 0, 1.4);
-        ball.fillStyle(0x9aa0aa, 0.9);
-        ball.fillCircle(-0.4, -0.4, 0.5);
+        // Painter's-order depth along the shot's ground track.
+        const launchGX = troop.gridX;
+        const launchGY = troop.gridY;
+        const tInfo = BUILDINGS[targetBuilding.type];
+        const shotTargetGX = targetBuilding.gridX + tInfo.width / 2;
+        const shotTargetGY = targetBuilding.gridY + tInfo.height / 2;
+
+        const ball = this.trackBattleFx(this.add.graphics());
         ball.setPosition(mx, my);
-        ball.setDepth(10000);
+        ball.setDepth(depthForProjectile(launchGX, launchGY));
+        const ballBaked = this.syncProjectileSprite(ball, 'musket_ball', 1, 0, 1);
+        if (!ballBaked) ProjectileRenderer.drawSharpshooterBall(ball);
 
         // Tracer line that fades behind the ball.
-        const trail = this.add.graphics();
-        trail.setDepth(9999);
+        const trail = this.trackBattleFx(this.add.graphics());
+        trail.setDepth(ball.depth - 1);
 
         const endY = end.y - 14;
         const dist = Math.sqrt((end.x - mx) ** 2 + (endY - my) ** 2);
@@ -4615,10 +5017,15 @@ export class MainScene extends Phaser.Scene {
             y: endY,
             duration: duration,
             ease: 'Linear',
-            onUpdate: () => {
+            onUpdate: (tween) => {
+                const t = tween.progress;
+                ball.setDepth(depthForProjectile(
+                    launchGX + (shotTargetGX - launchGX) * t,
+                    launchGY + (shotTargetGY - launchGY) * t));
+                if (ballBaked) this.syncProjectileSprite(ball, 'musket_ball', 1, 0, 1);
                 trail.clear();
-                trail.lineStyle(1.2, 0xe8e2d0, 0.35);
-                trail.lineBetween(mx, my, ball.x, ball.y);
+                trail.setDepth(ball.depth - 1);
+                pixelLine(trail, mx, my, ball.x, ball.y, 1, 0xe8e2d0, 0.35);
             },
             onComplete: () => {
                 ball.destroy();
@@ -4634,9 +5041,7 @@ export class MainScene extends Phaser.Scene {
                 }
 
                 // Stone-chip impact: a grey dust pop, no arrow thud.
-                const thud = this.add.circle(end.x, endY, 5, 0x8a8478, 0.7);
-                thud.setDepth(100);
-                this.tweens.add({ targets: thud, scale: 0.3, alpha: 0, duration: 150, onComplete: () => thud.destroy() });
+                this.trackBattleFx(PixelFx.flash(this, end.x, endY, { r: 5, color: 0x8a8478, alpha: 0.7, scaleTo: 0.3, life: 150, depth: depthForGroundEffect(shotTargetGX, shotTargetGY) }));
             }
         });
     }
@@ -4681,22 +5086,27 @@ export class MainScene extends Phaser.Scene {
             }
         });
 
+        // Painter's-order depth along the shot's ground track (the two tween
+        // phases below each cover half of it).
+        const launchGX = troop.gridX;
+        const launchGY = troop.gridY;
+        const shotTargetGX = target.gridX + info.width / 2;
+        const shotTargetGY = target.gridY + info.height / 2;
+
         // Mortar shell - spawns from the mortar position
-        const shell = this.add.graphics();
-        shell.fillStyle(0x3a3a3a, 1);
-        shell.fillCircle(0, 0, 5);
-        shell.fillStyle(0x555555, 1);
-        shell.fillCircle(-1.5, -1.5, 2.5);
+        const shell = this.trackBattleFx(this.add.graphics());
         shell.setPosition(mortarX, mortarY);
-        shell.setDepth(10000);
+        shell.setDepth(depthForProjectile(launchGX, launchGY));
+        const shellBaked = this.syncProjectileSprite(shell, 'mm_shell', 1, 0, 1);
+        if (!shellBaked) ProjectileRenderer.drawMobileMortarShell(shell);
 
         // Muzzle flash at mortar position
-        particleManager.emitHitFlash(mortarX, mortarY, 10001);
+        particleManager.emitHitFlash(mortarX, mortarY, depthForGroundEffect(launchGX, launchGY));
 
         // THIN BLACK SMOKE - rising slowly from mortar muzzle
         for (let i = 0; i < 6; i++) {
             this.scheduleBattleCall(i * 80, () => {
-                particleManager.emitDustBurst(mortarX, mortarY, 10002);
+                particleManager.emitDustBurst(mortarX, mortarY, depthForGroundEffect(launchGX, launchGY) + 1);
             });
         }
 
@@ -4708,17 +5118,31 @@ export class MainScene extends Phaser.Scene {
             targets: shell,
             x: { value: (start.x + end.x) / 2, duration: 300, ease: 'Linear' },
             y: { value: midY, duration: 300, ease: 'Quad.easeOut' },
+            onUpdate: (tween) => {
+                const t = tween.progress * 0.5; // first half of the ground track
+                shell.setDepth(depthForProjectile(
+                    launchGX + (shotTargetGX - launchGX) * t,
+                    launchGY + (shotTargetGY - launchGY) * t));
+                if (shellBaked) this.syncProjectileSprite(shell, 'mm_shell', 1, 0, 1);
+            },
             onComplete: () => {
                 this.tweens.add({
                     targets: shell,
                     x: { value: end.x, duration: 300, ease: 'Linear' },
                     y: { value: endY, duration: 300, ease: 'Quad.easeIn' },
+                    onUpdate: (tween) => {
+                        const t = 0.5 + tween.progress * 0.5; // second half of the track
+                        shell.setDepth(depthForProjectile(
+                            launchGX + (shotTargetGX - launchGX) * t,
+                            launchGY + (shotTargetGY - launchGY) * t));
+                        if (shellBaked) this.syncProjectileSprite(shell, 'mm_shell', 1, 0, 1);
+                    },
                     onComplete: () => {
                         shell.destroy();
 
                         // Explosion effect
                         this.cameras.main.shake(25, 0.001);
-                        particleManager.emitExplosion(end.x, endY, 5000);
+                        particleManager.emitExplosion(end.x, endY, depthForGroundEffect(shotTargetGX, shotTargetGY));
 
                         // Splash damage to all buildings in radius
                         const targetInfo = BUILDINGS[target.type];
@@ -4771,9 +5195,14 @@ export class MainScene extends Phaser.Scene {
 
         // Initial Zap Visual (Troop -> First Target)
         // Start from the staff crystal (raised two-handed while casting).
+        // The bolt spans two tiles: painter depth of the FRONT endpoint so it
+        // clears both, while rows in front of both still cover it.
         const staffTipX = start.x + 3.5;
         const staffTipY = start.y - 16;
-        this.drawLightningBolt(staffTipX, staffTipY, end.x, end.y - 15, 0x00ffff);
+        this.drawLightningBolt(staffTipX, staffTipY, end.x, end.y - 15, 0x00ffff,
+            Math.max(
+                depthForProjectile(troop.gridX, troop.gridY),
+                depthForProjectile(target.gridX + info.width / 2, target.gridY + info.height / 2)));
 
         // Apply damage to primary
         this.applyLightningDamage(target, damage);
@@ -4793,7 +5222,10 @@ export class MainScene extends Phaser.Scene {
                     const nInfo = BUILDINGS[nextTarget.type];
                     const nPos = IsoUtils.cartToIso(nextTarget.gridX + nInfo.width / 2, nextTarget.gridY + nInfo.height / 2);
 
-                    this.drawLightningBolt(pPos.x, pPos.y - 15, nPos.x, nPos.y - 15, 0x00ccff);
+                    this.drawLightningBolt(pPos.x, pPos.y - 15, nPos.x, nPos.y - 15, 0x00ccff,
+                        Math.max(
+                            depthForProjectile(previous.gridX + pInfo.width / 2, previous.gridY + pInfo.height / 2),
+                            depthForProjectile(nextTarget.gridX + nInfo.width / 2, nextTarget.gridY + nInfo.height / 2)));
                     this.applyLightningDamage(nextTarget, currentDamage);
 
                     currentDamage *= 0.8; // Further decay
@@ -4842,14 +5274,12 @@ export class MainScene extends Phaser.Scene {
         return found;
     }
 
-    private drawLightningBolt(x1: number, y1: number, x2: number, y2: number, color: number) {
-        const graphics = this.add.graphics();
-        graphics.setDepth(20000);
+    private drawLightningBolt(x1: number, y1: number, x2: number, y2: number, color: number, depth: number) {
+        const graphics = this.trackBattleFx(this.add.graphics());
+        graphics.setDepth(depth);
 
-        // Draw main bolt
-        graphics.lineStyle(2, color, 1);
-        graphics.beginPath();
-        graphics.moveTo(x1, y1);
+        // Jittered bolt path, stroked twice below (main pass, then glow pass).
+        const boltPts: Array<{ x: number; y: number }> = [{ x: x1, y: y1 }];
 
         const dist = Phaser.Math.Distance.Between(x1, y1, x2, y2);
         // Ensure steps is at least 2 to prevent loops
@@ -4869,7 +5299,7 @@ export class MainScene extends Phaser.Scene {
             const px = tx + Math.cos(angle + Math.PI / 2) * jitter;
             const py = ty + Math.sin(angle + Math.PI / 2) * jitter;
 
-            graphics.lineTo(px, py);
+            boltPts.push({ x: px, y: py });
             cx = px;
             cy = py;
 
@@ -4880,10 +5310,9 @@ export class MainScene extends Phaser.Scene {
                 const fx = cx + Math.cos(forkAngle) * forkLen;
                 const fy = cy + Math.sin(forkAngle) * forkLen;
 
-                const fork = this.add.graphics();
-                fork.setDepth(20000);
-                fork.lineStyle(1, color, 0.7);
-                fork.lineBetween(cx, cy, fx, fy);
+                const fork = this.trackBattleFx(this.add.graphics());
+                fork.setDepth(depth);
+                pixelLine(fork, cx, cy, fx, fy, 1, color, 0.7);
                 this.tweens.add({
                     targets: fork,
                     alpha: 0,
@@ -4892,12 +5321,16 @@ export class MainScene extends Phaser.Scene {
                 });
             }
         }
-        graphics.lineTo(x2, y2);
-        graphics.strokePath();
+        boltPts.push({ x: x2, y: y2 });
+        // Draw main bolt
+        for (let i = 1; i < boltPts.length; i++) {
+            pixelLine(graphics, boltPts[i - 1].x, boltPts[i - 1].y, boltPts[i].x, boltPts[i].y, 1, color, 1);
+        }
 
         // Glow effect
-        graphics.lineStyle(6, color, 0.3);
-        graphics.strokePath();
+        for (let i = 1; i < boltPts.length; i++) {
+            pixelLine(graphics, boltPts[i - 1].x, boltPts[i - 1].y, boltPts[i].x, boltPts[i].y, 4, color, 0.3);
+        }
 
         // Fast Fade out
         this.tweens.add({
@@ -4933,6 +5366,9 @@ export class MainScene extends Phaser.Scene {
         const angle = Math.atan2(end.y - start.y, end.x - start.x);
         const targetTroop = troop;
         const ballistaDamage = stats.damage || 240;
+        // Painter's-order depth along the shot's ground track.
+        const launchGX = ballista.gridX + info.width / 2;
+        const launchGY = ballista.gridY + info.height / 2;
 
         // Set target angle for smooth rotation (handled in updateBuildingAnimations)
         ballista.ballistaTargetAngle = angle;
@@ -4944,8 +5380,10 @@ export class MainScene extends Phaser.Scene {
         ballista.ballistaBoltLoaded = true;
         ballista.ballistaStringTension = 0;
 
-        // Wind-back animation: tween the string tension from 0 to 1
-        this.tweens.add({
+        // Wind-back animation: tween the string tension from 0 to 1.
+        // Tracked: its onComplete SPAWNS the bolt — uninterrupted it would
+        // fire a fresh projectile over the home lawn after a fast exit.
+        this.trackBattleFxTween(this.tweens.add({
             targets: { tension: 0 },
             tension: 1,
             duration: 400,
@@ -4957,44 +5395,19 @@ export class MainScene extends Phaser.Scene {
                 // Fire! Hide the bolt on the ballista
                 ballista.ballistaBoltLoaded = false;
                 // Create flying bolt projectile
-                const bolt = this.add.graphics();
+                const bolt = this.trackBattleFx(this.add.graphics());
 
                 // Huge spear matching the loaded bolt on the machine
                 const bLevel = ballista.level ?? 1;
-                // L3: gold bolt, L2: grey, L1: wood
-                bolt.fillStyle(bLevel >= 3 ? 0xb8860b : 0x5d4e37, 1);
-                bolt.fillRect(-24, -2.8, 48, 5.6);
-                bolt.fillStyle(bLevel >= 3 ? 0xffd700 : (bLevel >= 2 ? 0x9a9aa6 : 0xa8845e), 0.8);
-                bolt.fillRect(-24, -2.8, 48, 2);
-                // Big leaf arrowhead
-                bolt.fillStyle(bLevel >= 3 ? 0xdaa520 : 0x3a3a3a, 1);
-                bolt.beginPath();
-                bolt.moveTo(35, 0);
-                bolt.lineTo(27, -6);
-                bolt.lineTo(24, 0);
-                bolt.lineTo(27, 6);
-                bolt.closePath();
-                bolt.fillPath();
-                // Fletching - Gold for L3, Grey for L2, Red for L1
-                const fletchColor = bLevel >= 3 ? 0xffd700 : (bLevel >= 2 ? 0x444444 : 0xcc3333);
-                bolt.fillStyle(fletchColor, 1);
-                bolt.beginPath();
-                bolt.moveTo(-24, 0);
-                bolt.lineTo(-16, -8);
-                bolt.lineTo(-8, 0);
-                bolt.closePath();
-                bolt.fillPath();
-                bolt.beginPath();
-                bolt.moveTo(-24, 0);
-                bolt.lineTo(-16, 8);
-                bolt.lineTo(-8, 0);
-                bolt.closePath();
-                bolt.fillPath();
 
                 // Exit exactly where the loaded bolt sits on the rail
-                bolt.setPosition(start.x + Math.cos(angle) * 14, start.y - 28 + Math.sin(angle) * 0.5 * 14);
+                const boltStartX = start.x + Math.cos(angle) * 14;
+                const boltStartY = start.y - 28 + Math.sin(angle) * 0.5 * 14;
+                bolt.setPosition(boltStartX, boltStartY);
                 bolt.setRotation(angle);
-                bolt.setDepth(20000);
+                bolt.setDepth(depthForProjectile(launchGX, launchGY));
+                const boltBaked = this.syncProjectileSprite(bolt, 'ballista_bolt', Math.min(bLevel, 3), angle);
+                if (!boltBaked) ProjectileRenderer.drawBallistaBolt(bolt, bLevel);
 
 
 
@@ -5009,44 +5422,53 @@ export class MainScene extends Phaser.Scene {
                     }
                 });
 
-                // Animate bolt flying to target
+                // Bolt HOMES onto the troop's live position (the 400ms windup
+                // above made fire-time aim ~a tile stale): the tween drives
+                // progress; each update re-aims so impact FX and damage agree.
                 const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
                 let lastTrailTime = 0;
+                const aim = { x: end.x, y: end.y };
 
                 // Ground shadow tracking under the bolt
-                const boltShadow = this.add.graphics();
-                boltShadow.fillStyle(0x18220f, 0.28);
-                boltShadow.fillEllipse(0, 0, 30, 9);
-                boltShadow.setPosition(start.x + Math.cos(angle) * 14, start.y + 3);
+                const boltShadow = this.trackBattleFx(this.add.graphics());
+                pixelEllipse(boltShadow, 0, 0, 15, 4.5, 0x18220f, 0.28);
+                boltShadow.setPosition(boltStartX, start.y + 3);
                 boltShadow.setRotation(angle);
                 boltShadow.setDepth(950);
-                this.tweens.add({
-                    targets: boltShadow,
-                    x: end.x,
-                    y: end.y + 3,
-                    duration: dist / 1.2,
-                    ease: 'Linear',
-                    onComplete: () => boltShadow.destroy()
-                });
 
-                this.tweens.add({
-                    targets: bolt,
-                    x: end.x,
-                    y: end.y,
+                const flight = { t: 0 };
+                this.trackBattleFxTween(this.tweens.add({
+                    targets: flight,
+                    t: 1,
                     duration: dist / 1.2,
                     ease: 'Linear',
-                    onUpdate: (tween: Phaser.Tweens.Tween) => {
+                    onUpdate: () => {
+                        if (targetTroop.health > 0 && targetTroop.gameObject.active) {
+                            const live = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
+                            aim.x = live.x;
+                            aim.y = live.y;
+                        }
+                        const t = flight.t;
+                        const liveAngle = Math.atan2(aim.y - boltStartY, aim.x - boltStartX);
+                        bolt.setPosition(boltStartX + (aim.x - boltStartX) * t, boltStartY + (aim.y - boltStartY) * t);
+                        bolt.setRotation(liveAngle);
+                        // Depth follows the ground track under the bolt.
+                        bolt.setDepth(depthForProjectile(
+                            launchGX + (targetTroop.gridX - launchGX) * t,
+                            launchGY + (targetTroop.gridY - launchGY) * t));
+                        boltShadow.setPosition(bolt.x, (start.y + 3) + (aim.y - start.y) * t);
+                        boltShadow.setRotation(liveAngle);
+                        if (boltBaked) this.syncProjectileSprite(bolt, 'ballista_bolt', Math.min(bLevel, 3), liveAngle);
                         // White trail particles at TAIL - Aggressive
                         const now = this.time.now;
                         if (now - lastTrailTime > 10) {
                             lastTrailTime = now;
-                            const trail = this.add.graphics();
-                            trail.fillStyle(0xffffff, 0.7);
-                            trail.fillCircle(0, 0, 3);
+                            const trail = this.trackBattleFx(this.add.graphics());
+                            pixelEllipse(trail, 0, 0, 3, 3, 0xffffff, 0.7);
 
                             // Calculate tail position (bolt is ~30px long, tail at -16 local)
                             // Responsive offset: Starts at 0, grows to 70 based on travel
-                            const traveled = tween.progress * dist;
+                            const traveled = t * dist;
                             const currentOffset = Math.min(traveled, 70);
 
                             const rot = bolt.rotation;
@@ -5054,7 +5476,7 @@ export class MainScene extends Phaser.Scene {
                             const tailY = bolt.y - Math.sin(rot) * currentOffset;
 
                             trail.setPosition(tailX, tailY);
-                            trail.setDepth(19999);
+                            trail.setDepth(bolt.depth - 1);
                             this.tweens.add({
                                 targets: trail,
                                 alpha: 0,
@@ -5067,21 +5489,20 @@ export class MainScene extends Phaser.Scene {
                     onComplete: () => {
                         this.cameras.main.shake(50, 0.00025, true);
                         bolt.destroy();
+                        boltShadow.destroy();
                         // Deal damage
                         if (targetTroop && targetTroop.health > 0) {
-                            targetTroop.health -= ballistaDamage;
-                            targetTroop.hasTakenDamage = true;
-                            this.updateHealthBar(targetTroop);
-                            if (targetTroop.health <= 0) this.destroyTroop(targetTroop);
+                            this.applyLocalTroopDamage(targetTroop, ballistaDamage);
                         }
 
-                        // === EXPLOSION EFFECT ===
+                        // === EXPLOSION EFFECT === (sorts with the world at
+                        // the impact tile; ±N keeps the internal stacking)
+                        const fxDepth = depthForGroundEffect(targetTroop.gridX, targetTroop.gridY);
                         // Initial flash
-                        const flash = this.add.graphics();
-                        flash.fillStyle(0xffffcc, 0.9);
-                        flash.fillCircle(0, 0, 15);
-                        flash.setPosition(end.x, end.y);
-                        flash.setDepth(20002);
+                        const flash = this.trackBattleFx(this.add.graphics());
+                        pixelEllipse(flash, 0, 0, 15, 15, 0xffffcc, 0.9);
+                        flash.setPosition(aim.x, aim.y);
+                        flash.setDepth(fxDepth + 2);
                         this.tweens.add({
                             targets: flash,
                             scale: 2, alpha: 0,
@@ -5090,38 +5511,26 @@ export class MainScene extends Phaser.Scene {
                         });
 
                         // Shockwave ring
-                        const shock = this.add.graphics();
-                        shock.lineStyle(3, 0xff8800, 0.7);
-                        shock.strokeCircle(0, 0, 8);
-                        shock.setPosition(end.x, end.y);
-                        shock.setDepth(20001);
-                        this.tweens.add({
-                            targets: shock,
-                            alpha: 0,
-                            duration: 200,
-                            onUpdate: (tween) => {
-                                shock.clear();
-                                const r = 8 + tween.progress * 30;
-                                shock.lineStyle(3 - tween.progress * 2, 0xff8800, 0.7 - tween.progress * 0.7);
-                                shock.strokeCircle(0, 0, r);
-                            },
-                            onComplete: () => shock.destroy()
-                        });
+                        this.trackBattleFx(PixelFx.ring(this, aim.x, aim.y, {
+                            r0: 8, r1: 38, thick0: 3 / 1.35, thick1: 1 / 1.35,
+                            color: 0xff8800, alpha: 0.7,
+                            life: 200, fadePow: 2, depth: fxDepth + 1
+                        }));
 
                         // Fire/explosion particles
                         for (let i = 0; i < 6; i++) {
-                            const particle = this.add.graphics();
+                            const particle = this.trackBattleFx(this.add.graphics());
                             const pAngle = Math.random() * Math.PI * 2;
                             const pDist = 15 + Math.random() * 20;
-                            particle.fillStyle(0xff6600 + Math.floor(Math.random() * 0x3300), 0.9);
-                            particle.fillCircle(0, 0, 4 + Math.random() * 4);
-                            particle.setPosition(end.x, end.y);
-                            particle.setDepth(20000);
+                            const pR = 4 + Math.random() * 4;
+                            pixelEllipse(particle, 0, 0, pR, pR, 0xff6600 + Math.floor(Math.random() * 0x3300), 0.9);
+                            particle.setPosition(aim.x, aim.y);
+                            particle.setDepth(fxDepth);
 
                             this.tweens.add({
                                 targets: particle,
-                                x: end.x + Math.cos(pAngle) * pDist,
-                                y: end.y + Math.sin(pAngle) * pDist * 0.5 - 10,
+                                x: aim.x + Math.cos(pAngle) * pDist,
+                                y: aim.y + Math.sin(pAngle) * pDist * 0.5 - 10,
                                 scale: 0.3,
                                 alpha: 0,
                                 duration: 200 + Math.random() * 100,
@@ -5131,13 +5540,11 @@ export class MainScene extends Phaser.Scene {
                         }
 
                         // Main impact glow (isometric oval)
-                        const impact = this.add.graphics();
-                        impact.fillStyle(0xff4400, 0.8);
-                        impact.fillEllipse(0, 0, 24, 12);
-                        impact.fillStyle(0xffcc00, 0.6);
-                        impact.fillEllipse(0, 0, 12, 6);
-                        impact.setPosition(end.x, end.y);
-                        impact.setDepth(19999);
+                        const impact = this.trackBattleFx(this.add.graphics());
+                        pixelEllipse(impact, 0, 0, 12, 6, 0xff4400, 0.8);
+                        pixelEllipse(impact, 0, 0, 6, 3, 0xffcc00, 0.6);
+                        impact.setPosition(aim.x, aim.y);
+                        impact.setDepth(fxDepth - 1);
                         this.tweens.add({
                             targets: impact,
                             scale: 2, alpha: 0,
@@ -5145,7 +5552,7 @@ export class MainScene extends Phaser.Scene {
                             onComplete: () => impact.destroy()
                         });
                     }
-                });
+                }));
 
                 // Reload bolt based on configured fire cadence.
                 const reloadDelay = Math.max(300, (stats.fireRate ?? 1900) - 250);
@@ -5153,7 +5560,7 @@ export class MainScene extends Phaser.Scene {
                     ballista.ballistaBoltLoaded = true;
                 });
             }
-        });
+        }));
     }
 
     private shootXBowAt(xbow: PlacedBuilding, troop: Troop) {
@@ -5180,63 +5587,56 @@ export class MainScene extends Phaser.Scene {
             ease: 'Cubic.easeOut'
         });
 
-        // Small, narrow arrow (shuttle)
+        // Small, narrow arrow (shuttle).
+        // Painter's-order depth along the shot's ground track.
+        const launchGX = xbow.gridX + info.width / 2;
+        const launchGY = xbow.gridY + info.height / 2;
         const xbowLevel = xbow.level ?? 1;
-        const arrow = this.add.graphics();
-        // L3: gold shaft, L2: grey, L1: wood
-        arrow.fillStyle(xbowLevel >= 3 ? 0xb8860b : 0x5d4e37, 1);
-        arrow.fillRect(-6, -0.8, 12, 1.6);
-        // Small arrowhead
-        arrow.fillStyle(xbowLevel >= 3 ? 0xdaa520 : 0x4a4a4a, 1);
-        arrow.beginPath();
-        arrow.moveTo(7, 0);
-        arrow.lineTo(4, -2);
-        arrow.lineTo(4, 2);
-        arrow.closePath();
-        arrow.fillPath();
-        // Fletching - Gold for L3, Grey for L2, Red for L1
-        const fletchColor = xbowLevel >= 3 ? 0xffd700 : (xbowLevel >= 2 ? 0x444444 : 0xcc4444);
-        arrow.fillStyle(fletchColor, 0.8);
-        arrow.beginPath();
-        arrow.moveTo(-6, 0);
-        arrow.lineTo(-4, -2);
-        arrow.lineTo(-2, 0);
-        arrow.closePath();
-        arrow.fillPath();
+        const arrow = this.trackBattleFx(this.add.graphics());
 
-        arrow.setPosition(start.x, start.y - 20);
+        const arrowStartX = start.x;
+        const arrowStartY = start.y - 20;
+        arrow.setPosition(arrowStartX, arrowStartY);
         arrow.setRotation(angle);
-        arrow.setDepth(20000);
+        arrow.setDepth(depthForProjectile(launchGX, launchGY));
+        const arrowBaked = this.syncProjectileSprite(arrow, 'xbow_bolt', Math.min(xbowLevel, 3), angle);
+        if (!arrowBaked) ProjectileRenderer.drawXbowBolt(arrow, xbowLevel);
 
-
-
+        // Shuttle HOMES onto the troop's live position so the impact flash
+        // and the damage land together (fire-time aim drifted ~a tile).
+        const aim = { x: end.x, y: end.y };
         const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
-        this.tweens.add({
-            targets: arrow,
-            x: end.x,
-            y: end.y,
+        const flight = { t: 0 };
+        this.trackBattleFxTween(this.tweens.add({
+            targets: flight,
+            t: 1,
             duration: dist / 1.5, // Constant speed (1500 px/s)
             ease: 'Linear',
+            onUpdate: () => {
+                if (targetTroop.health > 0 && targetTroop.gameObject.active) {
+                    const live = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
+                    aim.x = live.x;
+                    aim.y = live.y;
+                }
+                const liveAngle = Math.atan2(aim.y - arrowStartY, aim.x - arrowStartX);
+                arrow.setPosition(arrowStartX + (aim.x - arrowStartX) * flight.t, arrowStartY + (aim.y - arrowStartY) * flight.t);
+                arrow.setRotation(liveAngle);
+                // Depth follows the ground track under the shot.
+                arrow.setDepth(depthForProjectile(
+                    launchGX + (targetTroop.gridX - launchGX) * flight.t,
+                    launchGY + (targetTroop.gridY - launchGY) * flight.t));
+                if (arrowBaked) this.syncProjectileSprite(arrow, 'xbow_bolt', Math.min(xbowLevel, 3), liveAngle);
+            },
             onComplete: () => {
                 arrow.destroy();
                 // Deal level-scaled damage.
                 if (targetTroop && targetTroop.health > 0) {
-                    targetTroop.health -= xbowDamage;
-                    targetTroop.hasTakenDamage = true;
-                    this.updateHealthBar(targetTroop);
-                    if (targetTroop.health <= 0) this.destroyTroop(targetTroop);
+                    this.applyLocalTroopDamage(targetTroop, xbowDamage);
                 }
                 // Small impact
-                const impact = this.add.circle(end.x, end.y, 4, 0x8b4513, 0.6);
-                impact.setDepth(19999);
-                this.tweens.add({
-                    targets: impact,
-                    scale: 1.5, alpha: 0,
-                    duration: 100,
-                    onComplete: () => impact.destroy()
-                });
+                this.trackBattleFx(PixelFx.flash(this, aim.x, aim.y, { r: 4, color: 0x8b4513, alpha: 0.6, scaleTo: 1.5, life: 100, depth: depthForGroundEffect(targetTroop.gridX, targetTroop.gridY) }));
             }
-        });
+        }));
     }
 
     private showWardLaser(troop: Troop, target: Troop | PlacedBuilding, damage: number) {
@@ -5256,15 +5656,18 @@ export class MainScene extends Phaser.Scene {
         const color = damage < 0 ? 0x00ff00 : 0x88ffcc;
 
         // Beam leaves the staff orb (villager-scale ward: orb at ~(4.6,-12)).
-        const laser = this.add.graphics();
-        laser.lineStyle(3, color, 0.9);
-        laser.lineBetween(start.x + 4.6, start.y - 12, end.x, end.y - 20);
-        laser.lineStyle(1.5, 0xffffff, 0.6);
-        laser.lineBetween(start.x + 4.6, start.y - 12, end.x, end.y - 20);
-        laser.setDepth(25000);
+        // The beam spans two tiles: painter depth of the FRONT endpoint so it
+        // clears both ends while rows in front of both still cover it.
+        const beamDepth = Math.max(
+            depthForProjectile(troop.gridX, troop.gridY),
+            depthForProjectile(target.gridX + width / 2, target.gridY + height / 2));
+        const laser = this.trackBattleFx(this.add.graphics());
+        pixelLine(laser, start.x + 4.6, start.y - 12, end.x, end.y - 20, 2, color, 0.9);
+        pixelLine(laser, start.x + 4.6, start.y - 12, end.x, end.y - 20, 1, 0xffffff, 0.6);
+        laser.setDepth(beamDepth);
 
-        const orb = this.add.circle(start.x + 4.6, start.y - 12, 4.5, color, 0.8);
-        orb.setDepth(25001);
+        // Staff-orb glow: fades on its own clock, matching the laser's 300ms.
+        this.trackBattleFx(PixelFx.flash(this, start.x + 4.6, start.y - 12, { r: 4.5, color, alpha: 0.8, life: 300, depth: depthForGroundEffect(troop.gridX, troop.gridY) }));
 
         // DEAL DAMAGE IMMEDIATELY ON LASER SPAWN (Attack Mode Only)
         if (damage > 0 && 'health' in target && target.health > 0) {
@@ -5287,24 +5690,14 @@ export class MainScene extends Phaser.Scene {
         }
 
         // Instant impact sparkle at target
-        const sparkle = this.add.circle(end.x, end.y - 20, 8, 0x88ffcc, 0.7);
-        sparkle.setDepth(25000);
-        this.tweens.add({
-            targets: sparkle,
-            scale: 2, alpha: 0,
-            duration: 200,
-            onComplete: () => sparkle.destroy()
-        });
+        this.trackBattleFx(PixelFx.flash(this, end.x, end.y - 20, { r: 8, color: 0x88ffcc, alpha: 0.7, scaleTo: 2, life: 200, depth: depthForGroundEffect(target.gridX + width / 2, target.gridY + height / 2) }));
 
         // Fade out the laser visual
         this.tweens.add({
-            targets: [laser, orb],
+            targets: laser,
             alpha: 0,
             duration: 300,
-            onComplete: () => {
-                laser.destroy();
-                orb.destroy();
-            }
+            onComplete: () => laser.destroy()
         });
     }
 
@@ -5317,16 +5710,16 @@ export class MainScene extends Phaser.Scene {
         // the whole game loop — a dead troop just skips its redraw.
         if (!g || !g.active || !g.scene) return;
         g.clear();
-        if (SpriteBank.syncTroop(this, troop, true, this.troopAttackAge(troop), this.time.now)) return;
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.time.now, this.troopAttackAge(troop), troop.attackDelay);
+        if (SpriteBank.syncTroop(this, troop, true, this.troopAttackAge(troop), this.animClockNow())) return;
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, true, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
     }
 
     private redrawTroopWithMovement(troop: Troop, isMoving: boolean) {
         const g = troop.gameObject;
         if (!g || !g.active || !g.scene) return; // see redrawTroop
         g.clear();
-        if (SpriteBank.syncTroop(this, troop, isMoving, this.troopAttackAge(troop), this.time.now)) return;
-        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.time.now, this.troopAttackAge(troop), troop.attackDelay);
+        if (SpriteBank.syncTroop(this, troop, isMoving, this.troopAttackAge(troop), this.animClockNow())) return;
+        TroopRenderer.drawTroopVisual(g, troop.type, troop.owner, troop.facingAngle, isMoving, troop.slamOffset || 0, troop.bowDrawProgress || 0, troop.mortarRecoil || 0, false, troop.phalanxSpearOffset || 0, troop.level || 1, this.animClockNow(), this.troopAttackAge(troop), troop.attackDelay);
     }
 
     /**
@@ -5338,17 +5731,31 @@ export class MainScene extends Phaser.Scene {
      * age passes through and the renderer free-runs the cycle instead.
      */
     private troopAttackAge(troop: Troop): number {
-        const age = this.time.now - troop.lastAttackTime;
+        const age = this.animClockNow() - troop.lastAttackTime;
         if (age < 0) return -1; // chill effect pushes lastAttackTime ahead of the clock
         if (this.mode !== 'REPLAY' && age > troop.attackDelay + 600) return -1;
         return age;
+    }
+
+    /** Baked-sprite stamp for a rigid projectile; false → caller draws vector.
+     *  Carrier scale rides along so in-flight size pulses (mortar arc,
+     *  spike-ball wobble) survive on the baked path. */
+    private syncProjectileSprite(carrier: Phaser.GameObjects.Graphics, unit: string, level: number, rot = 0, angles = 16): boolean {
+        const TAU = Math.PI * 2;
+        const a = Math.round((((rot % TAU) + TAU) % TAU) / (TAU / angles)) % angles;
+        const variant = angles === 1 ? `l${level}` : `l${level}_a${String(a).padStart(2, '0')}`;
+        return SpriteBank.syncFigure(this, carrier, unit, variant, 'idle', 0, false,
+            { kind: 'projectiles', scaleMul: Math.abs(carrier.scaleX) || 1 });
     }
 
     private setTroopRetargetPause(troop: Troop, minMs: number = 70, maxMs: number = 180) {
         const pauseScale = 1.15; // Slightly longer hesitation for clearer "decision" feel.
         const scaledMin = Math.max(0, Math.round(minMs * pauseScale));
         const scaledMax = Math.max(scaledMin, Math.round(maxMs * pauseScale));
-        const until = this.time.now + Phaser.Math.Between(scaledMin, scaledMax);
+        // Hesitation varies per troop, not per roll: stable id hash instead
+        // of RNG so identical battles replay with identical pauses.
+        const jitter = this.navigationSlot(troop, scaledMax - scaledMin + 1);
+        const until = this.time.now + scaledMin + jitter;
         troop.retargetPauseUntil = Math.max(troop.retargetPauseUntil ?? 0, until);
     }
 
@@ -5390,6 +5797,14 @@ export class MainScene extends Phaser.Scene {
         troop.target = selection.activeTarget;
         troop.path = selection.plan?.waypoints.map(point => ({ x: point.x, y: point.y }));
         troop.nextPathTime = now + this.nextNavigationDelay(troop);
+
+        // An "already in range, hold position" verdict is a terminal state,
+        // not a failed route: reset stuck tracking so recovery stops looping
+        // clear-plan → replan → same empty plan every ~900ms.
+        if (selection.plan && selection.plan.waypoints.length === 0) {
+            troop.stuckTicks = 0;
+            troop.lastProgressTime = undefined;
+        }
 
         const intentChanged = previousIntentId !== selection.strategicTarget?.id;
         const activeChanged = previousActiveId !== selection.activeTarget?.id;
@@ -5618,7 +6033,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     private rotateTroopToward(troop: Troop, desiredAngle: number, delta: number): boolean {
-        const turnRate = troop.type === 'golem' ? 0.004 : troop.type === 'ram' ? 0.006 : 0.01;
+        const turnRate = (troop.type === 'golem' || troop.type === 'icegolem') ? 0.004 : troop.type === 'ram' ? 0.006 : 0.01;
         const maxStep = turnRate * Math.max(1, delta);
         const before = troop.facingAngle || 0;
         troop.facingAngle = Phaser.Math.Angle.RotateTo(before, desiredAngle, maxStep);
@@ -5717,9 +6132,13 @@ export class MainScene extends Phaser.Scene {
             const followsAlly = troop.type === 'ward'
                 && !isBuilding
                 && target.owner === troop.owner;
-            const stopRange = followsAlly
+            // The planner accepts attack slots out to range+0.08; movement
+            // must accept the same verdict, or a troop parked in
+            // (range, range+0.08] replan-thrashes forever without attacking.
+            // The attack tick's own gate is range+0.1, so it still fires.
+            const stopRange = (followsAlly
                 ? Math.min(2.5, Math.max(1.25, stats.range))
-                : stats.range;
+                : stats.range) + 0.08;
             return {
                 centerX: bx + width / 2,
                 centerY: by + height / 2,
@@ -5735,15 +6154,15 @@ export class MainScene extends Phaser.Scene {
             this.ensureTroopNavigation(troop, now);
 
             // --- CHILLED STATUS EFFECT ---
+            // Graphics carriers have no tint of their own — the frost blue
+            // rides the baked shadow sprite through SpriteBank.setCarrierTint.
             if ((troop.chillRemainingMs ?? 0) > 0) {
                 troop.chillRemainingMs = (troop.chillRemainingMs ?? 0) - delta;
                 if (troop.chillRemainingMs <= 0) {
                     troop.chillRemainingMs = 0;
-                    const tinted = troop.gameObject as Phaser.GameObjects.Graphics & { clearTint?: () => void };
-                    tinted.clearTint?.();
+                    SpriteBank.setCarrierTint(troop.gameObject, null);
                 } else {
-                    const tinted = troop.gameObject as Phaser.GameObjects.Graphics & { setTint?: (color: number) => void };
-                    tinted.setTint?.(0x88ccff);
+                    SpriteBank.setCarrierTint(troop.gameObject, 0x88ccff);
                     if (troop.lastAttackTime) troop.lastAttackTime += delta * 1.5;
                 }
             }
@@ -5751,6 +6170,37 @@ export class MainScene extends Phaser.Scene {
             let movedThisFrame = false;
             let target = troop.target as Troop | PlacedBuilding | null;
             let geometry = target ? geometryFor(troop, target) : null;
+
+            // Knockback impulses (frostfall shove) integrate through the
+            // collision resolver for their brief window — the pause/idle
+            // branches below only decay velocity and would otherwise turn
+            // the impulse into a no-op that never displaces the troop.
+            if (now < (troop.knockbackUntil ?? 0)
+                && Math.hypot(troop.velocityX ?? 0, troop.velocityY ?? 0) > 0.002) {
+                const shove = CombatNavigationSystem.resolveMovement(
+                    troop,
+                    troop.velocityX ?? 0,
+                    troop.velocityY ?? 0,
+                    0,
+                    0,
+                    this.buildings,
+                    this.mapSize
+                );
+                troop.gridX = shove.x;
+                troop.gridY = shove.y;
+                if (Math.hypot(shove.dx, shove.dy) > 0.001) {
+                    movedThisFrame = true;
+                    const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                    troop.gameObject.setPosition(pos.x, pos.y);
+                    this.updateHealthBar(troop);
+                    const troopDepth = Math.round(depthForTroop(troop.gridX, troop.gridY, troop.type));
+                    if (troopDepth !== troop.lastDepth) {
+                        troop.lastDepth = troopDepth;
+                        troop.gameObject.setDepth(troopDepth);
+                    }
+                    geometry = target ? geometryFor(troop, target) : null;
+                }
+            }
 
             if (target && geometry && now < (troop.retargetPauseUntil ?? 0)) {
                 const currentPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
@@ -5762,7 +6212,12 @@ export class MainScene extends Phaser.Scene {
                 );
                 troop.velocityX = (troop.velocityX ?? 0) * 0.55;
                 troop.velocityY = (troop.velocityY ?? 0) * 0.55;
-            } else if (target && geometry && geometry.distance > geometry.stopRange) {
+            } else if (target && geometry
+                && (geometry.distance > geometry.stopRange || (troop.path?.length ?? 0) > 0)) {
+                // A troop already in range still walks out its remaining
+                // waypoints: the planner spread attack slots around the rim,
+                // and stopping at the first in-range corridor point re-stacks
+                // the whole cohort on one cell.
                 const routeIsStale = !troop.navigationPlan
                     || troop.navigationPlan.topologyRevision !== this.combatTopologyRevision
                     || now >= (troop.nextPathTime ?? 0)
@@ -5784,7 +6239,7 @@ export class MainScene extends Phaser.Scene {
                 }
 
                 if (target && geometry && now >= (troop.retargetPauseUntil ?? 0)
-                    && geometry.distance > geometry.stopRange) {
+                    && (geometry.distance > geometry.stopRange || (troop.path?.length ?? 0) > 0)) {
                     while (troop.path && troop.path.length > 0) {
                         const waypoint = troop.path[0];
                         if (Math.hypot(waypoint.x - troop.gridX, waypoint.y - troop.gridY) >= 0.04) break;
@@ -5918,6 +6373,63 @@ export class MainScene extends Phaser.Scene {
                     Math.atan2(targetPos.y - pos.y, targetPos.x - pos.x),
                     movementDelta
                 );
+
+                // Gentle separation for troops standing at their attack
+                // slots: stopped troops must not interpenetrate. Micro-steps
+                // run through the same collision resolver and are rejected
+                // outright if they would break the in-range hold.
+                const push = new Phaser.Math.Vector2(0, 0);
+                forEachNeighbor(troop, other => {
+                    if (other === troop || other.health <= 0) return;
+                    const ox = other.gridX - troop.gridX;
+                    const oy = other.gridY - troop.gridY;
+                    const d = Math.hypot(ox, oy);
+                    if (d >= 0.5) return;
+                    if (d < 0.001) {
+                        // Exactly coincident troops: split along a stable
+                        // per-id direction instead of a random one.
+                        const jitter = (this.navigationSlot(troop, 6283) / 6283) * Math.PI * 2;
+                        push.x += Math.cos(jitter);
+                        push.y += Math.sin(jitter);
+                        return;
+                    }
+                    const w = (0.5 - d) / 0.5;
+                    push.x -= (ox / d) * w;
+                    push.y -= (oy / d) * w;
+                });
+                if (push.lengthSq() > 0.0025) {
+                    const step = Math.min(0.012, 0.0007 * movementDelta);
+                    push.normalize();
+                    const micro = CombatNavigationSystem.resolveMovement(
+                        troop,
+                        push.x * step,
+                        push.y * step,
+                        0,
+                        0,
+                        this.buildings,
+                        this.mapSize
+                    );
+                    if (Math.hypot(micro.dx, micro.dy) > 0.0005) {
+                        const prevX = troop.gridX;
+                        const prevY = troop.gridY;
+                        troop.gridX = micro.x;
+                        troop.gridY = micro.y;
+                        if (this.getTargetEdgeDistance(troop, target) > geometry.stopRange) {
+                            // Holding the slot beats sliding out of range.
+                            troop.gridX = prevX;
+                            troop.gridY = prevY;
+                        } else {
+                            const microPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                            troop.gameObject.setPosition(microPos.x, microPos.y);
+                            this.updateHealthBar(troop);
+                            const troopDepth = Math.round(depthForTroop(troop.gridX, troop.gridY, troop.type));
+                            if (troopDepth !== troop.lastDepth) {
+                                troop.lastDepth = troopDepth;
+                                troop.gameObject.setDepth(troopDepth);
+                            }
+                        }
+                    }
+                }
             } else {
                 troop.velocityX = (troop.velocityX ?? 0) * 0.65;
                 troop.velocityY = (troop.velocityY ?? 0) * 0.65;
@@ -5953,7 +6465,11 @@ export class MainScene extends Phaser.Scene {
         if (this.mode === 'ATTACK' && b.owner === 'ENEMY') {
             this.replayDestroyedBuildings.set(b.id, { id: b.id, health: 0, isDestroyed: true });
         }
-        soundSystem.play('destroy');
+        // Baseline/catch-up replay frames rebuild mid-battle state on join:
+        // those buildings fell long ago, so they come down silently (rubble
+        // only) instead of every wreck detonating at once.
+        const silent = this.isApplyingReplayBaseline;
+        if (!silent) soundSystem.play('destroy');
 
         const info = BUILDINGS[b.type];
         if (!info) {
@@ -5984,27 +6500,42 @@ export class MainScene extends Phaser.Scene {
             b.rangeIndicator.destroy();
         }
 
+        // ENTITY CLEANUP BEFORE DEATH FX. The FX body below is dozens of
+        // tween/graphics calls; if any of them ever throws, the update()
+        // bulkhead swallows the error and this method never resumes — with
+        // the cleanup at the bottom that leaked a zombie building whose
+        // health bar floated over the wreck for the rest of the battle.
+        // Bookkeeping first, presentation second.
+        if (b.barrelGraphics) b.barrelGraphics.destroy();
+        b.healthBar.destroy();
+        this.buildings.splice(index, 1);
+        this.invalidateCombatTopologyForRemoval(b);
+
+        // Wall visuals still need their neighbor joins refreshed; navigation
+        // invalidation above already preserves each troop's real objective and
+        // makes the new gap visible on the next plan.
+        if (b.type === 'wall') {
+            this.refreshWallNeighbors(b.gridX, b.gridY, b.owner);
+        }
+
         const pos = IsoUtils.cartToIso(b.gridX + info.width / 2, b.gridY + info.height / 2);
         const size = Math.max(info.width, info.height);
 
         // Screen shake proportional to building size
         const shakeIntensity = (0.0015 + size * 0.001) * (this.mode === 'HOME' ? 0.2 : 1.0);
-        this.cameras.main.shake(75 + size * 50, shakeIntensity);
+        if (!silent) this.cameras.main.shake(75 + size * 50, shakeIntensity);
 
         // Initial flash
-        const flash = this.add.circle(pos.x, pos.y - 20, 10 * size, 0xffffcc, 0.8);
-        flash.setDepth(30001);
-        this.tweens.add({ targets: flash, scale: 2, alpha: 0, duration: 100, onComplete: () => flash.destroy() });
+        if (!silent) this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 20, { r: 10 * size, color: 0xffffcc, alpha: 0.8, scaleTo: 2, life: 100, depth: 30001 }));
 
         // Rubble/debris chunks
-        for (let i = 0; i < 8 + size * 4; i++) {
+        for (let i = 0; i < (silent ? 0 : 8 + size * 4); i++) {
             const angle = Math.random() * Math.PI * 2;
             const dist = 20 + Math.random() * 30 * size;
             const rubbleColors = [0x8b7355, 0x6b5344, 0x5a4a3a, 0x4a3a2a];
-            const rubble = this.add.graphics();
-            rubble.fillStyle(rubbleColors[Math.floor(Math.random() * 4)], 1);
+            const rubble = this.trackBattleFx(this.add.graphics());
             const rubbleSize = 3 + Math.random() * 5;
-            rubble.fillRect(-rubbleSize / 2, -rubbleSize / 2, rubbleSize, rubbleSize);
+            pixelRect(rubble, -rubbleSize / 2, -rubbleSize / 2, rubbleSize, rubbleSize, rubbleColors[Math.floor(Math.random() * 4)], 1);
             rubble.setPosition(pos.x, pos.y - 15);
             rubble.setDepth(30000);
 
@@ -6025,13 +6556,12 @@ export class MainScene extends Phaser.Scene {
         }
 
         // Dust cloud (pixelated rectangles)
-        for (let i = 0; i < 6 + size * 2; i++) {
+        for (let i = 0; i < (silent ? 0 : 6 + size * 2); i++) {
             this.scheduleBattleCall(i * 30, () => {
                 const dustColors = [0x8b7355, 0x9b8365, 0x7b6345];
                 const dustSize = 8 + Math.floor(Math.random() * 10);
-                const dust = this.add.graphics();
-                dust.fillStyle(dustColors[Math.floor(Math.random() * 3)], 0.6);
-                dust.fillRect(-dustSize / 2, -dustSize / 2, dustSize, dustSize);
+                const dust = this.trackBattleFx(this.add.graphics());
+                pixelRect(dust, -dustSize / 2, -dustSize / 2, dustSize, dustSize, dustColors[Math.floor(Math.random() * 3)], 0.6);
                 dust.setPosition(pos.x + (Math.random() - 0.5) * 40 * size, pos.y - 10);
                 dust.setDepth(29999);
                 this.tweens.add({
@@ -6046,16 +6576,15 @@ export class MainScene extends Phaser.Scene {
         }
 
         // Type-specific effects
-        if (b.type === 'town_hall') {
+        if (!silent && b.type === 'town_hall') {
             // Massive fire and explosion (pixelated rectangles)
             for (let i = 0; i < 25; i++) {
                 const delay = i * 40;
                 this.scheduleBattleCall(delay, () => {
                     const fireColors = [0xff4400, 0xff6600, 0xff8800, 0xffaa00];
                     const fireSize = 8 + Math.floor(Math.random() * 15);
-                    const fire = this.add.graphics();
-                    fire.fillStyle(fireColors[Math.floor(Math.random() * 4)], 0.9);
-                    fire.fillRect(-fireSize / 2, -fireSize / 2, fireSize, fireSize);
+                    const fire = this.trackBattleFx(this.add.graphics());
+                    pixelRect(fire, -fireSize / 2, -fireSize / 2, fireSize, fireSize, fireColors[Math.floor(Math.random() * 4)], 0.9);
                     fire.setPosition(pos.x + (Math.random() - 0.5) * 80, pos.y - 10 - (Math.random() * 40));
                     fire.setDepth(30000);
                     this.tweens.add({
@@ -6067,14 +6596,13 @@ export class MainScene extends Phaser.Scene {
                     });
                 });
             }
-        } else if (b.type === 'cannon' || b.type === 'mortar' || b.type === 'tesla') {
+        } else if (!silent && (b.type === 'cannon' || b.type === 'mortar' || b.type === 'tesla')) {
             // Sparks for defensive buildings
             for (let i = 0; i < 12; i++) {
-                const spark = this.add.graphics();
-                spark.lineStyle(2, b.type === 'tesla' ? 0x00ccff : 0xffaa00, 0.8);
+                const spark = this.trackBattleFx(this.add.graphics());
                 const len = 5 + Math.random() * 15;
                 const angle = Math.random() * Math.PI * 2;
-                spark.lineBetween(0, 0, Math.cos(angle) * len, Math.sin(angle) * len);
+                pixelLine(spark, 0, 0, Math.cos(angle) * len, Math.sin(angle) * len, 1, b.type === 'tesla' ? 0x00ccff : 0xffaa00, 0.8);
                 spark.setPosition(pos.x, pos.y - 15);
                 spark.setDepth(30002);
                 this.tweens.add({
@@ -6096,28 +6624,11 @@ export class MainScene extends Phaser.Scene {
             }
         }
 
-        if (b.barrelGraphics) b.barrelGraphics.destroy();
-        b.healthBar.destroy();
-        this.buildings.splice(index, 1);
-        this.invalidateCombatTopologyForRemoval(b);
-
-        // Wall visuals still need their neighbor joins refreshed; navigation
-        // invalidation above already preserves each troop's real objective and
-        // makes the new gap visible on the next plan.
-        if (b.type === 'wall') {
-            this.refreshWallNeighbors(b.gridX, b.gridY, b.owner);
-        }
-
         if (this.mode === 'ATTACK') {
-            // Track destruction stats and loot
+            // Track destruction stats; loot is recomputed from the capped
+            // pools × HP-weighted destruction inside updateBattleStats (the
+            // server settlement's model), not banked per building.
             if (b.type !== 'wall') this.destroyedBuildings++;
-
-            // Award loot if available
-            if (b.loot) {
-                this.goldLooted += b.loot.gold;
-                this.oreLooted += b.loot.ore;
-                this.foodLooted += b.loot.food;
-            }
 
             this.updateBattleStats();
             this.maybePushReplayFrame(true);
@@ -6137,15 +6648,59 @@ export class MainScene extends Phaser.Scene {
     }
 
 
+    /**
+     * The server's HP-weighted destruction% (simulation v2): structural
+     * damage over ALL non-wall enemy buildings, partial damage included.
+     * The count-based `currentDestructionPct` remains the HUD's headline
+     * number; THIS one prices the loot exactly like the settlement does.
+     */
+    private hpWeightedDestructionPct(): number {
+        if (this.initialEnemyScoringHP <= 0) return 0;
+        const remaining = this.buildings.reduce((sum, b) => {
+            if (b.owner !== 'ENEMY' || b.type === 'wall') return sum;
+            return sum + Math.max(0, Math.min(b.health, b.maxHealth));
+        }, 0);
+        const dealt = Math.max(0, this.initialEnemyScoringHP - remaining);
+        return Math.min(100, Math.round((dealt * 100) / this.initialEnemyScoringHP));
+    }
+
     private updateBattleStats() {
         const { totalKnown } = this.getBattleTotals();
         const destruction = totalKnown > 0
             ? Math.min(100, Math.round((this.destroyedBuildings / totalKnown) * 100))
             : 0;
+        // The loot counter mirrors the server settlement: capped pools ×
+        // HP-weighted destruction% (floored), so the HUD number converges to
+        // the real payout instead of drifting per destroyed building.
+        if (this.mode === 'ATTACK' && this.battleLootPools) {
+            const pct = this.hpWeightedDestructionPct();
+            this.goldLooted = Math.floor(this.battleLootPools.gold * pct / 100);
+            this.oreLooted = Math.floor(this.battleLootPools.ore * pct / 100);
+            this.foodLooted = Math.floor(this.battleLootPools.food * pct / 100);
+        }
         gameManager.updateBattleStats(destruction, this.goldLooted, this.oreLooted, this.foodLooted);
     }
 
 
+
+    /**
+     * The one gate for locally-simulated shot damage against troops. During
+     * replay watch the frame stream owns every health value, so defense shots
+     * stay visual-only there — mutating health would saw-tooth against each
+     * frame sync. Returns whether the damage was applied (kill included).
+     */
+    private applyLocalTroopDamage(t: Troop, damage: number): boolean {
+        if (this.mode === 'REPLAY') return false;
+        t.health -= damage;
+        t.hasTakenDamage = true;
+        this.updateHealthBar(t);
+        // Stone golem per-tick hit reaction (throttled inside; dies <300 ms).
+        if (t.type === 'golem' && t.health > 0) this.showStoneGolemHitFx(t);
+        // Ice golem hit reaction (throttled inside): chips of ice + frost puff.
+        if (t.type === 'icegolem' && t.health > 0) this.emitIceGolemHitFx(t);
+        if (t.health <= 0) this.destroyTroop(t);
+        return true;
+    }
 
     private destroyTroop(t: Troop) {
         if (t.id === 'dummy_target') return; // Ignore dummy targets used for fun shooting
@@ -6163,6 +6718,16 @@ export class MainScene extends Phaser.Scene {
         // (buildings already do this in their destroy path).
         this.tweens.killTweensOf(t.gameObject);
 
+        // ENTITY CLEANUP BEFORE DEATH FX (mirrors destroyBuilding): the
+        // per-type death effects below never resume if one of them throws —
+        // the update() bulkhead swallows the error — and a dead troop left in
+        // the array kept its last-drawn health bar floating at the corpse
+        // site for the rest of the battle. Bar + roster bookkeeping first;
+        // the branch-local repeats below are harmless no-ops after this.
+        this.troops = this.troops.filter(x => x.id !== t.id);
+        this.invalidateWardFollowers(t.id);
+        t.healthBar.destroy();
+
         const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
 
         // WALL BREAKER EXPLOSION: Detailed boom with smoke, debris, and area ring
@@ -6170,36 +6735,40 @@ export class MainScene extends Phaser.Scene {
             const ex = pos.x;
             const ey = pos.y - 5;
 
-            // 1. Area damage ring — expanding ground circle showing blast radius
-            const ring = this.add.graphics();
-            ring.lineStyle(3, 0xff6600, 0.7);
-            ring.strokeEllipse(0, 0, 20, 10); // isometric ellipse
-            ring.fillStyle(0xff4400, 0.15);
-            ring.fillEllipse(0, 0, 20, 10);
+            // 1. Area damage ring — expanding ground circle showing blast
+            // radius, REDRAWN per step (ring + interior wash) so the cells
+            // stay 1.35px instead of scaling up ×4.
+            const ring = this.trackBattleFx(this.add.graphics());
             ring.setPosition(ex, ey + 8);
             ring.setDepth(29999);
-            this.tweens.add({
-                targets: ring, scaleX: 4, scaleY: 4, alpha: 0,
+            const drawBlast = (p: number) => {
+                ring.clear();
+                const r = 10 + 30 * p;
+                const fade = 1 - p;
+                this.pixelRing(ring, 0, 0, r, r / 2, 2, 0xff6600, 0.7 * fade); // isometric ellipse
+                pixelEllipse(ring, 0, 0, r, r / 2, 0xff4400, 0.15 * fade);
+            };
+            drawBlast(0);
+            const blastState = { p: 0 };
+            this.trackBattleFxTween(this.tweens.add({
+                targets: blastState, p: 1,
                 duration: 400, ease: 'Quad.easeOut',
+                onUpdate: () => { if (ring.active) drawBlast(blastState.p); },
                 onComplete: () => ring.destroy()
-            });
+            }));
 
             // 2. Core flash — bright white/yellow burst
-            const flash = this.add.graphics();
-            flash.fillStyle(0xffffff, 0.9);
-            flash.fillCircle(0, 0, 6);
-            flash.fillStyle(0xffff44, 0.7);
-            flash.fillCircle(0, 0, 10);
+            const flash = this.trackBattleFx(this.add.graphics());
+            pixelEllipse(flash, 0, 0, 6, 6, 0xffffff, 0.9);
+            pixelEllipse(flash, 0, 0, 10, 10, 0xffff44, 0.7);
             flash.setPosition(ex, ey);
             flash.setDepth(30005);
             this.tweens.add({ targets: flash, scale: 2.5, alpha: 0, duration: 150, onComplete: () => flash.destroy() });
 
             // 3. Fireball — orange/red expanding ball
-            const fireball = this.add.graphics();
-            fireball.fillStyle(0xff4400, 0.8);
-            fireball.fillCircle(0, 0, 10);
-            fireball.fillStyle(0xff8800, 0.6);
-            fireball.fillCircle(-2, -2, 6);
+            const fireball = this.trackBattleFx(this.add.graphics());
+            pixelEllipse(fireball, 0, 0, 10, 10, 0xff4400, 0.8);
+            pixelEllipse(fireball, -2, -2, 6, 6, 0xff8800, 0.6);
             fireball.setPosition(ex, ey);
             fireball.setDepth(30003);
             this.tweens.add({ targets: fireball, scale: 2, alpha: 0, duration: 300, onComplete: () => fireball.destroy() });
@@ -6211,16 +6780,15 @@ export class MainScene extends Phaser.Scene {
             for (let i = 0; i < 14; i++) {
                 const debrisAngle = Math.random() * Math.PI * 2;
                 const debrisDist = 15 + Math.random() * 35;
-                const debris = this.add.graphics();
+                const debris = this.trackBattleFx(this.add.graphics());
                 const isWood = Math.random() > 0.4;
                 if (isWood) {
                     // Wood/barrel chunk
-                    debris.fillStyle([0x5a3a1a, 0x6b4a2a, 0x8b6b4a][Math.floor(Math.random() * 3)], 0.9);
-                    debris.fillRect(-1.5, -1, 3, 2 + Math.random() * 2);
+                    pixelRect(debris, -1.5, -1, 3, 2 + Math.random() * 2, [0x5a3a1a, 0x6b4a2a, 0x8b6b4a][Math.floor(Math.random() * 3)], 0.9);
                 } else {
                     // Metal band / stone bit
-                    debris.fillStyle([0x555555, 0x777777, 0x993300][Math.floor(Math.random() * 3)], 0.9);
-                    debris.fillCircle(0, 0, 1 + Math.random() * 1.5);
+                    const debrisR = 1 + Math.random() * 1.5;
+                    pixelEllipse(debris, 0, 0, debrisR, debrisR, [0x555555, 0x777777, 0x993300][Math.floor(Math.random() * 3)], 0.9);
                 }
                 debris.setPosition(ex, ey);
                 debris.setDepth(30001);
@@ -6253,11 +6821,10 @@ export class MainScene extends Phaser.Scene {
 
             // 6. Smoke puffs — multiple rising smoke clouds
             for (let i = 0; i < 4; i++) {
-                const smoke = this.add.graphics();
+                const smoke = this.trackBattleFx(this.add.graphics());
                 const smokeSize = 6 + Math.random() * 8;
                 const smokeAlpha = 0.3 + Math.random() * 0.2;
-                smoke.fillStyle(i < 2 ? 0x222222 : 0x444444, smokeAlpha);
-                smoke.fillCircle(0, 0, smokeSize);
+                pixelEllipse(smoke, 0, 0, smokeSize, smokeSize, i < 2 ? 0x222222 : 0x444444, smokeAlpha);
                 const offsetX = (Math.random() - 0.5) * 16;
                 const offsetY = (Math.random() - 0.5) * 8;
                 smoke.setPosition(ex + offsetX, ey + offsetY);
@@ -6276,9 +6843,8 @@ export class MainScene extends Phaser.Scene {
 
             // 7. Sparks — small bright particles
             for (let i = 0; i < 6; i++) {
-                const spark = this.add.graphics();
-                spark.fillStyle([0xffaa00, 0xff6600, 0xffff00][Math.floor(Math.random() * 3)], 1);
-                spark.fillCircle(0, 0, 1);
+                const spark = this.trackBattleFx(this.add.graphics());
+                pixelEllipse(spark, 0, 0, 1, 1, [0xffaa00, 0xff6600, 0xffff00][Math.floor(Math.random() * 3)], 1);
                 spark.setPosition(ex, ey);
                 spark.setDepth(30004);
                 const sparkAngle = Math.random() * Math.PI * 2;
@@ -6305,14 +6871,7 @@ export class MainScene extends Phaser.Scene {
         if (t.type === 'recursion' && (t.recursionGen ?? 0) < 2) {
             const nextGen = (t.recursionGen ?? 0) + 1;
             // Spawn split effect
-            const splitFlash = this.add.circle(pos.x, pos.y, 15, 0x00ffaa, 0.8);
-            splitFlash.setDepth(30002);
-            this.tweens.add({
-                targets: splitFlash,
-                scale: 2.5, alpha: 0,
-                duration: 200,
-                onComplete: () => splitFlash.destroy()
-            });
+            this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y, { r: 15, color: 0x00ffaa, alpha: 0.8, scaleTo: 2.5, life: 200, depth: 30002 }));
 
             // Spawn two smaller recursions slightly offset
             const offsets = [
@@ -6328,176 +6887,31 @@ export class MainScene extends Phaser.Scene {
             }
         }
 
-        // === GOLEM DEATH ANIMATION ===
+        // === GOLEM DEATH ANIMATION (stone + ice share the collapse hook) ===
         if (t.type === 'golem') {
-            const isPlayer = t.owner === 'PLAYER';
-            // Stone colors with ancient weathering - EXACTLY as in drawTroopVisual
-            const stoneBase = isPlayer ? 0x5a6a7a : 0x6a5a5a;
-            const stoneDark = isPlayer ? 0x3a4a5a : 0x4a3a3a;
-            const stoneLight = isPlayer ? 0x7a8a9a : 0x8a7a7a;
-            const stoneAccent = isPlayer ? 0x4a5a6a : 0x5a4a4a;
-            const mossColor = isPlayer ? 0x4a6a3a : 0x5a4a3a;
-
-            // Remove the troop immediately but keep visual debris
+            // THE BINDING FAILS — rune-bond flare, escaping sparks, then the
+            // megaliths collapse into a brief cairn (shared with replay
+            // watch via showReplayTroopDeath).
+            this.playStoneGolemDeath(t);
+            this.troops = this.troops.filter(x => x.id !== t.id);
+            this.invalidateWardFollowers(t.id);
+            t.gameObject.destroy();
+            t.healthBar.destroy();
+            return; // Skip normal death effects
+        }
+        if (t.type === 'icegolem') {
+            // GLACIAL SHATTER + FREEZE BURST — the Glacial Warden bursts
+            // into ice and the released cold locks every enemy defense
+            // within 2.5 tiles for 2.5 s (visuals shared with replay watch
+            // via showReplayTroopDeath; the debuff is client battle-sim
+            // only — server settlement ignores debuffs by design).
             this.troops = this.troops.filter(x => x.id !== t.id);
             this.invalidateWardFollowers(t.id);
             t.gameObject.destroy();
             t.healthBar.destroy();
 
-            // Debris Depth: Render at the bottom (on ground level)
-            const debrisDepth = 5;
-
-            // 1. LEFT ARM PIECE
-            const leftArm = this.add.graphics();
-            leftArm.setPosition(pos.x, pos.y);
-            leftArm.setDepth(debrisDepth);
-            // Reconstruct Left Arm exactly:
-            const lax = -18; const lay = -20;
-            leftArm.fillStyle(stoneDark, 1);
-            leftArm.beginPath(); leftArm.moveTo(lax - 4, lay); leftArm.lineTo(lax - 8, lay + 18); leftArm.lineTo(lax + 4, lay + 20); leftArm.lineTo(lax + 4, lay + 2); leftArm.closePath(); leftArm.fillPath();
-            leftArm.fillStyle(stoneBase, 1);
-            leftArm.beginPath(); leftArm.moveTo(lax - 2, lay + 2); leftArm.lineTo(lax - 4, lay + 16); leftArm.lineTo(lax + 2, lay + 17); leftArm.lineTo(lax + 2, lay + 3); leftArm.closePath(); leftArm.fillPath();
-            const lfx = lax - 2; const lfy = lay + 18;
-            leftArm.fillStyle(stoneAccent, 1);
-            leftArm.beginPath(); leftArm.moveTo(lfx - 5, lfy); leftArm.lineTo(lfx - 7, lfy + 17); leftArm.lineTo(lfx + 5, lfy + 18); leftArm.lineTo(lfx + 6, lfy + 1); leftArm.closePath(); leftArm.fillPath();
-            const lfistX = lfx - 1; const lfistY = lfy + 22;
-            leftArm.fillStyle(stoneDark, 1); leftArm.fillCircle(lfistX, lfistY, 9);
-            leftArm.fillStyle(stoneBase, 1); leftArm.fillCircle(lfistX - 1, lfistY - 1, 7);
-            leftArm.fillStyle(stoneLight, 0.5); leftArm.fillCircle(lfistX - 4, lfistY - 3, 2); leftArm.fillCircle(lfistX, lfistY - 4, 2); leftArm.fillCircle(lfistX + 4, lfistY - 3, 2);
-
-            this.tweens.add({
-                targets: leftArm,
-                x: pos.x - 12, y: pos.y + 10, rotation: -1.2, // Arms not as far (-22 -> -12)
-                duration: 2800, // Slower (2400 -> 2800)
-                ease: 'Bounce.easeOut',
-                onComplete: () => {
-                    this.tweens.add({ targets: leftArm, alpha: 0, duration: 4000, delay: 5000, onComplete: () => leftArm.destroy() });
-                }
-            });
-
-            // 2. RIGHT ARM PIECE
-            const rightArm = this.add.graphics();
-            rightArm.setPosition(pos.x, pos.y);
-            rightArm.setDepth(debrisDepth);
-            // Reconstruct Right Arm exactly:
-            const rax = 18; const ray = -20;
-            rightArm.fillStyle(stoneDark, 1);
-            rightArm.beginPath(); rightArm.moveTo(rax + 4, ray); rightArm.lineTo(rax + 8, ray + 18); rightArm.lineTo(rax - 4, ray + 20); rightArm.lineTo(rax - 4, ray + 2); rightArm.closePath(); rightArm.fillPath();
-            rightArm.fillStyle(stoneBase, 1);
-            rightArm.beginPath(); rightArm.moveTo(rax + 2, ray + 2); rightArm.lineTo(rax + 4, ray + 16); rightArm.lineTo(rax - 2, ray + 17); rightArm.lineTo(rax - 2, ray + 3); rightArm.closePath(); rightArm.fillPath();
-            const rfx = rax + 2; const rfy = ray + 18;
-            rightArm.fillStyle(stoneAccent, 1);
-            rightArm.beginPath(); rightArm.moveTo(rfx + 5, rfy); rightArm.lineTo(rfx + 7, rfy + 17); rightArm.lineTo(rfx - 5, rfy + 18); rightArm.lineTo(rfx - 6, rfy + 1); rightArm.closePath(); rightArm.fillPath();
-            const rfistX = rfx + 1; const rfistY = rfy + 22;
-            rightArm.fillStyle(stoneDark, 1); rightArm.fillCircle(rfistX, rfistY, 9);
-            rightArm.fillStyle(stoneBase, 1); rightArm.fillCircle(rfistX + 1, rfistY - 1, 7);
-            rightArm.fillStyle(stoneLight, 0.5); rightArm.fillCircle(rfistX + 4, rfistY - 3, 2); rightArm.fillCircle(rfistX, rfistY - 4, 2); rightArm.fillCircle(rfistX - 4, rfistY - 3, 2);
-
-            this.tweens.add({
-                targets: rightArm,
-                x: pos.x + 15, y: pos.y + 15, rotation: 1.4, // Arms not as far (+28 -> +15)
-                duration: 3000, // Slower (2600 -> 3000)
-                ease: 'Bounce.easeOut',
-                onComplete: () => {
-                    this.tweens.add({ targets: rightArm, alpha: 0, duration: 4000, delay: 4800, onComplete: () => rightArm.destroy() });
-                }
-            });
-
-            // 3. LEFT LEG PIECE
-            const leftLeg = this.add.graphics();
-            leftLeg.setPosition(pos.x, pos.y);
-            leftLeg.setDepth(debrisDepth);
-            const legSpread = 12;
-            leftLeg.fillStyle(stoneDark, 1);
-            leftLeg.beginPath(); leftLeg.moveTo(-legSpread - 6, -5); leftLeg.lineTo(-legSpread - 8, 12); leftLeg.lineTo(-legSpread + 4, 14); leftLeg.lineTo(-legSpread + 2, -3); leftLeg.closePath(); leftLeg.fillPath();
-            leftLeg.fillStyle(stoneBase, 1);
-            leftLeg.beginPath(); leftLeg.moveTo(-legSpread - 4, -4); leftLeg.lineTo(-legSpread - 5, 10); leftLeg.lineTo(-legSpread, 11); leftLeg.lineTo(-legSpread + 1, -3); leftLeg.closePath(); leftLeg.fillPath();
-            leftLeg.fillStyle(stoneDark, 1); leftLeg.fillRect(-legSpread - 10, 12, 16, 6);
-            leftLeg.fillStyle(stoneAccent, 1); leftLeg.fillRect(-legSpread - 8, 11, 12, 3);
-
-            this.tweens.add({
-                targets: leftLeg,
-                x: pos.x - 10, y: pos.y + 15, rotation: -0.5,
-                duration: 2300, // Slightly slower (2000 -> 2300)
-                ease: 'Bounce.easeOut',
-                onComplete: () => {
-                    this.tweens.add({ targets: leftLeg, alpha: 0, duration: 4000, delay: 5200, onComplete: () => leftLeg.destroy() });
-                }
-            });
-
-            // 4. RIGHT LEG PIECE
-            const rightLeg = this.add.graphics();
-            rightLeg.setPosition(pos.x, pos.y);
-            rightLeg.setDepth(debrisDepth);
-            rightLeg.fillStyle(stoneDark, 1);
-            rightLeg.beginPath(); rightLeg.moveTo(legSpread + 6, -5); rightLeg.lineTo(legSpread + 8, 12); rightLeg.lineTo(legSpread - 4, 14); rightLeg.lineTo(legSpread - 2, -3); rightLeg.closePath(); rightLeg.fillPath();
-            rightLeg.fillStyle(stoneBase, 1);
-            rightLeg.beginPath(); rightLeg.moveTo(legSpread + 4, -4); rightLeg.lineTo(legSpread + 5, 10); rightLeg.lineTo(legSpread, 11); rightLeg.lineTo(legSpread - 1, -3); rightLeg.closePath(); rightLeg.fillPath();
-            rightLeg.fillStyle(stoneDark, 1); rightLeg.fillRect(legSpread - 6, 12, 16, 6);
-            rightLeg.fillStyle(stoneAccent, 1); rightLeg.fillRect(legSpread - 4, 11, 12, 3);
-
-            this.tweens.add({
-                targets: rightLeg,
-                x: pos.x + 12, y: pos.y + 12, rotation: 0.6,
-                duration: 2500, // Slightly slower (2200 -> 2500)
-                ease: 'Bounce.easeOut',
-                onComplete: () => {
-                    this.tweens.add({ targets: rightLeg, alpha: 0, duration: 4000, delay: 5100, onComplete: () => rightLeg.destroy() });
-                }
-            });
-
-            // 5. TORSO RUIN
-            const torso = this.add.graphics();
-            torso.setPosition(pos.x, pos.y);
-            torso.setDepth(debrisDepth);
-            // Reconstruct Torso exactly. Note bodySlam=0 now.
-            torso.fillStyle(stoneDark, 1);
-            torso.beginPath(); torso.moveTo(-22, -8); torso.lineTo(-18, -28); torso.lineTo(18, -28); torso.lineTo(22, -8); torso.lineTo(16, 2); torso.lineTo(-16, 2); torso.closePath(); torso.fillPath();
-            torso.fillStyle(stoneBase, 1);
-            torso.beginPath(); torso.moveTo(-20, -10); torso.lineTo(-16, -30); torso.lineTo(16, -30); torso.lineTo(20, -10); torso.lineTo(14, 0); torso.lineTo(-14, 0); torso.closePath(); torso.fillPath();
-            torso.fillStyle(stoneLight, 1);
-            torso.beginPath(); torso.moveTo(-12, -24); torso.lineTo(-8, -28); torso.lineTo(8, -28); torso.lineTo(12, -24); torso.lineTo(10, -14); torso.lineTo(-10, -14); torso.closePath(); torso.fillPath();
-            // DARK EYES on chest rune (no glow)
-            torso.fillStyle(stoneDark, 1);
-            torso.beginPath(); torso.moveTo(0, -26); torso.lineTo(-4, -22); torso.lineTo(0, -18); torso.lineTo(4, -22); torso.closePath(); torso.fillPath();
-            // Cracks
-            torso.lineStyle(1, stoneDark, 0.6); torso.lineBetween(-15, -20, -10, -15); torso.lineBetween(12, -25, 16, -18); torso.lineBetween(-8, -8, -3, -12); torso.lineBetween(5, -6, 10, -10);
-            // Moss
-            torso.fillStyle(mossColor, 0.7); torso.fillCircle(-14, -16, 3); torso.fillCircle(16, -12, 2.5); torso.fillCircle(-8, -4, 2);
-            // Neck
-            torso.fillStyle(stoneDark, 1); torso.fillRect(-8, -38, 16, 10);
-            // Head
-            torso.fillStyle(stoneBase, 1);
-            torso.beginPath(); torso.moveTo(-14, -36); torso.lineTo(-16, -48); torso.lineTo(-10, -54); torso.lineTo(10, -54); torso.lineTo(16, -48); torso.lineTo(14, -36); torso.closePath(); torso.fillPath();
-            torso.fillStyle(stoneDark, 1);
-            torso.beginPath(); torso.moveTo(-14, -46); torso.lineTo(-12, -50); torso.lineTo(12, -50); torso.lineTo(14, -46); torso.lineTo(10, -44); torso.lineTo(-10, -44); torso.closePath(); torso.fillPath();
-            // DARK EYES (lights off)
-            torso.fillStyle(0x1a1a1a, 1); torso.fillCircle(-6, -45, 4); torso.fillCircle(6, -45, 4);
-
-            this.tweens.add({
-                targets: torso,
-                y: pos.y + 5, scaleY: 0.85, rotation: 0.15, // Tilted to the side
-                duration: 1600, // Even slower
-                ease: 'Bounce.easeOut',
-                onComplete: () => {
-                    // (Rubble spawn removed as per request to fix "weird rectangles")
-                    this.tweens.add({ targets: torso, alpha: 0, duration: 14000, delay: 8000, onComplete: () => torso.destroy() });
-                }
-            });
-
-            // Dust cloud
-            const dust = this.add.graphics();
-            dust.fillStyle(0x888888, 0.1);
-            dust.fillCircle(0, 0, 40);
-            dust.setPosition(pos.x, pos.y + 10);
-            dust.setDepth(debrisDepth - 2);
-            this.tweens.add({
-                targets: dust,
-                scale: 3, alpha: 0, y: pos.y - 15,
-                duration: 4800, // Even slower
-                ease: 'Quad.easeOut',
-                onComplete: () => dust.destroy()
-            });
+            this.showIceGolemShatterFx(t, pos);
+            this.applyIceGolemFreezeBurst(t);
 
             return; // Skip normal death effects
         }
@@ -6506,14 +6920,7 @@ export class MainScene extends Phaser.Scene {
         // === PHALANX DEATH - Splits into 9 warriors ===
         if (t.type === 'phalanx') {
             // Flash effect
-            const splitFlash = this.add.circle(pos.x, pos.y, 25, 0xffaa00, 0.8);
-            splitFlash.setDepth(30002);
-            this.tweens.add({
-                targets: splitFlash,
-                scale: 2, alpha: 0,
-                duration: 300,
-                onComplete: () => splitFlash.destroy()
-            });
+            this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y, { r: 25, color: 0xffaa00, alpha: 0.8, scaleTo: 2, life: 300, depth: 30002 }));
 
             // Spawn 9 warriors in a 3x3 grid
             const offsets = [
@@ -6531,9 +6938,8 @@ export class MainScene extends Phaser.Scene {
             }
 
             // Debris dust (isometric oval)
-            const dust = this.add.graphics();
-            dust.fillStyle(0x888888, 0.3);
-            dust.fillEllipse(0, 0, 40, 20);
+            const dust = this.trackBattleFx(this.add.graphics());
+            pixelEllipse(dust, 0, 0, 20, 10, 0x888888, 0.3);
             dust.setPosition(pos.x, pos.y);
             dust.setDepth(5);
             this.tweens.add({
@@ -6559,10 +6965,10 @@ export class MainScene extends Phaser.Scene {
             // === SMOKE BURST to cover the transition ===
             // Create multiple small smoke puffs
             for (let i = 0; i < 8; i++) {
-                const smoke = this.add.graphics();
-                smoke.fillStyle(0x1a1a1a, 0.85);  // Very dark black smoke
+                const smoke = this.trackBattleFx(this.add.graphics());
                 const smokeSize = 2 + Math.random() * 2;  // TINY (2-4px radius)
-                smoke.fillCircle(0, 0, smokeSize);
+                // Very dark black smoke
+                pixelEllipse(smoke, 0, 0, smokeSize, smokeSize, 0x1a1a1a, 0.85);
                 const offsetX = (Math.random() - 0.5) * 15;  // Tight spread
                 const offsetY = (Math.random() - 0.5) * 10 - 5;
                 smoke.setPosition(pos.x + offsetX, pos.y + offsetY);
@@ -6581,9 +6987,8 @@ export class MainScene extends Phaser.Scene {
             }
 
             // Fire/explosion spark at center
-            const spark = this.add.graphics();
-            spark.fillStyle(0xff6600, 0.8);
-            spark.fillCircle(0, 0, 15);
+            const spark = this.trackBattleFx(this.add.graphics());
+            pixelEllipse(spark, 0, 0, 15, 15, 0xff6600, 0.8);
             spark.setPosition(pos.x, pos.y - 15);
             spark.setDepth(30010);
             this.tweens.add({
@@ -6595,17 +7000,20 @@ export class MainScene extends Phaser.Scene {
 
             // Create husk AFTER smoke starts (delayed slightly)
             this.scheduleBattleCall(100, () => {
-                const husk = this.add.graphics();
+                const husk = this.trackBattleFx(this.add.graphics());
                 husk.setPosition(pos.x, pos.y);
                 husk.setDepth(depthForTroop(t.gridX, t.gridY, t.type));
 
-                // Draw the deactivated tank
-                TroopRenderer.drawDaVinciTank(husk, isPlayer, false, true, t.facingAngle || 0);
+                // Baked 'deactivated' husk frame (per direction/level/owner);
+                // vector fallback draws the real level + scene time — the
+                // old call omitted both, reverting the husk to L1 colors.
+                if (!SpriteBank.syncTroopPose(this, husk, 'davincitank', t.owner, t.level || 1, t.facingAngle || 0, 'deactivated')) {
+                    TroopRenderer.drawDaVinciTank(husk, isPlayer, false, true, t.facingAngle || 0, t.level || 1, this.time.now);
+                }
 
                 // Small dust cloud on impact
-                const dust = this.add.graphics();
-                dust.fillStyle(0x888888, 0.2);
-                dust.fillCircle(0, 0, 30);
+                const dust = this.trackBattleFx(this.add.graphics());
+                pixelEllipse(dust, 0, 0, 30, 30, 0x888888, 0.2);
                 dust.setPosition(pos.x, pos.y + 10);
                 dust.setDepth(4);
                 this.tweens.add({
@@ -6630,7 +7038,7 @@ export class MainScene extends Phaser.Scene {
         }
         // === END DA VINCI TANK DEATH ===
         // Death explosion effect (pixelated rectangle)
-        const flash = this.add.graphics();
+        const flash = this.trackBattleFx(this.add.graphics());
         flash.fillRect(-6, -6, 12, 12);
         flash.setPosition(pos.x, pos.y);
         flash.setDepth(30001);
@@ -6643,9 +7051,8 @@ export class MainScene extends Phaser.Scene {
                     [0xff8800, 0xcc6600];
         for (let i = 0; i < 8; i++) {
             const angle = (i / 8) * Math.PI * 2;
-            const particle = this.add.graphics();
-            particle.fillStyle(particleColors[i % 2], 0.9);
-            particle.fillRect(-3, -3, 6, 6);
+            const particle = this.trackBattleFx(this.add.graphics());
+            pixelRect(particle, -3, -3, 6, 6, particleColors[i % 2], 0.9);
             particle.setPosition(pos.x, pos.y);
             particle.setDepth(30000);
             this.tweens.add({
@@ -6660,9 +7067,8 @@ export class MainScene extends Phaser.Scene {
         }
 
         // Smoke puff (pixelated rectangle)
-        const smoke = this.add.graphics();
-        smoke.fillStyle(0x666666, 0.5);
-        smoke.fillRect(-10, -10, 20, 20);
+        const smoke = this.trackBattleFx(this.add.graphics());
+        pixelRect(smoke, -10, -10, 20, 20, 0x666666, 0.5);
         smoke.setPosition(pos.x, pos.y);
         smoke.setDepth(29999);
         this.tweens.add({
@@ -6679,61 +7085,483 @@ export class MainScene extends Phaser.Scene {
         t.healthBar.destroy();
     }
 
-    private showGolemCrackEffect(x: number, y: number) {
-        // Create ground crack effect for Golem ground pound
-        const crackGraphics = this.add.graphics();
-        crackGraphics.setPosition(x, y);
-        crackGraphics.setDepth(5);
+    // ================= ICE GOLEM (Glacial Warden) FX KIT =================
 
-        // Draw radial cracks
-        const crackColor = 0x3a3a3a;
-        const crackCount = 8;
-        const maxLength = 60;
+    /** Ice family by owner — mirrors the IceGolem.ts palettes (player
+     *  glacial cyan, enemy amethyst). */
+    private iceGolemColors(owner: 'PLAYER' | 'ENEMY') {
+        return owner === 'PLAYER'
+            ? { chip: 0x9cc2d6, chipLit: 0xd2e6ee, core: 0x66e4ff, hot: 0xdcfaff, deep: 0x3a70a4 }
+            : { chip: 0xac9cc2, chipLit: 0xe0d8e8, core: 0xce70f6, hot: 0xf2dcff, deep: 0x564288 };
+    }
 
-        for (let i = 0; i < crackCount; i++) {
-            const angle = (i / crackCount) * Math.PI * 2 + Math.random() * 0.3;
-            const length = maxLength * (0.6 + Math.random() * 0.4);
+    /** Visual half of the ice golem death: the body bursts into shards and
+     *  a freeze front rolls out over the debuff radius. Presentation only —
+     *  shared verbatim by destroyTroop and showReplayTroopDeath. */
+    private showIceGolemShatterFx(t: Troop, pos: { x: number; y: number }) {
+        const c = this.iceGolemColors(t.owner);
+        const radiusPx = 2.5 * this.tileWidth * 0.5 * Math.SQRT2; // = the debuff radius
+        const groundDepth = depthForGroundEffect(t.gridX, t.gridY);
 
-            // Main crack line
-            crackGraphics.lineStyle(3, crackColor, 0.8);
-            crackGraphics.beginPath();
-            crackGraphics.moveTo(0, 0);
+        this.cameras.main.shake(50, 0.0015);
 
-            // Jagged path
-            let cx = 0, cy = 0;
-            const segments = 3;
-            for (let s = 1; s <= segments; s++) {
-                const progress = s / segments;
-                const jitter = (Math.random() - 0.5) * 15;
-                cx = Math.cos(angle) * length * progress + Math.cos(angle + Math.PI / 2) * jitter;
-                cy = Math.sin(angle) * length * progress * 0.5 + Math.sin(angle + Math.PI / 2) * jitter * 0.5;
-                crackGraphics.lineTo(cx, cy);
-            }
-            crackGraphics.strokePath();
+        // Core flash at the torso — the frozen heart letting go.
+        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 22, {
+            r: 14, color: c.hot, alpha: 0.95, life: 220, scaleTo: 2.2, depth: 30004
+        }));
 
-            // Branch cracks
-            if (Math.random() > 0.4) {
-                const branchAngle = angle + (Math.random() - 0.5) * 0.8;
-                const branchLen = length * 0.4;
-                crackGraphics.lineStyle(2, crackColor, 0.6);
-                crackGraphics.beginPath();
-                crackGraphics.moveTo(cx * 0.6, cy * 0.6);
-                crackGraphics.lineTo(
-                    cx * 0.6 + Math.cos(branchAngle) * branchLen,
-                    cx * 0.6 + Math.sin(branchAngle) * branchLen * 0.5
-                );
-                crackGraphics.strokePath();
+        // Freeze front: an expanding iso ring out to the debuff radius, with
+        // a fainter trailing ring — cold rolling across the ground.
+        this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 6, {
+            r0: 8, r1: radiusPx, squash: 0.5, thick0: 3, thick1: 1.5,
+            color: c.core, alpha: 0.85, life: 420, ease: 'Quad.easeOut',
+            depth: groundDepth + 2
+        }));
+        this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 6, {
+            r0: 6, r1: radiusPx * 0.9, squash: 0.5, thick0: 2, thick1: 1,
+            color: c.hot, alpha: 0.6, life: 460, delay: 90, ease: 'Quad.easeOut',
+            depth: groundDepth + 1
+        }));
+
+        // Body shards: chunky berg fragments thrown outward and up...
+        PixelFx.burst(this, pos.x, pos.y - 18, {
+            count: 16, colors: [c.chipLit, c.chip, c.hot], square: true,
+            r: 2.6, rJitter: 2, spread: 12, spreadY: 14,
+            radial: 26, radialJitter: 12, ySquash: 0.5, up: 14, upJitter: 12,
+            alpha: 0.95, life: 520, lifeJitter: 220, rot0: 0.6, spin: 2.4,
+            depth: depthForTroop(t.gridX, t.gridY, t.type) + 1
+        });
+        // ...and a fine frost haze that hangs, then settles.
+        PixelFx.burst(this, pos.x, pos.y - 14, {
+            count: 12, colors: [c.hot, 0xffffff, c.core],
+            r: 1.4, rJitter: 0.8, spread: 20, spreadY: 12, up: 6, upJitter: 6,
+            alpha: 0.75, life: 700, lifeJitter: 250, fadeDelay: 0.3,
+            depth: groundDepth + 3
+        });
+
+        // Rime patch where the Warden stood — fades out over the freeze
+        // window (tween rides the tracked graphics, so the sweep reaches it).
+        const rime = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(rime, 0, 0, 26, 13, c.hot, 0.4);
+        pixelEllipse(rime, 0, 0, 17, 8.5, 0xffffff, 0.3);
+        this.pixelRing(rime, 0, 0, 24, 12, 1, c.core, 0.5);
+        rime.setPosition(pos.x, pos.y + 6);
+        rime.setDepth(groundDepth);
+        this.tweens.add({
+            targets: rime, alpha: 0, duration: 2100, delay: 400,
+            ease: 'Quad.easeIn', onComplete: () => rime.destroy()
+        });
+    }
+
+    /** Mechanical half of the freeze-on-death: every enemy DEFENSE within
+     *  2.5 tiles holds fire for 2.5 s (DefenseSystem skips frozen defenses
+     *  entirely) and gets the icy dressing. Deterministic — pure grid-radius
+     *  test, no RNG. Client battle sim + presentation only: the server's
+     *  settlement simulation ignores debuffs by design, so replay watch may
+     *  apply it too (there it merely silences the locally-generated defense
+     *  FX; the frame stream owns the sim). */
+    private applyIceGolemFreezeBurst(t: Troop) {
+        const radiusTiles = 2.5;
+        const freezeMs = 2500;
+        const now = this.time.now;
+        for (const b of this.buildings) {
+            if (b.owner === t.owner || b.health <= 0 || b.isDestroyed) continue;
+            if (!(b.type in DEFENSE_BEHAVIOR_CATALOG)) continue; // only firing defenses freeze
+            const info = BUILDINGS[b.type];
+            if (!info) continue;
+            const bdx = (b.gridX + info.width / 2) - t.gridX;
+            const bdy = (b.gridY + info.height / 2) - t.gridY;
+            if (Math.hypot(bdx, bdy) > radiusTiles) continue;
+
+            b.frozenUntil = Math.max(b.frozenUntil ?? 0, now + freezeMs);
+            if (b.type === 'prism') this.cleanupPrismLaser(b); // kill a live beam instantly
+            this.applyDefenseFreezeVisual(b, t.owner);
+        }
+    }
+
+    /** Icy dressing for one frozen defense: frost tint on the baked body
+     *  sprite plus a tracked overlay (rime ring + ice spears + glints) at
+     *  the building's footprint. updateFrozenDefenses thaws it. */
+    private applyDefenseFreezeVisual(b: PlacedBuilding, golemOwner: 'PLAYER' | 'ENEMY') {
+        const c = this.iceGolemColors(golemOwner);
+        const info = BUILDINGS[b.type];
+        const center = IsoUtils.cartToIso(b.gridX + info.width / 2, b.gridY + info.height / 2);
+
+        SpriteBank.setCarrierTint(b.graphics, 0xb4e2ff);
+
+        b.frostOverlay?.destroy(); // re-freeze: replace the dressing
+        const overlay = this.trackBattleFx(this.add.graphics());
+        const rx = (info.width * 0.5 + 0.35) * this.tileWidth * 0.5 * Math.SQRT2;
+        // rime ring hugging the footprint
+        this.pixelRing(overlay, 0, 0, rx, rx * 0.5, 1.5, c.hot, 0.75);
+        this.pixelRing(overlay, 0, 0, rx * 0.8, rx * 0.4, 1, 0xffffff, 0.4);
+        // ice spears jutting from the ground around the base (fixed angles)
+        for (let i = 0; i < 4; i++) {
+            const ang = (i / 4) * Math.PI * 2 + 0.5;
+            const sx = Math.cos(ang) * rx * 0.75;
+            const sy = Math.sin(ang) * rx * 0.75 * 0.5;
+            const hgt = 7 + (i % 2) * 3;
+            pixelRect(overlay, sx - 1.6, sy - hgt, 3.2, hgt, c.chipLit, 0.95);
+            pixelRect(overlay, sx - 0.6, sy - hgt - 2.5, 1.4, 3, c.hot, 0.95);
+            pixelRect(overlay, sx + 0.2, sy - hgt + 1, 1, hgt - 2, c.deep, 0.6);
+        }
+        // static frost glints on the body
+        pixelRect(overlay, -4, -14, 1.5, 1.5, 0xffffff, 0.9);
+        pixelRect(overlay, 5, -20, 1.5, 1.5, c.hot, 0.85);
+        overlay.setPosition(center.x, center.y);
+        overlay.setDepth(b.graphics.depth + 2);
+        overlay.setAlpha(0);
+        this.tweens.add({ targets: overlay, alpha: 1, duration: 120 });
+
+        // freeze snap: small crystallizing pop at the building
+        this.trackBattleFx(PixelFx.flash(this, center.x, center.y - 8, {
+            r: 9, color: c.hot, alpha: 0.7, life: 180, scaleTo: 1.8, depth: b.graphics.depth + 3
+        }));
+
+        b.frostOverlay = overlay;
+    }
+
+    /** Thaw pass, run each combat frame just before the defense tick:
+     *  expired (or destroyed) frozen defenses drop the tint and their
+     *  overlay melts away with a drip of motes. Self-heals any state the
+     *  epoch-guarded timers could miss at battle end. */
+    private updateFrozenDefenses(time: number) {
+        for (const b of this.buildings) {
+            if (b.frozenUntil === undefined) continue;
+            if (time < b.frozenUntil && b.health > 0 && !b.isDestroyed) continue;
+
+            b.frozenUntil = undefined;
+            SpriteBank.setCarrierTint(b.graphics, null);
+            const overlay = b.frostOverlay;
+            b.frostOverlay = undefined;
+            if (overlay && overlay.active) {
+                this.tweens.add({
+                    targets: overlay, alpha: 0, duration: 260,
+                    onComplete: () => overlay.destroy()
+                });
+                if (b.health > 0 && !b.isDestroyed) {
+                    // melt drip on a clean thaw (a destroyed building's own
+                    // wreck FX owns the moment instead)
+                    PixelFx.burst(this, overlay.x, overlay.y - 4, {
+                        count: 5, colors: [0xffffff, 0xdcfaff],
+                        r: 1.2, rJitter: 0.6, spread: 10, spreadY: 5,
+                        up: -8, upJitter: 4, alpha: 0.7, life: 320, lifeJitter: 100,
+                        depth: overlay.depth
+                    });
+                }
             }
         }
+    }
 
-        // Fade out cracks
-        this.tweens.add({
-            targets: crackGraphics,
-            alpha: 0,
-            duration: 1200, // Slightly longer fade for better "settling" feel
-            delay: 400,
-            onComplete: () => crackGraphics.destroy()
+    /** On-hit reaction for the ice golem — chips of ice and a frost puff
+     *  where the shot lands. Throttled per troop so continuous-beam damage
+     *  ticks don't strobe. Fire-and-forget one-shots (Math.random allowed). */
+    private emitIceGolemHitFx(t: Troop) {
+        const now = this.time.now;
+        if (now - (t.frostHitFxAt ?? 0) < 160) return;
+        t.frostHitFxAt = now;
+        const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
+        const c = this.iceGolemColors(t.owner);
+        const depth = depthForTroop(t.gridX, t.gridY, t.type) + 1;
+        PixelFx.burst(this, pos.x, pos.y - 24, {
+            count: 5, colors: [c.chipLit, c.chip, c.hot], square: true,
+            r: 1.6, rJitter: 1, spread: 9, spreadY: 7,
+            up: -12, upJitter: 10, speed: 10,
+            alpha: 0.95, life: 300, lifeJitter: 120, rot0: 0.4, spin: 1.6,
+            depth
         });
+        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 24, {
+            r: 5, color: c.hot, alpha: 0.5, life: 140, scaleTo: 1.6, depth
+        }));
+    }
+
+    private showGolemCrackEffect(x: number, y: number, radiusTiles: number = 3) {
+        // STONE GOLEM SLAM IMPACT — mineral, no faction glow (the baked slam
+        // pose already carries the rune flare at the fists): a dust
+        // shockfront over the damage radius, radiating ground cracks grown by
+        // stepped redraw, and thrown stone chips.
+        const radiusPx = radiusTiles * this.tileWidth * 0.5 * Math.SQRT2;
+        const grid = IsoUtils.isoToCart(x, y);
+        const groundDepth = depthForGroundEffect(grid.x, grid.y);
+        const rng = this.stoneGolemFxRng(`slam:${Math.round(x)}:${Math.round(y)}`, 0x51a3);
+
+        // Dust shockfront expanding to the damage radius.
+        this.trackBattleFx(PixelFx.ring(this, x, y, {
+            r0: 8, r1: radiusPx, squash: 0.5, thick0: 2, thick1: 1,
+            color: 0x9b8f7a, alpha: 0.5, life: 380, ease: 'Quad.easeOut',
+            fadePow: 1.6, depth: groundDepth + 1
+        }));
+        // Central dust bloom right under the fists.
+        this.trackBattleFx(PixelFx.flash(this, x, y, {
+            r: 13, squash: 0.45, color: 0xa89b8d, alpha: 0.5,
+            life: 260, scaleTo: 1.8, ease: 'Quad.easeOut', depth: groundDepth
+        }));
+        // Thrown stone chips, iso-squashed radially.
+        PixelFx.burst(this, x, y, {
+            count: 10, square: true, colors: [0x94917f, 0x655f4f, 0xb4b1a1],
+            r: 1.6, rJitter: 1, radial: radiusPx * 0.4, radialJitter: radiusPx * 0.3,
+            ySquash: 0.5, up: 12, upJitter: 8, life: 320, lifeJitter: 140,
+            scaleTo: 0.5, ease: 'Quad.easeOut', depth: groundDepth + 2, rng
+        });
+
+        // Radiating cracks: jagged polylines grown outward over the first
+        // ~240 ms of the tween, held, then faded — REDRAWN per step so the
+        // cells stay 1.35 px (never a scale tween).
+        const g = this.trackBattleFx(this.add.graphics());
+        g.setPosition(x, y);
+        g.setDepth(groundDepth + 1.5);
+        const cracks: Array<Array<{ px: number; py: number }>> = [];
+        const arms = 6;
+        for (let i = 0; i < arms; i++) {
+            let ang = (i / arms) * Math.PI * 2 + (rng() - 0.5) * 0.8;
+            let reach = 0;
+            const line = [{ px: 0, py: 0 }];
+            for (let s = 0; s < 3; s++) {
+                reach += radiusPx * (0.17 + rng() * 0.13);
+                ang += (rng() - 0.5) * 0.7;
+                line.push({ px: Math.cos(ang) * reach, py: Math.sin(ang) * reach * 0.5 });
+            }
+            cracks.push(line);
+        }
+        const drawCracks = (p: number) => {
+            g.clear();
+            const grow = Math.min(1, p / 0.3);
+            const fade = p < 0.5 ? 1 : 1 - (p - 0.5) / 0.5;
+            for (const line of cracks) {
+                const segs = line.length - 1;
+                for (let s = 0; s < segs; s++) {
+                    const segP = Math.max(0, Math.min(1, grow * segs - s));
+                    if (segP <= 0) break;
+                    const a = line[s], b = line[s + 1];
+                    pixelLine(g, a.px, a.py,
+                        a.px + (b.px - a.px) * segP, a.py + (b.py - a.py) * segP,
+                        s === 0 ? 2 : 1, 0x3a342c, 0.7 * fade);
+                }
+            }
+        };
+        drawCracks(0);
+        // Progress rides ON the graphics so killTweensOf(g) — and therefore
+        // the battle-FX sweep — reaches this tween (PixelFx.flash pattern).
+        const carrier = g as Phaser.GameObjects.Graphics & { fxProgress: number };
+        carrier.fxProgress = 0;
+        this.tweens.add({
+            targets: carrier, fxProgress: 1, duration: 800, ease: 'Linear',
+            onUpdate: () => { if (g.active) drawCracks(carrier.fxProgress); },
+            onComplete: () => g.destroy()
+        });
+    }
+
+    // ============== STONE GOLEM FX (clean-room redesign, 2026-07) ==========
+    // Styled to GolemC "The Runebound Cairn": five hewn megaliths held
+    // together only by a glowing faction-colored rune-bond. The FX vocabulary
+    // is chipped stone, mineral dust, and that bond's glow — hit ticks chip
+    // the stone and make the seam flicker; death is the BINDING FAILING
+    // (flare, sparks escape, orbit motes drop) and then the megaliths
+    // collapsing into a brief cairn of rubble.
+
+    /** GolemC's stone + glow palette, mirrored for FX use. */
+    private stoneGolemFxPalette(isPlayer: boolean, troopLevel: number) {
+        const glow = isPlayer ? 0x6fd0ff : 0xff9440;
+        const core = isPlayer ? 0xdff4ff : 0xffe6c0;
+        const level = Math.max(1, Math.min(3, Math.floor(troopLevel || 1)));
+        if (level >= 3) {
+            return isPlayer
+                ? { base: 0xbfb49a, dark: 0x8d8164, lite: 0xd8cfb6, glow, core }
+                : { base: 0xb1a286, dark: 0x80725a, lite: 0xc9bda3, glow, core };
+        }
+        if (level === 2) {
+            return isPlayer
+                ? { base: 0x83837d, dark: 0x585853, lite: 0xa2a29b, glow, core }
+                : { base: 0x7c7064, dark: 0x524940, lite: 0x998c80, glow, core };
+        }
+        return isPlayer
+            ? { base: 0x94917f, dark: 0x655f4f, lite: 0xb4b1a1, glow, core }
+            : { base: 0x8c7f70, dark: 0x5e5245, lite: 0xa89b8d, glow, core };
+    }
+
+    /** Deterministic RNG (mulberry32 seeded from a string + salt) so golem FX
+     *  replay identically from death time + troop seed. */
+    private stoneGolemFxRng(seedStr: string, salt: number): () => number {
+        let h = salt >>> 0;
+        for (let i = 0; i < seedStr.length; i++) {
+            h = Math.imul(h ^ seedStr.charCodeAt(i), 2654435761);
+        }
+        return () => {
+            h = (h + 0x6d2b79f5) | 0;
+            let z = Math.imul(h ^ (h >>> 15), 1 | h);
+            z = (z + Math.imul(z ^ (z >>> 7), 61 | z)) ^ z;
+            return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    /** Stone golem per-damage-tick reaction: a couple of stone chips knocked
+     *  loose plus a flicker of the rune-bond seam. Throttled per troop so
+     *  burst-fire defenses don't stack it; everything dies within 300 ms. */
+    private showStoneGolemHitFx(t: Troop) {
+        const now = this.time.now;
+        const carrier = t as Troop & { __stoneHitFxAt?: number };
+        if (now - (carrier.__stoneHitFxAt ?? -1e9) < 90) return;
+        carrier.__stoneHitFxAt = now;
+
+        const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
+        const pal = this.stoneGolemFxPalette(t.owner === 'PLAYER', t.level || 1);
+        const depth = depthForTroop(t.gridX, t.gridY, t.type) + 0.5;
+        const rng = this.stoneGolemFxRng(t.id, Math.floor(now));
+
+        // Chipped stone motes knocked off the struck body, falling.
+        PixelFx.burst(this, pos.x, pos.y - 16, {
+            count: 3, square: true, colors: [pal.base, pal.dark, pal.lite],
+            r: 1.5, rJitter: 0.8, spread: 14, spreadY: 10,
+            speed: 16, up: -9, upJitter: -7,
+            life: 240, lifeJitter: 50, scaleTo: 0.6, ease: 'Quad.easeIn',
+            depth, rng
+        });
+        // The rune-bond seam flickers as the binding absorbs the blow.
+        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 22, {
+            r: 6, squash: 0.4, color: pal.glow, alpha: 0.5,
+            life: 140, scaleTo: 1.3, depth, blend: Phaser.BlendModes.ADD
+        }));
+    }
+
+    /** THE BINDING FAILS — staged stone golem collapse, shared by the live
+     *  death path (destroyTroop) and replay watch (showReplayTroopDeath).
+     *  Stage 1: the rune-bond flares out, its sparks escape upward and the
+     *  orbiting gravel motes drop from the field. Stage 2: the megaliths
+     *  fall — head-stone topples along the facing, capstone slides off,
+     *  torso drops onto the pelvis, the fists thud — each landing in a dust
+     *  puff. Stage 3: the cairn of rubble settles and fades. Purely visual
+     *  (tracked graphics/tweens only, no sim mutation), deterministic from
+     *  death time + the troop id. */
+    private playStoneGolemDeath(t: Troop) {
+        const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
+        const isPlayer = t.owner === 'PLAYER';
+        const pal = this.stoneGolemFxPalette(isPlayer, t.level || 1);
+        const level = Math.max(1, Math.min(3, Math.floor(t.level || 1)));
+        const rng = this.stoneGolemFxRng(t.id, Math.floor(this.time.now));
+        const baseDepth = depthForTroop(t.gridX, t.gridY, t.type);
+        const groundDepth = depthForGroundEffect(t.gridX, t.gridY);
+        const groundY = pos.y + 11; // GolemC GROUND_Y — the feet line
+        const fa = Number.isFinite(t.facingAngle) ? t.facingAngle : 0;
+        const dirX = Math.cos(fa);
+        const dirY = Math.sin(fa) * 0.5;
+
+        // --- Stage 1: the rune-bond flares and snaps -----------------------
+        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 23, {
+            r: 15, squash: 0.32, color: pal.glow, alpha: 0.75,
+            life: 220, scaleTo: 1.5, blend: Phaser.BlendModes.ADD, depth: baseDepth + 0.3
+        }));
+        this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 23, {
+            r: 8, squash: 0.32, color: pal.core, alpha: 0.8,
+            life: 160, scaleTo: 1.2, blend: Phaser.BlendModes.ADD, depth: baseDepth + 0.35
+        }));
+        // The eye-light winks out at the head-stone.
+        this.trackBattleFx(PixelFx.flash(this, pos.x + dirX * 9, pos.y - 29 + dirY * 4, {
+            r: 3, color: pal.core, alpha: 0.9, life: 130, scaleTo: 0.3,
+            blend: Phaser.BlendModes.ADD, depth: baseDepth + 0.4
+        }));
+        // The binding escapes upward as rune sparks…
+        PixelFx.burst(this, pos.x, pos.y - 22, {
+            count: 7, colors: [pal.glow, pal.core], r: 1.2, rJitter: 0.8,
+            spread: 20, spreadY: 6, speed: 10, up: 30, upJitter: 16,
+            life: 460, lifeJitter: 140, scaleTo: 0.4, ease: 'Quad.easeOut',
+            blend: Phaser.BlendModes.ADD, depth: baseDepth + 0.45, rng
+        });
+        // …and the orbiting gravel motes lose the field and scatter down.
+        PixelFx.burst(this, pos.x, pos.y - 20, {
+            count: 3, colors: [pal.base, pal.dark], r: 1.8, rJitter: 0.6,
+            ringAngles: true, radial: 24, radialJitter: 8, ySquash: 0.5,
+            up: -6, upJitter: -10, life: 380, lifeJitter: 80,
+            scaleTo: 0.7, ease: 'Quad.easeIn', depth: baseDepth + 0.2, rng
+        });
+
+        // --- Stage 2: the megaliths fall ------------------------------------
+        // Hewn chunk: 3-tone stone (base body, SE dark facet, NW light rim)
+        // via whole-cell primitives; some pieces keep a faint dead rune scar.
+        const drawChunk = (g: Phaser.GameObjects.Graphics, rx: number, ry: number, slab: boolean, seed: number) => {
+            if (slab) {
+                pixelRect(g, -rx, -ry, rx * 2, ry * 2, pal.base, 1);
+                pixelRect(g, -rx + 1.35, ry * 0.1, rx * 2 - 2.7, ry * 0.9, pal.dark, 0.9);
+                pixelRect(g, -rx + 1.35, -ry, rx * 2 - 2.7, Math.max(1.35, ry * 0.45), pal.lite, 0.9);
+                if (level >= 2) {
+                    // iron clamp (L2) / gold bond ring (L3) survives on the slab
+                    pixelRect(g, -rx + 2.7, -0.7, rx * 2 - 5.4, 1.4, level >= 3 ? 0xdaa520 : 0x474b52, 0.9);
+                }
+            } else {
+                pixelEllipse(g, 0, 0, rx, ry, pal.base, 1);
+                pixelEllipse(g, rx * 0.28, ry * 0.32, rx * 0.55, ry * 0.5, pal.dark, 0.9);
+                pixelEllipse(g, -rx * 0.3, -ry * 0.38, rx * 0.42, ry * 0.36, pal.lite, 0.9);
+            }
+            if (seed % 2 === 0) pixelRect(g, -1.35, -1.35, 2.7, 2.7, pal.glow, 0.25);
+        };
+        // Piece rig mirrors GolemC's stack (pelvis 17 / torso 31 / cap 45 /
+        // head 42 / fists ~7 above the feet). dOff keeps painter's order
+        // inside the character band: torso lies ON the pelvis, head lands
+        // furthest forward.
+        const pieces = [
+            { sx: dirX * 10, sy: -31 + dirY * 5, rx: 6, ry: 5, slab: false, landDx: dirX * 16, landDy: -3 + dirY * 6, fall: 300, delay: 40, dOff: 0.10 },
+            { sx: 0, sy: -34, rx: 13, ry: 4.5, slab: true, landDx: -9 - dirX * 3, landDy: -4, fall: 320, delay: 110, dOff: 0.02 },
+            { sx: 0, sy: -20, rx: 10.5, ry: 6, slab: true, landDx: 3, landDy: -8, fall: 270, delay: 190, dOff: 0.08 },
+            { sx: 0, sy: -6, rx: 10, ry: 7, slab: false, landDx: 0, landDy: -5, fall: 190, delay: 260, dOff: 0.04 },
+            { sx: 10 + dirX * 6, sy: 2, rx: 6, ry: 4.5, slab: true, landDx: 12 + dirX * 6, landDy: -2, fall: 140, delay: 60, dOff: 0.06 },
+            { sx: -10 + dirX * 4, sy: 3, rx: 5.5, ry: 4.5, slab: false, landDx: -13 + dirX * 4, landDy: -2, fall: 130, delay: 90, dOff: 0.05 },
+        ];
+        pieces.forEach((piece, i) => {
+            const g = this.trackBattleFx(this.add.graphics());
+            drawChunk(g, piece.rx, piece.ry, piece.slab, i);
+            g.setPosition(pos.x + piece.sx, pos.y + piece.sy);
+            g.setDepth(baseDepth + piece.dOff);
+            const landX = pos.x + piece.landDx + (rng() - 0.5) * 5;
+            const landY = groundY + piece.landDy + (rng() - 0.5) * 2;
+            this.tweens.add({
+                targets: g, x: landX,
+                duration: piece.fall, delay: piece.delay, ease: 'Sine.easeOut'
+            });
+            // fall → tiny bounce (yoyo) → settle, then the rubble fades out
+            this.tweens.add({
+                targets: g, y: landY,
+                duration: piece.fall, delay: piece.delay, ease: 'Quad.easeIn',
+                onComplete: () => {
+                    this.tweens.add({
+                        targets: g, y: landY - 2.5,
+                        duration: 75, yoyo: true, ease: 'Quad.easeOut',
+                        onComplete: () => {
+                            this.tweens.add({
+                                targets: g, alpha: 0,
+                                delay: 900 + rng() * 400, duration: 800, ease: 'Quad.easeIn',
+                                onComplete: () => g.destroy()
+                            });
+                        }
+                    });
+                }
+            });
+            // landfall dust puff
+            this.scheduleBattleCall(piece.delay + piece.fall, () => {
+                if (!g.active) return;
+                PixelFx.burst(this, landX, landY + piece.ry * 0.7, {
+                    count: 3, square: true, colors: [0x6f6552, 0x554c3e], alpha: 0.45,
+                    r: 1.4, rJitter: 0.8, spread: 12, up: 7, upJitter: 5,
+                    life: 220, lifeJitter: 60, scaleTo: 1.7,
+                    depth: groundDepth + 1, rng
+                });
+            });
+        });
+
+        // --- Stage 3: the cairn settles -------------------------------------
+        this.scheduleBattleCall(430, () => {
+            this.trackBattleFx(PixelFx.ring(this, pos.x, groundY - 2, {
+                r0: 6, r1: 30, squash: 0.5, thick0: 2, thick1: 1,
+                color: 0x9b8f7a, alpha: 0.4, life: 420, ease: 'Quad.easeOut',
+                fadePow: 1.5, depth: groundDepth
+            }));
+            PixelFx.burst(this, pos.x, groundY - 4, {
+                count: 5, colors: [0x7d7361, 0x6f6552], alpha: 0.28,
+                r: 2, rJitter: 1.2, spread: 30, spreadY: 10, up: 8,
+                life: 700, lifeJitter: 300, scaleTo: 1.6,
+                depth: groundDepth + 1, rng
+            });
+        });
+        // heaviest landfall (the torso megalith) — a tiny ground thud
+        this.scheduleBattleCall(460, () => this.cameras.main.shake(40, 0.001));
     }
 
     public spawnTroop(
@@ -6751,7 +7579,9 @@ export class MainScene extends Phaser.Scene {
         }
         const troopLevel = Math.max(1, Math.floor(troopLevelOverride ?? this.getTroopLevelForOwner(owner)));
         const stats = getTroopStats(type, troopLevel);
-        const attackDelay = stats.attackDelay ?? (700 + Math.random() * 300);
+        // Deterministic fallback: an RNG delay here made otherwise-identical
+        // battles diverge for any troop type missing an explicit attackDelay.
+        const attackDelay = stats.attackDelay ?? 850;
         const firstAttackDelay = stats.firstAttackDelay ?? 0;
         const spawnTime = this.time.now;
         const legalSpawn = this.nearestWalkableTroopPoint({ type, level: troopLevel }, gx, gy);
@@ -6772,24 +7602,11 @@ export class MainScene extends Phaser.Scene {
 
         // Spawn dust effect - depth just below troop for proper layering
         const troopDepth = depthForTroop(gx, gy, type);
-        for (let i = 0; i < 5; i++) {
-            const dust = this.add.circle(
-                pos.x + (Math.random() - 0.5) * 15,
-                pos.y + 5,
-                3 + Math.random() * 3,
-                0x8b7355,
-                0.5
-            );
-            dust.setDepth(troopDepth - 1);
-            this.tweens.add({
-                targets: dust,
-                x: dust.x + (Math.random() - 0.5) * 20,
-                y: dust.y - 10,
-                alpha: 0, scale: 1.5,
-                duration: 300 + Math.random() * 200,
-                onComplete: () => dust.destroy()
-            });
-        }
+        PixelFx.burst(this, pos.x, pos.y + 5, {
+            count: 5, colors: [0x8b7355], alpha: 0.5, r: 3, rJitter: 3,
+            spread: 15, speed: 20, up: 10, scaleTo: 1.5,
+            life: 300, lifeJitter: 200, depth: troopDepth - 1
+        });
 
         // Landing bounce animation
         troopGraphic.setScale(0.5 * scaleFactor);
@@ -6860,32 +7677,61 @@ export class MainScene extends Phaser.Scene {
 
 
 
-    public getBuildingsBounds(owner: 'PLAYER' | 'ENEMY') {
-        const ownerBuildings = this.buildings.filter(b => b.owner === owner);
-        if (ownerBuildings.length === 0) return null;
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        ownerBuildings.forEach(b => {
-            const info = BUILDINGS[b.type];
-            minX = Math.min(minX, b.gridX);
-            minY = Math.min(minY, b.gridY);
-            maxX = Math.max(maxX, b.gridX + info.width);
-            maxY = Math.max(maxY, b.gridY + info.height);
+    // === DEPLOY-FORBIDDEN TILES (CoC model) ===
+    // Troop deployment is blocked per BUILDING — each alive enemy building's
+    // footprint expanded by 1 tile (walls block only their own tile), NOT the
+    // old whole-base bounding rectangle, which silently swallowed taps over
+    // open grass anywhere between the base's extremes (one stray wall made
+    // most of the map dead). Tiles free up as buildings are destroyed.
+    private deployForbiddenTiles = new Set<number>();
+    private deployForbiddenSignature: string | null = null;
+
+    /** Rebuilds the forbidden-tile set when the alive enemy roster changed;
+     *  returns the roster signature (also the redraw key for the red zone). */
+    private refreshDeployForbiddenTiles(): string {
+        const parts: string[] = [];
+        this.buildings.forEach(b => {
+            if (b.owner !== 'ENEMY' || b.health <= 0) return;
+            parts.push(`${b.type === 'wall' ? 'w' : 'b'}${b.gridX},${b.gridY},${b.type}`);
         });
-        const buffer = 1;
-        // Clamp to map bounds
-        return {
-            minX: Math.max(0, minX - buffer),
-            minY: Math.max(0, minY - buffer),
-            maxX: Math.min(this.mapSize, maxX + buffer),
-            maxY: Math.min(this.mapSize, maxY + buffer)
-        };
+        const signature = `${this.mapSize}|${parts.join(';')}`;
+        if (signature === this.deployForbiddenSignature) return signature;
+        this.deployForbiddenSignature = signature;
+        this.deployForbiddenTiles.clear();
+        this.buildings.forEach(b => {
+            if (b.owner !== 'ENEMY' || b.health <= 0) return;
+            const info = BUILDINGS[b.type];
+            const buffer = b.type === 'wall' ? 0 : 1;
+            const x0 = Math.max(0, b.gridX - buffer);
+            const x1 = Math.min(this.mapSize - 1, b.gridX + info.width - 1 + buffer);
+            const y0 = Math.max(0, b.gridY - buffer);
+            const y1 = Math.min(this.mapSize - 1, b.gridY + info.height - 1 + buffer);
+            for (let y = y0; y <= y1; y++) {
+                for (let x = x0; x <= x1; x++) {
+                    this.deployForbiddenTiles.add(y * this.mapSize + x);
+                }
+            }
+        });
+        return signature;
+    }
+
+    /** Deploy legality for a (float) grid position — must agree exactly with
+     *  the red overlay drawn by updateDeploymentHighlight. */
+    public isDeployForbidden(gridX: number, gridY: number): boolean {
+        this.refreshDeployForbiddenTiles();
+        const tx = Math.floor(gridX);
+        const ty = Math.floor(gridY);
+        if (tx < 0 || ty < 0 || tx >= this.mapSize || ty >= this.mapSize) return false;
+        return this.deployForbiddenTiles.has(ty * this.mapSize + tx);
     }
 
     private updateDeploymentHighlight() {
-        this.deploymentGraphics.clear();
-        this.forbiddenGraphics.clear();
-
         if (this.mode !== 'ATTACK' || this.isScouting) {
+            if (this.deployZoneSignature !== '') {
+                this.deploymentGraphics.clear();
+                this.forbiddenGraphics.clear();
+                this.deployZoneSignature = '';
+            }
             this.deploymentGraphics.setVisible(false);
             this.forbiddenGraphics.setVisible(false);
             return;
@@ -6908,6 +7754,20 @@ export class MainScene extends Phaser.Scene {
         const redLerp = this.forbiddenGraphics.alpha < targetForbiddenAlpha ? 0.2 : 0.02;
         this.forbiddenGraphics.alpha += (targetForbiddenAlpha - this.forbiddenGraphics.alpha) * redLerp;
 
+        // The zone diamonds rasterize to ~5–7k world-anchored pixel cells —
+        // far too many fillRects to re-record per frame for geometry that
+        // only moves when the map or the enemy roster changes. Cells sit on
+        // the fixed world PIXEL_CELL grid, so zoom never alters the recorded
+        // shapes; the fades above ride the Graphics alpha without a redraw.
+        const signature = this.refreshDeployForbiddenTiles();
+        if (signature === this.deployZoneSignature) {
+            this.deploymentGraphics.setDepth(5);
+            return;
+        }
+        this.deployZoneSignature = signature;
+        this.deploymentGraphics.clear();
+        this.forbiddenGraphics.clear();
+
         const margin = 2;
 
         // 1. Draw LUSH LIGHT GREEN deployment margin
@@ -6926,28 +7786,58 @@ export class MainScene extends Phaser.Scene {
         this.deploymentGraphics.fillPoints([m1, m2, m3, m4], true);
 
         // Map boundary separator
-        this.deploymentGraphics.lineStyle(2, 0xffffff, 0.4);
-        this.deploymentGraphics.strokePoints([i1, i2, i3, i4], true, true);
+        const innerPts = [i1, i2, i3, i4];
+        for (let e = 0; e < 4; e++) {
+            const pa = innerPts[e], pb = innerPts[(e + 1) % 4];
+            pixelLine(this.deploymentGraphics, pa.x, pa.y, pb.x, pb.y, 1, 0xffffff, 0.4);
+        }
 
-        // Grid highlight
-        this.deploymentGraphics.lineStyle(2, 0xadffad, 0.6);
-        this.deploymentGraphics.strokePoints([m1, m2, m3, m4], true, true);
+        // Grid highlight (also crisps the margin fill's diamond edges)
+        const marginPts = [m1, m2, m3, m4];
+        for (let e = 0; e < 4; e++) {
+            const pa = marginPts[e], pb = marginPts[(e + 1) % 4];
+            pixelLine(this.deploymentGraphics, pa.x, pa.y, pb.x, pb.y, 1, 0xadffad, 0.6);
+        }
 
-        // 2. Draw INNER forbidden zone (into red graphics)
-        const bounds = this.getBuildingsBounds('ENEMY');
-        if (bounds) {
-            const b1 = IsoUtils.cartToIso(bounds.minX, bounds.minY);
-            const b2 = IsoUtils.cartToIso(bounds.maxX, bounds.minY);
-            const b3 = IsoUtils.cartToIso(bounds.maxX, bounds.maxY);
-            const b4 = IsoUtils.cartToIso(bounds.minX, bounds.maxY);
+        // 2. Draw INNER forbidden zone (into red graphics): the per-tile
+        // union of every alive enemy building's buffered footprint — the
+        // exact same set isDeployForbidden() checks, so the red paint and
+        // the deploy legality can never disagree. Contiguous tiles of each
+        // grid row merge into one iso strip (fewer polys, no seam stacking);
+        // borders are pixelLine edges wherever a forbidden tile faces a
+        // deployable neighbour.
+        if (this.deployForbiddenTiles.size > 0) {
+            const has = (x: number, y: number) =>
+                x >= 0 && y >= 0 && x < this.mapSize && y < this.mapSize &&
+                this.deployForbiddenTiles.has(y * this.mapSize + x);
 
-            // Red zone fill
             this.forbiddenGraphics.fillStyle(0xff0000, 0.2);
-            this.forbiddenGraphics.fillPoints([b1, b2, b3, b4], true);
+            for (let y = 0; y < this.mapSize; y++) {
+                for (let x = 0; x < this.mapSize; x++) {
+                    if (!has(x, y)) continue;
+                    let runEnd = x;
+                    while (has(runEnd + 1, y)) runEnd++;
+                    const r1 = IsoUtils.cartToIso(x, y);
+                    const r2 = IsoUtils.cartToIso(runEnd + 1, y);
+                    const r3 = IsoUtils.cartToIso(runEnd + 1, y + 1);
+                    const r4 = IsoUtils.cartToIso(x, y + 1);
+                    this.forbiddenGraphics.fillPoints([r1, r2, r3, r4], true);
+                    x = runEnd;
+                }
+            }
 
-            // Red zone border
-            this.forbiddenGraphics.lineStyle(2, 0xff0000, 0.5);
-            this.forbiddenGraphics.strokePoints([b1, b2, b3, b4], true, true);
+            this.deployForbiddenTiles.forEach(key => {
+                const tx = key % this.mapSize;
+                const ty = Math.floor(key / this.mapSize);
+                const c1 = IsoUtils.cartToIso(tx, ty);
+                const c2 = IsoUtils.cartToIso(tx + 1, ty);
+                const c3 = IsoUtils.cartToIso(tx + 1, ty + 1);
+                const c4 = IsoUtils.cartToIso(tx, ty + 1);
+                if (!has(tx, ty - 1)) pixelLine(this.forbiddenGraphics, c1.x, c1.y, c2.x, c2.y, 1, 0xff0000, 0.5);
+                if (!has(tx + 1, ty)) pixelLine(this.forbiddenGraphics, c2.x, c2.y, c3.x, c3.y, 1, 0xff0000, 0.5);
+                if (!has(tx, ty + 1)) pixelLine(this.forbiddenGraphics, c3.x, c3.y, c4.x, c4.y, 1, 0xff0000, 0.5);
+                if (!has(tx - 1, ty)) pixelLine(this.forbiddenGraphics, c4.x, c4.y, c1.x, c1.y, 1, 0xff0000, 0.5);
+            });
         }
 
         this.deploymentGraphics.setDepth(5);
@@ -6968,52 +7858,33 @@ export class MainScene extends Phaser.Scene {
         const centerX = groundCenter.x;
         const centerY = groundCenter.y - heightOffset / 2;
 
-        // Create sparkle particles
-        const numParticles = 12;
-        for (let i = 0; i < numParticles; i++) {
-            const angle = (i / numParticles) * Math.PI * 2;
-            const speed = 40 + Math.random() * 40;
-            const particle = this.add.graphics();
-            particle.setDepth(building.graphics.depth + 100);
+        // Sparkle particles: an even ring of gold/yellow/white motes thrown
+        // outward, rising and dying small.
+        PixelFx.burst(this, centerX, centerY, {
+            count: 12, colors: [0xFFD700, 0xFFA500, 0xFFFF00, 0xFFFFFF, 0xFFE4B5],
+            r: 3, rJitter: 3, speed: 0,
+            radial: 40, radialJitter: 40, ringAngles: true,
+            up: 40, upJitter: 30, scaleTo: 0.2,
+            life: 800, lifeJitter: 400, ease: 'Cubic.easeOut',
+            depth: building.graphics.depth + 100
+        });
 
-            // Random gold/yellow/white colors
-            const colors = [0xFFD700, 0xFFA500, 0xFFFF00, 0xFFFFFF, 0xFFE4B5];
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const size = 3 + Math.random() * 3;
-
-            particle.fillStyle(color, 1);
-            particle.fillCircle(0, 0, size);
-            particle.x = centerX;
-            particle.y = centerY;
-
-            this.tweens.add({
-                targets: particle,
-                x: centerX + Math.cos(angle) * speed,
-                y: centerY + Math.sin(angle) * speed - 40 - Math.random() * 30,
-                alpha: 0,
-                scale: { from: 1, to: 0.2 },
-                duration: 800 + Math.random() * 400,
-                ease: 'Cubic.easeOut',
-                onComplete: () => particle.destroy()
-            });
-        }
-
-        // Create rising star effect
+        // Create rising star effect — a four-point cell star (no AA fill
+        // paths on the live layer).
         for (let i = 0; i < 3; i++) {
             const star = this.add.graphics();
             star.setDepth(building.graphics.depth + 110);
-            star.fillStyle(0xFFD700, 1);
-            star.beginPath();
-            star.moveTo(0, -6);
-            star.lineTo(2, -2);
-            star.lineTo(6, 0);
-            star.lineTo(2, 2);
-            star.lineTo(0, 6);
-            star.lineTo(-2, 2);
-            star.lineTo(-6, 0);
-            star.lineTo(-2, -2);
-            star.closePath();
-            star.fillPath();
+            pixelBitmap(star, -4.5 * PIXEL_CELL, -4.5 * PIXEL_CELL, [
+                '....f....',
+                '....f....',
+                '...fff...',
+                '..fffff..',
+                'fffffffff',
+                '..fffff..',
+                '...fff...',
+                '....f....',
+                '....f....'
+            ], { f: 0xFFD700 }, 1);
             star.x = centerX + (Math.random() - 0.5) * 30;
             star.y = centerY;
 
@@ -7058,6 +7929,18 @@ export class MainScene extends Phaser.Scene {
     }
 
     // === BUILDING RANGE INDICATOR ===
+    /** THE grid-radius → iso-ellipse conversion for every range ring.
+     *  Combat range checks measure plain grid distance, and a grid-circle of
+     *  radius R projects isometrically to an ellipse whose semi-axes carry
+     *  the Math.SQRT2 grid-diagonal factor. Inner (minRange) and outer rings
+     *  must both go through here or they disagree with the sim by ~29%. */
+    private gridRangeToIsoRadii(rangeTiles: number): { rx: number; ry: number } {
+        return {
+            rx: rangeTiles * this.tileWidth * 0.5 * Math.SQRT2,
+            ry: rangeTiles * this.tileHeight * 0.5 * Math.SQRT2
+        };
+    }
+
     public showBuildingRangeIndicator(building: PlacedBuilding) {
         // Only show range for defensive buildings
         const info = BUILDINGS[building.type];
@@ -7066,10 +7949,12 @@ export class MainScene extends Phaser.Scene {
         // Clear any existing indicator
         this.clearBuildingRangeIndicator();
 
-        // Get the range for this building type
-        // Get range from centralized stats
-        const range = info.range || 0;
-        const deadZone = info.minRange || 0;
+        // Range from centralized PER-LEVEL stats — range upgrades with level,
+        // so the ring must read the defense's current level, not the base
+        // definition (which is level 1).
+        const stats = this.getDefenseStats(building);
+        const range = stats.range || 0;
+        const deadZone = stats.minRange || 0;
 
         if (range === 0) return;
 
@@ -7080,80 +7965,74 @@ export class MainScene extends Phaser.Scene {
         const rangeGraphics = this.add.graphics();
         rangeGraphics.setDepth(building.graphics.depth + 2);
 
-        // Calculate isometric ellipse size (range in pixels)
-        // Note: We need Math.SQRT2 factor because isometric projection of a grid-circle
-        // creates an ellipse where the major axis corresponds to the grid diagonal.
-        const radiusX = range * this.tileWidth * 0.5 * Math.SQRT2;
-        const radiusY = range * this.tileHeight * 0.5 * Math.SQRT2;
+        // Isometric ellipse size (range in pixels) via the shared conversion.
+        const { rx: radiusX, ry: radiusY } = this.gridRangeToIsoRadii(range);
 
         // Draw subtle filled area
-        rangeGraphics.fillStyle(0x4488ff, 0.08);
-        rangeGraphics.fillEllipse(center.x, center.y, radiusX * 2, radiusY * 2);
+        pixelEllipse(rangeGraphics, center.x, center.y, radiusX, radiusY, 0x4488ff, 0.08);
 
-        // Draw dashed outline (simulate with multiple arcs)
-        rangeGraphics.lineStyle(2, 0x4488ff, 0.4);
+        // Draw dashed outline (whole pixel cells stamped along each dash arc)
         const dashCount = 24;
         const dashGap = 0.4; // Gap ratio
         for (let i = 0; i < dashCount; i++) {
             const startAngle = (i / dashCount) * Math.PI * 2;
             const endAngle = ((i + (1 - dashGap)) / dashCount) * Math.PI * 2;
 
-            // Draw arc segment as a series of lines
-            rangeGraphics.beginPath();
-            const steps = 5;
+            const arcLen = (endAngle - startAngle) * (radiusX + radiusY) / 2;
+            const steps = Math.max(2, Math.ceil(arcLen / PIXEL_CELL));
             for (let j = 0; j <= steps; j++) {
                 const t = startAngle + (endAngle - startAngle) * (j / steps);
                 const x = center.x + Math.cos(t) * radiusX;
                 const y = center.y + Math.sin(t) * radiusY;
-                if (j === 0) {
-                    rangeGraphics.moveTo(x, y);
-                } else {
-                    rangeGraphics.lineTo(x, y);
-                }
+                pixelRect(rangeGraphics, x - PIXEL_CELL / 2, y - PIXEL_CELL / 2, PIXEL_CELL, PIXEL_CELL, 0x4488ff, 0.4);
             }
-            rangeGraphics.strokePath();
         }
 
         // Add a subtle glow
-        rangeGraphics.lineStyle(4, 0x4488ff, 0.15);
-        rangeGraphics.strokeEllipse(center.x, center.y, radiusX * 2, radiusY * 2);
+        this.pixelRing(rangeGraphics, center.x, center.y, radiusX, radiusY, 3, 0x4488ff, 0.15);
 
         // === DEAD ZONE INDICATOR ===
         if (deadZone > 0) {
-            const deadRadiusX = deadZone * this.tileWidth * 0.5;
-            const deadRadiusY = deadZone * this.tileHeight * 0.5;
+            // Same conversion as the outer ring — the mortar blind spot is
+            // checked in grid distance too, so it needs the SQRT2 factor.
+            const { rx: deadRadiusX, ry: deadRadiusY } = this.gridRangeToIsoRadii(deadZone);
 
             // Draw dead zone filled area (red, more opaque)
-            rangeGraphics.fillStyle(0xff4444, 0.15);
-            rangeGraphics.fillEllipse(center.x, center.y, deadRadiusX * 2, deadRadiusY * 2);
+            pixelEllipse(rangeGraphics, center.x, center.y, deadRadiusX, deadRadiusY, 0xff4444, 0.15);
 
-            // Draw dead zone dashed outline (red)
-            rangeGraphics.lineStyle(2, 0xff4444, 0.5);
+            // Draw dead zone dashed outline (red, whole cells at angle steps)
             for (let i = 0; i < dashCount; i++) {
                 const startAngle = (i / dashCount) * Math.PI * 2;
                 const endAngle = ((i + (1 - dashGap)) / dashCount) * Math.PI * 2;
 
-                rangeGraphics.beginPath();
-                const steps = 5;
+                const arcLen = (endAngle - startAngle) * (deadRadiusX + deadRadiusY) / 2;
+                const steps = Math.max(2, Math.ceil(arcLen / PIXEL_CELL));
                 for (let j = 0; j <= steps; j++) {
                     const t = startAngle + (endAngle - startAngle) * (j / steps);
                     const x = center.x + Math.cos(t) * deadRadiusX;
                     const y = center.y + Math.sin(t) * deadRadiusY;
-                    if (j === 0) {
-                        rangeGraphics.moveTo(x, y);
-                    } else {
-                        rangeGraphics.lineTo(x, y);
-                    }
+                    pixelRect(rangeGraphics, x - PIXEL_CELL / 2, y - PIXEL_CELL / 2, PIXEL_CELL, PIXEL_CELL, 0xff4444, 0.5);
                 }
-                rangeGraphics.strokePath();
             }
         }
 
         building.rangeIndicator = rangeGraphics;
         this.attackModeSelectedBuilding = building;
 
-        // Add subtle pulse animation
-        this.tweens.add({
+        // A long-range defense (dragons_breath reaches 14 tiles) can have its
+        // ENTIRE ring outside the camera view when zoomed in — selection then
+        // shows no range feedback at all. If no part of the ring's edge is on
+        // screen, ease the camera out just enough to reveal it. Never during
+        // a move-carry: the camera must not lurch mid-drag (the carry re-shows
+        // the ring on every tile change).
+        if (!this.isMoving) {
+            this.ensureRangeRingVisible(center.x, center.y, radiusX, radiusY);
+        }
+
+        // Add subtle pulse animation. Track the handle: destroying the
+        // graphics does NOT stop its tweens, so every reselect used to leak
+        // one infinite (repeat:-1) tween ticking a dead graphics forever.
+        this.rangeIndicatorPulseTween = this.tweens.add({
             targets: rangeGraphics,
             alpha: 0.6,
             duration: 800,
@@ -7163,7 +8042,54 @@ export class MainScene extends Phaser.Scene {
         });
     }
 
+    /**
+     * A zoomed-in view can sit entirely INSIDE a long-range ring (dragons_
+     * breath reaches 14 tiles) with at most a corner-nick of its edge peeking
+     * in — no usable range feedback. Sample the ring's perimeter: if no
+     * sample is comfortably on screen (inner 70% of the view) and under a
+     * quarter of the edge is visible at all, pan onto the defense and zoom
+     * out just enough to fit the ring — never zooming IN, never below the
+     * gesture floor.
+     */
+    private ensureRangeRingVisible(cx: number, cy: number, rx: number, ry: number) {
+        const camera = this.cameras.main;
+        const view = camera.worldView;
+        const SAMPLES = 48;
+        const marginX = view.width * 0.15;
+        const marginY = view.height * 0.15;
+        let visible = 0;
+        let comfortable = 0;
+        for (let i = 0; i < SAMPLES; i++) {
+            const t = (i / SAMPLES) * Math.PI * 2;
+            const px = cx + Math.cos(t) * rx;
+            const py = cy + Math.sin(t) * ry;
+            if (px < view.x || px > view.right || py < view.y || py > view.bottom) continue;
+            visible++;
+            if (px >= view.x + marginX && px <= view.right - marginX &&
+                py >= view.y + marginY && py <= view.bottom - marginY) comfortable++;
+        }
+        if (comfortable > 0 || visible >= SAMPLES * 0.25) return;
+
+        // CSS insets keep the ring clear of the HUD bar and the info bubble.
+        const fitZoom = Math.min(
+            (cameraCssWidth(camera) - 72) / (rx * 2),
+            (cameraCssHeight(camera) - 120) / (ry * 2)
+        );
+        const targetZoom = Phaser.Math.Clamp(
+            fitZoom,
+            this.minGestureZoom(),
+            toLogicalZoom(camera.zoom)
+        );
+        camera.pan(cx, cy, 380, 'Sine.easeInOut');
+        camera.zoomTo(toBackingZoom(targetZoom), 380, 'Sine.easeInOut');
+        this.hasUserMovedCamera = true;
+    }
+
     public clearBuildingRangeIndicator() {
+        if (this.rangeIndicatorPulseTween) {
+            this.rangeIndicatorPulseTween.remove();
+            this.rangeIndicatorPulseTween = null;
+        }
         if (this.attackModeSelectedBuilding?.rangeIndicator) {
             this.attackModeSelectedBuilding.rangeIndicator.destroy();
             this.attackModeSelectedBuilding.rangeIndicator = undefined;
@@ -7171,8 +8097,18 @@ export class MainScene extends Phaser.Scene {
         this.attackModeSelectedBuilding = null;
     }
 
+    /** True while a DOM text field owns the keyboard — game hotkeys (arrows,
+     *  ESC) must not reach the scene. Mirrors App.tsx's M-key focus guard. */
+    private isTypingInDomField(): boolean {
+        const el = document.activeElement as HTMLElement | null;
+        return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+    }
+
     private handleCameraMovement(delta: number) {
         if (!this.cursorKeys) return;
+        // Arrow keys pressed while typing in a DOM input scroll the caret,
+        // not the camera.
+        if (this.isTypingInDomField()) return;
         const speed = 0.5 * delta * this.cameraSensitivity;
         const movedX = this.cursorKeys.left?.isDown || this.cursorKeys.right?.isDown;
         const movedY = this.cursorKeys.up?.isDown || this.cursorKeys.down?.isDown;
@@ -7190,12 +8126,15 @@ export class MainScene extends Phaser.Scene {
         this.selectionGraphics.clear();
 
         if (this.mode === 'HOME' && this.selectedInWorld) {
+            // While carrying, the ghost draws its own green/red validity
+            // footprint at the cursor — a cyan outline on top of it muddied
+            // the verdict color, so the selection outline yields for the carry.
+            if (this.isMoving) return;
             const b = this.selectedInWorld;
             const info = BUILDINGS[b.type];
 
-            // When moving, draw outline at ghost position instead of actual position
-            const gx = (this.isMoving && this.ghostGridPos) ? this.ghostGridPos.x : b.gridX;
-            const gy = (this.isMoving && this.ghostGridPos) ? this.ghostGridPos.y : b.gridY;
+            const gx = b.gridX;
+            const gy = b.gridY;
 
             // Draw bright border around base
             const p1 = IsoUtils.cartToIso(gx, gy);
@@ -7203,14 +8142,11 @@ export class MainScene extends Phaser.Scene {
             const p3 = IsoUtils.cartToIso(gx + info.width, gy + info.height);
             const p4 = IsoUtils.cartToIso(gx, gy + info.height);
 
-            this.selectionGraphics.lineStyle(4, 0x00ffff, 1); // Bright Cyan
-            this.selectionGraphics.beginPath();
-            this.selectionGraphics.moveTo(p1.x, p1.y);
-            this.selectionGraphics.lineTo(p2.x, p2.y);
-            this.selectionGraphics.lineTo(p3.x, p3.y);
-            this.selectionGraphics.lineTo(p4.x, p4.y);
-            this.selectionGraphics.closePath();
-            this.selectionGraphics.strokePath();
+            // Bright Cyan pixel edges
+            pixelLine(this.selectionGraphics, p1.x, p1.y, p2.x, p2.y, 3, 0x00ffff, 1);
+            pixelLine(this.selectionGraphics, p2.x, p2.y, p3.x, p3.y, 3, 0x00ffff, 1);
+            pixelLine(this.selectionGraphics, p3.x, p3.y, p4.x, p4.y, 3, 0x00ffff, 1);
+            pixelLine(this.selectionGraphics, p4.x, p4.y, p1.x, p1.y, 3, 0x00ffff, 1);
 
             // Subtle, slow pulsing opacity (0.6 to 1.0)
             this.selectionGraphics.setAlpha(0.8 + 0.2 * Math.sin(this.time.now / 800));
@@ -7296,10 +8232,10 @@ export class MainScene extends Phaser.Scene {
                 if (!this.selectedBuildingType) {
                     this.ghostBuilding.setVisible(false);
                 } else {
-                    // Immediately show ghost building by triggering onPointerMove
-                    if (this.input.activePointer) {
-                        this.inputController.onPointerMove(this.input.activePointer);
-                    }
+                    // Immediately show ghost building by triggering
+                    // onPointerMove with the TRACKED gameplay pointer —
+                    // activePointer can be a pinch's second finger.
+                    this.inputController.onPointerMove(this.inputController.getGameplayPointer());
                 }
             },
             startAttack: () => {
@@ -7503,13 +8439,9 @@ export class MainScene extends Phaser.Scene {
                         return;
                     }
                     this.centerCamera();
-                    // Reset battle stats for new village
-                    this.initialEnemyBuildings = this.getAttackEnemyBuildings().length;
-                    this.destroyedBuildings = 0;
-                    this.goldLooted = 0;
-        this.oreLooted = 0;
-        this.foodLooted = 0;
-                    this.updateBattleStats();
+                    // Reset battle stats for new village (includes the
+                    // HP-weighted loot baseline for the fresh roster).
+                    this.resetBattleStats();
                 });
             },
             deleteSelectedBuilding: () => {
@@ -7520,10 +8452,25 @@ export class MainScene extends Phaser.Scene {
                 if (deleted) this.selectedInWorld = null;
                 return deleted;
             },
+            deselectBuilding: () => {
+                // UI-initiated deselect (e.g. the InfoPanel TRACKS button
+                // swapping to the jukebox modal): drop the in-world selection
+                // ring/range indicator, not just the React panel.
+                if (!this.selectedInWorld) return;
+                if (this.selectedInWorld.type === 'prism') {
+                    this.cleanupPrismLaser(this.selectedInWorld);
+                }
+                this.selectedInWorld = null;
+                this.clearBuildingRangeIndicator();
+                gameManager.onBuildingSelected(null);
+            },
             moveSelectedBuilding: () => {
                 if (this.selectedInWorld) {
                     // Unbake the building from ground texture before moving to prevent artifacts
                     this.unbakeBuildingFromGround(this.selectedInWorld);
+                    // Villagers react to the lift (and the drop handler's
+                    // onBuildingPlaced expects a preceding lift).
+                    this.villageLife.onBuildingLifted(this.selectedInWorld);
                 }
                 this.isMoving = true;
                 this.selectedBuildingType = null;
@@ -7531,8 +8478,9 @@ export class MainScene extends Phaser.Scene {
                 // right where you're dragging and steals the pointer. The
                 // drop handler re-emits the selection at the new spot.
                 gameManager.onBuildingSelected(null);
-                // Immediate visual feedback
-                this.inputController.onPointerMove(this.input.activePointer);
+                // Immediate visual feedback (tracked gameplay pointer —
+                // activePointer can be a non-gameplay finger).
+                this.inputController.onPointerMove(this.inputController.getGameplayPointer());
             },
             upgradeSelectedBuilding: () => {
                 if (this.selectedInWorld) {
@@ -7566,8 +8514,14 @@ export class MainScene extends Phaser.Scene {
                     // put (and the building goes offline) until the server's
                     // clock — mirrored here — matures in resolveLocalUpgrades.
                     const targetLevel = prevLevel + 1;
+                    const provisionalStart = this.serverEpochNow();
+                    (this.selectedInWorld as UpgradeTimedPlacedBuilding).upgradeStartedAt = provisionalStart;
                     this.selectedInWorld.upgradingTo = targetLevel;
-                    this.selectedInWorld.upgradeEndsAt = Date.now() + upgradeDurationMs(this.selectedInWorld.type, targetLevel);
+                    // Provisional deadline from the SERVER-advertised policy;
+                    // the authoritative save response replaces it either way.
+                    this.selectedInWorld.upgradeEndsAt = provisionalStart
+                        + serverUpgradeDurationMs(this.selectedInWorld.type, targetLevel);
+                    if (Auth.isOnlineMode()) this.pendingUpgradeAuthority.add(this.selectedInWorld.id);
                     this.villageLife.onConstruction(this.selectedInWorld, 'upgrade');
                     this.updateHealthBar(this.selectedInWorld);
 
@@ -7587,13 +8541,24 @@ export class MainScene extends Phaser.Scene {
         // Retreat owns the scene now. Cancel delayed split spawns and the
         // scheduled natural-end handoff before they can fire against home.
         this.cancelBattleAsyncWork();
+        // A MID-RAID retreat (troops deployed, natural end not yet scheduled)
+        // still banks partial loot/trophies below — that must never be
+        // silent. Snapshot the report inputs before the flags reset.
+        const retreatReport = this.mode === 'ATTACK' && !this.isScouting && this.hasDeployed
+            && !this.raidEndScheduled && this.currentEnemyWorld?.id !== 'practice'
+            ? { destruction: this.currentDestructionPct() }
+            : null;
         this.hasDeployed = false;
         this.raidEndScheduled = true;
         if (this.mode === 'ATTACK') {
             const settlement = this.endAttackReplayCapture('aborted');
+            let applied: AttackEndResult | null = null;
+            let settlementDelayed = false;
             if (settlement) {
-                await settlement.catch(error => {
+                applied = await settlement.catch(error => {
                     console.warn('Attack settlement failed before home reload:', error);
+                    settlementDelayed = true;
+                    return null;
                 });
             } else {
                 // If the attack was registered but no troop ever deployed,
@@ -7602,18 +8567,37 @@ export class MainScene extends Phaser.Scene {
             }
             // A retreat from a bot camp still consumed the troops that marched
             // (and banks whatever loot the destruction so far earned).
-            await this.settleBotRaid().catch(() => undefined);
+            let botPayout: number | null = null;
+            try {
+                botPayout = await this.settleBotRaid();
+            } catch {
+                if (this.currentEnemyWorld?.botRaidId && !this.botRaidSettled) settlementDelayed = true;
+            }
+            if (retreatReport) {
+                // Reuse the raid-report surface ("Retreated" variant) so the
+                // banked partial loot + trophy delta are acknowledged.
+                gameManager.onRetreatEnded({
+                    destruction: retreatReport.destruction,
+                    goldLooted: Math.max(0, Math.floor(applied?.lootApplied ?? botPayout ?? 0)),
+                    oreLooted: Math.max(0, Math.floor(applied?.oreApplied ?? 0)),
+                    foodLooted: Math.max(0, Math.floor(applied?.foodApplied ?? 0)),
+                    trophyDelta: applied?.trophyDelta,
+                    settlementDelayed: settlementDelayed || undefined
+                });
+            }
         }
         this.currentEnemyWorld = null;
-        // A next-door battle retreats the way it came: the column marches
-        // home on screen and the home frame swaps in silently mid-glide.
-        if (this.battleInPlace && this.beginHomecomingMarch()) return;
-        this.forceFinishHomecoming(); // a second goHome mid-march completes it
+        // Every retreat rides the clouds home — no homecoming march. The war
+        // camp is torn down by endFocus below; the drums stop with it (the
+        // marching column used to silence them, so it is explicit now).
+        soundSystem.setBattleMusic(false);
+        this.forceFinishHomecoming(); // completes any stale homecoming swap
         this.worldMap.endFocus();
         this.battleInPlace = false;
-        // Back on our own lawn (and our name back over the gate).
+        // Back on our own lawn — which never wears a nameplate, so the
+        // target's label simply goes away with the battle.
         this.rebakeGround(this.userId || 'village');
-        this.setVillageNameVisible(true);
+        this.setVillageNameVisible(false);
         this.clearReplayWatchState();
         this.cancelPlacement();
         gameManager.setGameMode('HOME');
@@ -7621,41 +8605,6 @@ export class MainScene extends Phaser.Scene {
         this.isScouting = false;
         this.hasDeployed = false;
         await this.reloadHomeBase({ refreshOnline: true });
-    }
-
-    /**
-     * The seamless half of the retreat, mirroring the invasion: the battle
-     * frame stays up, the flag bearer leads the undeployed troops home down
-     * the roads, and the home frame renders hidden while they walk. Returns
-     * false when a silent swap is impossible (fall back to the hard cut).
-     */
-    private beginHomecomingMarch(): boolean {
-        if (!this.userId || !this.worldMap.inBattleFrame()) return false;
-        const home = Backend.getCachedWorld(this.userId);
-        if (!home || !Array.isArray(home.buildings) || home.buildings.length === 0) return false;
-        this.battleInPlace = false;
-        this.clearReplayWatchState();
-        this.cancelPlacement();
-        this.clearBattleActors();
-        gameManager.setGameMode('HOME');
-        this.mode = 'HOME';
-        this.isScouting = false;
-        this.hasDeployed = false;
-        this.pendingHomecoming = { world: home };
-        // Hidden preparation, exactly like the outbound march.
-        this.worldMap.prepareFocus(this.worldMap.homePlot());
-        this.prepareGroundBake(this.userId);
-        this.worldMap.marchHome(
-            this.armyFigures(),
-            () => void this.finishHomecoming(),
-            () => this.forceFinishHomecoming()
-        );
-        return true;
-    }
-
-    private async finishHomecoming() {
-        await this.worldMap.waitForFocusReady();
-        this.forceFinishHomecoming();
     }
 
     /**
@@ -7697,16 +8646,6 @@ export class MainScene extends Phaser.Scene {
         }
     }
 
-    /** One figure per troop for the marching column, actual army composition. */
-    private armyFigures(cap = 24): string[] {
-        const army = gameManager.getArmy();
-        return Object.entries(army)
-            .filter(([, count]) => Number(count) > 0)
-            .sort((a, b) => Number(b[1]) - Number(a[1]))
-            .flatMap(([type, count]) => new Array<string>(Math.max(0, Math.floor(Number(count)))).fill(type))
-            .slice(0, cap);
-    }
-
     /** Drop a pending hidden lawn bake (homecoming aborted mid-flight). */
     private dropGroundBake() {
         this.pendingGroundRT?.destroy();
@@ -7734,6 +8673,9 @@ export class MainScene extends Phaser.Scene {
             zone.graphics.destroy();
         });
         this.spikeZones = [];
+        // The homecoming march keeps the wrecked village on view while combat
+        // has stopped ticking — a stale ward ring must not float over it.
+        this.wardAuraGfx?.clear();
     }
 
     private clearScene() {
@@ -7741,8 +8683,15 @@ export class MainScene extends Phaser.Scene {
         // MainScene is reused across villages. Cancel only battle-owned async
         // work; ambient/world systems retain their own timers and tweens.
         this.cancelBattleAsyncWork();
+        // Loose battle effects (projectiles mid-flight, scorch fades, craters)
+        // must not survive the swap and land re-anchored over the next scene.
+        this.clearBattleFx();
         this.villageLife.clear();
         this.dayNight.clearLights();
+        // clearLights() wipes every transient light, but the road-travellers
+        // camped on the world map outlive a scene swap — their bonfires keep
+        // burning, so their glow rigs must be re-registered immediately.
+        this.worldMap?.resyncTravellerLights();
 
         // Drop particle emitter trackers from the finished battle; their keys are
         // per-entity, so without this the tracker map grows across every raid.
@@ -7779,6 +8728,12 @@ export class MainScene extends Phaser.Scene {
         this.buildings = [];
         this.combatTopologyRevision++;
 
+        // The standard comes down with the village; the next world (home or
+        // enemy) re-plants its own in applyWorldToScene/instantiateEnemyWorld.
+        this.villageBannerMeta = null;
+        this.hallBannerGfx?.destroy();
+        this.hallBannerGfx = null;
+
         this.clearBattleActors();
 
 
@@ -7807,6 +8762,7 @@ export class MainScene extends Phaser.Scene {
         this.deploymentGraphics.setVisible(false);
         this.forbiddenGraphics.clear();
         this.forbiddenGraphics.setVisible(false);
+        this.deployZoneSignature = ''; // cleared out from under the geometry cache
 
         this.setVillageNameVisible(true);
 
@@ -7901,10 +8857,21 @@ export class MainScene extends Phaser.Scene {
         }
 
         this.currentEnemyWorld = meta;
+        // A raided village still flies the DEFENDER's banner — their town
+        // hall keeps their heraldry while the attacker's war camp plants ours.
+        // ownerId (stable: player id / bot_<seed>) keys the identity default,
+        // matching what the world-map postcard of the same village flies.
+        this.villageBannerMeta = {
+            identity: world.ownerId || meta.id,
+            banner: world.banner ?? null
+        };
         const lootAmount = Math.max(0, Math.floor(world.resources?.gold ?? 0));
         const lootOre = Math.max(0, Math.floor(world.resources?.ore ?? 0));
         const lootFood = Math.max(0, Math.floor(world.resources?.food ?? 0));
-        const lootMap = LootSystem.calculateLootDistribution(
+        // The battle HUD counter models the server settlement: capped pools ×
+        // destruction%. No per-building loot split — that model drifted from
+        // the real payout (see updateBattleStats).
+        this.battleLootPools = LootSystem.calculateRaidablePools(
             preparedBuildings,
             lootAmount,
             lootOre,
@@ -7919,7 +8886,6 @@ export class MainScene extends Phaser.Scene {
                     summary.failedInstantiation++;
                     return;
                 }
-                inst.loot = lootMap.get(building.id);
                 summary.placed++;
                 if (inst.type !== 'wall') {
                     summary.playablePlaced++;
@@ -8130,14 +9096,25 @@ export class MainScene extends Phaser.Scene {
         this.replayWatchState = null;
         this.replaySimulationTime = this.time.now;
         this.isApplyingReplayFrame = false;
+        this.isApplyingReplayBaseline = false;
         this.replayAutoExitQueued = false;
+        // Any auto-exit timer still pending belongs to the session that just
+        // ended; the epoch bump strands it.
+        this.replayWatchEpoch++;
+        // Recorded playback may have accelerated tweens/timers to REPLAY_SPEED.
+        this.tweens.timeScale = 1;
+        this.time.timeScale = 1;
     }
 
     private queueReplayReturnHome(delayMs = 900) {
         if (this.replayAutoExitQueued) return;
         this.replayAutoExitQueued = true;
+        const epoch = this.replayWatchEpoch;
 
         this.time.delayedCall(delayMs, () => {
+            // A stale timer from a previous replay session must never yank the
+            // player out of the replay they are watching NOW.
+            if (epoch !== this.replayWatchEpoch) return;
             if (this.mode !== 'REPLAY') {
                 this.replayAutoExitQueued = false;
                 return;
@@ -8298,7 +9275,7 @@ export class MainScene extends Phaser.Scene {
         const troopGraphic = this.add.graphics();
         troopGraphic.setPosition(pos.x, pos.y);
         troopGraphic.setDepth(depthForTroop(snapshot.gridX, snapshot.gridY, troopType));
-        if (!SpriteBank.syncLooseTroop(this, troopGraphic, troopType, snapshot.owner, troopLevel, snapshot.facingAngle ?? 0, true, this.time.now)) {
+        if (!SpriteBank.syncLooseTroop(this, troopGraphic, troopType, snapshot.owner, troopLevel, snapshot.facingAngle ?? 0, true, this.animClockNow())) {
             TroopRenderer.drawTroopVisual(
                 troopGraphic,
                 troopType,
@@ -8311,7 +9288,7 @@ export class MainScene extends Phaser.Scene {
                 false,
                 0,
                 snapshot.level,
-                this.time.now
+                this.animClockNow()
             );
         }
 
@@ -8341,6 +9318,59 @@ export class MainScene extends Phaser.Scene {
             replaySampleT: 0,
         };
         return troop;
+    }
+
+    /**
+     * Lightweight death poof for troops the replay stream removed. The full
+     * local death FX live in destroyTroop, which frame-driven removals bypass
+     * entirely — without this they blink out of existence mid-battle.
+     */
+    private showReplayTroopDeath(t: Troop) {
+        // The stone golem keeps its bespoke collapse in replay watch too —
+        // the helper is purely visual, so the frame stream stays in charge.
+        if (t.type === 'golem') {
+            this.playStoneGolemDeath(t);
+            return;
+        }
+        // Ice golem: the recorded battle already simulated the freeze (its
+        // defenses fall silent in the frame stream on their own) — replay
+        // watch replays the shatter + icy dressing so the pause reads.
+        // frozenUntil here only silences locally-generated defense FX.
+        if (t.type === 'icegolem') {
+            this.showIceGolemShatterFx(t, IsoUtils.cartToIso(t.gridX, t.gridY));
+            this.applyIceGolemFreezeBurst(t);
+            return;
+        }
+        const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
+
+        const flash = this.trackBattleFx(this.add.graphics());
+        pixelRect(flash, -5, -5, 10, 10, 0xffffff, 0.85);
+        flash.setPosition(pos.x, pos.y - 8);
+        flash.setDepth(30001);
+        this.tweens.add({ targets: flash, scale: 1.8, alpha: 0, duration: 120, onComplete: () => flash.destroy() });
+
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2;
+            const particle = this.trackBattleFx(this.add.graphics());
+            pixelRect(particle, -2, -2, 4, 4, i % 2 === 0 ? 0xffcc66 : 0xd8d8d8, 0.9);
+            particle.setPosition(pos.x, pos.y - 8);
+            particle.setDepth(30000);
+            this.tweens.add({
+                targets: particle,
+                x: pos.x + Math.cos(angle) * 18,
+                y: pos.y - 8 + Math.sin(angle) * 10 - 10,
+                alpha: 0, scale: 0.4,
+                duration: 240,
+                ease: 'Quad.easeOut',
+                onComplete: () => particle.destroy()
+            });
+        }
+
+        const smoke = this.trackBattleFx(this.add.graphics());
+        pixelRect(smoke, -8, -8, 16, 16, 0x666666, 0.5);
+        smoke.setPosition(pos.x, pos.y - 6);
+        smoke.setDepth(29999);
+        this.tweens.add({ targets: smoke, y: pos.y - 24, scale: 1.7, alpha: 0, duration: 350, onComplete: () => smoke.destroy() });
     }
 
     private applyReplayFrame(frame: ReplayFrameSnapshot) {
@@ -8438,6 +9468,12 @@ export class MainScene extends Phaser.Scene {
             });
 
             existingTroops.forEach(troop => {
+                // The stream dropped this troop — it died between frames. A
+                // baseline frame rebuilding mid-battle state on join stays
+                // silent; live playback shows a small death poof.
+                if (!this.isApplyingReplayBaseline && troop.health > 0 && !this.isOffScreen(troop.gridX, troop.gridY)) {
+                    this.showReplayTroopDeath(troop);
+                }
                 troop.gameObject.destroy();
                 troop.healthBar.destroy();
             });
@@ -8468,6 +9504,23 @@ export class MainScene extends Phaser.Scene {
         if (!replay) return;
         const renderT = replay.renderClockT;
 
+        // Forward bracket: frames apply once t ≤ renderT, so the pair that
+        // brackets the clock is (last applied sample, first UNAPPLIED frame).
+        // Peek that pending frame — rebuilt only when its t changes.
+        const pending = replay.nextFrameIndex < replay.frames.length
+            ? replay.frames[replay.nextFrameIndex]
+            : null;
+        if (!pending) {
+            replay.nextSampleT = undefined;
+            replay.nextSamples = undefined;
+        } else if (replay.nextSampleT !== pending.t || !replay.nextSamples) {
+            replay.nextSampleT = pending.t;
+            replay.nextSamples = new Map(pending.troops.map(snapshot => [
+                snapshot.id,
+                { x: Number(snapshot.gridX) || 0, y: Number(snapshot.gridY) || 0 }
+            ]));
+        }
+
         for (const troop of this.troops) {
             if (troop.health <= 0) continue;
 
@@ -8480,22 +9533,39 @@ export class MainScene extends Phaser.Scene {
             const prevY = Number.isFinite(troop.replayPrevSampleY) ? Number(troop.replayPrevSampleY) : sampleY;
             const prevT = Number.isFinite(troop.replayPrevSampleT) ? Number(troop.replayPrevSampleT) : sampleT;
 
+            const nextSample = replay.nextSamples?.get(troop.id);
+            const nextT = replay.nextSampleT;
+
             let targetX = sampleX;
             let targetY = sampleY;
-            if (renderT < sampleT && sampleT > prevT + 0.5) {
+            let bracketed = false;
+            if (nextSample && nextT !== undefined && nextT > sampleT + 0.5 && renderT >= sampleT) {
+                // The steady state: glide toward where the NEXT frame says this
+                // troop will be, in exact step with the stream clock.
+                const alphaT = Phaser.Math.Clamp((renderT - sampleT) / (nextT - sampleT), 0, 1);
+                targetX = Phaser.Math.Linear(sampleX, nextSample.x, alphaT);
+                targetY = Phaser.Math.Linear(sampleY, nextSample.y, alphaT);
+                bracketed = true;
+            } else if (renderT < sampleT && sampleT > prevT + 0.5) {
+                // Clock still behind the newest applied sample (seek/baseline
+                // join): interpolate on the applied pair instead.
                 const alphaT = Phaser.Math.Clamp((renderT - prevT) / (sampleT - prevT), 0, 1);
                 targetX = Phaser.Math.Linear(prevX, sampleX, alphaT);
                 targetY = Phaser.Math.Linear(prevY, sampleY, alphaT);
+                bracketed = true;
             }
 
             const prevRenderX = troop.gridX;
             const prevRenderY = troop.gridY;
             const errorDist = Phaser.Math.Distance.Between(prevRenderX, prevRenderY, targetX, targetY);
-            if (errorDist > 2.5) {
-                // The data really moved (spawn reposition / scripted jump): trust it.
+            if (errorDist > 2.5 && !bracketed) {
+                // Genuinely unbracketed (buffer dry / fresh spawn) and far off:
+                // trust the data outright.
                 troop.gridX = targetX;
                 troop.gridY = targetY;
             } else if (errorDist > 0.0001) {
+                // Bracketed motion rides the lerped target; the short
+                // exponential chase only eats sub-tile correction noise.
                 const follow = 1 - Math.exp(-delta / 70);
                 troop.gridX = Phaser.Math.Linear(prevRenderX, targetX, follow);
                 troop.gridY = Phaser.Math.Linear(prevRenderY, targetY, follow);
@@ -8529,6 +9599,7 @@ export class MainScene extends Phaser.Scene {
                 troop.type === 'giant' ||
                 troop.type === 'ram' ||
                 troop.type === 'golem' ||
+                troop.type === 'icegolem' ||
                 troop.type === 'sharpshooter' ||
                 troop.type === 'mobilemortar' ||
                 troop.type === 'davincitank' ||
@@ -8562,6 +9633,11 @@ export class MainScene extends Phaser.Scene {
         }
 
         this.clearReplayWatchState();
+
+        // The battlefield wears the DEFENDER's lawn, exactly as the attacker
+        // saw it (arriveAndFight commits the same palette before instantiating
+        // the enemy world — building bases bake into this texture).
+        this.rebakeGround(replay.victimId || 'village');
 
         const summary = this.instantiateEnemyWorld(replay.enemyWorld, {
             id: replay.victimId,
@@ -8602,6 +9678,12 @@ export class MainScene extends Phaser.Scene {
         this.replayWatchState = watchState;
 
         if (mode === 'replay') {
+            // The recorded sim plays at REPLAY_SPEED; projectile/effect tweens
+            // and battle timers must ride the same rate or they trail the
+            // frames they illustrate. Restored by clearReplayWatchState.
+            this.tweens.timeScale = this.REPLAY_SPEED;
+            this.time.timeScale = this.REPLAY_SPEED;
+
             const replayFrames = replay.frames ?? [];
             const replayTimeOffset = replayFrames.length > 0 ? replayFrames[0].t : 0;
             const normalizedFrames = replayFrames.map(frame => ({
@@ -8611,7 +9693,12 @@ export class MainScene extends Phaser.Scene {
             this.ingestReplayFrames(watchState, normalizedFrames);
 
             if (watchState.frames.length > 0) {
-                this.applyReplayFrame(watchState.frames[0]);
+                this.isApplyingReplayBaseline = true;
+                try {
+                    this.applyReplayFrame(watchState.frames[0]);
+                } finally {
+                    this.isApplyingReplayBaseline = false;
+                }
                 watchState.nextFrameIndex = 1;
                 watchState.lastAppliedFrameT = watchState.frames[0].t;
                 watchState.renderClockT = watchState.frames[0].t;
@@ -8639,7 +9726,14 @@ export class MainScene extends Phaser.Scene {
             const joinT = Math.max(watchState.frames[0].t, headT - this.REPLAY_LIVE_DELAY_MS);
             let baseline = 0;
             while (baseline + 1 < watchState.frames.length && watchState.frames[baseline + 1].t <= joinT) baseline += 1;
-            this.applyReplayFrame(watchState.frames[baseline]);
+            // Catch-up state, not live events: buildings already destroyed
+            // before the join must not all detonate at once.
+            this.isApplyingReplayBaseline = true;
+            try {
+                this.applyReplayFrame(watchState.frames[baseline]);
+            } finally {
+                this.isApplyingReplayBaseline = false;
+            }
             watchState.lastAppliedFrameT = watchState.frames[baseline].t;
             watchState.nextFrameIndex = baseline + 1;
             watchState.renderClockT = joinT;
@@ -8715,7 +9809,7 @@ export class MainScene extends Phaser.Scene {
 
         const frames = replay.frames;
         if (frames.length === 0) {
-            if (replay.status !== 'live') this.queueReplayReturnHome(900);
+            if (replay.mode === 'replay' || replay.status !== 'live') this.queueReplayReturnHome(900);
             return;
         }
 
@@ -8748,7 +9842,11 @@ export class MainScene extends Phaser.Scene {
         // One clock for everything that moves during a replay.
         this.replaySimulationTime = replay.renderClockT;
 
-        if (replay.status !== 'live' && replay.renderClockT >= headT && replay.nextFrameIndex >= frames.length) {
+        // A recorded replay never polls, so its status can be frozen at 'live'
+        // (battle still running when fetched) — exhausting its frames is
+        // terminal for it regardless of that stale status.
+        const playbackDone = replay.mode === 'replay' || replay.status !== 'live';
+        if (playbackDone && replay.renderClockT >= headT && replay.nextFrameIndex >= frames.length) {
             this.queueReplayReturnHome(1100);
         }
     }
@@ -8786,25 +9884,34 @@ export class MainScene extends Phaser.Scene {
         // 3. Enemy
         return TargetingSystem.findTarget(ward, this.buildings);
     }
-    public createSmokeEffect(x: number, y: number) {
-        particleManager.emitDustBurst(x, y, 10005);
+    public createSmokeEffect(x: number, y: number, depth: number = 10005) {
+        particleManager.emitDustBurst(x, y, depth);
     }
 
     private shootDragonsBreathAt(db: PlacedBuilding, troop: Troop) {
         const stats = this.getDefenseStats(db);
         const range = stats.range || 13;
+        const dbInfo = BUILDINGS['dragons_breath'];
+        // Range is measured from the FOOTPRINT CENTER — the drawn range ring
+        // is. Measuring from the corner shifted the salvo's reach half a
+        // footprint north-west, hitting troops outside the ring on two sides.
+        const dbCenterX = db.gridX + dbInfo.width / 2;
+        const dbCenterY = db.gridY + dbInfo.height / 2;
 
         // Find all potential targets in range to distribute pods
         const potentialTargets = this.troops.filter(t =>
             t.owner !== db.owner &&
             t.health > 0 &&
-            Phaser.Math.Distance.Between(db.gridX, db.gridY, t.gridX, t.gridY) <= range
+            Phaser.Math.Distance.Between(dbCenterX, dbCenterY, t.gridX, t.gridY) <= range
         );
 
         // A soft rumble as the salvo begins
         this.cameras.main.shake(60, 0.0012);
 
-        for (let i = 0; i < 16; i++) {
+        // One rocket per silo — the catalog's fire model is the single source
+        // for the volley size (the UI derives its DPS from the same number).
+        const salvoSize = DEFENSE_BEHAVIOR_CATALOG.dragons_breath.fireModel.salvoSize;
+        for (let i = 0; i < salvoSize; i++) {
             this.scheduleBattleCall(i * 50, () => {
                 if (!db || db.health <= 0) return;
 
@@ -8821,89 +9928,41 @@ export class MainScene extends Phaser.Scene {
                     // becomes the projectile — no teleporting.
                     const col = i % 4;
                     const row = Math.floor(i / 4);
-                    const silo = IsoUtils.cartToIso(db.gridX + col + 0.5, db.gridY + row + 0.5);
-                    this.shootDragonPod(db, { x: silo.x, y: silo.y + 2 - 14 }, target.gridX + jitterX, target.gridY + jitterY, stats.damage || 25);
+                    const siloGX = db.gridX + col + 0.5;
+                    const siloGY = db.gridY + row + 0.5;
+                    const silo = IsoUtils.cartToIso(siloGX, siloGY);
+                    this.shootDragonPod(db, { x: silo.x, y: silo.y + 2 - 14 }, siloGX, siloGY, target.gridX + jitterX, target.gridY + jitterY, stats.damage || 25);
                 }
             });
         }
     }
 
-    private shootDragonPod(db: PlacedBuilding, start: { x: number, y: number }, targetGridX: number, targetGridY: number, damage: number) {
+    private shootDragonPod(db: PlacedBuilding, start: { x: number, y: number }, launchGridX: number, launchGridY: number, targetGridX: number, targetGridY: number, damage: number) {
         const end = IsoUtils.cartToIso(targetGridX, targetGridY);
         const dbLevel = db.level ?? 1;
 
         // Create firecracker rocket graphics, standing exactly where the
-        // silo's rocket was drawn.
-        const pod = this.add.graphics();
+        // silo's rocket was drawn. Painter's-order depth from the silo tile
+        // now, along the ground track during the arc.
+        const pod = this.trackBattleFx(this.add.graphics());
         const startX = start.x;
         const startY = start.y;
         pod.setPosition(startX, startY);
-        pod.setDepth(5000);
+        pod.setDepth(depthForProjectile(launchGridX, launchGridY));
 
         // Draw the rocket EXACTLY like the pod standing in the silo (see
-        // BuildingRenderer.drawDragonsBreath), so launch is seamless.
+        // BuildingRenderer.drawDragonsBreath), so launch is seamless. The
+        // shape lives in ProjectileRenderer (clears + redraws per call); the
+        // flame is currently steady, so the per-frame flicker input is 0.
         const drawRocket = () => {
-            pod.clear();
-
-            // Body with a lit flank
-            pod.fillStyle(dbLevel >= 2 ? 0x9c1f1f : 0xa03028, 1);
-            pod.fillRect(-5, -8, 10, 20);
-            pod.fillStyle(dbLevel >= 2 ? 0xc22e2e : 0xb84438, 1);
-            pod.fillRect(-5, -8, 4, 20);
-
-            // Rune band + stud
-            pod.lineStyle(1.3, dbLevel >= 2 ? 0xe6dcc2 : 0xd8c49a, 1);
-            pod.lineBetween(-5, 6, 5, 6);
-            if (dbLevel >= 2) {
-                pod.fillStyle(0xffd700, 0.9);
-                pod.fillCircle(0, 6, 1.4);
-            }
-
-            // Nose cone
-            pod.fillStyle(dbLevel >= 2 ? 0xdaa520 : 0x8a6a2a, 1);
-            pod.beginPath();
-            pod.moveTo(0, -16);
-            pod.lineTo(-5, -8);
-            pod.lineTo(5, -8);
-            pod.closePath();
-            pod.fillPath();
-
-            // Fin tails (max level)
-            if (dbLevel >= 2) {
-                pod.fillStyle(0xb8860b, 1);
-                pod.beginPath();
-                pod.moveTo(-5, 8);
-                pod.lineTo(-8, 13);
-                pod.lineTo(-5, 12.5);
-                pod.closePath();
-                pod.fillPath();
-                pod.beginPath();
-                pod.moveTo(5, 8);
-                pod.lineTo(8, 13);
-                pod.lineTo(5, 12.5);
-                pod.closePath();
-                pod.fillPath();
-            }
-
-            // Exhaust flame
-            pod.fillStyle(0xff6600, 0.9);
-            pod.beginPath();
-            pod.moveTo(-3, 12);
-            pod.lineTo(0, 20);
-            pod.lineTo(3, 12);
-            pod.closePath();
-            pod.fillPath();
-            pod.fillStyle(0xffd25e, 0.85);
-            pod.beginPath();
-            pod.moveTo(-1.8, 12);
-            pod.lineTo(0, 16.5);
-            pod.lineTo(1.8, 12);
-            pod.closePath();
-            pod.fillPath();
+            ProjectileRenderer.drawDragonRocket(pod, dbLevel, 0);
         };
 
-        // Initial draw: upright on the pad
-        drawRocket();
+        // Initial draw: upright on the pad (baked stamp when the atlas has
+        // this rocket; the vector redraw-per-frame path otherwise).
+        const rocketLevel = dbLevel >= 2 ? 2 : 1;
+        const podBaked = this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, 0);
+        if (!podBaked) drawRocket();
         pod.setRotation(0);
 
         // PHASE 1 — LIFTOFF: the rocket climbs straight out of its silo on a
@@ -8915,13 +9974,14 @@ export class MainScene extends Phaser.Scene {
             duration: 230,
             ease: 'Quad.easeIn',
             onUpdate: () => {
-                drawRocket();
+                if (podBaked) this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, 0);
+                else drawRocket();
                 if (Math.random() > 0.5) {
-                    const blast = this.add.graphics();
-                    blast.fillStyle(0xffaa33, 0.7);
-                    blast.fillCircle(0, 0, 2 + Math.random() * 2);
+                    const blast = this.trackBattleFx(this.add.graphics());
+                    const blastR = 2 + Math.random() * 2;
+                    pixelEllipse(blast, 0, 0, blastR, blastR, 0xffaa33, 0.7);
                     blast.setPosition(pod.x + (Math.random() - 0.5) * 5, pod.y + 14);
-                    blast.setDepth(4999);
+                    blast.setDepth(pod.depth - 1);
                     this.tweens.add({ targets: blast, alpha: 0, y: blast.y + 8, duration: 180, onComplete: () => blast.destroy() });
                 }
             },
@@ -8946,22 +10006,25 @@ export class MainScene extends Phaser.Scene {
                 // Bezier curve for arc
                 pod.y = (1 - t) * (1 - t) * arcStartY + 2 * (1 - t) * t * midY + t * t * end.y;
 
-                void t;
+                // Depth follows the ground track under the rocket's arc.
+                pod.setDepth(depthForProjectile(
+                    launchGridX + (targetGridX - launchGridX) * t,
+                    launchGridY + (targetGridY - launchGridY) * t));
                 // The rocket stays a rocket all the way down its arc.
                 const angle = Math.atan2(pod.y - lastY, pod.x - lastX);
                 pod.setRotation(angle + Math.PI / 2);
-                drawRocket();
+                if (podBaked) this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, angle + Math.PI / 2);
+                else drawRocket();
 
                 // A tight ember ribbon — uniform glowing motes, no grey smog.
                 const now = this.time.now;
                 if (now - lastEmberAt > 26) {
                     lastEmberAt = now;
-                    const ember = this.add.graphics();
+                    const ember = this.trackBattleFx(this.add.graphics());
                     ember.setBlendMode(Phaser.BlendModes.ADD);
-                    ember.fillStyle(0xffa14a, 0.8);
-                    ember.fillCircle(0, 0, 2.2);
+                    pixelEllipse(ember, 0, 0, 2.2, 2.2, 0xffa14a, 0.8);
                     ember.setPosition(pod.x, pod.y + 4);
-                    ember.setDepth(4998);
+                    ember.setDepth(pod.depth - 1);
                     this.tweens.add({
                         targets: ember,
                         y: ember.y - 5,
@@ -8979,63 +10042,51 @@ export class MainScene extends Phaser.Scene {
             onComplete: () => {
                 pod.destroy();
                 this.cameras.main.shake(85, 0.0016);
+                // Impact layers sort with the world at the impact tile.
+                const fxDepth = depthForGroundEffect(targetGridX, targetGridY);
 
                 // 1 — the white-hot flash.
-                const flash = this.add.graphics();
+                const flash = this.trackBattleFx(this.add.graphics());
                 flash.setBlendMode(Phaser.BlendModes.ADD);
-                flash.fillStyle(0xfff6d8, 0.95);
-                flash.fillEllipse(0, 0, 26, 13);
+                pixelEllipse(flash, 0, 0, 13, 6.5, 0xfff6d8, 0.95);
                 flash.setPosition(end.x, end.y);
-                flash.setDepth(5003);
+                flash.setDepth(fxDepth + 4);
                 this.tweens.add({ targets: flash, alpha: 0, scale: 2.3, duration: 110, onComplete: () => flash.destroy() });
 
                 // 2 — the bloom: three stacked fire tongues, hottest inside.
+                // Stepped redraw via PixelFx.flash (0.35→1.75 of the base
+                // size), never a scale tween — scaling stretched the 1.35px
+                // cells into soft blobs.
                 const bloomSpec: Array<[number, number, number]> = [
                     [0xd8481e, 46, 420],
                     [0xffb545, 34, 330],
                     [0xfff3c4, 22, 240]
                 ];
                 bloomSpec.forEach(([color, size, dur], i) => {
-                    const bloom = this.add.graphics();
-                    bloom.fillStyle(color, 0.88);
-                    bloom.fillEllipse(0, 0, size, size * 0.5);
-                    bloom.setPosition(end.x, end.y);
-                    bloom.setDepth(5001 + i);
-                    bloom.setScale(0.35);
-                    this.tweens.add({
-                        targets: bloom,
-                        alpha: 0,
-                        scale: 1.75,
-                        duration: dur,
-                        ease: 'Cubic.easeOut',
-                        onComplete: () => bloom.destroy()
-                    });
+                    this.trackBattleFx(PixelFx.flash(this, end.x, end.y, {
+                        r: (size / 2) * 0.35, squash: 0.5, color, alpha: 0.88,
+                        scaleTo: 1.75 / 0.35, life: dur,
+                        ease: 'Cubic.easeOut', depth: fxDepth + 1 + i
+                    }));
                 });
 
-                // 3 — the shockwave: one iso ring racing outward along the ground.
-                const ring = this.add.graphics();
-                ring.lineStyle(2.4, 0xffd9a0, 0.85);
-                ring.strokeEllipse(0, 0, 18, 9);
-                ring.setPosition(end.x, end.y);
-                ring.setDepth(5000);
-                this.tweens.add({
-                    targets: ring,
-                    alpha: 0,
-                    scaleX: 5.2,
-                    scaleY: 5.2,
-                    duration: 380,
-                    ease: 'Cubic.easeOut',
-                    onComplete: () => ring.destroy()
-                });
+                // 3 — the shockwave: one iso ring racing outward along the
+                // ground, redrawn per frame (PixelFx.ring) so the cells stay
+                // 1.35px at every radius instead of scaling up ×5.2.
+                this.trackBattleFx(PixelFx.ring(this, end.x, end.y, {
+                    r0: 9, r1: 47, squash: 0.5, thick0: 2,
+                    color: 0xffd9a0, alpha: 0.85,
+                    life: 380, ease: 'Cubic.easeOut', depth: fxDepth
+                }));
 
                 // 4 — embers thrown out, arcing and dying.
                 for (let i = 0; i < 10; i++) {
-                    const ember = this.add.graphics();
+                    const ember = this.trackBattleFx(this.add.graphics());
                     ember.setBlendMode(Phaser.BlendModes.ADD);
-                    ember.fillStyle(i % 2 === 0 ? 0xffc35a : 0xff7a22, 0.95);
-                    ember.fillCircle(0, 0, 1.6 + Math.random() * 1.4);
+                    const emberR = 1.6 + Math.random() * 1.4;
+                    pixelEllipse(ember, 0, 0, emberR, emberR, i % 2 === 0 ? 0xffc35a : 0xff7a22, 0.95);
                     ember.setPosition(end.x, end.y - 4);
-                    ember.setDepth(5002);
+                    ember.setDepth(fxDepth + 2);
                     const angle = Math.random() * Math.PI * 2;
                     const throwDist = 18 + Math.random() * 30;
                     this.tweens.add({
@@ -9053,11 +10104,10 @@ export class MainScene extends Phaser.Scene {
                 // 5 — dark smoke rolling up after the fire.
                 for (let i = 0; i < 3; i++) {
                     this.scheduleBattleCall(70 + i * 90, () => {
-                        const smoke = this.add.graphics();
-                        smoke.fillStyle(0x4a4038, 0.4);
-                        smoke.fillCircle(0, 0, 5 + i * 2);
+                        const smoke = this.trackBattleFx(this.add.graphics());
+                        pixelEllipse(smoke, 0, 0, 5 + i * 2, 5 + i * 2, 0x4a4038, 0.4);
                         smoke.setPosition(end.x + (Math.random() - 0.5) * 10, end.y - 6);
-                        smoke.setDepth(5004);
+                        smoke.setDepth(fxDepth + 5);
                         this.tweens.add({
                             targets: smoke,
                             y: smoke.y - 20,
@@ -9071,11 +10121,9 @@ export class MainScene extends Phaser.Scene {
                 }
 
                 // 6 — the ground remembers: a scorch that slowly fades.
-                const scorch = this.add.graphics();
-                scorch.fillStyle(0x2b241c, 0.38);
-                scorch.fillEllipse(0, 0, 24, 11);
-                scorch.fillStyle(0x1c1712, 0.3);
-                scorch.fillEllipse(2, 1, 12, 5.5);
+                const scorch = this.trackBattleFx(this.add.graphics());
+                pixelEllipse(scorch, 0, 0, 12, 5.5, 0x2b241c, 0.38);
+                pixelEllipse(scorch, 2, 1, 6, 2.75, 0x1c1712, 0.3);
                 scorch.setPosition(end.x, end.y + 1);
                 scorch.setDepth(6);
                 this.tweens.add({ targets: scorch, alpha: 0, duration: 3800, ease: 'Quad.easeIn', onComplete: () => scorch.destroy() });
@@ -9084,10 +10132,7 @@ export class MainScene extends Phaser.Scene {
                     if (t.owner !== db.owner && t.health > 0) {
                         const d = Phaser.Math.Distance.Between(t.gridX, t.gridY, targetGridX, targetGridY);
                         if (d < 1.2) {
-                            t.health -= damage;
-                            t.hasTakenDamage = true;
-                            this.updateHealthBar(t);
-                            if (t.health <= 0) this.destroyTroop(t);
+                            this.applyLocalTroopDamage(t, damage);
                         }
                     }
                 });
@@ -9117,56 +10162,17 @@ export class MainScene extends Phaser.Scene {
         const angle = Math.atan2(end.y - start.y, end.x - start.x);
         launcher.ballistaAngle = angle;
 
-        // SPIKY projectile - level-dependent appearance
-        const bag = this.add.graphics();
-        const spikeScale = level >= 4 ? 1.3 : (level >= 3 ? 1.2 : 1.0);
-        let coreColor: number, spikeColor: number, highlightColor: number;
-        if (level >= 4) {
-            // White marble boulder with gold spikes
-            coreColor = 0xeeeedd;
-            spikeColor = 0xdaa520;
-            highlightColor = 0xffd700;
-        } else if (level >= 3) {
-            // Dark iron with red-hot tips
-            coreColor = 0x333333;
-            spikeColor = 0x888888;
-            highlightColor = 0xcc3300;
-        } else {
-            // Basic grey
-            coreColor = 0x555555;
-            spikeColor = 0xaaaaaa;
-            highlightColor = 0xcccccc;
-        }
-        // Core/base
-        bag.fillStyle(coreColor, 1);
-        bag.fillCircle(0, 0, 6 * spikeScale);
-        // Spikes
-        bag.fillStyle(spikeColor, 1);
-        const s = spikeScale;
-        // Top spikes
-        bag.fillTriangle(0, -6 * s, -3 * s, -14 * s, 3 * s, -14 * s);
-        bag.fillTriangle(-4 * s, -5 * s, -8 * s, -12 * s, -2 * s, -10 * s);
-        bag.fillTriangle(4 * s, -5 * s, 8 * s, -12 * s, 2 * s, -10 * s);
-        // Bottom spikes
-        bag.fillTriangle(0, 6 * s, -3 * s, 14 * s, 3 * s, 14 * s);
-        bag.fillTriangle(-4 * s, 5 * s, -8 * s, 12 * s, -2 * s, 10 * s);
-        bag.fillTriangle(4 * s, 5 * s, 8 * s, 12 * s, 2 * s, 10 * s);
-        // Side spikes
-        bag.fillTriangle(-6 * s, 0, -14 * s, -3 * s, -14 * s, 3 * s);
-        bag.fillTriangle(6 * s, 0, 14 * s, -3 * s, 14 * s, 3 * s);
-        bag.fillTriangle(-5 * s, -4 * s, -12 * s, -8 * s, -10 * s, -2 * s);
-        bag.fillTriangle(5 * s, -4 * s, 12 * s, -8 * s, 10 * s, -2 * s);
-        bag.fillTriangle(-5 * s, 4 * s, -12 * s, 8 * s, -10 * s, 2 * s);
-        bag.fillTriangle(5 * s, 4 * s, 12 * s, 8 * s, 10 * s, 2 * s);
-        // Spike highlights / tips
-        bag.fillStyle(highlightColor, 0.8);
-        bag.fillTriangle(0, -7 * s, -1 * s, -12 * s, 1 * s, -12 * s);
-        bag.fillTriangle(-6 * s, -1 * s, -12 * s, 0, -12 * s, 2 * s);
-        bag.fillTriangle(6 * s, -1 * s, 12 * s, 0, 12 * s, 2 * s);
+        // SPIKY projectile - level-dependent appearance.
+        // Painter's-order depth along the shot's ground track.
+        const launchGX = launcher.gridX + info.width / 2;
+        const launchGY = launcher.gridY + info.height / 2;
+        const bag = this.trackBattleFx(this.add.graphics());
 
         bag.setPosition(start.x, start.y - 40);
-        bag.setDepth(5000);
+        bag.setDepth(depthForProjectile(launchGX, launchGY));
         bag.setAlpha(0);
+        const bagBaked = this.syncProjectileSprite(bag, 'spike_ball', Math.min(level, 4), 0);
+        if (!bagBaked) ProjectileRenderer.drawSpikeBall(bag, level);
 
         // Fade in AFTER ball is farther from trebuchet (looks natural when shooting down)
         this.tweens.add({
@@ -9186,9 +10192,8 @@ export class MainScene extends Phaser.Scene {
         let lastTrailTime = 0;
 
         // Ground shadow tracking under the arcing ball
-        const bagShadow = this.add.graphics();
-        bagShadow.fillStyle(0x18220f, 0.26);
-        bagShadow.fillEllipse(0, 0, 16, 7);
+        const bagShadow = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(bagShadow, 0, 0, 8, 3.5, 0x18220f, 0.26);
         bagShadow.setPosition(start.x, start.y + 2);
         bagShadow.setDepth(950);
         bagShadow.setAlpha(0);
@@ -9220,20 +10225,24 @@ export class MainScene extends Phaser.Scene {
                 bag.y = (1 - t) * (1 - t) * (start.y - 40) + 2 * (1 - t) * t * midY + t * t * end.y;
                 // Spin rotation
                 bag.setRotation(t * Math.PI * 2.5);
+                // Depth follows the ground track under the arc.
+                bag.setDepth(depthForProjectile(
+                    launchGX + (targetGridX - launchGX) * t,
+                    launchGY + (targetGridY - launchGY) * t));
                 // Scale
                 const scale = 0.7 + (1 - Math.abs(t - 0.5) * 2) * 0.4;
                 bag.setScale(scale);
+                if (bagBaked) this.syncProjectileSprite(bag, 'spike_ball', Math.min(level, 4), t * Math.PI * 2.5);
 
                 // Drop spike trail every ~80ms
                 const now = this.time.now;
                 if (now - lastTrailTime > 80 && t > 0.1 && t < 0.9) {
                     lastTrailTime = now;
-                    const trailSpike = this.add.graphics();
-                    trailSpike.fillStyle(0x888888, 0.7);
-                    // Small falling spike
-                    trailSpike.fillTriangle(0, -4, -2, 4, 2, 4);
+                    const trailSpike = this.trackBattleFx(this.add.graphics());
+                    // Small falling spike (cell rows tapering to the tip)
+                    pixelBitmap(trailSpike, -1.5 * PIXEL_CELL, -4, ['.s.', '.s.', '.s.', 'sss', 'sss', 'sss'], { s: 0x888888 }, 0.7);
                     trailSpike.setPosition(bag.x + (Math.random() - 0.5) * 10, bag.y);
-                    trailSpike.setDepth(4999);
+                    trailSpike.setDepth(bag.depth - 1);
                     trailSpike.setRotation(Math.random() * Math.PI);
 
                     this.tweens.add({
@@ -9253,7 +10262,7 @@ export class MainScene extends Phaser.Scene {
         });
 
         // Launch smoke puff
-        this.createSmokeEffect(start.x, start.y - 35);
+        this.createSmokeEffect(start.x, start.y - 35, depthForGroundEffect(launchGX, launchGY) + 1);
     }
 
     private createSpikeZone(
@@ -9269,50 +10278,50 @@ export class MainScene extends Phaser.Scene {
     ) {
         // A heavy iron THUD — felt, not deafening.
         this.cameras.main.shake(70, 0.0012);
+        // Impact layers sort with the world at the landing tile.
+        const fxDepth = depthForGroundEffect(gridX, gridY);
+
+        // The zone's teeth reach exactly as far as its DRAWN caltrops: the
+        // ground patch spans 27.5px × footprintScale (plus ~6px of spike
+        // sprite overhang), converted back to grid tiles with the same
+        // grid→iso factor as gridRangeToIsoRadii. The raw stat radius
+        // (2.1–2.4 tiles) damaged ~3× beyond the visible hazard.
+        const footprintScale = Math.max(0.85, radius / 2);
+        const damageRadiusTiles = (27.5 * footprintScale + 6) / (this.tileWidth * 0.5 * Math.SQRT2);
 
         // 1 — dull metal-on-earth flash (no fire: this is weight, not heat).
-        const slamFlash = this.add.graphics();
-        slamFlash.fillStyle(0xd8b878, 0.7);
-        slamFlash.fillEllipse(0, 0, 20, 10);
+        const slamFlash = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(slamFlash, 0, 0, 10, 5, 0xd8b878, 0.7);
         slamFlash.setPosition(x, y);
-        slamFlash.setDepth(5002);
+        slamFlash.setDepth(fxDepth + 2);
         this.tweens.add({ targets: slamFlash, alpha: 0, scale: 1.9, duration: 130, onComplete: () => slamFlash.destroy() });
 
-        // 2 — the dust shock: one iso ring of thrown earth racing outward.
-        const dustRing = this.add.graphics();
-        dustRing.lineStyle(3, 0xc9b593, 0.8);
-        dustRing.strokeEllipse(0, 0, 16, 8);
-        dustRing.setPosition(x, y + 1);
-        dustRing.setDepth(5000);
-        this.tweens.add({
-            targets: dustRing,
-            alpha: 0,
-            scaleX: 4.4,
-            scaleY: 4.4,
-            duration: 340,
-            ease: 'Cubic.easeOut',
-            onComplete: () => dustRing.destroy()
-        });
+        // 2 — the dust shock: one iso ring of thrown earth racing outward,
+        // redrawn per frame (PixelFx.ring) so the cells stay 1.35px at every
+        // radius instead of scaling up ×4.4.
+        this.trackBattleFx(PixelFx.ring(this, x, y + 1, {
+            r0: 8, r1: 35, squash: 0.5, thick0: 2,
+            color: 0xc9b593, alpha: 0.8,
+            life: 340, ease: 'Cubic.easeOut', depth: fxDepth
+        }));
 
         // 3 — the ground CRACKS under the blow: jagged lines that fade.
-        const cracks = this.add.graphics();
+        const cracks = this.trackBattleFx(this.add.graphics());
         cracks.setPosition(x, y);
         cracks.setDepth(7);
-        cracks.lineStyle(1.6, 0x3a3020, 0.85);
         for (let c = 0; c < 5; c++) {
             const baseAngle = (c / 5) * Math.PI * 2 + 0.35;
             let cx = 0;
             let cy = 0;
-            cracks.beginPath();
-            cracks.moveTo(0, 0);
             for (let seg = 0; seg < 3; seg++) {
                 const jag = baseAngle + (Math.random() - 0.5) * 0.7;
                 const len = 7 + Math.random() * 9;
-                cx += Math.cos(jag) * len;
-                cy += Math.sin(jag) * len * 0.5;
-                cracks.lineTo(cx, cy);
+                const nx = cx + Math.cos(jag) * len;
+                const ny = cy + Math.sin(jag) * len * 0.5;
+                pixelLine(cracks, cx, cy, nx, ny, 1, 0x3a3020, 0.85);
+                cx = nx;
+                cy = ny;
             }
-            cracks.strokePath();
         }
         this.tweens.add({ targets: cracks, alpha: 0, duration: 950, ease: 'Quad.easeIn', onComplete: () => cracks.destroy() });
 
@@ -9320,15 +10329,15 @@ export class MainScene extends Phaser.Scene {
         // the ejecta visually becomes the hazard the launcher leaves behind.
         const quillCount = 9;
         for (let q = 0; q < quillCount; q++) {
-            const quill = this.add.graphics();
-            quill.fillStyle(0x777777, 1);
-            quill.fillTriangle(0, -5, -2.2, 3, 2.2, 3);
-            quill.fillStyle(0xaaaaaa, 0.9);
-            quill.fillTriangle(0, -5, -0.9, -1, 0.9, -1);
+            const quill = this.trackBattleFx(this.add.graphics());
+            pixelBitmap(quill, -1.5 * PIXEL_CELL, -5, ['.d.', '.d.', 'ddd', 'ddd', 'ddd', 'ddd'], { d: 0x777777 }, 1);
+            pixelBitmap(quill, -0.5 * PIXEL_CELL, -5, ['l', 'l', 'l'], { l: 0xaaaaaa }, 0.9);
             quill.setPosition(x, y - 6);
-            quill.setDepth(5001);
+            quill.setDepth(fxDepth + 1);
             const qa = (q / quillCount) * Math.PI * 2 + 0.2;
-            const qd = 12 + Math.random() * (radius * 14);
+            // Quills land inside the drawn caltrop patch — they ARE the
+            // hazard's look, so they must not overshoot the damage field.
+            const qd = 12 + Math.random() * Math.max(6, 27.5 * footprintScale - 10);
             const landX = x + Math.cos(qa) * qd;
             const landY = y + Math.sin(qa) * qd * 0.5;
             this.tweens.add({
@@ -9351,11 +10360,10 @@ export class MainScene extends Phaser.Scene {
 
         // 5 — clods of earth kicked loose.
         for (let d = 0; d < 6; d++) {
-            const clod = this.add.graphics();
-            clod.fillStyle(d % 2 === 0 ? 0x8a744e : 0x6e5c3e, 0.95);
-            clod.fillEllipse(0, 0, 3.4, 2.2);
+            const clod = this.trackBattleFx(this.add.graphics());
+            pixelEllipse(clod, 0, 0, 1.7, 1.1, d % 2 === 0 ? 0x8a744e : 0x6e5c3e, 0.95);
             clod.setPosition(x, y - 3);
-            clod.setDepth(5001);
+            clod.setDepth(fxDepth + 1);
             const da = Math.random() * Math.PI * 2;
             const dd = 10 + Math.random() * 22;
             this.tweens.add({
@@ -9374,42 +10382,28 @@ export class MainScene extends Phaser.Scene {
         this.troops.forEach(t => {
             if (t.owner !== owner && t.health > 0) {
                 const dist = Phaser.Math.Distance.Between(t.gridX, t.gridY, gridX, gridY);
-                if (dist <= radius + 0.5) { // Slightly larger radius for impact
-                    t.health -= impactDamage;
-                    t.hasTakenDamage = true;
-                    this.updateHealthBar(t);
-
+                if (dist <= damageRadiusTiles + 0.5) { // Slightly larger radius for impact
                     // Impact flash
                     const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
-                    const flash = this.add.circle(pos.x, pos.y - 15, 8, 0xffaa00, 0.8);
-                    flash.setDepth(t.gameObject.depth + 1);
-                    this.tweens.add({
-                        targets: flash,
-                        scale: 2,
-                        alpha: 0,
-                        duration: 200,
-                        onComplete: () => flash.destroy()
-                    });
+                    this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 15, { r: 8, color: 0xffaa00, alpha: 0.8, scaleTo: 2, life: 200, depth: t.gameObject.depth + 1 }));
 
-                    if (t.health <= 0) {
-                        this.destroyTroop(t);
-                    }
+                    this.applyLocalTroopDamage(t, impactDamage);
                 }
             }
         });
 
-        // Create persistent spike zone graphics
+        // Create persistent spike zone graphics — ground-decal band: above
+        // the stone-lanes RT (2.5) and mortar craters (3), below the prism
+        // scorch (5) and dragons-breath scorch (6).
         const zoneGraphics = this.add.graphics();
-        zoneGraphics.setDepth(2);
+        zoneGraphics.setDepth(4);
 
         // Draw scattered spikes on ground
         const drawSpikes = (alpha: number) => {
             zoneGraphics.clear();
-            const footprintScale = Math.max(0.85, radius / 2);
 
             // Dark ground patch
-            zoneGraphics.fillStyle(0x3a3020, alpha * 0.5);
-            zoneGraphics.fillEllipse(x, y + 3, 55 * footprintScale, 28 * footprintScale);
+            pixelEllipse(zoneGraphics, x, y + 3, 27.5 * footprintScale, 14 * footprintScale, 0x3a3020, alpha * 0.5);
 
             // Scattered metal spikes (caltrops)
             const spikePositions = [
@@ -9431,17 +10425,15 @@ export class MainScene extends Phaser.Scene {
                 const sx = x + pos.dx;
                 const sy = y + pos.dy;
 
-                // Metal spikes (4-pointed caltrops)
-                zoneGraphics.fillStyle(0x666666, alpha);
+                // Metal spikes (4-pointed caltrops, whole-cell rows)
                 // Upward spike
-                zoneGraphics.fillTriangle(sx, sy - 6, sx - 2, sy, sx + 2, sy);
+                pixelBitmap(zoneGraphics, sx - 1.5 * PIXEL_CELL, sy - 6, ['.s.', '.s.', 'sss', 'sss'], { s: 0x666666 }, alpha);
                 // Side spikes
-                zoneGraphics.fillTriangle(sx - 5, sy + 2, sx, sy, sx, sy + 3);
-                zoneGraphics.fillTriangle(sx + 5, sy + 2, sx, sy, sx, sy + 3);
+                pixelBitmap(zoneGraphics, sx - 4 * PIXEL_CELL, sy, ['..ss', 'ssss'], { s: 0x666666 }, alpha);
+                pixelBitmap(zoneGraphics, sx, sy, ['ss..', 'ssss'], { s: 0x666666 }, alpha);
                 // Highlight
                 if (i % 3 === 0) {
-                    zoneGraphics.fillStyle(0x999999, alpha * 0.7);
-                    zoneGraphics.fillTriangle(sx - 1, sy - 5, sx, sy - 2, sx + 1, sy - 5);
+                    pixelRect(zoneGraphics, sx - 1, sy - 5, 2, 3, 0x999999, alpha * 0.7);
                 }
             });
         };
@@ -9450,7 +10442,8 @@ export class MainScene extends Phaser.Scene {
 
         const zone = {
             x, y, gridX, gridY,
-            radius,
+            // Damage field == visible caltrop field, not the raw stat radius.
+            radius: damageRadiusTiles,
             damage,
             owner,
             endTime: this.time.now + duration,
@@ -9489,26 +10482,15 @@ export class MainScene extends Phaser.Scene {
                     if (t.owner !== zone.owner && t.health > 0) {
                         const dist = Phaser.Math.Distance.Between(t.gridX, t.gridY, zone.gridX, zone.gridY);
                         if (dist <= zone.radius) {
-                            t.health -= zone.damage;
-                            t.hasTakenDamage = true;
-                            this.updateHealthBar(t);
-
                             // Small blood/damage effect
                             const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
-                            const spark = this.add.circle(pos.x, pos.y - 10, 3, 0xff4444, 0.8);
-                            spark.setDepth(t.gameObject.depth + 1);
-                            this.tweens.add({
-                                targets: spark,
-                                y: pos.y - 20,
-                                alpha: 0,
-                                scale: 0.5,
-                                duration: 200,
-                                onComplete: () => spark.destroy()
+                            PixelFx.burst(this, pos.x, pos.y - 10, {
+                                count: 1, colors: [0xff4444], alpha: 0.8, r: 3,
+                                speed: 0, up: 10, scaleTo: 0.5, life: 200,
+                                depth: t.gameObject.depth + 1
                             });
 
-                            if (t.health <= 0) {
-                                this.destroyTroop(t);
-                            }
+                            this.applyLocalTroopDamage(t, zone.damage);
                         }
                     }
                 });

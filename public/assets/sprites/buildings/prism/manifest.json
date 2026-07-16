@@ -11,10 +11,10 @@
               {
                 "file": "prism_L1_idle0.png",
                 "texelW": 37,
-                "texelH": 46,
+                "texelH": 47,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8864734299516905,
+                "originY": 0.8888888888888885,
                 "ov": {
                   "timeAt": 1000
                 }
@@ -22,10 +22,10 @@
               {
                 "file": "prism_L1_idle1.png",
                 "texelW": 37,
-                "texelH": 46,
+                "texelH": 47,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8864734299516905,
+                "originY": 0.8888888888888885,
                 "ov": {
                   "timeAt": 1083
                 }
@@ -55,10 +55,10 @@
               {
                 "file": "prism_L1_idle4.png",
                 "texelW": 37,
-                "texelH": 46,
+                "texelH": 47,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8864734299516905,
+                "originY": 0.8888888888888885,
                 "ov": {
                   "timeAt": 1333
                 }
@@ -66,10 +66,10 @@
               {
                 "file": "prism_L1_idle5.png",
                 "texelW": 37,
-                "texelH": 46,
+                "texelH": 47,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8864734299516905,
+                "originY": 0.8888888888888885,
                 "ov": {
                   "timeAt": 1417
                 }
@@ -88,10 +88,10 @@
               {
                 "file": "prism_L1_idle7.png",
                 "texelW": 37,
-                "texelH": 45,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8839506172839503,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 1583
                 }
@@ -99,10 +99,10 @@
               {
                 "file": "prism_L1_idle8.png",
                 "texelW": 37,
-                "texelH": 45,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8839506172839503,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 1667
                 }
@@ -132,10 +132,10 @@
               {
                 "file": "prism_L1_idle11.png",
                 "texelW": 37,
-                "texelH": 43,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8785529715762274,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 1917
                 }
@@ -143,10 +143,10 @@
               {
                 "file": "prism_L1_idle12.png",
                 "texelW": 37,
-                "texelH": 43,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8785529715762274,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2000
                 }
@@ -154,10 +154,10 @@
               {
                 "file": "prism_L1_idle13.png",
                 "texelW": 37,
-                "texelH": 43,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8785529715762274,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2083
                 }
@@ -165,10 +165,10 @@
               {
                 "file": "prism_L1_idle14.png",
                 "texelW": 37,
-                "texelH": 43,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8785529715762274,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2167
                 }
@@ -198,10 +198,10 @@
               {
                 "file": "prism_L1_idle17.png",
                 "texelW": 37,
-                "texelH": 45,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8839506172839503,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2417
                 }
@@ -209,10 +209,10 @@
               {
                 "file": "prism_L1_idle18.png",
                 "texelW": 37,
-                "texelH": 46,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8864734299516905,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2500
                 }
@@ -220,10 +220,10 @@
               {
                 "file": "prism_L1_idle19.png",
                 "texelW": 37,
-                "texelH": 46,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8864734299516905,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2583
                 }
@@ -231,10 +231,10 @@
               {
                 "file": "prism_L1_idle20.png",
                 "texelW": 37,
-                "texelH": 47,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8888888888888885,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2667
                 }
@@ -242,10 +242,10 @@
               {
                 "file": "prism_L1_idle21.png",
                 "texelW": 37,
-                "texelH": 47,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8888888888888885,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2750
                 }
@@ -253,10 +253,10 @@
               {
                 "file": "prism_L1_idle22.png",
                 "texelW": 37,
-                "texelH": 47,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8888888888888885,
+                "originY": 0.8813131313131312,
                 "ov": {
                   "timeAt": 2833
                 }
@@ -264,17 +264,149 @@
               {
                 "file": "prism_L1_idle23.png",
                 "texelW": 37,
+                "texelH": 44,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8813131313131312,
+                "ov": {
+                  "timeAt": 2917
+                }
+              },
+              {
+                "file": "prism_L1_idle24.png",
+                "texelW": 37,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8864734299516905,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "prism_L1_idle25.png",
+                "texelW": 37,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
                 "originY": 0.8888888888888885,
                 "ov": {
-                  "timeAt": 2917
+                  "timeAt": 3083
+                }
+              },
+              {
+                "file": "prism_L1_idle26.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3167
+                }
+              },
+              {
+                "file": "prism_L1_idle27.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "prism_L1_idle28.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3333
+                }
+              },
+              {
+                "file": "prism_L1_idle29.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3417
+                }
+              },
+              {
+                "file": "prism_L1_idle30.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "prism_L1_idle31.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3583
+                }
+              },
+              {
+                "file": "prism_L1_idle32.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3667
+                }
+              },
+              {
+                "file": "prism_L1_idle33.png",
+                "texelW": 37,
+                "texelH": 48,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8703703703703699,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "prism_L1_idle34.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3833
+                }
+              },
+              {
+                "file": "prism_L1_idle35.png",
+                "texelW": 37,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.49249249249249233,
+                "originY": 0.8888888888888885,
+                "ov": {
+                  "timeAt": 3917
                 }
               }
             ]
           ],
-          "loopMs": 2000,
+          "loopMs": 3000,
           "loopExact": false
         },
         "fire": {
@@ -284,10 +416,10 @@
               {
                 "file": "prism_L1_fire0.png",
                 "texelW": 37,
-                "texelH": 47,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8676122931442077,
+                "originY": 0.8526077097505664,
                 "ov": {
                   "fireAge": 0
                 }
@@ -295,10 +427,10 @@
               {
                 "file": "prism_L1_fire1.png",
                 "texelW": 37,
-                "texelH": 47,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8676122931442077,
+                "originY": 0.8526077097505664,
                 "ov": {
                   "fireAge": 120
                 }
@@ -306,10 +438,10 @@
               {
                 "file": "prism_L1_fire2.png",
                 "texelW": 37,
-                "texelH": 47,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.49249249249249233,
-                "originY": 0.8676122931442077,
+                "originY": 0.8526077097505664,
                 "ov": {
                   "fireAge": 240
                 }
@@ -336,10 +468,10 @@
               {
                 "file": "prism_L2_idle0.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "timeAt": 1000
                 }
@@ -347,10 +479,10 @@
               {
                 "file": "prism_L2_idle1.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "timeAt": 1083
                 }
@@ -358,10 +490,10 @@
               {
                 "file": "prism_L2_idle2.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "timeAt": 1167
                 }
@@ -369,10 +501,10 @@
               {
                 "file": "prism_L2_idle3.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "timeAt": 1250
                 }
@@ -413,10 +545,10 @@
               {
                 "file": "prism_L2_idle7.png",
                 "texelW": 36,
-                "texelH": 50,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8155555555555553,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 1583
                 }
@@ -424,10 +556,10 @@
               {
                 "file": "prism_L2_idle8.png",
                 "texelW": 36,
-                "texelH": 50,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8155555555555553,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 1667
                 }
@@ -435,10 +567,10 @@
               {
                 "file": "prism_L2_idle9.png",
                 "texelW": 36,
-                "texelH": 49,
+                "texelH": 48,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8117913832199544,
+                "originY": 0.8078703703703701,
                 "ov": {
                   "timeAt": 1750
                 }
@@ -468,10 +600,10 @@
               {
                 "file": "prism_L2_idle12.png",
                 "texelW": 36,
-                "texelH": 48,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8078703703703701,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2000
                 }
@@ -479,10 +611,10 @@
               {
                 "file": "prism_L2_idle13.png",
                 "texelW": 36,
-                "texelH": 48,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8078703703703701,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2083
                 }
@@ -490,10 +622,10 @@
               {
                 "file": "prism_L2_idle14.png",
                 "texelW": 36,
-                "texelH": 48,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8078703703703701,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2167
                 }
@@ -501,10 +633,10 @@
               {
                 "file": "prism_L2_idle15.png",
                 "texelW": 36,
-                "texelH": 48,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8078703703703701,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2250
                 }
@@ -523,10 +655,10 @@
               {
                 "file": "prism_L2_idle17.png",
                 "texelW": 36,
-                "texelH": 50,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8155555555555553,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2417
                 }
@@ -534,10 +666,10 @@
               {
                 "file": "prism_L2_idle18.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2500
                 }
@@ -545,10 +677,10 @@
               {
                 "file": "prism_L2_idle19.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 48,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8078703703703701,
                 "ov": {
                   "timeAt": 2583
                 }
@@ -556,10 +688,10 @@
               {
                 "file": "prism_L2_idle20.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 48,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8078703703703701,
                 "ov": {
                   "timeAt": 2667
                 }
@@ -567,10 +699,10 @@
               {
                 "file": "prism_L2_idle21.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 48,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8078703703703701,
                 "ov": {
                   "timeAt": 2750
                 }
@@ -578,10 +710,10 @@
               {
                 "file": "prism_L2_idle22.png",
                 "texelW": 36,
-                "texelH": 52,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8226495726495726,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2833
                 }
@@ -589,17 +721,149 @@
               {
                 "file": "prism_L2_idle23.png",
                 "texelW": 36,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8117913832199544,
+                "ov": {
+                  "timeAt": 2917
+                }
+              },
+              {
+                "file": "prism_L2_idle24.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "prism_L2_idle25.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3083
+                }
+              },
+              {
+                "file": "prism_L2_idle26.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3167
+                }
+              },
+              {
+                "file": "prism_L2_idle27.png",
+                "texelW": 36,
                 "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
                 "originY": 0.8226495726495726,
                 "ov": {
-                  "timeAt": 2917
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "prism_L2_idle28.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3333
+                }
+              },
+              {
+                "file": "prism_L2_idle29.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3417
+                }
+              },
+              {
+                "file": "prism_L2_idle30.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "prism_L2_idle31.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3583
+                }
+              },
+              {
+                "file": "prism_L2_idle32.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3667
+                }
+              },
+              {
+                "file": "prism_L2_idle33.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "prism_L2_idle34.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3833
+                }
+              },
+              {
+                "file": "prism_L2_idle35.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3917
                 }
               }
             ]
           ],
-          "loopMs": 2000,
+          "loopMs": 3000,
           "loopExact": false
         },
         "fire": {
@@ -609,10 +873,10 @@
               {
                 "file": "prism_L2_fire0.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "fireAge": 0
                 }
@@ -620,10 +884,10 @@
               {
                 "file": "prism_L2_fire1.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "fireAge": 120
                 }
@@ -631,10 +895,10 @@
               {
                 "file": "prism_L2_fire2.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "fireAge": 240
                 }
@@ -661,10 +925,10 @@
               {
                 "file": "prism_L3_idle0.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8259958071278823,
                 "ov": {
                   "timeAt": 1000
                 }
@@ -672,10 +936,10 @@
               {
                 "file": "prism_L3_idle1.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8259958071278823,
                 "ov": {
                   "timeAt": 1083
                 }
@@ -683,10 +947,10 @@
               {
                 "file": "prism_L3_idle2.png",
                 "texelW": 36,
-                "texelH": 52,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8226495726495726,
+                "originY": 0.8259958071278823,
                 "ov": {
                   "timeAt": 1167
                 }
@@ -694,10 +958,10 @@
               {
                 "file": "prism_L3_idle3.png",
                 "texelW": 36,
-                "texelH": 52,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8226495726495726,
+                "originY": 0.8259958071278823,
                 "ov": {
                   "timeAt": 1250
                 }
@@ -705,10 +969,10 @@
               {
                 "file": "prism_L3_idle4.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "timeAt": 1333
                 }
@@ -716,10 +980,10 @@
               {
                 "file": "prism_L3_idle5.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8226495726495726,
                 "ov": {
                   "timeAt": 1417
                 }
@@ -738,10 +1002,10 @@
               {
                 "file": "prism_L3_idle7.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 1583
                 }
@@ -749,10 +1013,10 @@
               {
                 "file": "prism_L3_idle8.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 1667
                 }
@@ -760,10 +1024,10 @@
               {
                 "file": "prism_L3_idle9.png",
                 "texelW": 36,
-                "texelH": 50,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8155555555555553,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 1750
                 }
@@ -793,10 +1057,10 @@
               {
                 "file": "prism_L3_idle12.png",
                 "texelW": 36,
-                "texelH": 48,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8078703703703701,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 2000
                 }
@@ -804,10 +1068,10 @@
               {
                 "file": "prism_L3_idle13.png",
                 "texelW": 36,
-                "texelH": 48,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8078703703703701,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 2083
                 }
@@ -815,10 +1079,10 @@
               {
                 "file": "prism_L3_idle14.png",
                 "texelW": 36,
-                "texelH": 48,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8078703703703701,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 2167
                 }
@@ -826,10 +1090,10 @@
               {
                 "file": "prism_L3_idle15.png",
                 "texelW": 36,
-                "texelH": 49,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8117913832199544,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 2250
                 }
@@ -848,10 +1112,10 @@
               {
                 "file": "prism_L3_idle17.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 2417
                 }
@@ -859,10 +1123,10 @@
               {
                 "file": "prism_L3_idle18.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 2500
                 }
@@ -870,10 +1134,10 @@
               {
                 "file": "prism_L3_idle19.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2583
                 }
@@ -881,10 +1145,10 @@
               {
                 "file": "prism_L3_idle20.png",
                 "texelW": 36,
-                "texelH": 52,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8226495726495726,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2667
                 }
@@ -892,10 +1156,10 @@
               {
                 "file": "prism_L3_idle21.png",
                 "texelW": 36,
-                "texelH": 52,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8226495726495726,
+                "originY": 0.8117913832199544,
                 "ov": {
                   "timeAt": 2750
                 }
@@ -903,10 +1167,10 @@
               {
                 "file": "prism_L3_idle22.png",
                 "texelW": 36,
-                "texelH": 53,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8259958071278823,
+                "originY": 0.8155555555555553,
                 "ov": {
                   "timeAt": 2833
                 }
@@ -914,17 +1178,149 @@
               {
                 "file": "prism_L3_idle23.png",
                 "texelW": 36,
+                "texelH": 50,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8155555555555553,
+                "ov": {
+                  "timeAt": 2917
+                }
+              },
+              {
+                "file": "prism_L3_idle24.png",
+                "texelW": 36,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8191721132897599,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "prism_L3_idle25.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3083
+                }
+              },
+              {
+                "file": "prism_L3_idle26.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3167
+                }
+              },
+              {
+                "file": "prism_L3_idle27.png",
+                "texelW": 36,
                 "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
                 "originY": 0.8259958071278823,
                 "ov": {
-                  "timeAt": 2917
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "prism_L3_idle28.png",
+                "texelW": 36,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8259958071278823,
+                "ov": {
+                  "timeAt": 3333
+                }
+              },
+              {
+                "file": "prism_L3_idle29.png",
+                "texelW": 36,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8259958071278823,
+                "ov": {
+                  "timeAt": 3417
+                }
+              },
+              {
+                "file": "prism_L3_idle30.png",
+                "texelW": 36,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8259958071278823,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "prism_L3_idle31.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3583
+                }
+              },
+              {
+                "file": "prism_L3_idle32.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3667
+                }
+              },
+              {
+                "file": "prism_L3_idle33.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "prism_L3_idle34.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3833
+                }
+              },
+              {
+                "file": "prism_L3_idle35.png",
+                "texelW": 36,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.5061728395061728,
+                "originY": 0.8226495726495726,
+                "ov": {
+                  "timeAt": 3917
                 }
               }
             ]
           ],
-          "loopMs": 2000,
+          "loopMs": 3000,
           "loopExact": false
         },
         "fire": {
@@ -934,10 +1330,10 @@
               {
                 "file": "prism_L3_fire0.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8259958071278823,
                 "ov": {
                   "fireAge": 0
                 }
@@ -945,10 +1341,10 @@
               {
                 "file": "prism_L3_fire1.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8259958071278823,
                 "ov": {
                   "fireAge": 120
                 }
@@ -956,10 +1352,10 @@
               {
                 "file": "prism_L3_fire2.png",
                 "texelW": 36,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.5061728395061728,
-                "originY": 0.8191721132897599,
+                "originY": 0.8259958071278823,
                 "ov": {
                   "fireAge": 240
                 }
@@ -986,10 +1382,10 @@
               {
                 "file": "prism_L4_idle0.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8448637316561842,
                 "ov": {
                   "timeAt": 1000
                 }
@@ -997,10 +1393,10 @@
               {
                 "file": "prism_L4_idle1.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8448637316561842,
                 "ov": {
                   "timeAt": 1083
                 }
@@ -1008,10 +1404,10 @@
               {
                 "file": "prism_L4_idle2.png",
                 "texelW": 31,
-                "texelH": 52,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8418803418803418,
+                "originY": 0.8448637316561842,
                 "ov": {
                   "timeAt": 1167
                 }
@@ -1019,10 +1415,10 @@
               {
                 "file": "prism_L4_idle3.png",
                 "texelW": 31,
-                "texelH": 52,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8418803418803418,
+                "originY": 0.8448637316561842,
                 "ov": {
                   "timeAt": 1250
                 }
@@ -1030,10 +1426,10 @@
               {
                 "file": "prism_L4_idle4.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8418803418803418,
                 "ov": {
                   "timeAt": 1333
                 }
@@ -1041,10 +1437,10 @@
               {
                 "file": "prism_L4_idle5.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 52,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8418803418803418,
                 "ov": {
                   "timeAt": 1417
                 }
@@ -1085,10 +1481,10 @@
               {
                 "file": "prism_L4_idle9.png",
                 "texelW": 31,
-                "texelH": 50,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8355555555555553,
+                "originY": 0.8321995464852604,
                 "ov": {
                   "timeAt": 1750
                 }
@@ -1118,10 +1514,10 @@
               {
                 "file": "prism_L4_idle12.png",
                 "texelW": 31,
-                "texelH": 48,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8287037037037034,
+                "originY": 0.8355555555555553,
                 "ov": {
                   "timeAt": 2000
                 }
@@ -1129,10 +1525,10 @@
               {
                 "file": "prism_L4_idle13.png",
                 "texelW": 31,
-                "texelH": 48,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8287037037037034,
+                "originY": 0.8355555555555553,
                 "ov": {
                   "timeAt": 2083
                 }
@@ -1140,10 +1536,10 @@
               {
                 "file": "prism_L4_idle14.png",
                 "texelW": 31,
-                "texelH": 48,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8287037037037034,
+                "originY": 0.8355555555555553,
                 "ov": {
                   "timeAt": 2167
                 }
@@ -1151,10 +1547,10 @@
               {
                 "file": "prism_L4_idle15.png",
                 "texelW": 31,
-                "texelH": 49,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8321995464852604,
+                "originY": 0.8355555555555553,
                 "ov": {
                   "timeAt": 2250
                 }
@@ -1184,10 +1580,10 @@
               {
                 "file": "prism_L4_idle18.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8355555555555553,
                 "ov": {
                   "timeAt": 2500
                 }
@@ -1195,10 +1591,10 @@
               {
                 "file": "prism_L4_idle19.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8321995464852604,
                 "ov": {
                   "timeAt": 2583
                 }
@@ -1206,10 +1602,10 @@
               {
                 "file": "prism_L4_idle20.png",
                 "texelW": 31,
-                "texelH": 52,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8418803418803418,
+                "originY": 0.8321995464852604,
                 "ov": {
                   "timeAt": 2667
                 }
@@ -1217,10 +1613,10 @@
               {
                 "file": "prism_L4_idle21.png",
                 "texelW": 31,
-                "texelH": 52,
+                "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8418803418803418,
+                "originY": 0.8321995464852604,
                 "ov": {
                   "timeAt": 2750
                 }
@@ -1228,10 +1624,10 @@
               {
                 "file": "prism_L4_idle22.png",
                 "texelW": 31,
-                "texelH": 53,
+                "texelH": 50,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8448637316561842,
+                "originY": 0.8355555555555553,
                 "ov": {
                   "timeAt": 2833
                 }
@@ -1239,17 +1635,149 @@
               {
                 "file": "prism_L4_idle23.png",
                 "texelW": 31,
+                "texelH": 50,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8355555555555553,
+                "ov": {
+                  "timeAt": 2917
+                }
+              },
+              {
+                "file": "prism_L4_idle24.png",
+                "texelW": 31,
+                "texelH": 51,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8387799564270152,
+                "ov": {
+                  "timeAt": 3000
+                }
+              },
+              {
+                "file": "prism_L4_idle25.png",
+                "texelW": 31,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8418803418803418,
+                "ov": {
+                  "timeAt": 3083
+                }
+              },
+              {
+                "file": "prism_L4_idle26.png",
+                "texelW": 31,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8418803418803418,
+                "ov": {
+                  "timeAt": 3167
+                }
+              },
+              {
+                "file": "prism_L4_idle27.png",
+                "texelW": 31,
                 "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
                 "originY": 0.8448637316561842,
                 "ov": {
-                  "timeAt": 2917
+                  "timeAt": 3250
+                }
+              },
+              {
+                "file": "prism_L4_idle28.png",
+                "texelW": 31,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8448637316561842,
+                "ov": {
+                  "timeAt": 3333
+                }
+              },
+              {
+                "file": "prism_L4_idle29.png",
+                "texelW": 31,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8448637316561842,
+                "ov": {
+                  "timeAt": 3417
+                }
+              },
+              {
+                "file": "prism_L4_idle30.png",
+                "texelW": 31,
+                "texelH": 53,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8448637316561842,
+                "ov": {
+                  "timeAt": 3500
+                }
+              },
+              {
+                "file": "prism_L4_idle31.png",
+                "texelW": 31,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8418803418803418,
+                "ov": {
+                  "timeAt": 3583
+                }
+              },
+              {
+                "file": "prism_L4_idle32.png",
+                "texelW": 31,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8418803418803418,
+                "ov": {
+                  "timeAt": 3667
+                }
+              },
+              {
+                "file": "prism_L4_idle33.png",
+                "texelW": 31,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8418803418803418,
+                "ov": {
+                  "timeAt": 3750
+                }
+              },
+              {
+                "file": "prism_L4_idle34.png",
+                "texelW": 31,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8418803418803418,
+                "ov": {
+                  "timeAt": 3833
+                }
+              },
+              {
+                "file": "prism_L4_idle35.png",
+                "texelW": 31,
+                "texelH": 52,
+                "cellWorldPx": 1.35,
+                "originX": 0.4910394265232974,
+                "originY": 0.8418803418803418,
+                "ov": {
+                  "timeAt": 3917
                 }
               }
             ]
           ],
-          "loopMs": 2000,
+          "loopMs": 3000,
           "loopExact": false
         },
         "fire": {
@@ -1259,10 +1787,10 @@
               {
                 "file": "prism_L4_fire0.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8448637316561842,
                 "ov": {
                   "fireAge": 0
                 }
@@ -1270,10 +1798,10 @@
               {
                 "file": "prism_L4_fire1.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8448637316561842,
                 "ov": {
                   "fireAge": 120
                 }
@@ -1281,10 +1809,10 @@
               {
                 "file": "prism_L4_fire2.png",
                 "texelW": 31,
-                "texelH": 51,
+                "texelH": 53,
                 "cellWorldPx": 1.35,
                 "originX": 0.4910394265232974,
-                "originY": 0.8387799564270152,
+                "originY": 0.8448637316561842,
                 "ov": {
                   "fireAge": 240
                 }

@@ -58,7 +58,7 @@ export function ReplayTheatreModal({ userId, onWatch, onClose }: ReplayTheatreMo
           <span className="atlas-count">
             {error ? 'unavailable' : items === null ? 'rewinding…' : `${items.length} battle${items.length === 1 ? '' : 's'}`}
           </span>
-          <button className="plot-close" onClick={onClose} aria-label="Close">
+          <button className="pxf-close" onClick={onClose} aria-label="Close">
             <span className="sym sym-close small" />
           </button>
         </div>

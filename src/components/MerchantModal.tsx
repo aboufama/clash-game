@@ -44,7 +44,7 @@ export function MerchantModal({ offers, resources, onTrade, onClose }: MerchantM
         <div className="modal-header">
           <h2>Traveling Merchant</h2>
           <span className="merchant-sub">Here till sundown</span>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
         </div>
         <div className="modal-body merchant-body">
           {offers.map(offer => {

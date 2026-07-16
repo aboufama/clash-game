@@ -17,6 +17,9 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
   const tracks = soundSystem.getTracks();
   const current = soundSystem.overrideActive ? soundSystem.currentTrackId() : null;
   const unlockedCount = tracks.filter(t => t.unlocked).length;
+  // The badge reflects what is actually AUDIBLE: a muted jukebox isn't playing.
+  const playingLabel = soundSystem.muted ? 'MUTED' : 'PLAYING';
+  const playingClass = `jukebox-playing ${soundSystem.muted ? 'muted' : ''}`;
 
   const pick = (id: string | null) => {
     soundSystem.setTrack(id);
@@ -30,7 +33,7 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
         <div className="modal-header">
           <h2>Jukebox</h2>
           <span className="jukebox-count">{unlockedCount}/{tracks.length} tracks</span>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
         </div>
         <div className="modal-body jukebox-body">
           <div
@@ -42,7 +45,7 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
               <span className="jukebox-name">Auto</span>
               <span className="jukebox-hint">Follows the day and the night.</span>
             </div>
-            {current === null && <span className="jukebox-playing">PLAYING</span>}
+            {current === null && <span className={playingClass}>{playingLabel}</span>}
           </div>
           {tracks.map(t => (
             <div
@@ -58,7 +61,7 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
                 </span>
                 <span className="jukebox-hint">{t.unlocked ? '' : t.hint}</span>
               </div>
-              {current === t.id && <span className="jukebox-playing">PLAYING</span>}
+              {current === t.id && <span className={playingClass}>{playingLabel}</span>}
               {!t.unlocked && <span className="sym sym-lock small jukebox-locked" />}
             </div>
           ))}

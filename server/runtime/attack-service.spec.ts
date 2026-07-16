@@ -398,12 +398,36 @@ test('changed appearance invalidates a prepared target and atomically returns th
 
 test('bot raids use the same command aggregate, retry safely, and ignore client settlement claims', async () => {
   const { persistence, now, service } = await fixture(['attacker'])
+  // Simulation v3 attrition: a lone warrior dies to the camp's defenses in
+  // seconds and banks ~nothing, so this ledger-wiring test also fields a
+  // golem that survives long enough to produce a real settlement delta.
+  await persistence.transaction(async tx => {
+    const record = await tx.villages.get('attacker', { forUpdate: true })
+    assert.ok(record)
+    const expectedRevision = record.economyRevision
+    record.army = { warrior: 2, golem: 1 }
+    record.economyRevision = expectedRevision + 1
+    assert.equal(await tx.villages.update(record, expectedRevision), true)
+  })
   const principal = { playerId: 'attacker' }
   const started = await service.botStart(principal, { requestId: 'start-bot-1' }, 'device-token')
   assert.deepEqual(await service.botStart(principal, { requestId: 'start-bot-1' }, 'device-token'), started)
   now.value = new Date(START.getTime() + 1_000)
   const command = await service.pushCommands(principal, deploy(started.raidId))
   assert.equal(command.raidId, started.raidId)
+  now.value = new Date(START.getTime() + 2_000)
+  await service.pushCommands(principal, {
+    attackId: started.raidId,
+    commands: [{
+      type: 'DEPLOY',
+      commandId: 'deploy_2',
+      sequence: 2,
+      troopInstanceId: 'troop_2',
+      troopType: 'golem',
+      gridX: 0,
+      gridY: 0
+    }]
+  })
   now.value = new Date(START.getTime() + 61_000)
   const settled = await service.botSettle(principal, {
     raidId: started.raidId,

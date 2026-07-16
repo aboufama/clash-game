@@ -52,7 +52,7 @@ export function villagePopulation(village: Pick<VillageRecord, 'population'>): V
 export function materializeVillage(
   village: VillageRecord,
   now: Date,
-  options: { populationLocked?: boolean } = {}
+  options: { populationLocked?: boolean; preserveOverCapacity?: boolean } = {}
 ): VillageAdvanceResult {
   const simulation = {
     buildings: villageBuildings(village).map(building => ({ ...building })),
@@ -67,7 +67,8 @@ export function materializeVillage(
   }
   const result = advanceVillage(simulation, now.getTime(), {
     maxBalance: MAX_PLAYER_GOLD,
-    populationLocked: options.populationLocked
+    populationLocked: options.populationLocked,
+    preserveOverCapacity: options.preserveOverCapacity
   })
   village.buildings = simulation.buildings as unknown as JsonValue[]
   village.gold = simulation.balance
@@ -109,11 +110,17 @@ export function stoneMaturityOf(account: AccountRecord, now: Date): number {
   return Math.min(1, Math.max(0, (now.getTime() - account.createdAt.getTime()) / (9 * 60_000)))
 }
 
+/** Effective upgrade-clock policy a service advertises on owned world payloads. */
+export interface AdvertisedUpgradePolicy {
+  fixedDurationMs?: number
+  timeScale?: number
+}
+
 export function serializedWorldOf(
   account: AccountRecord,
   village: VillageRecord,
   now: Date,
-  options: { stoneMaturity?: boolean } = {}
+  options: { stoneMaturity?: boolean; upgradePolicy?: AdvertisedUpgradePolicy } = {}
 ): SerializedWorld {
   const buildings = villageBuildings(village)
   const population = villagePopulation(village)
@@ -140,10 +147,14 @@ export function serializedWorldOf(
       simulatedThrough: village.simulatedThrough.getTime()
     },
     army: { ...villageArmy(village) },
+    // Own-world payloads carry trophies so a defense loss reaches the HUD on
+    // the ordinary world poll instead of waiting for the next attack.
+    trophies: account.trophies,
     wallLevel: village.wallLevel,
     lastSaveTime: village.lastMutationAt.getTime(),
     revision: village.economyRevision,
-    ...(options.stoneMaturity ? { stoneMaturity: stoneMaturityOf(account, now) } : {})
+    ...(options.stoneMaturity ? { stoneMaturity: stoneMaturityOf(account, now) } : {}),
+    ...(options.upgradePolicy ? { upgradePolicy: { ...options.upgradePolicy } } : {})
   }
 }
 

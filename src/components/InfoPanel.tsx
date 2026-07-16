@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BUILDING_DEFINITIONS, type BuildingType, getBuildingStats, BARRACKS_TROOP_UNLOCK_ORDER, TROOP_DEFINITIONS, getTroopLevelMultiplier, upgradeOreCostOf } from '../game/config/GameDefinitions';
-import { armySpaceUsed, upgradeDurationMs } from '../game/config/Economy';
+import { armySpaceUsed } from '../game/config/Economy';
+import { serverUpgradeDurationMs } from '../game/config/UpgradePolicy';
 import { gameManager } from '../game/GameManager';
 import { BUILDING_TEXTS } from '../game/config/GameText';
+import { defenseDps, getDefenseBehavior } from '../game/systems/DefenseBehaviorCatalog';
+import { DayNightSystem } from '../game/systems/DayNightSystem';
 import { formatGold } from '../game/economy/Currency';
 import { IsoUtils } from '../game/utils/IsoUtils';
 import { useWorldAnchor } from '../ui/useWorldAnchor';
@@ -11,6 +14,8 @@ interface InfoPanelProps {
     type: BuildingType;
     level: number;
     resources: { gold: number; ore: number; food?: number };
+    /** Resource view used only for purchase eligibility (dev infinite mode). */
+    spendableResources?: { gold: number; ore: number; food?: number };
     /** Village storage caps (ore/food) so storage buildings can show fill. */
     storageCaps?: { ore: number; food: number } | null;
     isExiting: boolean;
@@ -46,18 +51,22 @@ function formatDuration(ms: number): string {
  * sell); the [i] corner expands the full stat sheet on demand. Replaces
  * the old right-side sliding panel.
  */
-export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, storageCaps, isExiting, onDelete, deleteDisabled = false, deleteDisabledReason, onUpgrade, onMove, upgradeCost, isMobile = false, gridX, gridY, upgradeEndsAt, armyCapacity }) => {
+export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, spendableResources = resources, storageCaps, isExiting, onDelete, deleteDisabled = false, deleteDisabledReason, onUpgrade, onMove, upgradeCost, isMobile = false, gridX, gridY, upgradeEndsAt, armyCapacity }) => {
     const [expanded, setExpanded] = useState(false);
     const bubbleRef = useRef<HTMLDivElement>(null);
 
     // Live countdown while the server's upgrade clock runs. The scene
     // re-emits the selection when the work lands, replacing this panel's
-    // props with the finished level.
-    const [now, setNow] = useState(() => Date.now());
+    // props with the finished level. The deadline is a SERVER epoch, so the
+    // ticking clock must be server-corrected too (same offset the ambient
+    // systems use) — raw Date.now() made the countdown drift by the skew.
+    const serverNow = () => Date.now() + DayNightSystem.serverOffsetMs;
+    const [now, setNow] = useState(serverNow);
     const upgrading = upgradeEndsAt !== undefined && upgradeEndsAt > now;
     useEffect(() => {
         if (upgradeEndsAt === undefined) return;
-        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        setNow(serverNow());
+        const timer = window.setInterval(() => setNow(serverNow()), 1000);
         return () => window.clearInterval(timer);
     }, [upgradeEndsAt]);
 
@@ -89,9 +98,11 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, st
 
     const finalCost = upgradeCost !== undefined ? upgradeCost : (nextLevelStats?.cost || 0);
     const oreCost = nextLevelStats ? upgradeOreCostOf(finalCost) : 0;
-    const canAfford = nextLevelStats ? (resources.gold >= finalCost && resources.ore >= oreCost) : true;
+    const canAfford = nextLevelStats ? (spendableResources.gold >= finalCost && spendableResources.ore >= oreCost) : true;
     const upgradeDisabled = isMaxLevel || !canAfford || upgrading;
-    const nextDurationMs = !isMaxLevel ? upgradeDurationMs(type, level + 1) : 0;
+    // Advertised duration comes from the SERVER's policy (adopted off world
+    // payloads), never from a client env var that can drift from the server.
+    const nextDurationMs = !isMaxLevel ? serverUpgradeDurationMs(type, level + 1) : 0;
 
     const gain = (delta: string) => <span className="stat-gain">(+{delta})</span>;
 
@@ -140,6 +151,24 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, st
             )}
 
             <div className="bb-actions">
+                {type === 'jukebox' && (
+                    <button
+                        className="bb-btn"
+                        title="Open the track list"
+                        onClick={() => gameManager.openJukebox()}
+                    >
+                        <span>TRACKS</span>
+                    </button>
+                )}
+                {type === 'town_hall' && (
+                    <button
+                        className="bb-btn"
+                        title="Choose your village banner"
+                        onClick={() => gameManager.openBannerPicker()}
+                    >
+                        <span>BANNER</span>
+                    </button>
+                )}
                 <button
                     className={`bb-btn upgrade ${upgradeDisabled ? 'disabled' : ''} ${isMaxLevel ? 'maxed' : ''} ${upgrading ? 'working' : ''}`}
                     disabled={upgradeDisabled}
@@ -203,18 +232,23 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, st
                             </span>
                         </div>
                     )}
-                    {stats.fireRate && (
+                    {stats.fireRate && getDefenseBehavior(type)?.fireModel.kind !== 'dps' && (
                         <div className="stat-row">
                             <span className="stat-label">Speed</span>
                             <span className="stat-value">{(stats.fireRate / 1000).toFixed(1)}s</span>
                         </div>
                     )}
-                    {stats.damage && stats.fireRate && (
-                        <div className="stat-row">
-                            <span className="stat-label">DPS</span>
-                            <span className="stat-value">{Math.round(stats.damage * (1000 / stats.fireRate))}</span>
-                        </div>
-                    )}
+                    {(() => {
+                        // Derived from the fire model (tick beams, salvo
+                        // batteries) — never damage × rate recomputed here.
+                        const dps = defenseDps(type, stats);
+                        return dps !== null && (
+                            <div className="stat-row">
+                                <span className="stat-label">DPS</span>
+                                <span className="stat-value">{Math.round(dps)}</span>
+                            </div>
+                        );
+                    })()}
                     {stats.range && (
                         <div className="stat-row">
                             <span className="stat-label">Range</span>
@@ -226,7 +260,9 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, st
                             <span className="stat-label">Production</span>
                             <span className="stat-value">
                                 {stats.productionRate}/s
-                                {nextLevelStats?.productionRate && nextLevelStats.productionRate > stats.productionRate && gain((nextLevelStats.productionRate - stats.productionRate).toFixed(1))}
+                                {/* Rates carry 2 decimals (0.09 → 0.14): a 1-decimal
+                                    gain rounds +0.05 up to +0.1 — double the truth. */}
+                                {nextLevelStats?.productionRate && nextLevelStats.productionRate > stats.productionRate && gain(String(parseFloat((nextLevelStats.productionRate - stats.productionRate).toFixed(2))))}
                             </span>
                         </div>
                     )}

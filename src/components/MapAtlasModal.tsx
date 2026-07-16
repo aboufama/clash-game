@@ -103,12 +103,63 @@ const SCALE = 2;   // screen pixels per logical pixel
 const MAX_COLS = 48;
 const MAX_ROWS = 34;
 
+// ---- the charting reveal ----
+// While the chart loads (and briefly after it lands) the atlas is covered by
+// fog-of-war tiles in the pxf panel's wood tones, melting outward from the
+// player's own keep in diamond (Manhattan) rings. Deterministic f(time): one
+// clock per open, per-cell stagger from the cell hash — never Math.random.
+const REVEAL_STAGGER = 2;           // extra per-cell delay in rings, from the cell hash
+const REVEAL_PLACEHOLDER_MS = 700;  // dataless sweep reaches the hold line in this long
+const REVEAL_HOLD = 0.55;           // the dataless sweep parks here and pulses
+const REVEAL_COMPLETE_MS = 900;     // hold line -> fully charted once data lands
+const REVEAL_COLS = 21;             // placeholder grid, before the first chart arrives
+const REVEAL_ROWS = 15;
+const FOG_BASE = '#372718';
+const FOG_DOT = '#41301d';
+const FOG_EDGE = '#2b1e12';
+const FRONTIER_TINT = 'rgba(217,179,72,0.30)';
+
+const cellHash = (cx: number, cy: number) => (((cx * 73856093) ^ (cy * 19349663)) >>> 0);
+
+/** One unexplored tile: opaque panel-wood weave with a hard 1px seam. */
+function paintFogCell(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
+  const x = cx * CELL;
+  const y = cy * CELL;
+  ctx.fillStyle = FOG_BASE;
+  ctx.fillRect(x, y, CELL, CELL);
+  const h = cellHash(cx, cy);
+  ctx.fillStyle = FOG_DOT;
+  ctx.fillRect(x + 2 + (h % 5), y + 2 + ((h >> 3) % 5), 2, 2);
+  ctx.fillRect(x + 6 + ((h >> 6) % 5), y + 6 + ((h >> 9) % 5), 2, 2);
+  ctx.fillStyle = FOG_EDGE;
+  ctx.fillRect(x, y + CELL - 1, CELL, 1);
+  ctx.fillRect(x + CELL - 1, y, 1, CELL);
+}
+
+function drawKeepGlyph(ctx: CanvasRenderingContext2D, px: number, py: number, wall: string, dark: string) {
+  for (let gy = 0; gy < 7; gy++) {
+    for (let gx = 0; gx < 7; gx++) {
+      const cell = KEEP[gy][gx];
+      if (!cell) continue;
+      ctx.fillStyle = cell === 2 ? dark : wall;
+      ctx.fillRect(px + gx, py + gy, 1, 1);
+    }
+  }
+}
+
 export function MapAtlasModal({ onClose }: { onClose: () => void }) {
   const [atlas, setAtlas] = useState<AtlasData | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
   const [hover, setHover] = useState<AtlasPlayer | null>(null);
+  const [revealDone, setRevealDone] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
+  const placeholderRef = useRef<HTMLCanvasElement>(null);
+  const revealRef = useRef<HTMLCanvasElement>(null);
+  // One reveal clock per open; the overlay resumes from wherever the
+  // dataless sweep had reached instead of restarting.
+  const revealT0 = useRef<number | null>(null);
+  const overlayStart = useRef<{ at: number; from: number } | null>(null);
 
   // The chart is LIVE: re-fetched every few seconds while open, so battles
   // appear, shields drop and chiefs come online before your eyes.
@@ -133,7 +184,9 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
   // World-bounds → a bounded bucket grid. World coordinates may be sparse
   // (or hostile), so the canvas must never be sized from their raw span.
   const layout = useMemo(() => {
-    if (!atlas) return null;
+    // fetchAtlas normalizes the payload, but this render math must never be
+    // one protocol drift away from unmounting the app — belt and braces.
+    if (!atlas?.me || !Array.isArray(atlas.players)) return null;
     let minX = Number.isFinite(atlas.me.x) ? Math.trunc(atlas.me.x) : 0;
     let maxX = minX;
     let minY = Number.isFinite(atlas.me.y) ? Math.trunc(atlas.me.y) : 0;
@@ -292,14 +345,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
       const py = cellPos.cy * CELL + Math.floor((CELL - 7) / 2);
       const wall = p.me ? '#d9b348' : p.online ? '#8b6f47' : '#a4906a';
       const dark = p.me ? '#8a6a1e' : '#5c4033';
-      for (let gy = 0; gy < 7; gy++) {
-        for (let gx = 0; gx < 7; gx++) {
-          const cell = KEEP[gy][gx];
-          if (!cell) continue;
-          ctx.fillStyle = cell === 2 ? dark : wall;
-          ctx.fillRect(px + gx, py + gy, 1, 1);
-        }
-      }
+      drawKeepGlyph(ctx, px, py, wall, dark);
       // Outline pixel shadow under the keep.
       ctx.fillStyle = 'rgba(28,20,16,0.25)';
       ctx.fillRect(px, py + 7, 7, 1);
@@ -366,6 +412,113 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     return () => cancelAnimationFrame(raf);
   }, [atlas, layout]);
 
+  // The charting reveal, act one: before the first chart lands, a fog of
+  // panel-wood tiles melts outward from your keep at the centre of a
+  // placeholder grid. The sweep parks at the hold line and pulses its
+  // frontier until data arrives (the retry note replaces it on failure).
+  useEffect(() => {
+    if (layout || fetchFailed || revealDone) return;
+    const canvas = placeholderRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    canvas.width = REVEAL_COLS * CELL;
+    canvas.height = REVEAL_ROWS * CELL;
+    const mcx = Math.floor(REVEAL_COLS / 2);
+    const mcy = Math.floor(REVEAL_ROWS / 2);
+    const maxRing = mcx + mcy + REVEAL_STAGGER + 1;
+    let raf = 0;
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      const now = performance.now();
+      if (revealT0.current === null) revealT0.current = now;
+      const fraction = Math.min(REVEAL_HOLD, ((now - revealT0.current) / REVEAL_PLACEHOLDER_MS) * REVEAL_HOLD);
+      const ringFloat = fraction * maxRing;
+      const pulse = Math.floor(now / 300) % 2 === 0;
+      for (let cy = 0; cy < REVEAL_ROWS; cy++) {
+        for (let cx = 0; cx < REVEAL_COLS; cx++) {
+          const ring = Math.abs(cx - mcx) + Math.abs(cy - mcy) + (cellHash(cx, cy) % (REVEAL_STAGGER + 1));
+          if (ring > ringFloat) {
+            paintFogCell(ctx, cx, cy);
+            continue;
+          }
+          const x = cx * CELL;
+          const y = cy * CELL;
+          ctx.fillStyle = '#efe3bb';
+          ctx.fillRect(x, y, CELL, CELL);
+          ctx.fillStyle = '#e2d3a4';
+          ctx.fillRect(x + CELL - 1, y, 1, CELL);
+          ctx.fillRect(x, y + CELL - 1, CELL, 1);
+          if (ringFloat - ring < 1 && pulse) {
+            ctx.fillStyle = FRONTIER_TINT;
+            ctx.fillRect(x, y, CELL, CELL);
+          }
+        }
+      }
+      // Your keep seeds the chart at the centre of the sweep.
+      drawKeepGlyph(
+        ctx,
+        mcx * CELL + Math.floor((CELL - 7) / 2),
+        mcy * CELL + Math.floor((CELL - 7) / 2),
+        '#d9b348',
+        '#8a6a1e'
+      );
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [layout, fetchFailed, revealDone]);
+
+  // Act two: the real chart is underneath and the same sweep finishes across
+  // it, re-anchored on YOUR actual plot cell. Fog beyond the frontier hides
+  // the atlas until the wave passes; the overlay then unmounts for good —
+  // 5-second re-polls never restart the reveal.
+  useEffect(() => {
+    if (!atlas || !layout || revealDone) return;
+    const canvas = revealRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    canvas.width = layout.w;
+    canvas.height = layout.h;
+    const meCell = layout.project(atlas.me.x, atlas.me.y);
+    let maxRing = REVEAL_STAGGER + 1;
+    for (const [ccx, ccy] of [[0, 0], [layout.cols - 1, 0], [0, layout.rows - 1], [layout.cols - 1, layout.rows - 1]]) {
+      maxRing = Math.max(maxRing, Math.abs(ccx - meCell.cx) + Math.abs(ccy - meCell.cy) + REVEAL_STAGGER + 1);
+    }
+    let raf = 0;
+    const draw = () => {
+      const now = performance.now();
+      if (revealT0.current === null) revealT0.current = now;
+      if (overlayStart.current === null) {
+        // Resume from wherever the dataless sweep had reached; never restart.
+        const from = Math.min(REVEAL_HOLD, ((now - revealT0.current) / REVEAL_PLACEHOLDER_MS) * REVEAL_HOLD);
+        overlayStart.current = { at: now, from };
+      }
+      const { at, from } = overlayStart.current;
+      const fraction = Math.min(1, from + ((now - at) / REVEAL_COMPLETE_MS) * (1 - from));
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (fraction >= 1) {
+        setRevealDone(true);
+        return;
+      }
+      raf = requestAnimationFrame(draw);
+      const ringFloat = fraction * maxRing;
+      for (let cy = 0; cy < layout.rows; cy++) {
+        for (let cx = 0; cx < layout.cols; cx++) {
+          const ring = Math.abs(cx - meCell.cx) + Math.abs(cy - meCell.cy) + (cellHash(cx, cy) % (REVEAL_STAGGER + 1));
+          if (ring > ringFloat) {
+            paintFogCell(ctx, cx, cy);
+          } else if (ringFloat - ring < 1) {
+            ctx.fillStyle = FRONTIER_TINT;
+            ctx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
+          }
+        }
+      }
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [atlas, layout, revealDone]);
+
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!atlas || !layout) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -389,15 +542,22 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
           <span className="atlas-count">
             {atlas
               ? `${atlas.players.length}${atlas.truncated ? '+' : ''} nearby villages`
-              : 'charting…'}
+              : fetchFailed ? 'chart lost — retrying…' : 'charting…'}
           </span>
-          <button className="plot-close" onClick={onClose} aria-label="Close">
+          <button className="pxf-close" onClick={onClose} aria-label="Close">
             <span className="sym sym-close small" />
           </button>
         </div>
         <div className="atlas-chart-wrap">
           {!layout && fetchFailed && (
             <div className="theatre-empty">The atlas could not be charted. It will retry shortly.</div>
+          )}
+          {!layout && !fetchFailed && (
+            <canvas
+              ref={placeholderRef}
+              className="atlas-chart atlas-reveal-placeholder"
+              style={{ width: REVEAL_COLS * CELL * SCALE, height: REVEAL_ROWS * CELL * SCALE }}
+            />
           )}
           {layout && (
             <div className="atlas-stack" style={{ width: layout.w * SCALE, height: layout.h * SCALE }}>
@@ -413,6 +573,13 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
                 className="atlas-chart atlas-live"
                 style={{ width: layout.w * SCALE, height: layout.h * SCALE }}
               />
+              {!revealDone && (
+                <canvas
+                  ref={revealRef}
+                  className="atlas-chart atlas-reveal"
+                  style={{ width: layout.w * SCALE, height: layout.h * SCALE }}
+                />
+              )}
             </div>
           )}
         </div>

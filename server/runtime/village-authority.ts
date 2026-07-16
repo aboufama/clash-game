@@ -43,6 +43,12 @@ export function villageMaterialFingerprint(village: VillageRecord): string {
  * world use cases from slowly developing incompatible persistence semantics.
  */
 export class VillageAuthority {
+  private readonly preserveOverCapacity: boolean
+
+  constructor(preserveOverCapacity = false) {
+    this.preserveOverCapacity = preserveOverCapacity
+  }
+
   async owned(tx: UnitOfWork, playerId: string, forUpdate = false): Promise<OwnedState> {
     // One lock order everywhere prevents account/village/plot deadlocks when
     // several server processes mutate the same player concurrently.
@@ -88,7 +94,10 @@ export class VillageAuthority {
     populationLocked = false
   ) {
     const before = { gold: village.gold, ore: village.ore, food: village.food }
-    const result = materializeVillage(village, now, { populationLocked })
+    const result = materializeVillage(village, now, {
+      populationLocked,
+      preserveOverCapacity: this.preserveOverCapacity
+    })
     const auditId = `sim:${result.from}:${result.through}`
     for (const currency of ['gold', 'ore', 'food'] as const) {
       const delta = village[currency] - before[currency]

@@ -79,6 +79,16 @@ export class BattleOverlayScene extends Phaser.Scene {
         const source = main.cameras.main;
         const cam = this.cameras.main;
         cam.setZoom(source.zoom);
-        cam.setScroll(source.scrollX, source.scrollY);
+        // Mirror the shake offset too. Phaser's shake applies a post-scroll
+        // matrix translate (Camera.preRender ends with matrix.translate(
+        // _offsetX, _offsetY)), which is equivalent to scroll - offset —
+        // without it every cannon/mortar shake slid the health bars off
+        // their buildings for the shake's duration.
+        const shake = source.shakeEffect as unknown as {
+            isRunning?: boolean; _offsetX?: number; _offsetY?: number;
+        };
+        const offX = shake?.isRunning ? (shake._offsetX ?? 0) : 0;
+        const offY = shake?.isRunning ? (shake._offsetY ?? 0) : 0;
+        cam.setScroll(source.scrollX - offX, source.scrollY - offY);
     }
 }

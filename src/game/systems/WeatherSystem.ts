@@ -6,6 +6,8 @@ import { WIND_DIR, setWindBoost, windAtScreen } from './Wind';
 import { soundSystem } from './SoundSystem';
 import { toLogicalZoom } from '../utils/DisplayResolution';
 import { IsoUtils } from '../utils/IsoUtils';
+import { PIXEL_CELL, pixelBlob, pixelEllipse, pixelLine, pixelRect } from '../render/PixelDraw';
+import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
 
 /**
  * Global weather: a pure function of the shared world clock, so every player
@@ -22,6 +24,13 @@ import { IsoUtils } from '../utils/IsoUtils';
 const SLOT_MS = 20 * 60_000; // one weather roll every 20 minutes
 const RAIN_CHANCE = 22; // % of slots
 const RAMP_MS = 75_000; // ease in/out at slot edges
+
+/** Rain-streak texture height: one canvas px per pixel cell, staircase line. */
+const STREAK_CELLS = 20;
+/** Baked |dx/dy| slant variants; each frame picks the nearest to the wind's
+ *  actual slant (flipping X for leftward wind), so every streak on screen
+ *  shares ONE texture and the whole pass renders as a single quad batch. */
+const STREAK_SLANTS = [0, 0.15, 0.3, 0.45, 0.6] as const;
 
 /** Rain intensity 0..1 for a given world-clock time. Pure and global. */
 export function weatherAt(worldMs: number): number {
@@ -62,6 +71,32 @@ interface Splash {
     life: number;
 }
 
+/** Stroked-ellipse ring as whole pixel cells: the perimeter sampled at 24
+ *  angle steps, one cell per step, every duplicate cell merged — at small
+ *  radii non-adjacent samples revisit a cell, and stamping it twice at
+ *  alpha < 1 stacks into dark blotches. */
+function pixelRing(g: Phaser.GameObjects.Graphics, cx: number, cy: number, rx: number, ry: number, color: number, alpha: number) {
+    if (rx <= 0 || ry <= 0) return;
+    const STEPS = 24;
+    const seen = new Set<string>();
+    for (let k = 0; k < STEPS; k++) {
+        const a = (k / STEPS) * Math.PI * 2;
+        const ix = Math.floor((cx + Math.cos(a) * rx) / PIXEL_CELL);
+        const iy = Math.floor((cy + Math.sin(a) * ry) / PIXEL_CELL);
+        const key = `${ix},${iy}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pixelRect(g, ix * PIXEL_CELL, iy * PIXEL_CELL, PIXEL_CELL, PIXEL_CELL, color, alpha);
+    }
+}
+
+/** A sub-cell droplet: exactly one pixel cell at the point. */
+function pixelDot(g: Phaser.GameObjects.Graphics, x: number, y: number, color: number, alpha: number) {
+    const x0 = Math.floor(x / PIXEL_CELL) * PIXEL_CELL;
+    const y0 = Math.floor(y / PIXEL_CELL) * PIXEL_CELL;
+    pixelRect(g, x0, y0, PIXEL_CELL, PIXEL_CELL, color, alpha);
+}
+
 export class WeatherSystem {
     private readonly scene: WeatherHost;
     /** Screen-space rain pass, drawn over the world (and over the night grade). */
@@ -82,14 +117,19 @@ export class WeatherSystem {
     private raining = false;
     private listeners: Array<(raining: boolean, intensity: number) => void> = [];
     private lastUpdateAt = 0;
+    /** Pooled streak sprites: the rain pass stamps a baked staircase texture
+     *  per drop instead of walking a pixelLine — the Graphics version
+     *  re-recorded ~17k–37k fillRect commands EVERY frame zoomed out. */
+    private streakPool: Phaser.GameObjects.Image[] = [];
+    private streakVisible = 0;
 
     constructor(scene: WeatherHost) {
         this.scene = scene;
         this.rainGfx = scene.add.graphics().setDepth(30006);
         this.groundGfx = scene.add.graphics().setDepth(6);
         this.farGroundGfx = scene.add.graphics().setDepth(27_600);
-        // Rain streaks and splashes stay code-drawn smooth FX — the sprite
-        // pipeline keeps weather as runtime effects (optional spritify later).
+        // Rain streaks, splashes and puddle glints draw through PixelDraw —
+        // runtime weather FX built from whole cells on the sprite grid.
     }
 
     /** Pin the weather for screenshots/tests; null resumes the world clock. */
@@ -108,6 +148,46 @@ export class WeatherSystem {
     /** Smooth visible intensity; use this for systems that support partial rain. */
     rainFactor(): number {
         return this.shownIntensity;
+    }
+
+    /** Bake the streak slant variants once: 1-canvas-px-per-cell staircase
+     *  lines, NEAREST-sampled (registerPixelSurface) so scaling them up to
+     *  screen thickness keeps whole chunky cells. */
+    private ensureStreakTextures() {
+        for (let idx = 0; idx < STREAK_SLANTS.length; idx++) {
+            const key = `rain_streak_${idx}`;
+            if (this.scene.textures.exists(key)) continue;
+            const r = STREAK_SLANTS[idx];
+            const w = Math.ceil(r * (STREAK_CELLS - 1)) + 1;
+            const canvas = this.scene.textures.createCanvas(key, w, STREAK_CELLS);
+            if (!canvas) continue;
+            const ctx = canvas.getContext();
+            ctx.fillStyle = '#cfe2f2';
+            for (let row = 0; row < STREAK_CELLS; row++) {
+                ctx.fillRect(Math.min(w - 1, Math.round(r * row)), row, 1, 1);
+            }
+            canvas.refresh();
+            registerPixelSurface(canvas);
+        }
+    }
+
+    /** Pool accessor; streaks sit just over the storm veil (rainGfx, 30006). */
+    private streakAt(i: number): Phaser.GameObjects.Image {
+        let img = this.streakPool[i];
+        if (!img) {
+            img = this.scene.add.image(0, 0, 'rain_streak_0')
+                .setOrigin(0, 0)
+                .setDepth(30_006.5)
+                .setVisible(false);
+            this.streakPool[i] = img;
+        }
+        return img;
+    }
+
+    /** Hide pool entries from `from` up (the pool never shrinks mid-shower). */
+    private hideStreaks(from: number) {
+        for (let i = from; i < this.streakVisible; i++) this.streakPool[i].setVisible(false);
+        this.streakVisible = from;
     }
 
     update(time: number) {
@@ -145,7 +225,10 @@ export class WeatherSystem {
         this.rainGfx.clear();
         this.groundGfx.clear();
         this.farGroundGfx.clear();
-        if (it < 0.02 && this.wetness < 0.02) return;
+        if (it < 0.02 && this.wetness < 0.02) {
+            this.hideStreaks(0);
+            return;
+        }
 
         const cam = this.scene.cameras.main;
         // cam.worldView is only recomputed at preRender — one frame stale
@@ -171,7 +254,14 @@ export class WeatherSystem {
         // divided by the camera zoom, and the streak count scales with the
         // visible area — so rain reads identically fully zoomed in or out
         // (fixed world-px streaks turned sparse and thread-thin at low zoom).
+        // Each drop stamps a pooled Image of ONE baked staircase texture (the
+        // nearest slant variant for this frame's wind): the whole pass is a
+        // single quad batch, where per-cell pixelLines re-recorded tens of
+        // thousands of fillRect commands every frame at low zoom. The texel
+        // size drop/STREAK_CELLS ≈ 1.3–1.8 SCREEN px at any zoom — the
+        // zoom-aware thickness the fixed world-cell lines lost.
         if (it > 0.04) {
+            this.ensureStreakTextures();
             const invZoom = 1 / Math.max(0.2, toLogicalZoom(cam.zoom));
             const gust = windAtScreen(wv.centerX, wv.centerY, time);
             const slantX = (WIND_DIR.x * 18 + gust * 14) * (0.7 + it * 0.5) * invZoom;
@@ -180,14 +270,34 @@ export class WeatherSystem {
             const count = Math.min(700, Math.floor((50 + it * 90) * areaFactor));
             const sweep = time * (0.55 + it * 0.35) * invZoom; // constant screen-space fall speed
             const cycle = wv.height + drop * 3;
-            this.rainGfx.lineStyle(Math.max(1, invZoom), 0xcfe2f2, 0.16 + it * 0.2);
+            const streakAlpha = 0.16 + it * 0.2;
+            // Nearest baked slant to the wind's dx/dy (invZoom cancels out) —
+            // deterministic in (time, intensity), like the old line endpoints.
+            const ratio = Math.abs(slantX * 0.35) / drop;
+            let variant = 0;
+            for (let v = 1; v < STREAK_SLANTS.length; v++) {
+                if (Math.abs(STREAK_SLANTS[v] - ratio) < Math.abs(STREAK_SLANTS[variant] - ratio)) variant = v;
+            }
+            const flip = slantX < 0;
+            const texKey = `rain_streak_${variant}`;
+            const texW = Math.ceil(STREAK_SLANTS[variant] * (STREAK_CELLS - 1)) + 1;
+            const scale = drop / STREAK_CELLS; // world px per texel
             for (let i = 0; i < count; i++) {
                 const h = hashString(`drop:${i}`);
                 const x = wv.x + ((h % 1000) / 1000) * (wv.width + 80) - 40;
                 const fall = ((h >>> 10) % 997) / 997 * cycle;
                 const y = wv.y + ((fall + sweep) % cycle) - drop * 1.5;
-                this.rainGfx.lineBetween(x, y, x + slantX * 0.35, y + drop);
+                const img = this.streakAt(i);
+                if (img.texture.key !== texKey) img.setTexture(texKey);
+                img.setPosition(flip ? x - (texW - 1) * scale : x, y);
+                img.setFlipX(flip);
+                img.setScale(scale);
+                img.setAlpha(streakAlpha);
+                img.setVisible(true);
             }
+            this.hideStreaks(count);
+        } else {
+            this.hideStreaks(0);
         }
 
         // --- splashes: drops land where the player is LOOKING — the lake next
@@ -268,8 +378,7 @@ export class WeatherSystem {
                 const pos = IsoUtils.cartToIso(gx, gy);
                 if (pos.x < wv.x - 40 || pos.x > wv.right + 40 || pos.y < wv.y - 40 || pos.y > wv.bottom + 40) continue;
                 const w = 5 + (h % 5) * 2;
-                this.groundGfx.fillStyle(0xbcd9ee, 0.10 * glow + 0.05 * this.wetness);
-                this.groundGfx.fillEllipse(pos.x, pos.y, w, w * 0.42);
+                pixelEllipse(this.groundGfx, pos.x, pos.y, w * 0.5, w * 0.21, 0xbcd9ee, 0.10 * glow + 0.05 * this.wetness);
             }
         }
 
@@ -292,21 +401,10 @@ export class WeatherSystem {
                     }
                 }
             }
+            // Cell-scanline blob: the hollow keeps an irregular rim, but the
+            // rim is whole pixel cells (pixelBlob's per-row wobble).
             const blob = (cx: number, cy: number, w: number, seed: number, color: number, alpha: number) => {
-                this.groundGfx.fillStyle(color, alpha);
-                this.groundGfx.beginPath();
-                const K = 14;
-                for (let k = 0; k <= K; k++) {
-                    const a = (k / K) * Math.PI * 2;
-                    // Two low harmonics make a hollow, not an ellipse.
-                    const wob = 1 + 0.2 * Math.sin(a * 2 + seed % 7) + 0.13 * Math.sin(a * 3 + (seed >>> 5) % 11);
-                    const px = cx + Math.cos(a) * w * wob;
-                    const py = cy + Math.sin(a) * w * 0.42 * wob;
-                    if (k === 0) this.groundGfx.moveTo(px, py);
-                    else this.groundGfx.lineTo(px, py);
-                }
-                this.groundGfx.closePath();
-                this.groundGfx.fillPath();
+                pixelBlob(this.groundGfx, cx, cy, w, w * 0.42, 0.2, seed % 97, color, alpha);
             };
             const shimmer = 0.5 + 0.5 * Math.sin(time * 0.0011);
             const PUDDLES = 14;
@@ -314,7 +412,24 @@ export class WeatherSystem {
                 const h = hashString(`pool:${i}`);
                 const gx = 1.5 + (h % 997) / 997 * (m - 3);
                 const gy = 1.5 + ((h >>> 11) % 997) / 997 * (m - 3);
-                if (occupied.has(Math.floor(gy) * m + Math.floor(gx))) continue;
+                // Footprint test the puddle's EXTENT, not just its centre
+                // tile: a full pool is ~2×w iso px wide and used to poke out
+                // from under building edges. Reach is computed at FULL size
+                // (stage 1) so a pool never appears and then vanishes as it
+                // grows into a wall. rim = rim blob (w + 2.6) × wobble
+                // margin; the grid-space reach of that iso ellipse is the
+                // same along both grid axes.
+                const wFull = 11 + (h % 7) * 2.6;
+                const rimX = (wFull + 2.6) * 1.3;
+                const rimY = rimX * 0.42;
+                const reach = Math.sqrt((rimX / 64) ** 2 + (rimY / 32) ** 2);
+                let underBuilding = false;
+                for (let ty = Math.floor(gy - reach); ty <= Math.floor(gy + reach) && !underBuilding; ty++) {
+                    for (let tx = Math.floor(gx - reach); tx <= Math.floor(gx + reach); tx++) {
+                        if (occupied.has(ty * m + tx)) { underBuilding = true; break; }
+                    }
+                }
+                if (underBuilding) continue;
                 // Each hollow fills at its own depth — the lowest pools first
                 // and is the last to dry.
                 const threshold = (i / PUDDLES) * 0.6;
@@ -323,12 +438,11 @@ export class WeatherSystem {
                 const stage = Math.min(1, fill * 1.5);
                 const pos = IsoUtils.cartToIso(gx, gy);
                 if (pos.x < wv.x - 60 || pos.x > wv.right + 60 || pos.y < wv.y - 40 || pos.y > wv.bottom + 40) continue;
-                const w = (11 + (h % 7) * 2.6) * (0.35 + 0.65 * stage);
+                const w = wFull * (0.35 + 0.65 * stage);
                 // Soaked-earth rim, then the water, then the piece of sky.
                 blob(pos.x, pos.y, w + 2.6, h, 0x2a3424, 0.20 * stage);
                 blob(pos.x, pos.y, w, h, 0x9fc2dc, (0.30 + 0.10 * shimmer) * stage);
-                this.groundGfx.fillStyle(0xe8f4ff, (0.10 + 0.15 * shimmer) * stage);
-                this.groundGfx.fillEllipse(pos.x - w * 0.16, pos.y - w * 0.05, w * 0.44, w * 0.13);
+                pixelEllipse(this.groundGfx, pos.x - w * 0.16, pos.y - w * 0.05, w * 0.22, w * 0.065, 0xe8f4ff, (0.10 + 0.15 * shimmer) * stage);
                 // While the rain falls, rings ripple across the pool.
                 if (it > 0.1) {
                     const beat = 900 + (h % 5) * 260;
@@ -336,8 +450,7 @@ export class WeatherSystem {
                     const rr = 1.5 + rp * w * 0.42;
                     const ox = (((h >>> 7) % 5) - 2) * w * 0.08;
                     const oy = (((h >>> 9) % 3) - 1) * w * 0.05;
-                    this.groundGfx.lineStyle(1, 0xe4f2ff, 0.38 * (1 - rp) * stage);
-                    this.groundGfx.strokeEllipse(pos.x + ox, pos.y + oy, rr * 2, rr);
+                    pixelRing(this.groundGfx, pos.x + ox, pos.y + oy, rr, rr * 0.5, 0xe4f2ff, 0.38 * (1 - rp) * stage);
                 }
             }
         }
@@ -350,43 +463,35 @@ export class WeatherSystem {
             // Rain on open water: a ripple pair marching outward and a plip —
             // the droplet crown thrown straight back up off the surface.
             const r1 = 2 + age * 11;
-            g.lineStyle(1.2, 0xdff2ff, 0.5 * (1 - age));
-            g.strokeEllipse(pos.x, pos.y, r1 * 2, r1);
+            pixelRing(g, pos.x, pos.y, r1, r1 * 0.5, 0xdff2ff, 0.5 * (1 - age));
             if (age > 0.3) {
                 const r2 = 2 + (age - 0.3) * 11;
-                g.lineStyle(1, 0xbfe2f6, 0.34 * (1 - age));
-                g.strokeEllipse(pos.x, pos.y, r2 * 2, r2);
+                pixelRing(g, pos.x, pos.y, r2, r2 * 0.5, 0xbfe2f6, 0.34 * (1 - age));
             }
             if (age < 0.32) {
                 const t = age / 0.32;
                 const lift = 2 + t * 5.5;
-                g.lineStyle(1, 0xdff2ff, 0.4 * (1 - t));
-                g.lineBetween(pos.x, pos.y - 1, pos.x, pos.y - lift + 1);
-                g.fillStyle(0xf2fbff, 0.8 * (1 - t));
-                g.fillCircle(pos.x, pos.y - lift, 1.1);
+                pixelLine(g, pos.x, pos.y - 1, pos.x, pos.y - lift + 1, 1, 0xdff2ff, 0.4 * (1 - t));
+                pixelDot(g, pos.x, pos.y - lift, 0xf2fbff, 0.8 * (1 - t));
             }
         } else if (splash.kind === 'bank') {
             // Damp shore mud swallows the ring: a dark splat, two heavy flecks.
             const w = 3.5 + age * 4;
-            g.fillStyle(0x33281c, 0.22 * (1 - age));
-            g.fillEllipse(pos.x, pos.y, w * 2, w);
+            pixelEllipse(g, pos.x, pos.y, w, w * 0.5, 0x33281c, 0.22 * (1 - age));
             const t = Math.min(1, age * 1.6);
             const arc = Math.sin(t * Math.PI);
-            g.fillStyle(0x7a5f41, 0.5 * (1 - t));
-            g.fillCircle(pos.x - 2 - t * 3, pos.y - arc * 3, 0.9);
-            g.fillCircle(pos.x + 1.5 + t * 3.5, pos.y - arc * 2.4, 0.9);
+            pixelDot(g, pos.x - 2 - t * 3, pos.y - arc * 3, 0x7a5f41, 0.5 * (1 - t));
+            pixelDot(g, pos.x + 1.5 + t * 3.5, pos.y - arc * 2.4, 0x7a5f41, 0.5 * (1 - t));
         } else {
             // Grass: the familiar soft ring plus two beads flicked off blades.
             const r = 1.5 + age * 5;
-            g.lineStyle(1, 0xd8ecff, 0.35 * (1 - age));
-            g.strokeEllipse(pos.x, pos.y, r * 2, r);
+            pixelRing(g, pos.x, pos.y, r, r * 0.5, 0xd8ecff, 0.35 * (1 - age));
             if (age < 0.55) {
                 const t = age / 0.55;
                 const arc = Math.sin(t * Math.PI);
                 const dx = 1.5 + t * 2.5;
-                g.fillStyle(0xe8f4ff, 0.5 * (1 - t));
-                g.fillCircle(pos.x - dx, pos.y - arc * 3.4, 0.8);
-                g.fillCircle(pos.x + dx * 0.8, pos.y - arc * 2.6, 0.8);
+                pixelDot(g, pos.x - dx, pos.y - arc * 3.4, 0xe8f4ff, 0.5 * (1 - t));
+                pixelDot(g, pos.x + dx * 0.8, pos.y - arc * 2.6, 0xe8f4ff, 0.5 * (1 - t));
             }
         }
     }
@@ -395,6 +500,9 @@ export class WeatherSystem {
         this.rainGfx.destroy();
         this.groundGfx.destroy();
         this.farGroundGfx.destroy();
+        for (const img of this.streakPool) img.destroy();
+        this.streakPool = [];
+        this.streakVisible = 0;
         setWindBoost(1);
         soundSystem.setRainLevel(0);
         this.listeners = [];

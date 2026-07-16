@@ -1,0 +1,121 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "merchant",
+  "variants": {
+    "c": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "merchant_c_idle0.png",
+              "texelW": 14,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.5753086419753086
+            }
+          ]
+        },
+        "walk": {
+          "loopMs": 520,
+          "frames": [
+            {
+              "file": "merchant_c_walk0.png",
+              "texelW": 14,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.5753086419753086
+            },
+            {
+              "file": "merchant_c_walk1.png",
+              "texelW": 14,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.5753086419753086
+            },
+            {
+              "file": "merchant_c_walk2.png",
+              "texelW": 14,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.5753086419753086
+            },
+            {
+              "file": "merchant_c_walk3.png",
+              "texelW": 14,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.5753086419753086
+            },
+            {
+              "file": "merchant_c_walk4.png",
+              "texelW": 14,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.5753086419753086
+            },
+            {
+              "file": "merchant_c_walk5.png",
+              "texelW": 14,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.5753086419753086
+            }
+          ]
+        },
+        "build": {
+          "loopMs": 500,
+          "frames": [
+            {
+              "file": "merchant_c_build0.png",
+              "texelW": 21,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.48500881834215165,
+              "originY": 0.5753086419753086
+            },
+            {
+              "file": "merchant_c_build1.png",
+              "texelW": 19,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.5360623781676412,
+              "originY": 0.5753086419753086
+            },
+            {
+              "file": "merchant_c_build2.png",
+              "texelW": 17,
+              "texelH": 16,
+              "cellWorldPx": 1.35,
+              "originX": 0.5991285403050108,
+              "originY": 0.6018518518518519
+            },
+            {
+              "file": "merchant_c_build3.png",
+              "texelW": 14,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.7275132275132274,
+              "originY": 0.625272331154684
+            },
+            {
+              "file": "merchant_c_build4.png",
+              "texelW": 18,
+              "texelH": 15,
+              "cellWorldPx": 1.35,
+              "originX": 0.565843621399177,
+              "originY": 0.5753086419753086
+            }
+          ]
+        }
+      }
+    }
+  }
+}

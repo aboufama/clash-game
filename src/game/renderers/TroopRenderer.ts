@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import type { TroopType } from '../config/GameDefinitions';
+import { drawGolemC } from './redesign/GolemC';
+import { drawIceGolem as drawIceGolemArt } from './redesign/IceGolem';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -61,7 +63,10 @@ export class TroopRenderer {
         isDeactivated: boolean = false,
         phalanxSpearOffset: number = 0,
         troopLevel: number = 1,
-        time: number = Date.now(),
+        // Callers MUST pass sim/scene time; the default is a deterministic
+        // static pose (never Date.now() — wall-clock varies per render and
+        // poisons bakes/postcards).
+        time: number = 0,
         attackAge: number = -1,
         attackDelay: number = 0
     ) {
@@ -80,6 +85,9 @@ export class TroopRenderer {
                 break;
             case 'golem':
                 TroopRenderer.drawGolem(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
+                break;
+            case 'icegolem':
+                TroopRenderer.drawIceGolem(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
                 break;
             case 'sharpshooter':
                 TroopRenderer.drawSharpshooter(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay);
@@ -240,8 +248,9 @@ export class TroopRenderer {
         } else if (isMoving) {
             swordA = -0.5 + rig.swing * 0.06;
         } else {
-            // Ambient idle: breathe + a slow roll of the wrist.
-            swordA = -0.5 + Math.sin(time / 1900) * 0.12;
+            // Ambient idle: breathe + a slow roll of the wrist — exactly one
+            // roll per 2π·640 ms idle loop so the baked breath closes.
+            swordA = -0.5 + Math.sin(time / 640) * 0.12;
         }
 
         TroopRenderer.hShadow(g);
@@ -654,7 +663,9 @@ export class TroopRenderer {
 
         // Crystal + charge glow.
         const cX = stfX, cY = stfTop - 1.6;
-        const pulse = 0.75 + Math.sin(time / 300) * 0.15;
+        // Crystal glow closes on whichever loop is playing: one cycle per
+        // 480 ms stride while walking, harmonic 2 of the idle breath at rest.
+        const pulse = 0.75 + Math.sin(isMoving ? time * (Math.PI * 2) / 480 : time * 2 / 640) * 0.15;
         g.fillStyle(glow, (0.18 + 0.3 * wu) * pulse);
         g.fillCircle(cX, cY, 2.6 + 2.6 * wu);
         g.fillStyle(0x59c8ff, 0.95);
@@ -701,9 +712,11 @@ export class TroopRenderer {
             g.fillCircle(cX, cY, 1.9);
         }
 
-        // Ambient: one lazy mote orbiting the crystal when nothing else is on.
-        if (wu === 0 && st === 0) {
-            const ma = time / 700;
+        // Ambient: one lazy mote orbiting the crystal when nothing else is
+        // on — idle only (it can't close over the walk stride), one orbit
+        // per 2π·640 ms idle loop.
+        if (!isMoving && wu === 0 && st === 0) {
+            const ma = time / 640;
             g.fillStyle(glow, 0.3 + Math.max(0, rig.breathe) * 0.15);
             g.fillCircle(cX + Math.cos(ma) * 3.6, cY + Math.sin(ma) * 2.2, 0.8);
         }
@@ -801,7 +814,9 @@ export class TroopRenderer {
         g.fillCircle(stfX, -3 - lift, 1.1);
 
         const orbY = -12.2 - lift;
-        const orbPulse = 0.75 + Math.sin(time / 260) * 0.15;
+        // Orb glow closes on whichever loop is playing: one cycle per 520 ms
+        // stride while walking, harmonic 3 of the idle breath at rest.
+        const orbPulse = 0.75 + Math.sin(isMoving ? time * (Math.PI * 2) / 520 : time * 3 / 640) * 0.15;
         g.fillStyle(0x88ffcc, orbPulse * (0.75 + 0.25 * st));
         g.fillCircle(stfX, orbY, 2.1 + 0.6 * st);
         g.fillStyle(0xffffff, 0.55 + 0.35 * st);
@@ -837,10 +852,11 @@ export class TroopRenderer {
                 }
             }
         }
-        // Ambient: two soft motes drifting around her when idle.
+        // Ambient: two soft motes drifting around her when idle — one orbit
+        // per 2π·640 ms idle loop so the baked breath closes.
         if (!isMoving && wu === 0 && st === 0) {
             for (let i = 0; i < 2; i++) {
-                const ma = time / 480 + i * Math.PI;
+                const ma = time / 640 + i * Math.PI;
                 g.fillStyle(glow, 0.28);
                 g.fillCircle(Math.cos(ma) * 5.4, -3 + Math.sin(ma) * 2.6, 0.9);
             }
@@ -905,8 +921,12 @@ export class TroopRenderer {
         const fx = lean + 1.4, fy = kegY - 3.4;
         g.lineStyle(1.1, 0x3a3a2a, 1);
         g.lineBetween(fx, fy, fx + 1.2, fy - 2.2);
-        const rate = brace > 0 ? 45 : 90;
-        const sp = 0.6 + Math.sin(time / rate) * 0.4;
+        // Fuse sputter closes on the active loop: frantic near the blow
+        // (combat keyframes, not looped), 2 cycles per 260 ms stride while
+        // running, harmonic 7 of the idle breath (~575 ms) at rest.
+        const sp = 0.6 + Math.sin(
+            brace > 0 ? time / 45 : isMoving ? time * (Math.PI * 4) / 260 : time * 7 / 640
+        ) * 0.4;
         g.fillStyle(0xffaa00, 0.5 + sp * 0.5);
         g.fillCircle(fx + 1.2, fy - 2.4, 1.3 + sp * 0.5 + brace);
         g.fillStyle(0xff4400, 0.4 + sp * 0.4);
@@ -949,7 +969,10 @@ export class TroopRenderer {
             armSwing = -s * 2.4;
             roll = Math.sin(ph * Math.PI * 2) * 0.8;
         } else {
-            const period = atk.inCombat ? 280 : 450; // breathes harder mid-fight
+            // Out of combat the breath uses the shared 640 base so the baked
+            // idle loop (2π·640 ms) closes exactly; mid-fight it quickens
+            // (combat poses are keyframed by attackAge, not looped).
+            const period = atk.inCombat ? 280 : 640;
             lift = Math.max(0, Math.sin(time / period)) * 0.7;
         }
 
@@ -1518,9 +1541,11 @@ export class TroopRenderer {
         const mortarX = -11 * flip;
         const soldierX = 12 * flip;
 
-        const rig = TroopRenderer.hRig(time, isMoving, 400, 2.2, 6);
+        // Soldier stride, cart bob and wheel rotation all share ONE 600 ms
+        // walk period (they used to run at 400/400/600 and never co-repeat).
+        const rig = TroopRenderer.hRig(time, isMoving, 600, 2.2, 6);
         const lift = rig.lift;
-        const mortarBob = isMoving ? Math.abs(Math.sin(((time + 80) % 400) / 400 * Math.PI * 2)) * 1.2 : 0;
+        const mortarBob = isMoving ? Math.abs(Math.sin(((time + 80) % 600) / 600 * Math.PI * 2)) * 1.2 : 0;
         const wheelRot = isMoving ? (time % 600) / 600 * Math.PI * 2 : 0;
         const mortarY = mortarBob * -1 + mortarRecoil;
 
@@ -1662,10 +1687,13 @@ export class TroopRenderer {
     // offset the whole figure, stagger desyncs the march, isTestudo raises
     // the shield overhead). Standalone soldiers thrust on the damage tick;
     // phalanx thrusts arrive via the spearOffset tween.
-    static drawRomanSoldier(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, isTestudo: boolean, spearOffset: number = 0, sx: number = 0, sy: number = 0, stagger: number = 0, troopLevel: number = 1, time: number = Date.now(), attackAge: number = -1, attackDelay: number = 0): void {
+    static drawRomanSoldier(g: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, isTestudo: boolean, spearOffset: number = 0, sx: number = 0, sy: number = 0, stagger: number = 0, troopLevel: number = 1, time: number = 0, attackAge: number = -1, attackDelay: number = 0): void {
         const atk = TroopRenderer.attackAnim(time, attackAge, attackDelay || 900, 260, 150);
         const marchPhase = isMoving ? ((time % 600) / 600 + stagger) % 1 : 0;
-        const marchBob = isMoving ? Math.sin((time / 150) + stagger * 10) * 1.3 : Math.max(0, Math.sin((time + stagger * 900) / 640)) * -0.4;
+        // Bob at exactly 2 cycles per 600 ms march loop (the old sin(time/150)
+        // period ~942 ms never co-repeated with the stride, so walk loops
+        // could not close).
+        const marchBob = isMoving ? Math.sin(time * (Math.PI * 2 * 2) / 600 + stagger * 10) * 1.3 : Math.max(0, Math.sin((time + stagger * 900) / 640)) * -0.4;
         const cy = sy + marchBob;
 
         const shieldMain = isPlayer ? 0xcc3333 : 0x554433;
@@ -1770,7 +1798,7 @@ export class TroopRenderer {
     // ============================ PHALANX ============================
     // Roman testudo: a 3x3 of villager-scale legionaries under one shield
     // roof, marching in loose step behind the standard.
-    static drawPhalanx(graphics: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, spearOffset: number = 0, troopLevel: number = 1, time: number = Date.now()): void {
+    static drawPhalanx(graphics: G, isPlayer: boolean, isMoving: boolean, facingAngle: number, spearOffset: number = 0, troopLevel: number = 1, time: number = 0): void {
         graphics.fillStyle(0x000000, 0.38);
         graphics.fillEllipse(0, 7, 40, 19);
 
@@ -1806,8 +1834,9 @@ export class TroopRenderer {
             // L3: Grand crimson & gold imperial banner
             const bannerColor = isPlayer ? 0xcc3333 : 0x554433;
             const bannerDark = isPlayer ? 0x991111 : 0x3a2a1a;
-            const flagWave = isMoving ? Math.sin(time / 300) * 2 : 0;
-            const flagWave2 = isMoving ? Math.sin(time / 250 + 1) * 1.5 : 0;
+            // Exact harmonics of the 600 ms march loop (1 and 2 cycles).
+            const flagWave = isMoving ? Math.sin(time * (Math.PI * 2) / 600) * 2 : 0;
+            const flagWave2 = isMoving ? Math.sin(time * (Math.PI * 2 * 2) / 600 + 1) * 1.5 : 0;
 
             // === GRAND EAGLE FINIAL (larger, more detailed) ===
             // Eagle body
@@ -1954,609 +1983,33 @@ export class TroopRenderer {
             }
         }
     }
-    private static drawGolem(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, slamOffset: number, troopLevel: number = 1, time: number = Date.now()) {
-        // COLOSSAL STONE GOLEM - Massive animated rock titan
-        const now = time;
-
-        // Walking animation - heavy, lumbering steps (slow cycle for weight)
-        const walkPhase = isMoving ? (now % 2400) / 2400 : 0;
-
-        // Body movement - only when walking
-        const stepBob = isMoving ? Math.abs(Math.sin(walkPhase * Math.PI * 2)) * 4 : 0;
-
-        // Body/head slam - adds slamOffset (for ground pound, body/head drop while legs stay)
-        const bodySlam = stepBob + slamOffset;
-
-        const armSwing = isMoving ? Math.sin(walkPhase * Math.PI * 2) * 0.3 : 0;
-        const shoulderRoll = isMoving ? Math.sin(walkPhase * Math.PI) * 2 : 0;
-
-        // Stone colors with ancient weathering — L3 is darker, more corrupted
-        const stoneBase = troopLevel >= 3 ? (isPlayer ? 0x3a4a5a : 0x4a3a3a) : (isPlayer ? 0x5a6a7a : 0x6a5a5a);
-        const stoneDark = troopLevel >= 3 ? (isPlayer ? 0x222e3a : 0x2e2222) : (isPlayer ? 0x3a4a5a : 0x4a3a3a);
-        const stoneLight = troopLevel >= 3 ? (isPlayer ? 0x5a6a7a : 0x6a5a5a) : (isPlayer ? 0x7a8a9a : 0x8a7a7a);
-        const stoneAccent = troopLevel >= 3 ? (isPlayer ? 0x2a3a4a : 0x3a2a2a) : (isPlayer ? 0x4a5a6a : 0x5a4a4a);
-        const mossColor = isPlayer ? 0x4a6a3a : 0x5a4a3a;
-        const glowColor = isPlayer ? 0x44aaff : 0xff4444;
-        const glowColorBright = isPlayer ? 0x88ccff : 0xff8888;
-        // L3 gem colors
-        const gemColor = isPlayer ? 0x22ddaa : 0xdd22aa;
-        const gemBright = isPlayer ? 0x66ffcc : 0xff66cc;
-        const gemDark = isPlayer ? 0x118866 : 0x881166;
-
-        // MASSIVE shadow
-        graphics.fillStyle(0x000000, 0.45);
-        graphics.fillEllipse(0, 18, 40, 20);
-
-        // === LEGS (massive stone pillars) ===
-        const legSpread = 12;
-        const leftLegPhase = walkPhase;
-        const rightLegPhase = (walkPhase + 0.5) % 1;
-        // Legs only animate when moving
-        const leftLegLift = isMoving ? Math.max(0, Math.sin(leftLegPhase * Math.PI * 2)) * 6 : 0;
-        const rightLegLift = isMoving ? Math.max(0, Math.sin(rightLegPhase * Math.PI * 2)) * 6 : 0;
-
-        // Left leg
-        graphics.fillStyle(stoneDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-legSpread - 6, -5 + stepBob);
-        graphics.lineTo(-legSpread - 8, 12 - leftLegLift);
-        graphics.lineTo(-legSpread + 4, 14 - leftLegLift);
-        graphics.lineTo(-legSpread + 2, -3 + stepBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Leg highlight
-        graphics.fillStyle(stoneBase, 1);
-        graphics.beginPath();
-        graphics.moveTo(-legSpread - 4, -4 + stepBob);
-        graphics.lineTo(-legSpread - 5, 10 - leftLegLift);
-        graphics.lineTo(-legSpread, 11 - leftLegLift);
-        graphics.lineTo(-legSpread + 1, -3 + stepBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Left foot (massive stone block)
-        graphics.fillStyle(stoneDark, 1);
-        graphics.fillRect(-legSpread - 10, 12 - leftLegLift, 16, 6);
-        graphics.fillStyle(stoneAccent, 1);
-        graphics.fillRect(-legSpread - 8, 11 - leftLegLift, 12, 3);
-
-        // Right leg
-        graphics.fillStyle(stoneDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(legSpread + 6, -5 + stepBob);
-        graphics.lineTo(legSpread + 8, 12 - rightLegLift);
-        graphics.lineTo(legSpread - 4, 14 - rightLegLift);
-        graphics.lineTo(legSpread - 2, -3 + stepBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Leg highlight
-        graphics.fillStyle(stoneBase, 1);
-        graphics.beginPath();
-        graphics.moveTo(legSpread + 4, -4 + stepBob);
-        graphics.lineTo(legSpread + 5, 10 - rightLegLift);
-        graphics.lineTo(legSpread, 11 - rightLegLift);
-        graphics.lineTo(legSpread - 1, -3 + stepBob);
-        graphics.closePath();
-        graphics.fillPath();
-        // Right foot
-        graphics.fillStyle(stoneDark, 1);
-        graphics.fillRect(legSpread - 6, 12 - rightLegLift, 16, 6);
-        graphics.fillStyle(stoneAccent, 1);
-        graphics.fillRect(legSpread - 4, 11 - rightLegLift, 12, 3);
-
-        // === TORSO (massive boulder body) ===
-        // Back layer - darker
-        graphics.fillStyle(stoneDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-22, -8 + bodySlam);
-        graphics.lineTo(-18, -28 + bodySlam);
-        graphics.lineTo(18, -28 + bodySlam);
-        graphics.lineTo(22, -8 + bodySlam);
-        graphics.lineTo(16, 2 + bodySlam);
-        graphics.lineTo(-16, 2 + bodySlam);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Main body
-        graphics.fillStyle(stoneBase, 1);
-        graphics.beginPath();
-        graphics.moveTo(-20, -10 + bodySlam);
-        graphics.lineTo(-16, -30 + bodySlam);
-        graphics.lineTo(16, -30 + bodySlam);
-        graphics.lineTo(20, -10 + bodySlam);
-        graphics.lineTo(14, 0 + bodySlam);
-        graphics.lineTo(-14, 0 + bodySlam);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Chest stone plates
-        graphics.fillStyle(stoneLight, 1);
-        graphics.beginPath();
-        graphics.moveTo(-12, -24 + bodySlam);
-        graphics.lineTo(-8, -28 + bodySlam);
-        graphics.lineTo(8, -28 + bodySlam);
-        graphics.lineTo(12, -24 + bodySlam);
-        graphics.lineTo(10, -14 + bodySlam);
-        graphics.lineTo(-10, -14 + bodySlam);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Glowing rune on chest
-        graphics.fillStyle(glowColor, 0.8);
-        graphics.beginPath();
-        graphics.moveTo(0, -26 + bodySlam);
-        graphics.lineTo(-4, -22 + bodySlam);
-        graphics.lineTo(0, -18 + bodySlam);
-        graphics.lineTo(4, -22 + bodySlam);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(glowColorBright, 0.6);
-        graphics.fillCircle(0, -22 + bodySlam, 2);
-
-        // Stone texture cracks
-        graphics.lineStyle(1, stoneDark, 0.6);
-        graphics.lineBetween(-15, -20 + bodySlam, -10, -15 + bodySlam);
-        graphics.lineBetween(12, -25 + bodySlam, 16, -18 + bodySlam);
-        graphics.lineBetween(-8, -8 + bodySlam, -3, -12 + bodySlam);
-        graphics.lineBetween(5, -6 + bodySlam, 10, -10 + bodySlam);
-
-        // L3: Many more deep cracks across the body
-        if (troopLevel >= 3) {
-            graphics.lineStyle(1.5, 0x111111, 0.7);
-            // Deep diagonal cracks
-            graphics.lineBetween(-18, -14 + bodySlam, -6, -6 + bodySlam);
-            graphics.lineBetween(14, -22 + bodySlam, 6, -14 + bodySlam);
-            graphics.lineBetween(-12, -28 + bodySlam, -18, -20 + bodySlam);
-            graphics.lineBetween(8, -8 + bodySlam, 16, -4 + bodySlam);
-            // Branching cracks
-            graphics.lineStyle(1, 0x111111, 0.5);
-            graphics.lineBetween(-12, -10 + bodySlam, -14, -6 + bodySlam);
-            graphics.lineBetween(10, -18 + bodySlam, 14, -14 + bodySlam);
-            graphics.lineBetween(-6, -6 + bodySlam, -8, -2 + bodySlam);
-            graphics.lineBetween(6, -14 + bodySlam, 4, -10 + bodySlam);
-            // Gem veins glowing through cracks
-            graphics.lineStyle(1, gemColor, 0.4);
-            graphics.lineBetween(-18, -14 + bodySlam, -12, -10 + bodySlam);
-            graphics.lineBetween(14, -22 + bodySlam, 10, -18 + bodySlam);
-
-            // Large chest gem (embedded in the rune area)
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(0, -24 + bodySlam);
-            graphics.lineTo(-5, -20 + bodySlam);
-            graphics.lineTo(0, -15 + bodySlam);
-            graphics.lineTo(5, -20 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.9);
-            graphics.beginPath();
-            graphics.moveTo(0, -23 + bodySlam);
-            graphics.lineTo(-3, -20 + bodySlam);
-            graphics.lineTo(0, -16 + bodySlam);
-            graphics.lineTo(3, -20 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemBright, 0.7);
-            graphics.fillCircle(-1, -21 + bodySlam, 1.5);
-
-            // Side body gems
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(-15, -16 + bodySlam);
-            graphics.lineTo(-18, -12 + bodySlam);
-            graphics.lineTo(-14, -10 + bodySlam);
-            graphics.lineTo(-12, -14 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.8);
-            graphics.beginPath();
-            graphics.moveTo(-15, -15 + bodySlam);
-            graphics.lineTo(-17, -12 + bodySlam);
-            graphics.lineTo(-14, -11 + bodySlam);
-            graphics.lineTo(-13, -14 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(13, -10 + bodySlam);
-            graphics.lineTo(16, -6 + bodySlam);
-            graphics.lineTo(12, -4 + bodySlam);
-            graphics.lineTo(10, -8 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.8);
-            graphics.beginPath();
-            graphics.moveTo(13, -9 + bodySlam);
-            graphics.lineTo(15, -6 + bodySlam);
-            graphics.lineTo(12, -5 + bodySlam);
-            graphics.lineTo(11, -8 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-        }
-
-        // Moss patches (less moss on L3 — replaced by crystals)
-        graphics.fillStyle(mossColor, troopLevel >= 3 ? 0.3 : 0.7);
-        graphics.fillCircle(-14, -16 + bodySlam, troopLevel >= 3 ? 2 : 3);
-        graphics.fillCircle(16, -12 + bodySlam, 2.5);
-        graphics.fillCircle(-8, -4 + bodySlam, 2);
-
-        // === ARMS (boulder appendages) ===
-        // Arm swing offsets
-        const leftArmSwingX = armSwing * 8;
-        const leftArmSwingY = Math.abs(armSwing) * 4;
-        const rightArmSwingX = -armSwing * 8;
-        const rightArmSwingY = Math.abs(armSwing) * 4;
-
-        // Left arm base position
-        const lax = -18;
-        const lay = -20 + stepBob + shoulderRoll;
-
-        // Left arm - upper
-        graphics.fillStyle(stoneDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(lax - 4, lay);
-        graphics.lineTo(lax - 8 + leftArmSwingX, lay + 18 + leftArmSwingY);
-        graphics.lineTo(lax + 4 + leftArmSwingX, lay + 20 + leftArmSwingY);
-        graphics.lineTo(lax + 4, lay + 2);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(stoneBase, 1);
-        graphics.beginPath();
-        graphics.moveTo(lax - 2, lay + 2);
-        graphics.lineTo(lax - 4 + leftArmSwingX * 0.5, lay + 16 + leftArmSwingY * 0.5);
-        graphics.lineTo(lax + 2 + leftArmSwingX * 0.5, lay + 17 + leftArmSwingY * 0.5);
-        graphics.lineTo(lax + 2, lay + 3);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Left forearm
-        const lfx = lax - 2 + leftArmSwingX;
-        const lfy = lay + 18 + leftArmSwingY;
-        graphics.fillStyle(stoneAccent, 1);
-        graphics.beginPath();
-        graphics.moveTo(lfx - 5, lfy);
-        graphics.lineTo(lfx - 7 + leftArmSwingX * 0.5, lfy + 17);
-        graphics.lineTo(lfx + 5 + leftArmSwingX * 0.5, lfy + 18);
-        graphics.lineTo(lfx + 6, lfy + 1);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Left fist
-        const lfistX = lfx - 1 + leftArmSwingX * 0.5;
-        const lfistY = lfy + 22;
-        graphics.fillStyle(stoneDark, 1);
-        graphics.fillCircle(lfistX, lfistY, 9);
-        graphics.fillStyle(stoneBase, 1);
-        graphics.fillCircle(lfistX - 1, lfistY - 1, 7);
-        graphics.fillStyle(stoneLight, 0.5);
-        graphics.fillCircle(lfistX - 4, lfistY - 3, 2);
-        graphics.fillCircle(lfistX, lfistY - 4, 2);
-        graphics.fillCircle(lfistX + 4, lfistY - 3, 2);
-
-        // Right arm base position
-        const rax = 18;
-        const ray = -20 + stepBob - shoulderRoll;
-
-        // Right arm - upper
-        graphics.fillStyle(stoneDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(rax + 4, ray);
-        graphics.lineTo(rax + 8 + rightArmSwingX, ray + 18 + rightArmSwingY);
-        graphics.lineTo(rax - 4 + rightArmSwingX, ray + 20 + rightArmSwingY);
-        graphics.lineTo(rax - 4, ray + 2);
-        graphics.closePath();
-        graphics.fillPath();
-        graphics.fillStyle(stoneBase, 1);
-        graphics.beginPath();
-        graphics.moveTo(rax + 2, ray + 2);
-        graphics.lineTo(rax + 4 + rightArmSwingX * 0.5, ray + 16 + rightArmSwingY * 0.5);
-        graphics.lineTo(rax - 2 + rightArmSwingX * 0.5, ray + 17 + rightArmSwingY * 0.5);
-        graphics.lineTo(rax - 2, ray + 3);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Right forearm
-        const rfx = rax + 2 + rightArmSwingX;
-        const rfy = ray + 18 + rightArmSwingY;
-        graphics.fillStyle(stoneAccent, 1);
-        graphics.beginPath();
-        graphics.moveTo(rfx + 5, rfy);
-        graphics.lineTo(rfx + 7 + rightArmSwingX * 0.5, rfy + 17);
-        graphics.lineTo(rfx - 5 + rightArmSwingX * 0.5, rfy + 18);
-        graphics.lineTo(rfx - 6, rfy + 1);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Right fist
-        const rfistX = rfx + 1 + rightArmSwingX * 0.5;
-        const rfistY = rfy + 22;
-        graphics.fillStyle(stoneDark, 1);
-        graphics.fillCircle(rfistX, rfistY, 9);
-        graphics.fillStyle(stoneBase, 1);
-        graphics.fillCircle(rfistX + 1, rfistY - 1, 7);
-        graphics.fillStyle(stoneLight, 0.5);
-        graphics.fillCircle(rfistX + 4, rfistY - 3, 2);
-        graphics.fillCircle(rfistX, rfistY - 4, 2);
-        graphics.fillCircle(rfistX - 4, rfistY - 3, 2);
-
-        // === HEAD (craggy boulder with glowing eyes) ===
-        // Neck
-        graphics.fillStyle(stoneDark, 1);
-        graphics.fillRect(-8, -38 + bodySlam, 16, 10);
-
-        // Head base
-        graphics.fillStyle(stoneBase, 1);
-        graphics.beginPath();
-        graphics.moveTo(-14, -36 + bodySlam);
-        graphics.lineTo(-16, -48 + bodySlam);
-        graphics.lineTo(-10, -54 + bodySlam);
-        graphics.lineTo(10, -54 + bodySlam);
-        graphics.lineTo(16, -48 + bodySlam);
-        graphics.lineTo(14, -36 + bodySlam);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Brow ridge
-        graphics.fillStyle(stoneDark, 1);
-        graphics.beginPath();
-        graphics.moveTo(-14, -46 + bodySlam);
-        graphics.lineTo(-12, -50 + bodySlam);
-        graphics.lineTo(12, -50 + bodySlam);
-        graphics.lineTo(14, -46 + bodySlam);
-        graphics.lineTo(10, -44 + bodySlam);
-        graphics.lineTo(-10, -44 + bodySlam);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Eye sockets (dark) — L2 has deeper/darker sockets
-        const socketColor = troopLevel >= 2 ? 0x0a0a0a : 0x1a1a1a;
-        graphics.fillStyle(socketColor, 1);
-        graphics.fillCircle(-6, -45 + bodySlam, 4);
-        graphics.fillCircle(6, -45 + bodySlam, 4);
-
-        // Eyes: subtle steady glow when walking, pulsing bright glow when attacking
-        const eyeGlow = troopLevel >= 2 ? (isPlayer ? 0x2288dd : 0xdd2222) : glowColor;
-        const eyeBright = troopLevel >= 2 ? (isPlayer ? 0x66aaee : 0xee6666) : glowColorBright;
-        const eyePulse = !isMoving ? (0.7 + Math.sin(now / 200) * 0.3) : 0.3;
-        graphics.fillStyle(eyeGlow, eyePulse);
-        graphics.fillCircle(-6, -45 + bodySlam, 3);
-        graphics.fillCircle(6, -45 + bodySlam, 3);
-        if (!isMoving) {
-            // Bright core + outer glow only when attacking
-            graphics.fillStyle(eyeBright, eyePulse * 0.8);
-            graphics.fillCircle(-6, -45 + bodySlam, 1.5);
-            graphics.fillCircle(6, -45 + bodySlam, 1.5);
-            graphics.lineStyle(2, eyeGlow, eyePulse * 0.4);
-            graphics.strokeCircle(-6, -45 + bodySlam, 5);
-            graphics.strokeCircle(6, -45 + bodySlam, 5);
-        }
-
-        // Jagged mouth
-        graphics.fillStyle(0x2a2a2a, 1);
-        graphics.beginPath();
-        graphics.moveTo(-8, -40 + bodySlam);
-        graphics.lineTo(-5, -38 + bodySlam);
-        graphics.lineTo(-2, -40 + bodySlam);
-        graphics.lineTo(2, -38 + bodySlam);
-        graphics.lineTo(5, -40 + bodySlam);
-        graphics.lineTo(8, -38 + bodySlam);
-        graphics.lineTo(6, -36 + bodySlam);
-        graphics.lineTo(-6, -36 + bodySlam);
-        graphics.closePath();
-        graphics.fillPath();
-
-        // Head cracks and details
-        graphics.lineStyle(1, stoneDark, 0.7);
-        graphics.lineBetween(-10, -52 + bodySlam, -8, -46 + bodySlam);
-        graphics.lineBetween(12, -50 + bodySlam, 10, -44 + bodySlam);
-        graphics.lineBetween(0, -54 + bodySlam, 0, -50 + bodySlam);
-
-        // Ancient runes on forehead
-        graphics.lineStyle(2, glowColor, eyePulse * 0.6);
-        graphics.lineBetween(-3, -52 + bodySlam, 3, -52 + bodySlam);
-        graphics.lineBetween(0, -54 + bodySlam, 0, -50 + bodySlam);
-
-        // Shoulder spikes/crystals
-        if (troopLevel >= 3) {
-            // L3: Huge gem crystal clusters on shoulders
-            // Left shoulder — large main crystal + smaller shards
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(-20, -26 + bodySlam);
-            graphics.lineTo(-28, -42 + bodySlam);
-            graphics.lineTo(-22, -40 + bodySlam);
-            graphics.lineTo(-16, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.9);
-            graphics.beginPath();
-            graphics.moveTo(-21, -28 + bodySlam);
-            graphics.lineTo(-27, -40 + bodySlam);
-            graphics.lineTo(-23, -38 + bodySlam);
-            graphics.lineTo(-18, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemBright, 0.6);
-            graphics.fillCircle(-24, -36 + bodySlam, 1.5);
-            // Secondary shard
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(-18, -28 + bodySlam);
-            graphics.lineTo(-22, -36 + bodySlam);
-            graphics.lineTo(-16, -32 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.8);
-            graphics.beginPath();
-            graphics.moveTo(-18, -29 + bodySlam);
-            graphics.lineTo(-21, -35 + bodySlam);
-            graphics.lineTo(-17, -32 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            // Third small shard
-            graphics.fillStyle(gemColor, 0.7);
-            graphics.beginPath();
-            graphics.moveTo(-24, -28 + bodySlam);
-            graphics.lineTo(-27, -34 + bodySlam);
-            graphics.lineTo(-23, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Right shoulder — large main crystal + smaller shards
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(20, -26 + bodySlam);
-            graphics.lineTo(28, -42 + bodySlam);
-            graphics.lineTo(22, -40 + bodySlam);
-            graphics.lineTo(16, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.9);
-            graphics.beginPath();
-            graphics.moveTo(21, -28 + bodySlam);
-            graphics.lineTo(27, -40 + bodySlam);
-            graphics.lineTo(23, -38 + bodySlam);
-            graphics.lineTo(18, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemBright, 0.6);
-            graphics.fillCircle(24, -36 + bodySlam, 1.5);
-            // Secondary shard
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(18, -28 + bodySlam);
-            graphics.lineTo(22, -36 + bodySlam);
-            graphics.lineTo(16, -32 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.8);
-            graphics.beginPath();
-            graphics.moveTo(18, -29 + bodySlam);
-            graphics.lineTo(21, -35 + bodySlam);
-            graphics.lineTo(17, -32 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            // Third small shard
-            graphics.fillStyle(gemColor, 0.7);
-            graphics.beginPath();
-            graphics.moveTo(24, -28 + bodySlam);
-            graphics.lineTo(27, -34 + bodySlam);
-            graphics.lineTo(23, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Gem glow on shoulder crystals
-            graphics.fillStyle(gemBright, eyePulse * 0.5);
-            graphics.fillCircle(-24, -35 + bodySlam, 3);
-            graphics.fillCircle(24, -35 + bodySlam, 3);
-
-            // === FALLING CRYSTAL DEBRIS (only while moving) ===
-            if (isMoving) {
-                const debrisCount = 4;
-                for (let i = 0; i < debrisCount; i++) {
-                    // Each debris has its own phase offset
-                    const debrisPhase = ((now + i * 370) % 1200) / 1200;
-                    const debrisAlpha = 1 - debrisPhase; // fade out as they fall
-                    if (debrisAlpha > 0.1) {
-                        // Scatter from shoulder areas, fall downward
-                        const side = i % 2 === 0 ? -1 : 1;
-                        const baseX = side * (16 + (i * 3));
-                        const debrisX = baseX + Math.sin(debrisPhase * 4 + i) * 3;
-                        const debrisY = -26 + bodySlam + debrisPhase * 40; // fall from shoulders to ground
-                        const size = 1.5 + (1 - debrisPhase) * 1.5; // shrink as they fall
-
-                        graphics.fillStyle(gemColor, debrisAlpha * 0.8);
-                        // Small crystal shard shape
-                        graphics.beginPath();
-                        graphics.moveTo(debrisX, debrisY - size);
-                        graphics.lineTo(debrisX - size * 0.7, debrisY);
-                        graphics.lineTo(debrisX, debrisY + size * 0.5);
-                        graphics.lineTo(debrisX + size * 0.7, debrisY);
-                        graphics.closePath();
-                        graphics.fillPath();
-                    }
-                }
-            }
-        } else {
-            // L1/L2: Original stone spikes
-            graphics.fillStyle(stoneLight, 1);
-            // Left spike
-            graphics.beginPath();
-            graphics.moveTo(-20, -26 + bodySlam);
-            graphics.lineTo(-26, -34 + bodySlam);
-            graphics.lineTo(-18, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            // Right spike
-            graphics.beginPath();
-            graphics.moveTo(20, -26 + bodySlam);
-            graphics.lineTo(26, -34 + bodySlam);
-            graphics.lineTo(18, -30 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Glowing crystal cores in spikes
-            graphics.fillStyle(glowColor, eyePulse * 0.7);
-            graphics.fillCircle(-22, -30 + bodySlam, 2);
-            graphics.fillCircle(22, -30 + bodySlam, 2);
-        }
-
-        // L3: Gems embedded in head
-        if (troopLevel >= 3) {
-            // Forehead gem
-            graphics.fillStyle(gemDark, 1);
-            graphics.beginPath();
-            graphics.moveTo(0, -53 + bodySlam);
-            graphics.lineTo(-3, -50 + bodySlam);
-            graphics.lineTo(0, -48 + bodySlam);
-            graphics.lineTo(3, -50 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.9);
-            graphics.beginPath();
-            graphics.moveTo(0, -52.5 + bodySlam);
-            graphics.lineTo(-2, -50 + bodySlam);
-            graphics.lineTo(0, -48.5 + bodySlam);
-            graphics.lineTo(2, -50 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemBright, 0.7);
-            graphics.fillCircle(0, -50.5 + bodySlam, 1);
-
-            // Small gem shards on jaw
-            graphics.fillStyle(gemColor, 0.6);
-            graphics.beginPath();
-            graphics.moveTo(-10, -38 + bodySlam);
-            graphics.lineTo(-12, -42 + bodySlam);
-            graphics.lineTo(-8, -40 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-            graphics.fillStyle(gemColor, 0.6);
-            graphics.beginPath();
-            graphics.moveTo(10, -38 + bodySlam);
-            graphics.lineTo(12, -42 + bodySlam);
-            graphics.lineTo(8, -40 + bodySlam);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Head cracks glow with gem color
-            graphics.lineStyle(1, gemColor, 0.3);
-            graphics.lineBetween(-10, -52 + bodySlam, -8, -46 + bodySlam);
-            graphics.lineBetween(12, -50 + bodySlam, 10, -44 + bodySlam);
-        }
+    /** Stone golem — tournament winner: design C ("The Runebound Cairn") is
+     *  the canonical implementation (GolemC.ts stays the authoring source). */
+    private static drawGolem(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, slamOffset: number, troopLevel: number = 1, time: number = 0) {
+        drawGolemC(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
     }
-    private static drawRecursion(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean = false, troopLevel: number = 1, time: number = Date.now(), attackAge: number = -1, attackDelay: number = 0) {
+    /** Ice golem — "The Glacial Warden": the tournament's GolemB body
+     *  (Cromlech Warden masonry) reskinned as glacial ice (IceGolem.ts is
+     *  the authoring source). Same contract as drawGolem: slam driven only
+     *  by slamOffset, facing resolved carrier-level inside the design fn. */
+    private static drawIceGolem(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, slamOffset: number, troopLevel: number = 1, time: number = 0) {
+        drawIceGolemArt(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
+    }
+    private static drawRecursion(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean = false, troopLevel: number = 1, time: number = 0, attackAge: number = -1, attackDelay: number = 0) {
         // Fractal/geometric entity that splits on death
         const bodyColor = isPlayer ? 0x00ffaa : 0xaa00ff;
         const innerColor = isPlayer ? 0x00aa77 : 0x7700aa;
         const now = time;
 
-        // Hover bob when moving
-        const hoverBob = isMoving ? Math.sin(now / 200) * 2 : 0;
+        // Hover bob when moving — exactly one bob per 1250 ms walk loop
+        // (matches TROOP_PARAMS.recursion.stride in the bake harness).
+        const hoverBob = isMoving ? Math.sin(now * (Math.PI * 2) / 1250) * 2 : 0;
 
         // Attack animation: expands and contracts with energy burst.
-        // Cycle locks to the real attack cadence when combat state is known.
-        const cycle = attackDelay > 0 ? attackDelay : 850;
+        // Cycle locks to the real attack cadence when combat state is known;
+        // out of combat it pulses on an exact 1000 ms clock (2 pulses per
+        // 2000 ms idle loop — all idle terms below are harmonics of 2000 ms).
+        const cycle = attackDelay > 0 ? attackDelay : 1000;
         const inCombat = attackAge >= 0;
         const attackPhase = (!isMoving && (!inCombat || attackAge <= cycle + 600)) ? ((inCombat ? Math.min(attackAge, cycle - 1) : now % cycle) / cycle) : 0;
         let attackPulse = 0;
@@ -2596,9 +2049,12 @@ export class TroopRenderer {
             graphics.strokeCircle(0, -2 + hoverBob, outerRadius + 8);
         }
 
-        // Outer hexagonal shell (rotating slowly, faster when attacking)
-        const rotSpeed = !isMoving ? 800 : 2000;
-        const rot = now / rotSpeed;
+        // Outer hexagonal shell rotation. The shell/inner/L2/L3 multipliers
+        // (1, -1.5, 0.5, 1.5) only all land back on their 6-fold/4-fold
+        // symmetries when the base advance per loop is a multiple of 2π/3 —
+        // so the shell advances exactly 2π/3 per idle loop (2000 ms) and per
+        // walk loop (1250 ms), and every baked loop closes seamlessly.
+        const rot = now * (Math.PI * 2 / 3) / (!isMoving ? 2000 : 1250);
         graphics.fillStyle(bodyColor, 0.9);
         graphics.beginPath();
         for (let i = 0; i < 6; i++) {
@@ -2631,14 +2087,15 @@ export class TroopRenderer {
         graphics.lineBetween(-1.5, -2 + hoverBob, 1.5, -2 + hoverBob);
         graphics.lineBetween(0, -3.5 + hoverBob, 0, -0.5 + hoverBob);
 
-        // Energy wisps when attacking
+        // Energy wisps when attacking — orbit/wobble/flicker at harmonics
+        // 2/3/5 of the 2000 ms idle loop.
         if (!isMoving) {
             for (let i = 0; i < 3; i++) {
-                const wAngle = (now / 150 + i * 2.1) % (Math.PI * 2);
-                const wDist = outerRadius + 3 + Math.sin(now / 100 + i) * 2;
+                const wAngle = (now * (Math.PI * 2) / 1000 + i * 2.1) % (Math.PI * 2);
+                const wDist = outerRadius + 3 + Math.sin(now * (Math.PI * 2 * 3) / 2000 + i) * 2;
                 const wx = Math.cos(wAngle) * wDist;
                 const wy = Math.sin(wAngle) * wDist * 0.6 - 2 + hoverBob;
-                graphics.fillStyle(bodyColor, 0.4 + Math.sin(now / 60 + i) * 0.3);
+                graphics.fillStyle(bodyColor, 0.4 + Math.sin(now * (Math.PI * 2 * 5) / 2000 + i) * 0.3);
                 graphics.fillCircle(wx, wy, 1.5);
             }
         }
@@ -2673,7 +2130,7 @@ export class TroopRenderer {
             }
         }
     }
-    static drawDaVinciTank(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, _isMoving: boolean, isDeactivated: boolean = false, facingAngle: number = 0, troopLevel: number = 1, time: number = Date.now()) {
+    static drawDaVinciTank(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, _isMoving: boolean, isDeactivated: boolean = false, facingAngle: number = 0, troopLevel: number = 1, time: number = 0) {
         // LEONARDO DA VINCI'S ARMORED WAR MACHINE
         // Conical wooden tank with cannons all around the base - NO rotation when moving
         // Rotation only happens after each shot (controlled by facingAngle from MainScene)

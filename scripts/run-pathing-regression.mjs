@@ -14,6 +14,9 @@ try {
     platform: 'node',
     format: 'esm',
     target: 'node20',
+    alias: {
+      phaser: new URL('./phaser-math-stub.ts', import.meta.url).pathname
+    },
     logLevel: 'warning'
   })
   await import(`${pathToFileURL(output).href}?t=${Date.now()}`)

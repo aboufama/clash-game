@@ -1,0 +1,74 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "cannonball",
+  "variants": {
+    "l1": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "cannonball_l1_idle0.png",
+              "texelW": 10,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.485185185185185,
+              "originY": 0.485185185185185
+            }
+          ]
+        }
+      }
+    },
+    "l2": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "cannonball_l2_idle0.png",
+              "texelW": 10,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.485185185185185,
+              "originY": 0.485185185185185
+            }
+          ]
+        }
+      }
+    },
+    "l3": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "cannonball_l3_idle0.png",
+              "texelW": 10,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.485185185185185,
+              "originY": 0.485185185185185
+            }
+          ]
+        }
+      }
+    },
+    "l4": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "cannonball_l4_idle0.png",
+              "texelW": 10,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.485185185185185,
+              "originY": 0.485185185185185
+            }
+          ]
+        }
+      }
+    }
+  }
+}

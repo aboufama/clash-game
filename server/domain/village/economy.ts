@@ -31,6 +31,7 @@ export function priceVillageMutation(input: {
   proposedObstacles: readonly SerializedObstacle[]
   now: number
   upgradeTimeScale: number
+  fixedUpgradeDurationMs?: number
 }): VillageMutationPricing {
   const buildings = input.proposedBuildings.map(building => ({ ...building }))
   const charges = { gold: 0, ore: 0 }
@@ -81,8 +82,13 @@ export function priceVillageMutation(input: {
       charges.gold += charge.gold
       charges.ore += charge.ore
       next.upgradingTo = next.level
+      next.upgradeStartedAt = input.now
+      const scaledDuration = Math.round(upgradeDurationMs(next.type, next.level) * input.upgradeTimeScale)
+      const fixedDuration = input.fixedUpgradeDurationMs
       next.upgradeEndsAt = input.now
-        + Math.round(upgradeDurationMs(next.type, next.level) * input.upgradeTimeScale)
+        + (typeof fixedDuration === 'number' && Number.isFinite(fixedDuration) && fixedDuration >= 0
+          ? Math.round(fixedDuration)
+          : scaledDuration)
       next.level = previous.level
       next.builtAt = previous.builtAt ?? next.builtAt
       continue
@@ -91,6 +97,7 @@ export function priceVillageMutation(input: {
     next.builtAt = previous.builtAt ?? next.builtAt
     if (previous.upgradingTo && next.level === previous.level) {
       next.upgradingTo = previous.upgradingTo
+      if (previous.upgradeStartedAt !== undefined) next.upgradeStartedAt = previous.upgradeStartedAt
       next.upgradeEndsAt = previous.upgradeEndsAt
     }
   }
@@ -116,4 +123,3 @@ export function priceVillageMutation(input: {
     bill: { gold: charges.gold - refundGold - obstacleRewards, ore: charges.ore }
   }
 }
-

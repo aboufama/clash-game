@@ -6,7 +6,10 @@ import {
     type DefenseIdleEffect
 } from './DefenseBehaviorCatalog';
 
-export type DefenseFireHandler = (defense: PlacedBuilding, target: Troop, time: number) => void;
+/** Fire handlers may refuse a shot by returning `false` (e.g. the cannon's
+ * previous ball is still in flight); a refused shot must not consume the
+ * cooldown. Any other return value (including `undefined`) counts as fired. */
+export type DefenseFireHandler = (defense: PlacedBuilding, target: Troop, time: number) => boolean | void;
 export type DefenseFireHandlers = Record<ActiveDefenseType, DefenseFireHandler>;
 export type DefenseIdleHandlers = Record<DefenseIdleEffect, (defense: PlacedBuilding) => void>;
 
@@ -36,6 +39,13 @@ export class DefenseSystem {
         for (const defense of buildings) {
             const behavior = getDefenseBehavior(defense.type);
             if (!behavior || defense.health <= 0 || defense.upgradingTo) continue;
+
+            // Ice-golem freeze-on-death: a frozen defense is a full stop —
+            // no shots, no tesla charge progress, no idle handler. The
+            // cooldown clock is deliberately untouched, so the "~2.5 s of
+            // silence" is exactly the freeze window (client battle sim
+            // only; server settlement ignores debuffs by design).
+            if (defense.frozenUntil !== undefined && time < defense.frozenUntil) continue;
 
             const stats = getBuildingStats(defense.type as BuildingType, defense.level || 1);
             const maxRange = stats.range || 7;
@@ -93,7 +103,8 @@ export class DefenseSystem {
                     usesTargetLock,
                     lockedTarget,
                     findNearestTarget,
-                    isTargetInRange
+                    isTargetInRange,
+                    troops
                 );
                 continue;
             }
@@ -103,8 +114,10 @@ export class DefenseSystem {
             const target = lockedTarget ?? findNearestTarget();
             if (target) {
                 if (usesTargetLock) defense.lockedTargetId = target.id;
-                defense.lastFireTime = time;
-                this.effects.fire[behavior.fireEffect](defense, target, time);
+                // Fire first: a swallowed shot (handler returned false) must
+                // not consume the cooldown window.
+                const fired = this.effects.fire[behavior.fireEffect](defense, target, time);
+                if (fired !== false) defense.lastFireTime = time;
             } else {
                 if (usesTargetLock) defense.lockedTargetId = undefined;
                 if (behavior.idleEffect) this.effects.idle[behavior.idleEffect](defense);
@@ -122,11 +135,16 @@ export class DefenseSystem {
         usesTargetLock: boolean,
         lockedTarget: Troop | null,
         findNearestTarget: () => Troop | null,
-        isTargetInRange: (troop: Troop | null | undefined) => troop is Troop
+        isTargetInRange: (troop: Troop | null | undefined) => troop is Troop,
+        troops: readonly Troop[]
     ): void {
         if (defense.teslaCharging && defense.teslaChargeStart) {
             const target = defense.teslaChargeTarget;
-            if (!isTargetInRange(target)) {
+            // The stored reference must still be a live member of the scene
+            // roster: replay frame-sync removes troops without zeroing their
+            // health, and a stale object would otherwise take the discharge.
+            const isSceneMember = !!target && troops.includes(target);
+            if (!isSceneMember || !isTargetInRange(target)) {
                 defense.teslaCharging = false;
                 defense.teslaChargeTarget = undefined;
                 if (usesTargetLock) defense.lockedTargetId = undefined;

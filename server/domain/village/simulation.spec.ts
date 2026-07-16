@@ -43,6 +43,78 @@ function advanceFrequently(
 
 const tenMinutes = 10 * 60_000
 
+// The server-authored one-second interval stays pending through +999ms and
+// atomically clears every timer field at the exact +1000ms boundary.
+{
+  const startedAt = 20_000
+  const state = village([{
+    id: 'clocked-cannon', type: 'cannon', gridX: 0, gridY: 0, level: 1,
+    upgradingTo: 2, upgradeStartedAt: startedAt, upgradeEndsAt: startedAt + 1_000
+  }], { lastAccrualAt: startedAt })
+  advanceVillage(state, startedAt + 999)
+  assert.equal(state.buildings[0].level, 1)
+  assert.equal(state.buildings[0].upgradingTo, 2)
+  assert.equal(state.buildings[0].upgradeStartedAt, startedAt)
+  assert.equal(state.buildings[0].upgradeEndsAt, startedAt + 1_000)
+  advanceVillage(state, startedAt + 1_000)
+  assert.equal(state.buildings[0].level, 2)
+  assert.equal(state.buildings[0].upgradingTo, undefined)
+  assert.equal(state.buildings[0].upgradeStartedAt, undefined)
+  assert.equal(state.buildings[0].upgradeEndsAt, undefined)
+}
+
+// Pre-start-stamp saves still materialize normally.
+{
+  const legacy = village([{
+    id: 'legacy-clock', type: 'cannon', gridX: 0, gridY: 0, level: 1,
+    upgradingTo: 2, upgradeEndsAt: 1_000
+  }])
+  advanceVillage(legacy, 1_000)
+  assert.equal(legacy.buildings[0].level, 2)
+  assert.equal(legacy.buildings[0].upgradeStartedAt, undefined)
+}
+
+// Storage capacity stops normal production but never destroys a stock that a
+// local debug grant intentionally pushed above the cap.
+{
+  const state = village([
+    { id: 'hall', type: 'town_hall', gridX: 0, gridY: 0, level: 1 },
+    { id: 'mine', type: 'mine', gridX: 3, gridY: 0, level: 1 },
+    { id: 'farm', type: 'farm', gridX: 6, gridY: 0, level: 1 }
+  ], {
+    ore: 10_025,
+    food: 10_050,
+    productionRemainders: { ore: 0.75, food: 0.5 }
+  })
+  const result = advanceVillage(state, 60_000, { populationLocked: true, preserveOverCapacity: true })
+  assert.equal(state.ore, 10_025)
+  assert.equal(state.food, 10_050)
+  assert.equal(result.produced.ore, 0)
+  assert.equal(result.produced.food, 0)
+  assert.deepEqual(state.productionRemainders, { ore: 0, food: 0 })
+}
+
+// Production mode retains the original storage contract: an invalid or
+// capacity-reduced overage is normalized back to the current cap.
+{
+  const state = village([
+    { id: 'hall', type: 'town_hall', gridX: 0, gridY: 0, level: 1 }
+  ], { ore: 10_025, food: 10_050 })
+  advanceVillage(state, 60_000, { populationLocked: true })
+  assert.equal(state.ore, 150)
+  assert.equal(state.food, 200)
+}
+
+// The ordinary path still fills only to the actual storage ceiling.
+{
+  const state = village([
+    { id: 'hall', type: 'town_hall', gridX: 0, gridY: 0, level: 1 },
+    { id: 'mine', type: 'mine', gridX: 3, gridY: 0, level: 1 }
+  ], { ore: 149 })
+  advanceVillage(state, 60_000, { populationLocked: true })
+  assert.equal(state.ore, 150)
+}
+
 // Population growth changes staffing. Poll cadence must not change output.
 {
   const initial = village([

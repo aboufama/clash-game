@@ -1,9 +1,11 @@
 // Wall layering test: ring, staircase, cross, T-junctions at L1 and L4.
 import puppeteer from 'puppeteer-core'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5173'
 const OUT = new URL('./shots/', import.meta.url).pathname
+const VECTOR = process.env.VECTOR === '1'
+const TAG = process.env.TAG ?? (VECTOR ? 'vector' : 'sprite')
 mkdirSync(OUT, { recursive: true })
 
 const walls = []
@@ -49,10 +51,14 @@ async function api(path, body, token) {
   return res.json()
 }
 
-const session = await api('/auth/session')
-const world = session.world
-world.buildings = SHOWCASE.map(([type, level, gridX, gridY], i) => ({ id: `w_${i}`, type, gridX, gridY, level }))
-await api('/world/save', { world, requestId: 'walltest' }, session.token)
+// Reuse the shared art-preview identity instead of minting one guest per run.
+const TOKEN_CACHE = new URL('./.shared-device-token.json', import.meta.url).pathname
+let cachedToken = null
+try { cachedToken = JSON.parse(readFileSync(TOKEN_CACHE, 'utf8')).token ?? null } catch { /* no cache yet */ }
+const session = await api('/auth/session', cachedToken ? { token: cachedToken } : {})
+if (!session?.token) throw new Error(`auth/session failed: ${JSON.stringify(session)}`)
+const token = session.token
+try { writeFileSync(TOKEN_CACHE, JSON.stringify({ token })) } catch { /* non-fatal */ }
 
 const browser = await puppeteer.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -62,9 +68,27 @@ const browser = await puppeteer.launch({
 try {
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 900 })
-  await page.evaluateOnNewDocument(tok => localStorage.setItem('clash.device.token', tok), session.token)
-  await page.goto(`${BASE}/game`, { waitUntil: 'networkidle2', timeout: 30000 })
-  await page.waitForFunction(() => window.__clashGame?.scene?.keys?.MainScene?.buildings?.length > 20, { timeout: 45000, polling: 500 })
+  await page.evaluateOnNewDocument((tok, vector) => {
+    localStorage.setItem('clash.device.token', tok)
+    if (vector) localStorage.setItem('clash.sprites.off', '1')
+    else localStorage.removeItem('clash.sprites.off')
+  }, token, VECTOR)
+  const errors = []
+  page.on('pageerror', error => errors.push(String(error.message)))
+  await page.goto(`${BASE}/game`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+  await page.waitForFunction(() => window.__clashGame?.scene?.keys?.MainScene?.buildings?.length > 0, { timeout: 45000, polling: 500 })
+  await page.evaluate(showcase => {
+    window.__clashGame.scene.keys.MainScene.applyWorldToScene({
+      id: 'wall-preview', ownerId: 'wall-preview', username: 'WALL PREVIEW',
+      buildings: showcase.map(([type, level, gridX, gridY], i) => ({ id: `w_${i}`, type, gridX, gridY, level })),
+      obstacles: [], resources: { gold: 0, ore: 0, food: 0 }, lastSaveTime: Date.now()
+    })
+  }, SHOWCASE)
+  await page.waitForFunction(
+    expected => window.__clashGame?.scene?.keys?.MainScene?.buildings?.length === expected,
+    { timeout: 45000, polling: 250 },
+    SHOWCASE.length
+  )
   await new Promise(r => setTimeout(r, 1500))
 
   const spots = [
@@ -79,8 +103,9 @@ try {
       scene.cameras.main.centerOn((gx - gy) * 32, (gx + gy) * 16 - 10)
     }, { gx, gy, zoom })
     await new Promise(r => setTimeout(r, 250))
-    await page.screenshot({ path: `${OUT}wall-${name}.png`, clip: { x: 340, y: 150, width: 600, height: 600 } })
+    await page.screenshot({ path: `${OUT}wall-${name}-${TAG}.png`, clip: { x: 340, y: 150, width: 600, height: 600 } })
   }
+  if (errors.length) throw new Error(`page errors: ${JSON.stringify(errors)}`)
   console.log('wall shots done')
 } finally {
   await browser.close()

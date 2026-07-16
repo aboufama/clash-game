@@ -1,0 +1,100 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "traveller_woodcutter",
+  "variants": {
+    "c": {
+      "states": {
+        "walk": {
+          "loopMs": 393,
+          "frames": [
+            {
+              "file": "traveller_woodcutter_c_walk0.png",
+              "texelW": 12,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4660493827160491,
+              "originY": 0.8860398860398858
+            },
+            {
+              "file": "traveller_woodcutter_c_walk1.png",
+              "texelW": 12,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4660493827160491,
+              "originY": 0.8860398860398858
+            },
+            {
+              "file": "traveller_woodcutter_c_walk2.png",
+              "texelW": 12,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4660493827160491,
+              "originY": 0.8860398860398858
+            },
+            {
+              "file": "traveller_woodcutter_c_walk3.png",
+              "texelW": 12,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4660493827160491,
+              "originY": 0.8860398860398858
+            },
+            {
+              "file": "traveller_woodcutter_c_walk4.png",
+              "texelW": 12,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4660493827160491,
+              "originY": 0.8860398860398858
+            },
+            {
+              "file": "traveller_woodcutter_c_walk5.png",
+              "texelW": 12,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.4660493827160491,
+              "originY": 0.8860398860398858
+            }
+          ]
+        },
+        "camp": {
+          "loopMs": 314,
+          "frames": [
+            {
+              "file": "traveller_woodcutter_c_camp0.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_woodcutter_c_camp1.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_woodcutter_c_camp2.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_woodcutter_c_camp3.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            }
+          ]
+        }
+      }
+    }
+  }
+}

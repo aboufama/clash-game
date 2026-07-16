@@ -27,6 +27,10 @@ export class ObstacleRenderer {
      * rendering must agree, so both use this.
      */
     static grassLookOf(id: string | undefined): { egg: number | null; variant: number } {
+        // A missing/empty id hashes to 0, and 0 % 2000 would ROLL THE
+        // GOLDEN-MUSHROOM EGG — every un-persisted patch a rare find.
+        // Guard them to the plain-grass look instead.
+        if (!id) return { egg: null, variant: 0 };
         const hash = this.hashId(id);
         const eggRoll = hash % 2000;
         if (eggRoll < 4) return { egg: eggRoll, variant: -1 };
@@ -34,11 +38,27 @@ export class ObstacleRenderer {
         return { egg: null, variant: weighted < 7 ? 0 : weighted - 6 };
     }
 
+    /**
+     * Per-type sway loop periods — exact 250 ms multiples so baked sway
+     * loops close seamlessly (bake-sprites.mjs reads this table for each
+     * type's loopMs; every sway term below is an exact harmonic of it).
+     */
+    static readonly SWAY_MS: Record<string, number> = {
+        tree_oak: 5000,
+        tree_pine: 4500,
+        grass_patch: 3000
+    };
+
     static drawObstacle(graphics: Phaser.GameObjects.Graphics, obstacle: { type: ObstacleType, gridX: number, gridY: number, animOffset: number, id?: string }, time: number = 0) {
         const info = OBSTACLES[obstacle.type];
         if (!info) return; // unknown type must never crash the draw loop
         const center = IsoUtils.cartToIso(obstacle.gridX + info.width / 2, obstacle.gridY + info.height / 2);
         const hash = this.hashId(obstacle.id);
+        // Real per-obstacle desync: a millisecond phase offset derived from
+        // the persisted id hash. (The legacy animOffset field mixed radians
+        // and ms semantics across callers and shifted a multi-second sway by
+        // at most ~6 ms — obstacles were never actually desynced.)
+        const t = time + hash % (ObstacleRenderer.SWAY_MS[obstacle.type] ?? 1);
 
         graphics.clear();
 
@@ -50,13 +70,13 @@ export class ObstacleRenderer {
                 this.drawLargeRock(graphics, center);
                 break;
             case 'tree_oak':
-                this.drawOakTree(graphics, center, time + obstacle.animOffset, hash);
+                this.drawOakTree(graphics, center, t, hash);
                 break;
             case 'tree_pine':
-                this.drawPineTree(graphics, center, time + obstacle.animOffset, hash);
+                this.drawPineTree(graphics, center, t, hash);
                 break;
             case 'grass_patch':
-                this.drawGrassPatch(graphics, center, time + obstacle.animOffset, hash);
+                this.drawGrassPatch(graphics, center, t, hash);
                 break;
         }
     }
@@ -198,7 +218,7 @@ export class ObstacleRenderer {
     private static drawOakTree(graphics: Phaser.GameObjects.Graphics, center: Phaser.Math.Vector2, time: number, hash: number = 0) {
         const x = center.x;
         const y = center.y;
-        const sway = Math.sin(time / 800) * 2;
+        const sway = Math.sin(time * (Math.PI * 2) / ObstacleRenderer.SWAY_MS.tree_oak) * 2;
 
         // Shadow
         graphics.fillStyle(0x333333, 0.3);
@@ -241,7 +261,7 @@ export class ObstacleRenderer {
     private static drawPineTree(graphics: Phaser.GameObjects.Graphics, center: Phaser.Math.Vector2, time: number, hash: number = 0) {
         const x = center.x;
         const y = center.y;
-        const sway = Math.sin(time / 700) * 1.5;
+        const sway = Math.sin(time * (Math.PI * 2) / ObstacleRenderer.SWAY_MS.tree_pine) * 1.5;
 
         // Shadow
         graphics.fillStyle(0x333333, 0.3);
@@ -290,16 +310,21 @@ export class ObstacleRenderer {
         const y = center.y;
 
         const eggRoll = hash % 2000;
-        const isEgg = eggRoll < 4;
+        // hash === 0 means "no persisted id" (hashId's guard) — same rule as
+        // grassLookOf: an un-persisted patch never wins an easter egg.
+        const isEgg = hash !== 0 && eggRoll < 4;
         const weighted = hash % 12;
         const variant = isEgg ? -1 : (weighted < 7 ? 0 : weighted - 6);
+        // All grass-patch sway terms are exact harmonics of the shared
+        // 3000 ms loop, so the baked sway closes for every variant and egg.
+        const gw = (Math.PI * 2) / ObstacleRenderer.SWAY_MS.grass_patch;
 
         // Base grass blades (sparser when props share the patch)
         const bladeCount = variant === 0 ? 8 : 5;
         for (let i = 0; i < bladeCount; i++) {
             const bx = x + (i - bladeCount / 2) * (32 / bladeCount) + Math.sin(i * 2 + hash) * 3;
             const by = y + Math.cos(i * 3) * 4;
-            const sway = Math.sin(time / 500 + i * 0.5) * 2;
+            const sway = Math.sin(time * gw + i * 0.5) * 2;
             const height = (variant === 2 ? 15 : 10) + Math.sin(i * 1.5) * 4;
 
             const grassColor = i % 2 === 0 ? 0x4a8a4a : 0x5a9a5a;
@@ -324,7 +349,7 @@ export class ObstacleRenderer {
                 for (let i = 0; i < 3; i++) {
                     const fx = x + (i - 1) * 7 + Math.sin(hash + i * 5) * 2;
                     const fy = y - 4 + Math.cos(hash + i * 3) * 3;
-                    const sway = Math.sin(time / 600 + i) * 1.2;
+                    const sway = Math.sin(time * gw + i) * 1.2;
                     graphics.lineStyle(1.2, 0x3f7a3f, 0.9);
                     graphics.lineBetween(fx, fy + 6, fx + sway, fy);
                     graphics.fillStyle(0xf5f2e8, 1);
@@ -340,7 +365,7 @@ export class ObstacleRenderer {
             case 2: { // Tall reeds with cattail heads
                 for (let i = 0; i < 3; i++) {
                     const rx = x + (i - 1) * 5;
-                    const sway = Math.sin(time / 450 + i * 0.8) * 2.5;
+                    const sway = Math.sin(time * gw + i * 0.8) * 2.5;
                     graphics.lineStyle(1.6, 0x5c8a3c, 1);
                     graphics.lineBetween(rx, y + 2, rx + sway, y - 16);
                     graphics.fillStyle(0x7a5230, 1);
@@ -378,7 +403,7 @@ export class ObstacleRenderer {
                 for (let i = 0; i < 2; i++) {
                     const fx = x + (i === 0 ? -5 : 6) + Math.sin(hash + i * 9) * 2;
                     const fy = y - 3;
-                    const sway = Math.sin(time / 550 + i * 2) * 1.4;
+                    const sway = Math.sin(time * gw + i * 2) * 1.4;
                     graphics.lineStyle(1.2, 0x3f7a3f, 0.9);
                     graphics.lineBetween(fx, fy + 7, fx + sway, fy);
                     const c = tulipColors[(hash + i) % tulipColors.length];
@@ -392,11 +417,13 @@ export class ObstacleRenderer {
         }
     }
 
-    /** The four super-rare finds. Lucky bases get one growing wild. */
+    /** The four super-rare finds. Lucky bases get one growing wild.
+     *  Every time term is an exact harmonic of the 3000 ms grass loop. */
     private static drawGrassEasterEgg(graphics: Phaser.GameObjects.Graphics, x: number, y: number, time: number, egg: number) {
+        const gw = (Math.PI * 2) / ObstacleRenderer.SWAY_MS.grass_patch;
         switch (egg) {
             case 0: { // Golden mushroom — softly pulsing glow and sparkles
-                const pulse = 0.5 + Math.sin(time / 420) * 0.3;
+                const pulse = 0.5 + Math.sin(time * gw * 2) * 0.3;
                 graphics.fillStyle(0xffd54a, 0.18 * pulse);
                 graphics.fillEllipse(x, y - 4, 22, 14);
                 graphics.fillStyle(0xf0e8d8, 1);
@@ -406,14 +433,14 @@ export class ObstacleRenderer {
                 graphics.fillStyle(0xffe98a, 1);
                 graphics.fillCircle(x - 3, y - 6.5, 1.2);
                 graphics.fillCircle(x + 2.5, y - 5, 0.9);
-                // Orbiting sparkle
-                const sa = time / 700;
+                // Orbiting sparkle (one orbit per loop)
+                const sa = time * gw;
                 graphics.fillStyle(0xfff2b8, 0.9 * pulse);
                 graphics.fillCircle(x + Math.cos(sa) * 9, y - 7 + Math.sin(sa) * 3, 1);
                 break;
             }
             case 1: { // Four-leaf clover — one big lucky charm
-                const sway = Math.sin(time / 800) * 1;
+                const sway = Math.sin(time * gw) * 1;
                 graphics.fillStyle(0x3fae4a, 0.16);
                 graphics.fillEllipse(x, y - 3, 18, 11);
                 graphics.lineStyle(1.4, 0x2f7b35, 1);
@@ -433,7 +460,7 @@ export class ObstacleRenderer {
                 const hue = (time / 3000) % 1;
                 const petal = Phaser.Display.Color.HSVToRGB(hue, 0.65, 0.95) as Phaser.Types.Display.ColorObject;
                 const petalColor = ((petal.r & 0xff) << 16) | ((petal.g & 0xff) << 8) | (petal.b & 0xff);
-                const sway = Math.sin(time / 550) * 1.6;
+                const sway = Math.sin(time * gw) * 1.6;
                 graphics.fillStyle(petalColor, 0.14);
                 graphics.fillEllipse(x, y - 6, 18, 12);
                 graphics.lineStyle(1.5, 0x3f7a3f, 1);
@@ -446,7 +473,7 @@ export class ObstacleRenderer {
                 break;
             }
             default: { // Tiny garden gnome standing in the grass
-                const bob = Math.sin(time / 900) * 0.6;
+                const bob = Math.sin(time * gw) * 0.6;
                 // Body
                 graphics.fillStyle(0x3a5a9c, 1);
                 graphics.fillEllipse(x, y - 2 + bob, 6, 6.5);

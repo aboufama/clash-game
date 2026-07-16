@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { BUILDING_DEFINITIONS, getBuildingStats, getTroopStats } from '../../src/game/config/GameDefinitions'
 import type { BuildingType } from '../../src/game/config/GameDefinitions'
+import { defenseDps } from '../../src/game/systems/DefenseBehaviorCatalog'
 import type {
   AbilityUsedEvent,
   AttackAggregate,
@@ -81,16 +82,58 @@ function attackCountInWindow(
   return Math.max(0, lastIndex - firstIndex + 1)
 }
 
+/**
+ * Rules v3+: sustained damage-per-second of the snapshot's standing defenses,
+ * using the ONE shared fire-model derivation (DefenseBehaviorCatalog). Walls
+ * and non-firing structures contribute nothing.
+ */
+function snapshotDefenseDps(attack: AttackAggregate): number {
+  let total = 0
+  for (const building of attack.snapshot.buildings) {
+    if (BUILDING_DEFINITIONS[building.type].category !== 'defense') continue
+    const dps = defenseDps(building.type, getBuildingStats(building.type, building.level))
+    if (dps && dps > 0) total += dps
+  }
+  return total
+}
+
+/**
+ * Rules v3+ attrition: how long a deployed troop is expected to survive under
+ * the snapshot's defenses before it stops earning damage credit. Defensive
+ * fire is spread across the whole deployed army (defenses pick one target at
+ * a time), and a seed-derived spread of 0.8–1.2 keeps identical troops from
+ * sharing one expiry tick. Pure function of the snapshot, the recorded deploy
+ * events and the simulation seed — never of any new client input. Earlier
+ * rules versions keep the full credit window so recorded replays and
+ * settlements reproduce byte-identically.
+ */
+function attritionLifetimeMs(
+  attack: AttackAggregate,
+  deploy: TroopDeployedEvent,
+  totalDefenseDps: number,
+  deployedCount: number
+): number {
+  if (attack.rules.simulationVersion < 3 || totalDefenseDps <= 0) return attack.rules.maxDamageCreditMs
+  const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
+  const hitPoints = Math.max(1, Math.floor(stats.health))
+  const perTroopDps = totalDefenseDps / Math.max(1, deployedCount)
+  const jitterHex = deterministicScore(attack.simulationSeed, `attrition:${deploy.troopInstanceId}`).slice(0, 8)
+  const jitter = 0.8 + 0.4 * (Number.parseInt(jitterHex, 16) / 0xffffffff)
+  const lifetime = Math.round(hitPoints * 1_000 * jitter / perTroopDps)
+  return Math.min(attack.rules.maxDamageCreditMs, Math.max(1_000, lifetime))
+}
+
 function troopDamage(
   attack: AttackAggregate,
   deploy: TroopDeployedEvent,
   durationMs: number,
-  boosts: AbilityUsedEvent[]
+  boosts: AbilityUsedEvent[],
+  lifetimeMs: number
 ): number {
   const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
   const delay = Math.max(150, Math.floor(stats.attackDelay ?? 1_000))
   const firstDelay = Math.max(0, Math.floor(stats.firstAttackDelay ?? 0))
-  const creditEnd = Math.min(durationMs, deploy.atMs + attack.rules.maxDamageCreditMs)
+  const creditEnd = Math.min(durationMs, deploy.atMs + Math.min(attack.rules.maxDamageCreditMs, lifetimeMs))
   const activeMs = Math.max(0, creditEnd - deploy.atMs)
   const strikes = attackCount(activeMs, firstDelay, delay)
   if (strikes <= 0) return 0
@@ -161,6 +204,8 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
     return { id: building.id, type: building.type, maxHitPoints: hp, remainingHitPoints: hp }
   })
   const boosts = attack.events.filter((event): event is AbilityUsedEvent => event.type === 'ABILITY_USED' && event.effect.kind === 'DAMAGE_BOOST')
+  const totalDefenseDps = snapshotDefenseDps(attack)
+  const deployedCount = attack.events.filter(event => event.type === 'TROOP_DEPLOYED').length
   const actions: DamageAction[] = []
 
   for (const event of attack.events) {
@@ -168,7 +213,7 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
       actions.push({
         atMs: event.atMs,
         eventIndex: event.eventIndex,
-        damage: troopDamage(attack, event, durationMs, boosts),
+        damage: troopDamage(attack, event, durationMs, boosts, attritionLifetimeMs(attack, event, totalDefenseDps, deployedCount)),
         troop: event
       })
     } else if (event.type === 'ABILITY_USED' && event.effect.kind === 'DIRECT_DAMAGE') {
@@ -212,6 +257,9 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   // Version 1 counted only completely destroyed structures. Keep that branch
   // forever so an in-flight/imported replay is reproducible after upgrades.
   // Version 2 scores partial structural damage by HP, avoiding count cliffs.
+  // Version 3 keeps the v2 scoring but caps each troop's damage-credit window
+  // by its deterministic expected survival time (see attritionLifetimeMs), so
+  // an army that gets wiped in seconds no longer banks the full credit window.
   const destruction = attack.rules.simulationVersion <= 1
     ? (scoring.length > 0
         ? Math.min(100, Math.round(scoring.filter(state => state.remainingHitPoints <= 0).length * 100 / scoring.length))

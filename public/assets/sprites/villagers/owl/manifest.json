@@ -1,0 +1,63 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "owl",
+  "variants": {
+    "c": {
+      "states": {
+        "fly": {
+          "loopMs": 314,
+          "frames": [
+            {
+              "file": "owl_c_fly0.png",
+              "texelW": 14,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.48941798941798936,
+              "originY": 0.4814814814814814
+            },
+            {
+              "file": "owl_c_fly1.png",
+              "texelW": 14,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.48941798941798936,
+              "originY": 0.4814814814814814
+            },
+            {
+              "file": "owl_c_fly2.png",
+              "texelW": 14,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.48941798941798936,
+              "originY": 0.4814814814814814
+            },
+            {
+              "file": "owl_c_fly3.png",
+              "texelW": 14,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.48941798941798936,
+              "originY": 0.4814814814814814
+            },
+            {
+              "file": "owl_c_fly4.png",
+              "texelW": 14,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.48941798941798936,
+              "originY": 0.4814814814814814
+            },
+            {
+              "file": "owl_c_fly5.png",
+              "texelW": 14,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.48941798941798936,
+              "originY": 0.4814814814814814
+            }
+          ]
+        }
+      }
+    }
+  }
+}

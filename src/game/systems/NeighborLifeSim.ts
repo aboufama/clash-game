@@ -4,7 +4,9 @@ import { hashString } from '../config/Economy';
 import type { VillageLifeManifest } from '../data/Models';
 import { PathfindingSystem } from './PathfindingSystem';
 import { IsoUtils } from '../utils/IsoUtils';
+import { SpriteBank } from '../render/SpriteBank';
 import {
+    FARMABLE,
     VillageLifeSystem,
     VILLAGER_PALETTES,
     type LifeRole
@@ -131,7 +133,8 @@ export class NeighborLifeSim {
         offY: number,
         fallbackIdentity: string,
         baseDepth: number,
-        manifest?: VillageLifeManifest
+        manifest?: VillageLifeManifest,
+        obstacles?: ReadonlyArray<{ type?: string }>
     ) {
         this.removeVillage(key);
         const buildings: SimBuilding[] = [];
@@ -169,10 +172,15 @@ export class NeighborLifeSim {
 
         // Match the live VillageLifeSystem's stable role ordering so resident
         // #N has the same work and visual identity at home and in a postcard.
+        // The farmer slot exists for farmable OBSTACLES too (the live sim
+        // tends wild greenery when there is no farm) — without that clause a
+        // farm-less village's whole roster shifted one role between its live
+        // scout view and its postcard.
         const roles: LifeRole[] = [];
         if (targets.some(b => BUILDING_DEFINITIONS[b.type as BuildingType]?.category === 'defense')) roles.push('builder');
         if (targets.some(b => b.type === 'mine')) roles.push('miner');
-        if (targets.some(b => b.type === 'farm')) roles.push('farmer');
+        if (targets.some(b => b.type === 'farm')
+            || (obstacles ?? []).some(o => FARMABLE.has(String(o?.type)))) roles.push('farmer');
         while (roles.length < population) roles.push('peasant');
 
         // The youngest server-recorded births occupy the tail slots, exactly
@@ -273,7 +281,12 @@ export class NeighborLifeSim {
         // immediately in that case instead of waiting for the old deadline.
         if (!becameVisible && sampleAt >= sim.lastDrawAt && sampleAt < sim.nextDrawAt) return;
         sim.lastDrawAt = sampleAt;
-        sim.nextDrawAt = sampleAt + 1000 / Math.max(0.5, hz);
+        // Deadlines land ON the hz grid in absolute wall time. Accumulating
+        // `sampleAt + step` instead compounds the caller's frame rounding —
+        // ticks offered every ~16.7 ms would redraw only every 3rd frame
+        // (~20 Hz) when the near-ring LOD asks for the 24 Hz figure clock.
+        const step = 1000 / Math.max(0.5, hz);
+        sim.nextDrawAt = (Math.floor(sampleAt / step) + 1) * step;
 
         for (const entity of sim.entities) {
             const sample = this.sample(entity, sampleAt);
@@ -283,11 +296,37 @@ export class NeighborLifeSim {
 
     private sample(entity: SimEntity, time: number): RouteSample {
         if (entity.routeLength <= 0) return sampleRoute(entity.route, entity.routeLength, 0);
-        const child = entity.bornAt !== undefined && time < entity.bornAt + CHILD_AGE_MS;
+        const matureAt = entity.bornAt !== undefined ? entity.bornAt + CHILD_AGE_MS : undefined;
+        const child = matureAt !== undefined && time < matureAt;
         const speed = entity.speed * (child ? 1.35 : 1);
         const travelMs = entity.routeLength / speed;
         const period = entity.dwellStartMs + travelMs + entity.dwellEndMs + travelMs;
-        let phase = positiveModulo(time + entity.phaseOffsetMs, period);
+        let phase: number;
+        if (matureAt !== undefined && !child && time >= matureAt) {
+            // The child's quicker gait had a shorter cycle; switching period
+            // at maturity would jump `time mod period` — a one-time teleport
+            // along the route. Anchor the adult cycle at the maturation
+            // instant, mapping the child's segment position (dwell fraction /
+            // route distance) into the adult cycle so the walk is continuous.
+            const childSpeed = entity.speed * 1.35;
+            const childTravel = entity.routeLength / childSpeed;
+            const childPeriod = entity.dwellStartMs + childTravel + entity.dwellEndMs + childTravel;
+            const pc = positiveModulo(matureAt + entity.phaseOffsetMs, childPeriod);
+            let anchor: number;
+            if (pc < entity.dwellStartMs) {
+                anchor = pc;
+            } else if (pc < entity.dwellStartMs + childTravel) {
+                anchor = entity.dwellStartMs + ((pc - entity.dwellStartMs) / childTravel) * travelMs;
+            } else if (pc < entity.dwellStartMs + childTravel + entity.dwellEndMs) {
+                anchor = entity.dwellStartMs + travelMs + (pc - entity.dwellStartMs - childTravel);
+            } else {
+                anchor = entity.dwellStartMs + travelMs + entity.dwellEndMs
+                    + ((pc - entity.dwellStartMs - childTravel - entity.dwellEndMs) / childTravel) * travelMs;
+            }
+            phase = positiveModulo(anchor + (time - matureAt), period);
+        } else {
+            phase = positiveModulo(time + entity.phaseOffsetMs, period);
+        }
         if (phase < entity.dwellStartMs) {
             return { ...sampleRoute(entity.route, entity.routeLength, 0), moving: false };
         }
@@ -348,7 +387,9 @@ export class NeighborLifeSim {
         // Match the home village's night routine: one lantern watch remains
         // outside while the rest are indoors. Population stays authoritative;
         // sleeping residents are hidden, not deleted or downsampled.
-        const show = (nightFactor <= 0.55 || entity.watch)
+        // 0.6 matches the home village's bedtime threshold (MainScene gates
+        // setNightMode on nightFactor() > 0.6) so neighbours turn in with you.
+        const show = (nightFactor <= 0.6 || entity.watch)
             && !this.occluded(sim, sample.x, sample.y);
         entity.gfx.setVisible(show);
         if (!show) return;
@@ -360,6 +401,15 @@ export class NeighborLifeSim {
         const phase = positiveModulo(time + entity.animOffset, 460) / 460;
         entity.gfx.clear();
         entity.gfx.setScale(sample.facing === -1 ? -scale : scale, scale);
+        // Baked-sprite path — same variant/state model as the home village.
+        const lantern = entity.watch && nightFactor > 0.6;
+        const variant = `p${entity.palette}s${entity.style}_${child ? 'child' : entity.elder ? 'elder' : entity.role}`;
+        const state = lantern ? (sample.moving ? 'lantern_walk' : 'lantern_idle')
+            : sample.moving ? 'walk' : 'idle';
+        if (SpriteBank.syncFigure(this.scene, entity.gfx, 'villager', variant, state, phase, sample.facing === -1)) {
+            return;
+        }
+        SpriteBank.release(entity.gfx);
         VillageLifeSystem.drawVillager(
             entity.gfx,
             VILLAGER_PALETTES[entity.palette],
@@ -373,7 +423,7 @@ export class NeighborLifeSim {
             0,
             entity.elder,
             false,
-            entity.watch && nightFactor > 0.55,
+            lantern,
             undefined,
             undefined,
             child

@@ -30,7 +30,7 @@ export function useWorldAnchor(
     const flipY = opts.flipBelowY;
     useEffect(() => {
         if (wx === undefined || wy === undefined) return;
-        return onCameraFrame(cam => {
+        const unsubscribe = onCameraFrame(cam => {
             const el = ref.current;
             if (!el) return;
             const wv = cam.worldView;
@@ -69,6 +69,20 @@ export function useWorldAnchor(
             }
             el.style.transform = `translate(-50%, ${below ? '0' : '-100%'}) translate(${Math.round(sx)}px, ${Math.round(sy)}px)`;
         });
+        return () => {
+            unsubscribe();
+            // The inline transform (and flip state) must not outlive the
+            // anchor: an element that switches anchored → centered would
+            // otherwise keep the stale transform, which beats its class
+            // rule (e.g. .plot-bubble.centered). Harmless mid-switch —
+            // onCameraFrame repositions a re-anchored element immediately.
+            const el = ref.current;
+            if (el) {
+                el.style.transform = '';
+                delete el.dataset.waSide;
+                el.classList.remove('below');
+            }
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [wx, wy, flipY]);
 }

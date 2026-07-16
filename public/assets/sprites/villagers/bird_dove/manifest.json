@@ -1,0 +1,63 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "bird_dove",
+  "variants": {
+    "c": {
+      "states": {
+        "fly": {
+          "loopMs": 320,
+          "frames": [
+            {
+              "file": "bird_dove_c_fly0.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.6296296296296292
+            },
+            {
+              "file": "bird_dove_c_fly1.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.6296296296296292
+            },
+            {
+              "file": "bird_dove_c_fly2.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.6296296296296292
+            },
+            {
+              "file": "bird_dove_c_fly3.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.6296296296296292
+            },
+            {
+              "file": "bird_dove_c_fly4.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.6296296296296292
+            },
+            {
+              "file": "bird_dove_c_fly5.png",
+              "texelW": 6,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.6296296296296292
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { merchantOffersFor, worldDayIndex } from '../../src/game/config/Economy'
+import { merchantOffersFor, placementCharge, upgradeCharge, worldDayIndex } from '../../src/game/config/Economy'
 import { engageAttack, prepareAttack } from '../attack-domain/domain'
 import { combatSnapshotHash } from '../attack-domain/simulation'
 import type { CombatVillageSnapshot } from '../attack-domain/types'
@@ -270,7 +270,9 @@ test('MemoryPersistence serves the async core routes without global scans or che
     attacks: attackStub(authorized, () => { authorizationQueries += 1 }),
     now: () => new Date(now),
     starterShieldMs: 0,
-    allowDebugGrants: true
+    allowDebugGrants: true,
+    infiniteResources: false,
+    fixedUpgradeDurationMs: 1_000
   })
   const handle = createApiHandler(service)
   const call = async (
@@ -347,14 +349,28 @@ test('MemoryPersistence serves the async core routes without global scans or che
     body: { resource: 'ore', delta: 1_000, reason: 'debug_grant', requestId: 'ore-cap' }
   })
   assert.equal(oreGrant.status, 200)
-  assert.equal(record(oreGrant.body).ore, 150)
+  assert.equal(record(oreGrant.body).ore, 1_025)
+  const foodGrant = await call('POST', '/resources/apply', {
+    token,
+    body: { resource: 'food', delta: 1_000, reason: 'debug_grant', requestId: 'food-over-cap' }
+  })
+  assert.equal(foodGrant.status, 200)
+  assert.equal(record(foodGrant.body).ore, 1_025, 'the following request does not collapse over-cap ore')
+  assert.equal(record(foodGrant.body).food, 1_050)
+  now = new Date(now.getTime() + 1_000)
+  const durableDebugWorld = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
+  assert.equal(durableDebugWorld.resources.ore, 1_025)
+  assert.equal(durableDebugWorld.resources.food, 1_050)
   await persistence.base.transaction(async tx => {
     assert.equal(await tx.balanceLedger.sumSince(
       session.player.id,
       'resources:debug_grant',
       'ore',
       new Date('2026-07-11T00:00:00.000Z')
-    ), 125, 'ledger records the clamped delta, not the requested 1000')
+    ), 1_000, 'the ledger records the full over-cap debug grant')
+    const village = await tx.villages.get(session.player.id)
+    assert.equal(village?.ore, 1_025)
+    assert.equal(village?.food, 1_050)
   })
   const oreReplay = await call('POST', '/resources/apply', {
     token,
@@ -369,7 +385,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
 
   const merchantOffer = merchantOffersFor(session.player.id, worldDayIndex(now.getTime()))
     .find(offer => offer.id === 1)!
-  const goldBeforeMerchant = Number(record(oreGrant.body).gold)
+  const goldBeforeMerchant = durableDebugWorld.resources.gold
   const merchant = await call('POST', '/merchant/trade', {
     token,
     body: { offerId: 1, requestId: 'merchant-one' }
@@ -401,6 +417,52 @@ test('MemoryPersistence serves the async core routes without global scans or che
     }
   })
   assert.equal(watchtowerSave.status, 200)
+  const builtWorld = record(watchtowerSave.body).world as SessionResponse['world']
+  const placementOre = placementCharge('watchtower', 1).ore
+  assert.equal(builtWorld.resources.ore, (beforeBuild.resources.ore ?? 0) - placementOre)
+  assert.ok(
+    (builtWorld.resources.ore ?? 0) > (builtWorld.storage?.ore ?? Number.MAX_SAFE_INTEGER),
+    'layout spending preserves the remaining debug overflow'
+  )
+
+  const upgradeStartedAt = now.getTime()
+  const watchtowerUpgrade = await call('POST', '/world/save', {
+    token,
+    body: {
+      world: {
+        ...builtWorld,
+        buildings: builtWorld.buildings.map(building => (
+          building.id === 'runtime-watchtower' ? { ...building, level: 2 } : building
+        ))
+      },
+      requestId: 'upgrade-watchtower'
+    }
+  })
+  assert.equal(watchtowerUpgrade.status, 200)
+  const pendingWorld = record(watchtowerUpgrade.body).world as SessionResponse['world']
+  const pendingWatchtower = pendingWorld.buildings.find(building => building.id === 'runtime-watchtower')
+  assert.equal(pendingWatchtower?.level, 1)
+  assert.equal(pendingWatchtower?.upgradingTo, 2)
+  assert.equal(pendingWatchtower?.upgradeStartedAt, upgradeStartedAt)
+  assert.equal(pendingWatchtower?.upgradeEndsAt, upgradeStartedAt + 1_000)
+  assert.equal(
+    pendingWorld.resources.ore,
+    builtWorld.resources.ore - upgradeCharge('watchtower', 1, 2).ore
+  )
+
+  now = new Date(upgradeStartedAt + 999)
+  const almostDone = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
+  const almostDoneWatchtower = almostDone.buildings.find(building => building.id === 'runtime-watchtower')
+  assert.equal(almostDoneWatchtower?.upgradingTo, 2)
+  assert.equal(almostDoneWatchtower?.upgradeStartedAt, upgradeStartedAt)
+  assert.equal(almostDoneWatchtower?.upgradeEndsAt, upgradeStartedAt + 1_000)
+  now = new Date(upgradeStartedAt + 1_000)
+  const upgradeDone = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
+  const upgradeDoneWatchtower = upgradeDone.buildings.find(building => building.id === 'runtime-watchtower')
+  assert.equal(upgradeDoneWatchtower?.level, 2)
+  assert.equal(upgradeDoneWatchtower?.upgradingTo, undefined)
+  assert.equal(upgradeDoneWatchtower?.upgradeStartedAt, undefined)
+  assert.equal(upgradeDoneWatchtower?.upgradeEndsAt, undefined)
 
   const trained = await call('POST', '/army/train', {
     token,
@@ -534,6 +596,179 @@ test('MemoryPersistence serves the async core routes without global scans or che
   await service.close()
 })
 
+test('explicit infinite resources waive every player spend without weakening game rules', async () => {
+  const persistence = new MemoryPersistence()
+  const now = new Date('2026-07-14T12:00:00.000Z')
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    allowDebugGrants: false,
+    infiniteResources: true
+  })
+
+  const session = await service.ensureSession('', 'runtime-infinite')
+  const principal: RuntimePrincipal = { playerId: session.player.id }
+  const initial = { ...session.world.resources }
+  assert.equal(session.features.infiniteResources, true)
+  assert.deepEqual(initial, { gold: 1_000, ore: 25, food: 50 })
+
+  const freeSpend = record(await service.applyResources(principal, {
+    resource: 'gold',
+    delta: -999_999,
+    requestId: 'infinite-negative'
+  }))
+  assert.deepEqual(
+    { gold: freeSpend.gold, ore: freeSpend.ore, food: freeSpend.food },
+    initial,
+    'an otherwise-impossible direct spend is accepted without debiting a finite stored balance'
+  )
+  assert.deepEqual(await service.applyResources(principal, {
+    resource: 'gold',
+    delta: -999_999,
+    requestId: 'infinite-negative'
+  }), freeSpend, 'the waived spend remains idempotent')
+
+  const beforePlacement = await service.getWorld(principal)
+  const placed = await service.saveWorld(principal, {
+    world: {
+      ...beforePlacement,
+      buildings: [
+        ...beforePlacement.buildings,
+        { id: 'infinite-storage', type: 'storage', gridX: 2, gridY: 18, level: 1 }
+      ]
+    },
+    requestId: 'infinite-place-storage'
+  })
+  assert(placed.buildings.some(building => building.id === 'infinite-storage'))
+  assert.deepEqual(
+    placed.resources,
+    initial,
+    'a 40-ore storehouse can be placed from the starter 25 ore without charging either currency'
+  )
+
+  const upgrading = await service.saveWorld(principal, {
+    world: {
+      ...placed,
+      buildings: placed.buildings.map(building => (
+        building.id === 'infinite-storage' ? { ...building, level: 2 } : building
+      ))
+    },
+    requestId: 'infinite-upgrade-storage'
+  })
+  const pendingStorage = upgrading.buildings.find(building => building.id === 'infinite-storage')
+  assert.equal(pendingStorage?.level, 1)
+  assert.equal(pendingStorage?.upgradingTo, 2)
+  assert.deepEqual(
+    upgrading.resources,
+    initial,
+    'an otherwise-unaffordable 1000-gold/200-ore upgrade starts without a debit'
+  )
+
+  const trained = record(await service.trainTroop(principal, {
+    type: 'warrior',
+    count: 50,
+    requestId: 'infinite-train-capacity'
+  }))
+  assert.equal(record(trained.army).warrior, 50)
+  assert.deepEqual(
+    { gold: trained.gold, ore: trained.ore, food: trained.food },
+    initial,
+    'training can exceed starter gold and food without changing stored balances'
+  )
+  await assert.rejects(service.trainTroop(principal, {
+    type: 'warrior',
+    count: 1,
+    requestId: 'infinite-over-housing'
+  }), error => (
+    error instanceof ApiError && error.status === 409 && /housing/i.test(error.message)
+  ), 'infinite resources do not grant infinite army housing')
+
+  const traded = record(await service.merchantTrade(principal, {
+    offerId: 1,
+    requestId: 'infinite-merchant'
+  }))
+  assert.equal(traded.applied, true)
+  assert.deepEqual(
+    { gold: traded.gold, ore: traded.ore, food: traded.food },
+    initial,
+    'redeeming a merchant offer records its state without moving resource balances'
+  )
+  assert.deepEqual(await service.merchantTrade(principal, {
+    offerId: 1,
+    requestId: 'infinite-merchant'
+  }), traded, 'the merchant response replays idempotently')
+  await assert.rejects(service.merchantTrade(principal, {
+    offerId: 1,
+    requestId: 'infinite-merchant-second-key'
+  }), error => error instanceof ApiError && error.status === 409,
+  'the once-per-day merchant rule still applies')
+
+  await persistence.transaction(async tx => {
+    const stored = await tx.villages.get(session.player.id)
+    assert(stored)
+    assert.deepEqual(
+      { gold: stored.gold, ore: stored.ore, food: stored.food },
+      initial,
+      'infinite mode never persists a giant sentinel balance'
+    )
+  })
+  await service.close()
+})
+
+test('finite persistence mode still rejects unaffordable layouts and charges spends', async () => {
+  const now = new Date('2026-07-14T12:00:00.000Z')
+  const service = new PersistenceGameService(new MemoryPersistence(), {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    allowDebugGrants: false,
+    infiniteResources: false
+  })
+  const session = await service.ensureSession('', 'runtime-finite-control')
+  const principal: RuntimePrincipal = { playerId: session.player.id }
+  assert.equal(session.features.infiniteResources, false)
+
+  await assert.rejects(service.saveWorld(principal, {
+    world: {
+      ...session.world,
+      buildings: [
+        ...session.world.buildings,
+        { id: 'finite-storage', type: 'storage', gridX: 2, gridY: 18, level: 1 }
+      ]
+    },
+    requestId: 'finite-place-storage'
+  }), error => (
+    error instanceof ApiError
+      && error.status === 409
+      && error.code === 'INSUFFICIENT_RESOURCES'
+      && error.details?.resource === 'ore'
+  ), 'the same storehouse is rejected at the starter ore balance')
+
+  const trained = record(await service.trainTroop(principal, {
+    type: 'warrior',
+    count: 2,
+    requestId: 'finite-train-two'
+  }))
+  assert.equal(trained.gold, 950)
+  assert.equal(trained.food, 46)
+
+  const spent = record(await service.applyResources(principal, {
+    resource: 'gold',
+    delta: -10,
+    requestId: 'finite-negative'
+  }))
+  assert.equal(spent.gold, 940)
+
+  const traded = record(await service.merchantTrade(principal, {
+    offerId: 1,
+    requestId: 'finite-merchant'
+  }))
+  assert.equal(traded.applied, true)
+  assert(Number(traded.gold) < Number(spent.gold), 'finite merchant trades still debit their give-side')
+  assert(Number(traded.ore) > Number(spent.ore), 'finite merchant trades still credit their get-side')
+
+  await service.close()
+})
+
 test('preparing attacks cannot crowd an engaged defender lease out of authority reads', async () => {
   const persistence = new MemoryPersistence()
   const authority = new VillageAuthority()
@@ -575,7 +810,8 @@ test('preparing attacks cannot crowd an engaged defender lease out of authority 
 test('global economy ledger is unavailable when debug tools are disabled', async () => {
   const service = new PersistenceGameService(new MemoryPersistence(), {
     now: () => new Date('2026-07-11T12:00:00.000Z'),
-    allowDebugGrants: false
+    allowDebugGrants: false,
+    infiniteResources: false
   })
   await assert.rejects(service.economyLedger(1), error => (
     error instanceof ApiError && error.status === 403
@@ -589,7 +825,8 @@ test('device-session expiry does not tear down an otherwise-live guest lease', a
   const service = new PersistenceGameService(persistence, {
     now: () => new Date(now),
     starterShieldMs: 0,
-    sessionTtlMs: 1
+    sessionTtlMs: 1,
+    infiniteResources: false
   })
   const guest = await service.ensureSession('', 'short-device-session')
   now = new Date(now.getTime() + 2)

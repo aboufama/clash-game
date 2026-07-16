@@ -21,7 +21,7 @@ try {
   await page.goto('data:text/html,<html></html>')
 
   const index = { cellWorldPx: null, units: [] }
-  for (const kind of ['buildings', 'troops', 'wrecks', 'obstacles']) {
+  for (const kind of ['buildings', 'troops', 'wrecks', 'obstacles', 'villagers', 'figures', 'projectiles']) {
     const kindDir = join(ROOT, kind)
     if (!existsSync(kindDir)) continue
     for (const unit of readdirSync(kindDir)) {

@@ -16,6 +16,8 @@
  * localStorage and exposed for a HUD toggle.
  */
 
+import { gameManager } from '../GameManager';
+
 const MUTE_KEY = 'clash.muted';
 
 type SfxName =
@@ -62,7 +64,7 @@ export const TRACKS: Record<string, TrackDef> = {
         scale: [110.0, 116.54, 130.81, 146.83, 164.81, 174.61, 196.0, 220.0, 233.08, 261.63],
         bpm: 132, lead: 'square', echo: 0.22, restBias: 0.05,
         rare: true,
-        hint: 'It plays itself when the horns sound.'
+        hint: 'March your army to war.'
     },
     harvest_home: {
         name: 'Harvest Home',
@@ -165,6 +167,7 @@ class SoundSystem {
     setTrack(id: string | null) {
         if (id !== null && (!TRACKS[id] || !this.unlockedTracks.has(id))) return;
         this.trackOverride = id;
+        this.applyEchoColour();
     }
 
     /** While a battle runs, the drums take the bandstand from everything. */
@@ -173,6 +176,12 @@ class SoundSystem {
     setBattleMusic(on: boolean) {
         if (this.battleMusic === on) return;
         this.battleMusic = on;
+        // The drums earn their songbook page the first time the horns sound:
+        // every battle entry point funnels through here, so the rare track
+        // can't be missed and needs no other trigger.
+        if (on && this.unlockTrack('war_drums')) {
+            gameManager.showToast(`Track unlocked: ${TRACKS.war_drums.name}`);
+        }
         if (this.ctx && this.started) {
             const t = this.ctx.currentTime;
             // War silences the countryside: birdsong and wind duck hard so
@@ -180,6 +189,8 @@ class SoundSystem {
             this.ambienceBus.gain.setTargetAtTime(on ? 0.08 : 0.5, t, 0.3);
             this.musicBus.gain.setTargetAtTime(this.musicBusTarget(), t, 0.3);
             this.setRainLevel(this.lastRainLevel);
+            // The drums bring their own tight slap-back with them.
+            this.applyEchoColour(0.3);
             // The drums come in on a downbeat, not mid-phrase.
             this.beat = 0;
         }
@@ -189,6 +200,20 @@ class SoundSystem {
     private musicBusTarget(): number {
         if (this.battleMusic) return 0.17;
         return 0.12 * (1 - this.nightFactor * 0.35);
+    }
+
+    /**
+     * One authority for the echo colour: the ACTIVE track's haze, deepened a
+     * touch by night. Applied wherever the current track can change (jukebox
+     * pick, battle handover, the day/night rotation) — never per-beat.
+     */
+    private echoTarget(): number {
+        return TRACKS[this.currentTrackId()].echo + this.nightFactor * 0.16;
+    }
+
+    private applyEchoColour(smoothing = 0.8) {
+        if (!this.ctx || !this.started) return;
+        this.echoDelay.delayTime.setTargetAtTime(this.echoTarget(), this.ctx.currentTime, smoothing);
     }
 
     currentTrackId(): string {
@@ -238,7 +263,7 @@ class SoundSystem {
             const t = this.ctx.currentTime;
             this.musicBus.gain.setTargetAtTime(this.musicBusTarget(), t, 0.8);
             this.musicFilter.frequency.setTargetAtTime(5200 - this.nightFactor * 3600, t, 0.8);
-            this.echoDelay.delayTime.setTargetAtTime(0.42 + this.nightFactor * 0.16, t, 0.8);
+            this.applyEchoColour();
         }
     }
 
@@ -563,11 +588,8 @@ class SoundSystem {
             const peak = track.lead === 'sawtooth' ? 0.035 : 0.055;
             this.tone(t, freq, dur, peak, track.lead, 0.9, true);
         }
-        // The track's own echo colour.
-        if (this.echoDelay && !this.trackOverride) return;
-        if (this.echoDelay && this.trackOverride) {
-            this.echoDelay.delayTime.setTargetAtTime(track.echo, t, 1.2);
-        }
+        // The echo colour is owned by applyEchoColour(), retargeted whenever
+        // the current track changes — never re-asserted per beat.
     }
 
     /** One melodic/bass tone with envelope, optional vibrato + echo send. */

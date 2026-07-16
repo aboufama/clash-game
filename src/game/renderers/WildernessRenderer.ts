@@ -642,8 +642,23 @@ function pool(
         const point = randomWaterPoint(0.22, 0.74);
         if (!point) continue;
         const p = at(ctx, point.x, point.y);
+        // rng() call order is the plot's determinism contract — angle/length
+        // are consumed even for the anchored fish that no longer bake.
         const angle = rng() * Math.PI * 2;
         const length = 4 + rng() * 3.5;
+        if (i < 3) {
+            // The first three fish are LIFE: the postcard life layer swims
+            // them (WorldFigureRenderer.drawFish). Baking their silhouette
+            // too left a frozen ghost under every animated fish.
+            ctx.life.push({
+                kind: 'fish',
+                gx: ctx.offX + point.x,
+                gy: ctx.offY + point.y,
+                phase: rng() * Math.PI * 2,
+                scale: 0.8 + rng() * 0.6
+            });
+            continue;
+        }
         const vx = Math.cos(angle) * length;
         const vy = Math.sin(angle) * length * 0.48;
         const nx = -Math.sin(angle) * 1.8;
@@ -659,15 +674,6 @@ function pool(
             { x: p.x - vx - nx * 1.6, y: p.y - vy - ny * 1.6 },
             { x: p.x - vx + nx * 1.6, y: p.y - vy + ny * 1.6 }
         ], 0x214b56, 0.5);
-        if (i < 3) {
-            ctx.life.push({
-                kind: 'fish',
-                gx: ctx.offX + point.x,
-                gy: ctx.offY + point.y,
-                phase: rng() * Math.PI * 2,
-                scale: 0.8 + rng() * 0.6
-            });
-        }
     }
 
     if (rx > 5 && rng() < 0.7) {
@@ -887,21 +893,38 @@ function brookRapids(
     const g = ctx.g;
     const rng = featureRng(ctx, `brook-rapids:${tag}`);
     const index = Math.max(3, Math.min(points.length - 4, Math.trunc(centerIndex)));
+    // ONE flow direction for the whole rapid, smoothed across its span. The
+    // meander's dense samples can hairpin inside those five steps; per-point
+    // normals then swivel ~90-120° around the bend apex and the five crest
+    // bars smear into a white "starburst" fan radiating over the banks
+    // (worst at plot-boundary bends). Rapids read as parallel bars marching
+    // downstream, so they share the crossing axis.
+    const flowFrom = points[index - 3] ?? points[index - 1];
+    const flowTo = points[index + 3] ?? points[index + 1];
+    const flowDx = flowTo.x - flowFrom.x;
+    const flowDy = flowTo.y - flowFrom.y;
+    const flowLen = Math.hypot(flowDx, flowDy) || 1;
+    const nx = -flowDy / flowLen;
+    const ny = flowDx / flowLen;
     for (let step = -2; step <= 2; step++) {
         const i = index + step;
         const point = points[i];
-        const prev = points[i - 1];
-        const next = points[i + 1];
-        const dx = next.x - prev.x;
-        const dy = next.y - prev.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len;
-        const ny = dx / len;
-        const width = halfWidth * (0.72 + rng() * 0.26);
-        const left = at(ctx, point.x + nx * width, point.y + ny * width);
-        const right = at(ctx, point.x - nx * width, point.y - ny * width);
-        g.lineStyle(step === 0 ? 3.2 : 2.2, 0xd8eff0, 0.7 + rng() * 0.2);
-        g.lineBetween(left.x, left.y, right.x, right.y);
+        // Where the channel turns away from the rapid's shared axis, the bar
+        // shrinks with the alignment (and vanishes past ~70°): a full-width
+        // crest at a hairpin point would overhang the banks. rng() draws stay
+        // unconditional so the sequence (and every seeded look) is stable.
+        const ldx = points[i + 1].x - points[i - 1].x;
+        const ldy = points[i + 1].y - points[i - 1].y;
+        const llen = Math.hypot(ldx, ldy) || 1;
+        const align = Math.abs((ldx * flowDx + ldy * flowDy) / (llen * flowLen));
+        const width = halfWidth * (0.72 + rng() * 0.26) * align;
+        const crestAlpha = 0.7 + rng() * 0.2;
+        if (align >= 0.35) {
+            const left = at(ctx, point.x + nx * width, point.y + ny * width);
+            const right = at(ctx, point.x - nx * width, point.y - ny * width);
+            g.lineStyle(step === 0 ? 3.2 : 2.2, 0xd8eff0, crestAlpha);
+            g.lineBetween(left.x, left.y, right.x, right.y);
+        }
         if (step % 2 === 0) {
             const rock = at(ctx,
                 point.x + nx * (rng() - 0.5) * width,
@@ -1435,8 +1458,9 @@ export class WildernessRenderer {
 
     /** Increment whenever wilderness postcard art changes. WorldMapSystem
      * includes this in its cache key so an old village/nature RenderTexture
-     * can never survive behind a current empty-plot classification. */
-    static readonly RENDER_VERSION = 6;
+     * can never survive behind a current empty-plot classification.
+     * v7: plot corners round off like village lawns (junction-aware cuts). */
+    static readonly RENDER_VERSION = 8;
 
     static renderRevision(plotX: number, plotY: number, seedVersion: unknown = 0): string {
         const version = normalizeWorldNatureSeedVersion(seedVersion);

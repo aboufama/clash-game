@@ -20,8 +20,8 @@
     /* Fantasy Color Palette */
     --ui-gold: #FFD700;
     /* Classic Gold for UI */
-    --solana-green: #14F195;
-    /* Neon Green for SOL */
+    --warn-red: #ff6868;
+    /* Warning/shortfall accent (unaffordable costs, NO SPACE) */
 
     --fantasy-gold: var(--ui-gold);
     /* Default "Gold" is now Yellow-Gold */
@@ -183,12 +183,14 @@
 }
 
 
-/* Top-right button group container */
+/* Top-right button group container. Sits ABOVE the incoming-attack popup
+   (z 130) so the notifications/leaderboard dropdowns cover it while open —
+   the popup used to blanket the freshly opened defense log. */
 .top-right-btns {
     position: fixed;
     top: 16px;
     right: 80px;
-    z-index: 100;
+    z-index: 140;
     display: flex;
     gap: 6px;
     pointer-events: auto;
@@ -702,25 +704,7 @@ button:disabled {
     text-shadow: 2px 2px 0 #000;
 }
 
-.close-btn {
-    background: #000;
-    border: 3px solid #555;
-    color: white;
-    font-size: 12px;
-    padding: 4px 8px;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-}
-
-.close-btn:hover {
-    background: #333;
-}
-
-/* (training-close-btn removed — replaced by .header-btn.close) */
+/* (close-btn / training-close-btn removed — every modal close is .pxf-close) */
 
 .housing-status {
     font-size: 10px;
@@ -877,21 +861,15 @@ button:disabled {
 }
 
 
+/* Small currency icons in the cost badge: same mechanism as .bshop-cost /
+   .res-item — shrink the .icon box and let the centered ::before pixel art
+   (drawn by accurate-icons.css) overflow a couple px. Never override the
+   ::before here: flattening it to a block paints a solid colour square. */
 .troop-grid-item .cost-badge .icon {
     width: 18px !important;
     height: 18px !important;
     flex-shrink: 0;
     position: relative !important;
-}
-
-.troop-grid-item .cost-badge .icon::before {
-    position: relative !important;
-    top: 0 !important;
-    left: 0 !important;
-    transform: none !important;
-    display: block;
-    width: 18px;
-    height: 18px;
 }
 
 
@@ -1244,9 +1222,16 @@ button:disabled {
     box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
 }
 
-.loot-item.sol {
-    color: #14F195;
-    border-color: var(--panel-border);
+.loot-item.gold {
+    color: #ffd700;
+}
+
+.loot-item.ore {
+    color: #8fe3d4;
+}
+
+.loot-item.food {
+    color: #f2d268;
 }
 
 .loot-item .icon {
@@ -1329,11 +1314,19 @@ button:disabled {
     z-index: 2147483001;
 }
 
+/* The portal wrapper Hud mounts on <body> while loot is showing. It re-uses
+   the .hud classes (whose z-index:10 stacking context would trap the badge
+   back UNDER the cloud overlay), so the layer itself must outrank the clouds
+   (.cloud-overlay is 2147483000). */
+.hud.hud-loot-layer {
+    z-index: 2147483001;
+}
+
 /* Loot badge next to resource display */
 .loot-badge {
     font-family: var(--ui-font);
     font-size: 14px;
-    color: #14F195;
+    color: var(--ui-gold);
     text-shadow:
         2px 2px 0 #000,
         -1px -1px 0 #000,
@@ -1461,9 +1454,26 @@ button:disabled {
 }
 
 .header-btn .btn-icon {
-    width: 18px;
-    height: 18px;
+    /* Reserve the icon's REAL footprint: the pixel-art ::before glyphs are
+       absolutely centred in this slot, so an 18px slot let the 34.5px
+       target / 37.5px magnifier spill over the label ("RACTICE"). */
+    width: 25px;
+    height: 25px;
     font-size: 14px;
+    flex: 0 0 auto;
+}
+
+/* Inside the 36px-high header buttons the icons render at 1x texel scale
+   (23px target, 25px magnifier) so they fit the reserved slot exactly and
+   stay integer-crisp. */
+.header-btn .practice-icon::before {
+    width: 23px;
+    height: 23px;
+}
+
+.header-btn .findmatch-icon::before {
+    width: 25px;
+    height: 25px;
 }
 
 .header-btn:hover:not(:disabled) {
@@ -1497,13 +1507,7 @@ button:disabled {
     background: #B22222;
 }
 
-.header-btn.close {
-    background: #000;
-    border-color: #555;
-    padding: 0;
-    font-size: 14px;
-    width: 36px;
-}
+/* (.header-btn.close removed — every modal close is .pxf-close) */
 
 /* Troop Selector */
 .troop-selector {
@@ -1997,8 +2001,7 @@ body.is-touch {
         padding: 6px 8px;
     }
 
-    .attack-online-btn,
-    .training-close-btn {
+    .attack-online-btn {
         min-height: 60px;
     }
 
@@ -2719,17 +2722,17 @@ body.is-touch {
     justify-content: center;
 }
 
+/* The settings menu behind the HUD gear. Layout lives here; every frame is a
+   pxf border-image (the panel frame itself comes from the pixel-reskin block,
+   the internals from the "settings modal internals" block near the end). */
 .account-modal {
     width: min(420px, 92vw);
     max-height: calc(100vh - 24px);
     overflow-y: auto;
     box-sizing: border-box;
-    background: var(--panel-bg);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
-    padding: 16px;
+    padding: calc(var(--px) * 4);
     color: var(--text-primary);
+    font-family: var(--ui-font);
 }
 
 .account-modal-header {
@@ -2742,53 +2745,83 @@ body.is-touch {
 .account-modal-header h3 {
     flex: 1;
     font-size: 12px;
+    letter-spacing: 1px;
     color: var(--fantasy-gold);
 }
 
-.account-close {
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    font-size: 14px;
-    cursor: pointer;
-}
+/* (.account-close removed — every modal close is .pxf-close) */
 
 .status-pill {
     font-size: 7px;
+    letter-spacing: 1px;
     padding: 4px 6px;
-    border: 1px solid var(--panel-border-light);
+    border: var(--px) solid var(--panel-border-light);
 }
 
 .status-pill.online {
-    color: var(--fantasy-green);
+    color: #9fe3b0;
+    border-color: #3f6e4c;
 }
 
 .status-pill.offline {
-    color: var(--fantasy-red);
+    color: #ff8a7a;
+    border-color: #a6443a;
+}
+
+.busy-pill {
+    font-size: 7px;
+    letter-spacing: 1px;
+    padding: 4px 6px;
+    border: var(--px) solid var(--fantasy-gold-dark);
+    color: var(--ui-gold);
+    animation: busy-blink 0.7s steps(2, end) infinite;
+}
+
+@keyframes busy-blink {
+    50% {
+        opacity: 0.4;
+    }
 }
 
 .account-tabs {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
-    margin-bottom: 10px;
     width: 100%;
 }
 
 .tab-btn {
-    background: var(--panel-accent);
-    border: 2px solid var(--panel-border);
-    color: var(--text-primary);
-    padding: 6px;
+    font-family: var(--ui-font);
     font-size: 8px;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    padding: calc(var(--px) * 1) 0;
     cursor: pointer;
     width: 100%;
     text-align: center;
 }
 
+.tab-btn:hover:not(:disabled) {
+    background: none;
+    filter: brightness(1.15);
+}
+
+.tab-btn:active:not(:disabled) {
+    background: none;
+    box-shadow: none;
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
 .tab-btn.active {
-    border-color: var(--fantasy-gold);
-    color: var(--fantasy-gold);
+    border-image-source: var(--pxf-gold);
+    color: var(--ui-gold);
 }
 
 .account-panel {
@@ -2802,73 +2835,77 @@ body.is-touch {
     flex-direction: column;
     gap: 6px;
     font-size: 8px;
-}
-
-.account-panel input {
-    background: #120c08;
-    border: 2px solid var(--panel-border-dark);
-    color: var(--text-primary);
-    padding: 6px;
-    font-size: 9px;
-}
-
-.account-field span {
-    font-size: 8px;
+    letter-spacing: 1px;
     color: var(--text-secondary);
 }
 
-.account-field code {
+.account-panel input {
+    font-family: var(--ui-font);
     font-size: 9px;
+    color: var(--text-primary);
     background: #120c08;
-    padding: 4px 6px;
-    border: 1px solid var(--panel-border-dark);
+    border: var(--px) solid var(--panel-border-dark);
+    border-radius: 0;
+    padding: 6px;
 }
 
-.field-row {
+.account-panel input:focus {
+    outline: none;
+    border-color: var(--fantasy-gold-dark);
+}
+
+.account-panel input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.account-meta {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 4px;
-}
-
-.copy-btn {
-    background: var(--panel-accent);
-    border: 2px solid var(--panel-border);
-    color: var(--text-primary);
-    font-size: 7px;
-    padding: 4px 6px;
-    cursor: pointer;
-}
-
-.logout-btn,
-.account-panel .action-btn {
-    background: var(--fantasy-blue);
-    border: 2px solid #1e3f9a;
-    color: #fff;
-    padding: 6px 10px;
+    gap: 8px;
     font-size: 9px;
-    cursor: pointer;
-    box-shadow: 2px 2px 0 #000;
+    color: var(--text-secondary);
 }
 
-.logout-btn {
-    background: var(--fantasy-red);
-    border-color: #A52A2A;
+.account-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.account-hint {
+    margin: 0;
+    font-size: 8px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.account-hint strong {
+    color: var(--text-primary);
 }
 
 .account-error {
-    background: rgba(139, 0, 0, 0.2);
-    border: 1px solid #A52A2A;
-    padding: 6px 8px;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-danger) 5 fill / calc(var(--px) * 4) stretch;
+    image-rendering: pixelated;
+    color: #ffb3a7;
+    padding: calc(var(--px) * 1) calc(var(--px) * 2);
     font-size: 8px;
+    line-height: 1.5;
     margin-bottom: 8px;
 }
 
 .account-warning {
-    background: rgba(255, 215, 0, 0.15);
-    border: 1px solid var(--fantasy-gold-dark);
-    padding: 6px 8px;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    image-rendering: pixelated;
+    color: var(--ui-gold);
+    padding: calc(var(--px) * 1) calc(var(--px) * 2);
     font-size: 8px;
+    line-height: 1.5;
+    margin-bottom: 8px;
 }
 
 /* ============================================
@@ -2879,7 +2916,11 @@ body.is-touch {
     position: fixed;
     inset: 0;
     background: rgba(5, 8, 12, 0.92);
-    z-index: 210;
+    /* The lockout must bury EVERYTHING interactive — modals (1000), the
+       account backdrop (220) and even the cloud overlay (2147483000): an
+       expired session may fire while any of them is up. Only toasts render
+       above it. */
+    z-index: 2147483100;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2905,6 +2946,43 @@ body.is-touch {
     font-size: 8px;
     color: var(--text-secondary);
     margin-bottom: 12px;
+}
+
+/* Full-width CTA in the pixel-frame kit (mirrors .tab-btn), gold like the
+   panel's heading. Never .action-btn — that's the HUD bar's icon squares. */
+.auth-lock-panel .auth-lock-btn {
+    display: block;
+    width: 100%;
+    font-family: var(--ui-font);
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--ui-gold);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+    padding: calc(var(--px) * 2) 0;
+    text-align: center;
+    cursor: pointer;
+}
+
+.auth-lock-panel .auth-lock-btn:hover {
+    background: none;
+    box-shadow: none;
+    transform: none;
+    filter: brightness(1.15);
+}
+
+.auth-lock-panel .auth-lock-btn:active {
+    background: none;
+    box-shadow: none;
+    border-image-source: var(--pxf-btn-down);
+    color: var(--text-primary);
+    transform: translateY(var(--px));
+    filter: none;
 }
 
 /* ============================================
@@ -3205,9 +3283,149 @@ body.is-touch {
     animation: popWarnPulse 1.8s ease-in-out infinite;
 }
 
+/* A muted jukebox isn't playing anything audible: the badge says MUTED,
+   dimmed and still — no pulse for silence. */
+.jukebox-playing.muted {
+    color: #8d8478;
+    animation: none;
+}
+
 .jukebox-locked {
     font-size: 11px;
     opacity: 0.8;
+}
+
+/* --- village banner picker (town hall) --- */
+.banner-modal {
+    max-width: 480px;
+}
+
+.banner-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px 16px 14px;
+    max-height: 62vh;
+    overflow-y: auto;
+}
+
+.banner-swatch-canvas {
+    display: block;
+    image-rendering: pixelated;
+}
+
+.banner-preview-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--panel-accent);
+    border: 2px solid var(--panel-border);
+    padding: 10px 12px;
+}
+
+.banner-preview-note {
+    font-size: 8px;
+    line-height: 1.7;
+    color: #a89a86;
+    flex: 1;
+}
+
+.banner-section-label {
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--fantasy-gold);
+    text-shadow: 1px 1px 0 #000;
+    margin-top: 4px;
+}
+
+.banner-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.banner-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 4px 3px;
+    cursor: pointer;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    color: var(--text-primary);
+}
+
+.banner-cell:hover:not(:disabled) {
+    filter: brightness(1.15);
+}
+
+.banner-cell.selected {
+    border-image-source: var(--pxf-gold);
+    filter: brightness(1.1);
+}
+
+.banner-cell:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.banner-cell-name {
+    font-size: 7px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+}
+
+.banner-error {
+    font-size: 8px;
+    color: #e77c6a;
+    text-shadow: 1px 1px 0 #000;
+}
+
+.banner-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.banner-save-btn,
+.banner-reset-btn {
+    flex: 1;
+    padding: 10px 8px;
+    font-family: var(--ui-font);
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    text-shadow: 1px 1px 0 #000;
+    cursor: pointer;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+}
+
+.banner-save-btn {
+    border-image-source: var(--pxf-gold);
+    color: var(--fantasy-gold);
+}
+
+.banner-save-btn:hover:not(:disabled),
+.banner-reset-btn:hover:not(:disabled) {
+    filter: brightness(1.15);
+}
+
+.banner-save-btn:active:not(:disabled),
+.banner-reset-btn:active:not(:disabled) {
+    border-image-source: var(--pxf-btn-down);
+}
+
+.banner-save-btn:disabled,
+.banner-reset-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    filter: grayscale(0.4);
 }
 
 /* Toast banner (track unlocks, merchant arrivals) — framed by the generated
@@ -3227,7 +3445,11 @@ body.is-touch {
     font-size: 13px;
     font-weight: 600;
     padding: 7px 16px;
-    z-index: 300;
+    /* Toasts are the one always-on-top surface: above every modal overlay
+       (1000), the cloud transition (2147483000) and the session lockout
+       (2147483100) — "session expired" and "changes reverted" must never
+       hide behind the very surface they explain. */
+    z-index: 2147483300;
     animation: toastIn 220ms steps(3, end);
     pointer-events: none;
 }
@@ -3519,6 +3741,45 @@ body.is-touch {
     border-image-source: var(--pxf-danger);
 }
 
+/* THE close button — one pxf-framed X for every modal/panel header.
+   Markup: <button class="pxf-close" aria-label="Close">
+             <span class="sym sym-close small" /></button>
+   Hard corners, pixel frame, brightness hover, pressed-frame active. */
+.pxf-close {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+    line-height: 1;
+    cursor: pointer;
+    transition: none;
+}
+
+.pxf-close:hover:not(:disabled) {
+    background: none;
+    box-shadow: none;
+    transform: none;
+    filter: brightness(1.15);
+}
+
+.pxf-close:active:not(:disabled) {
+    background: none;
+    box-shadow: none;
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
 /* The health-bar look, rebuilt in DOM: outline, grey rim, maroon track,
    hard-stop glossy fill rows — same palette as the world-space bars. */
 .px-bar {
@@ -3673,6 +3934,24 @@ body.is-touch {
 
 .hud.mobile .settings-btn.mute-btn {
     right: 60px;
+}
+
+/* Narrow viewports: track the mobile gear/mute offsets (8px inset, same
+   52px stride) instead of the desktop 16px ones... */
+@media (max-width: 1024px) {
+    .top-right-btns {
+        top: 8px;
+        right: 112px;
+    }
+}
+
+/* ...and on phone widths wrap the row to a second line under the gear —
+   at 16+120+3x52 the row was ramming into the resources column top-left. */
+@media (max-width: 620px) {
+    .top-right-btns {
+        top: 60px;
+        right: 8px;
+    }
 }
 
 /* --- bottom action bar --- */
@@ -4008,6 +4287,43 @@ body.is-touch {
     animation: vb-hammer 0.6s steps(2, end) infinite;
 }
 
+/* Work-tag layout (owner spec): building name + live time remaining stacked
+   on the LEFT, the animated hammer on the RIGHT — small enough that the
+   whole swing stays inside its own frame. */
+.village-bubble .vb-col {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    gap: var(--px);
+}
+
+.village-bubble .vb-col .vb-text {
+    padding-right: 0;
+    line-height: 1.1;
+}
+
+.village-bubble .vb-sub {
+    font-size: 10px;
+    line-height: 1;
+    color: #6b543a;
+    white-space: nowrap;
+}
+
+.village-bubble .vb-icon.vb-icon-right {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+}
+
+/* The hammer bakes at 31.5px — too big for an 18px frame (it overflowed the
+   bubble while swinging). In the work tag it renders at 21px (1px per grid
+   cell, still crisp) so bob + rotate stay fully contained in the 28px box. */
+.village-bubble .vb-icon-right.build-icon::before {
+    width: 21px;
+    height: 21px;
+}
+
 @keyframes vb-hammer {
     0% {
         transform: translateY(0) rotate(0deg);
@@ -4094,18 +4410,10 @@ body.is-touch {
     color: var(--text-secondary);
 }
 
-.atlas-title .plot-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-}
+/* (.plot-close removed — every modal close is .pxf-close) */
 
-.atlas-title .plot-close:hover {
-    filter: brightness(1.2);
+.atlas-title .pxf-close {
+    margin-left: calc(var(--px) * 2);
 }
 
 .atlas-chart-wrap {
@@ -4185,6 +4493,12 @@ body.is-touch {
 }
 
 .atlas-stack .atlas-live {
+    pointer-events: none;
+}
+
+/* The charting reveal: fog tiles over the live chart while the sweep runs,
+   and the pre-data placeholder grid. Hover must pass through to the chart. */
+.atlas-stack .atlas-reveal {
     pointer-events: none;
 }
 
@@ -4286,23 +4600,55 @@ body.is-touch {
 .dev-reseed-world-btn,
 .dev-reseed-confirm-btn,
 .dev-reseed-cancel {
-    padding: 7px 10px;
+    font-family: var(--ui-font);
     font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: pointer;
+    padding: calc(var(--px) * 2) calc(var(--px) * 3);
 }
 
 .dev-reseed-world-btn,
 .dev-reseed-confirm-btn {
-    background: #8a2f29;
-    border-color: #c45245;
+    border-image-source: var(--pxf-danger);
+    color: #ffb3a7;
+}
+
+.dev-reseed-world-btn:hover:not(:disabled),
+.dev-reseed-confirm-btn:hover:not(:disabled),
+.dev-reseed-cancel:hover:not(:disabled) {
+    background: none;
+    filter: brightness(1.15);
+}
+
+.dev-reseed-world-btn:active:not(:disabled),
+.dev-reseed-confirm-btn:active:not(:disabled),
+.dev-reseed-cancel:active:not(:disabled) {
+    background: none;
+    box-shadow: none;
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+.dev-reseed-cancel:active:not(:disabled) {
+    border-image-source: var(--pxf-btn-down);
 }
 
 .dev-reseed-confirm {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 8px;
-    border: 2px solid #a6443a;
-    background: rgba(96, 24, 18, 0.35);
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-danger) 5 fill / calc(var(--px) * 4) stretch;
+    image-rendering: pixelated;
+    padding: calc(var(--px) * 2);
 }
 
 .dev-reseed-confirm p {
@@ -4316,4 +4662,279 @@ body.is-touch {
     display: grid;
     grid-template-columns: 1fr 1.4fr;
     gap: 6px;
+}
+
+/* --- pixel-frame stragglers: the last faux-bevel chrome joins the kit ---
+   Account modal, session lockout card, replay HUD, scout bar, incoming-
+   attack buttons, cloud loading bar, leaderboard rows/refresh. */
+.account-modal,
+.auth-lock-panel,
+.replay-status-overlay,
+.scout-action-panel {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+}
+
+.scout-action-panel .scout-attack {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-danger) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    color: #ffb3a7;
+}
+
+.scout-action-panel .scout-attack:hover {
+    background: none;
+    filter: brightness(1.15);
+}
+
+.incoming-attack-actions .watch-btn {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    color: var(--ui-gold);
+}
+
+.incoming-attack-actions .dismiss-btn {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+}
+
+.incoming-attack-actions .dismiss-btn:hover {
+    filter: brightness(1.15);
+}
+
+/* The cloud loading bar becomes a px-bar: hard-stop glossy fill rows. */
+.cloud-loading-track {
+    background: none;
+    border: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 fill / calc(var(--px) * 3) stretch;
+    border-radius: 0;
+    height: calc(var(--px) * 9);
+    overflow: hidden;
+    image-rendering: pixelated;
+}
+
+.cloud-loading-fill {
+    border-radius: 0;
+    box-shadow: none;
+    background: linear-gradient(to bottom,
+            #58d68d 0 30%,
+            #2ecc71 30% 76%,
+            #1e8e4e 76% 100%);
+}
+
+.leaderboard-item {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+}
+
+.refresh-btn {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+}
+
+.refresh-btn:hover {
+    background: none;
+    filter: brightness(1.15);
+}
+
+.refresh-btn:active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+/* --- settings modal internals (the HUD gear → AccountModal) ---
+   Sectioned pxf chrome: Account/session, Audio, dev world tools. Sits after
+   the reskin block on purpose — the geometry resets below must beat the
+   shared .action-btn rules. */
+.settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: var(--px) solid rgba(0, 0, 0, 0.35);
+}
+
+.account-modal .settings-section:first-of-type {
+    margin-top: 2px;
+    padding-top: 0;
+    border-top: none;
+}
+
+.settings-section-title {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.settings-row-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-row-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+}
+
+.settings-row-hint {
+    font-size: 8px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+/* DESIGN LAB (dev): compact segmented A/B/C variant slots on a settings row —
+   the pxf tab buttons at row scale instead of .account-tabs' full-width grid. */
+.design-slot-tabs {
+    display: flex;
+    gap: 6px;
+    flex: none;
+}
+
+.design-slot-tabs .tab-btn {
+    width: 34px;
+}
+
+/* Modal buttons: keep the pxf frame from the reskin, drop the bottom-bar
+   geometry (flex column, 90px height) the shared .action-btn ships with. */
+.account-modal .action-btn,
+.account-modal .logout-btn {
+    font-family: var(--ui-font);
+    font-size: 9px;
+    letter-spacing: 1px;
+    flex: none;
+    min-width: 0;
+    height: auto;
+    display: block;
+    padding: calc(var(--px) * 3) calc(var(--px) * 4);
+}
+
+.account-modal .logout-btn {
+    color: #ffb3a7;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-danger) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.account-modal .logout-btn:hover:not(:disabled) {
+    background: none;
+    filter: brightness(1.15);
+}
+
+.account-modal .logout-btn:active:not(:disabled) {
+    background: none;
+    box-shadow: none;
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+/* Disabled/busy: the element in the selector breaks the specificity tie with
+   the pxf :hover rules, so a disabled control never brightens or presses. */
+.account-modal button:disabled {
+    filter: grayscale(1) brightness(0.75);
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* --- the pixel toggle (audio ON/OFF) --- */
+.px-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(var(--px) * 2);
+    width: calc(var(--px) * 26);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 fill / calc(var(--px) * 3) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+    padding: var(--px);
+    cursor: pointer;
+}
+
+.px-toggle.on {
+    flex-direction: row-reverse;
+}
+
+.px-toggle:hover:not(:disabled) {
+    background: none;
+    filter: brightness(1.15);
+}
+
+.px-toggle:active:not(:disabled) {
+    background: none;
+    box-shadow: none;
+    transform: translateY(var(--px));
+}
+
+.px-toggle-knob {
+    display: block;
+    width: calc(var(--px) * 7);
+    height: calc(var(--px) * 7);
+    border: var(--px) solid #1c1410;
+    background: linear-gradient(to bottom,
+            #b8b2a6 0 30%,
+            #8f8878 30% 76%,
+            #5f594b 76% 100%);
+}
+
+.px-toggle.on .px-toggle-knob {
+    background: linear-gradient(to bottom,
+            #58d68d 0 30%,
+            #2ecc71 30% 76%,
+            #1e8e4e 76% 100%);
+}
+
+.px-toggle-state {
+    font-family: var(--ui-font);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    flex: 1;
+    text-align: center;
+}
+
+.px-toggle.on .px-toggle-state {
+    color: #9fe3b0;
 }

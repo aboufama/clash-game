@@ -138,11 +138,55 @@ assert.deepEqual(pricing.charges, {
 })
 assert.equal(pricing.buildings.find(entry => entry.id === 'cannon')?.level, 1)
 assert.equal(pricing.buildings.find(entry => entry.id === 'cannon')?.upgradingTo, 2)
+assert.equal(pricing.buildings.find(entry => entry.id === 'cannon')?.upgradeStartedAt, now)
 assert.equal(
   pricing.buildings.find(entry => entry.id === 'cannon')?.upgradeEndsAt,
   now + Math.round(upgradeDurationMs('cannon', 2) * 0.5)
 )
 assert.ok(pricing.obstacleRewards > 0)
+
+const fixedPricing = priceVillageMutation({
+  currentBuildings: [hall, oldCannon],
+  currentObstacles: [],
+  proposedBuildings: [hall, building('cannon', 'cannon', 1, 1, 2)],
+  proposedObstacles: [],
+  now,
+  upgradeTimeScale: 0.001,
+  fixedUpgradeDurationMs: 1_000
+})
+assert.equal(
+  fixedPricing.buildings.find(entry => entry.id === 'cannon')?.upgradeEndsAt,
+  now + 1_000,
+  'a fixed duration overrides the building-specific scaled clock exactly'
+)
+assert.equal(fixedPricing.buildings.find(entry => entry.id === 'cannon')?.upgradeStartedAt, now)
+
+const echoedUpgrade = priceVillageMutation({
+  currentBuildings: [hall, {
+    ...oldCannon,
+    upgradingTo: 2,
+    upgradeStartedAt: now - 1_000,
+    upgradeEndsAt: now + 5_000
+  }],
+  currentObstacles: [],
+  proposedBuildings: [hall, oldCannon],
+  proposedObstacles: [],
+  now,
+  upgradeTimeScale: 1
+}).buildings.find(entry => entry.id === 'cannon')
+assert.equal(echoedUpgrade?.upgradingTo, 2)
+assert.equal(echoedUpgrade?.upgradeStartedAt, now - 1_000)
+assert.equal(echoedUpgrade?.upgradeEndsAt, now + 5_000)
+
+const legacyEcho = priceVillageMutation({
+  currentBuildings: [hall, { ...oldCannon, upgradingTo: 2, upgradeEndsAt: now + 5_000 }],
+  currentObstacles: [],
+  proposedBuildings: [hall, oldCannon],
+  proposedObstacles: [],
+  now,
+  upgradeTimeScale: 1
+}).buildings.find(entry => entry.id === 'cannon')
+assert.equal(legacyEcho?.upgradeStartedAt, undefined, 'old pending saves remain valid without a start stamp')
 
 const upgrading = { ...oldCannon, upgradingTo: 2, upgradeEndsAt: now + 5_000 }
 expectRule('UPGRADE_IN_PROGRESS', () => priceVillageMutation({

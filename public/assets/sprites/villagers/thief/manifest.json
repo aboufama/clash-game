@@ -1,0 +1,226 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "thief",
+  "variants": {
+    "plain": {
+      "states": {
+        "sneak": {
+          "loopMs": 520,
+          "frames": [
+            {
+              "file": "thief_plain_sneak0.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_sneak1.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_sneak2.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_sneak3.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_sneak4.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_sneak5.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            }
+          ]
+        },
+        "flee": {
+          "loopMs": 520,
+          "frames": [
+            {
+              "file": "thief_plain_flee0.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_flee1.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_flee2.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_flee3.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_flee4.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            },
+            {
+              "file": "thief_plain_flee5.png",
+              "texelW": 11,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.7777777777777778
+            }
+          ]
+        }
+      }
+    },
+    "sack": {
+      "states": {
+        "sneak": {
+          "loopMs": 520,
+          "frames": [
+            {
+              "file": "thief_sack_sneak0.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_sneak1.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_sneak2.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_sneak3.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_sneak4.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_sneak5.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            }
+          ]
+        },
+        "flee": {
+          "loopMs": 520,
+          "frames": [
+            {
+              "file": "thief_sack_flee0.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_flee1.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_flee2.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_flee3.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_flee4.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            },
+            {
+              "file": "thief_sack_flee5.png",
+              "texelW": 11,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.6195286195286194,
+              "originY": 0.829059829059829
+            }
+          ]
+        }
+      }
+    }
+  }
+}

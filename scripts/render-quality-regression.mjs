@@ -43,9 +43,66 @@ const mainSceneSource = readSource('src/game/scenes/MainScene.ts');
 assert.match(mainSceneSource, /registerPixelSurface\(/,
   'the ground render texture must follow PixelMode via registerPixelSurface');
 
+const gatePurgeSources = [
+  ...collectFiles(path.join(root, 'src'), '.ts'),
+  ...collectFiles(path.join(root, 'src'), '.tsx'),
+  path.join(root, 'tools/art-preview/bake-sprites.mjs')
+];
+for (const file of gatePurgeSources) {
+  const source = readFileSync(file, 'utf8');
+  assert.doesNotMatch(source, /\bisGate\b|wallGateRecomputeAt|scheduleGateRecompute|recomputeWallGates|GATE_GAP|m(?:NS|EW)_gate/,
+    `${path.relative(root, file)} reintroduces the removed automatic wall-gate feature`);
+}
+
 const particleSource = readSource('src/game/systems/ParticleManager.ts');
 assert.match(particleSource, /registerPixelSurface\(/,
   'chunky particle textures must follow PixelMode via registerPixelSurface');
+
+// Figure/projectile sprite wiring: every ambient-figure call site must try the
+// baked frames before its vector fallback (villagers, neighbors, travellers).
+const villageLifeSource = readSource('src/game/systems/VillageLifeSystem.ts');
+assert.match(villageLifeSource, /syncEntitySprite\(/, 'village life entities must route through the baked-figure path');
+assert.match(villageLifeSource, /syncFigure\(this\.scene,\s*g,\s*'merchant'/, 'the merchant must try its baked frames');
+assert.match(villageLifeSource, /syncFigure\(this\.scene,\s*t\.gfx,\s*'thief'/, 'the thief must try its baked frames');
+assert.match(villageLifeSource, /syncFigure\(this\.scene,\s*g,\s*'owl'/, 'the owl must try its baked frames');
+assert.match(readSource('src/game/systems/NeighborLifeSim.ts'), /syncFigure\(/,
+  'neighbor residents must try the baked villager frames');
+assert.match(worldMapSource, /syncFigure\(this\.scene,\s*g,\s*`traveller_/,
+  'road travellers must try their baked frames');
+assert.match(mainSceneSource, /syncProjectileSprite\(/,
+  'rigid projectiles must route through the baked-projectile path');
+
+// PixelDraw: live layers that cannot be baked draw whole cells, never AA shapes.
+assert.match(worldMapSource, /pixelEllipse\(/, 'road details + cloud puffs must draw as pixel cells');
+assert.match(worldMapSource, /pixelLine\(/, 'road ruts/shoulders must draw as pixel cell lines');
+assert.match(villageLifeSource, /pixelBitmap\(/, 'speech bubbles/emotes must be hand-authored pixel art');
+assert.match(villageLifeSource, /quantizeRenderTexture\(this\.scene,\s*this\.stoneRT/,
+  'the stone lanes must present through the quantized RT (ground-bake model)');
+assert.match(mainSceneSource, /pixelRing\(/, 'combat FX rings must be cell rings, not stroked ellipses');
+// One-shot effects route through the shared PixelFx vocabulary.
+assert.match(readSource('src/game/systems/PixelFx.ts'), /static\s+(burst|flash|ring)\b/,
+  'PixelFx must expose the shared effect vocabulary');
+assert.match(mainSceneSource, /PixelFx\.(burst|flash|ring|stampRing)\(/,
+  'MainScene one-shot effects must use PixelFx');
+assert.match(villageLifeSource, /PixelFx\.burst\(/,
+  'village sparkles must use PixelFx.burst');
+for (const [file, label] of [
+  ['src/game/systems/WeatherSystem.ts', 'weather'],
+  ['src/game/systems/DayNightSystem.ts', 'night life'],
+  ['src/game/renderers/WorldHydrologyRenderer.ts', 'hydrology'],
+  ['src/game/renderers/VillageFlagRenderer.ts', 'flags'],
+  ['src/game/renderers/WorldFigureRenderer.ts', 'world figures']
+]) {
+  assert.match(readSource(file), /pixel(Ellipse|Line|Rect|Bitmap|Blob)\(/,
+    `${label} must draw through PixelDraw cells`);
+}
+// No live smooth primitives may return to the converted FX surfaces.
+for (const file of ['src/game/scenes/MainScene.ts', 'src/game/systems/WeatherSystem.ts', 'src/game/systems/DayNightSystem.ts']) {
+  const src = readSource(file);
+  for (const call of ['strokeEllipse(', 'strokeCircle(', 'this.add.circle(', 'scene.add.circle(']) {
+    assert.equal(src.includes(call), false, `${file} reintroduces smooth ${call.replace('(', '')}`);
+  }
+}
 
 // The per-layer PixelSnap PostFX pass is removed permanently: crispness comes from
 // per-texture NEAREST sampling (registerPixelSurface), never from a snapping pass.
@@ -90,9 +147,10 @@ const manifestsByKind = {};
 for (const manifestFile of manifestFiles) {
   manifestsByKind[kindOf(manifestFile)] = (manifestsByKind[kindOf(manifestFile)] ?? 0) + 1;
 }
-assert.deepEqual(manifestsByKind, { buildings: 19, obstacles: 5, troops: 14, wrecks: 19 },
-  'expected manifests for 19 buildings, 14 troops, 19 wrecks and 5 obstacles');
-assert.equal(manifestFiles.length, 57, 'the baked unit roster changed size');
+assert.deepEqual(manifestsByKind,
+  { buildings: 19, figures: 10, obstacles: 5, projectiles: 10, troops: 15, villagers: 11, wrecks: 19 },
+  'expected manifests for 19 buildings (tournament resolved: plain cannon + plain mortar, no @-variant slots), 15 troops (plain golem + icegolem), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 10 projectiles');
+assert.equal(manifestFiles.length, 89, 'the baked unit roster changed size');
 
 const referencedPngs = new Set();
 const framesByKind = {};
@@ -145,10 +203,21 @@ for (const manifestFile of manifestFiles) {
 const emittedPngs = collectFiles(spriteRoot, '.png')
   .map(file => path.relative(spriteRoot, file))
   .filter(file => path.basename(file) !== 'atlas.png');
-assert.deepEqual(framesByKind, { buildings: 2_717, obstacles: 416, troops: 6_480, wrecks: 71 },
+const wallManifestSource = readSource('public/assets/sprites/buildings/wall/manifest.json');
+const wallAtlas = JSON.parse(readSource('public/assets/sprites/buildings/wall/atlas.json'));
+assert.doesNotMatch(wallManifestSource, /m(?:NS|EW)_gate|\bisGate\b/,
+  'the wall manifest still contains a removed gate variant');
+assert.equal(Object.keys(wallAtlas.frames).some(name => /_gate_/.test(name)), false,
+  'the packed wall atlas still contains a removed gate frame');
+assert.equal(emittedPngs.some(file => /^buildings\/wall\/.*_gate_/.test(file)), false,
+  'a removed loose wall-gate PNG is still committed');
+assert.deepEqual(framesByKind,
+  { buildings: 7_788, figures: 144, obstacles: 872, projectiles: 326, troops: 13_212, villagers: 2_924, wrecks: 71 },
   'the baked roster is incomplete');
-assert.equal(frameCount, 9_684,
-  '2,717 building + 6,480 troop + 71 wreck + 416 obstacle frames');
+assert.equal(frameCount, 25_337,
+  '7,788 building + 13,212 troop + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 144 figure + 326 projectile frames '
+  + '(dense ambient/idle loops; every defense idles — turrets bake per-angle idle loops; tournament finals resolved the @-variant slots: plain cannon (ex-@B) and reverted plain mortar rebaked, plain golem (ex-@C) plus the new icegolem troop; '
+  + 'walls carry a per-topology GROUND decal now — the contact shadow stamped under the body by SpriteBank\'s wall-ground slot, 64 frames)');
 assert.deepEqual(emittedPngs.sort(), [...atlasPackedPngs].sort(),
   'every emitted sprite PNG must be packed into exactly one unit atlas');
 for (const png of referencedPngs) {

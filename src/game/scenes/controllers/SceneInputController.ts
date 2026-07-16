@@ -5,6 +5,7 @@ import { gameManager } from '../../GameManager';
 import { soundSystem } from '../../systems/SoundSystem';
 import { depthForBuilding, depthForGroundPlane } from '../../systems/DepthSystem';
 import { cssPixelsToBacking, toBackingZoom, toLogicalZoom } from '../../utils/DisplayResolution';
+import { pixelLine } from '../../render/PixelDraw';
 import { IsoUtils } from '../../utils/IsoUtils';
 import { MobileUtils } from '../../utils/MobileUtils';
 import type { MainScene } from '../MainScene';
@@ -14,6 +15,8 @@ const BUILDINGS = BUILDING_DEFINITIONS as any;
 export class SceneInputController {
     private scene: MainScene;
     private lastWallDragTile: { x: number; y: number } | null = null;
+    /** Spawn counter for the current hold-to-deploy stream (reset per hold). */
+    private deployStreamIndex = 0;
 
     // Touch/pinch state
     private isPinching: boolean = false;
@@ -24,6 +27,16 @@ export class SceneInputController {
     private touchStartTime: number = 0;
     private lastTapTime: number = 0;
     private isTouchDragging: boolean = false;
+    /** From the moment a gesture goes multi-touch until EVERY finger lifts,
+     *  gameplay pointer handling stays dead — the finger surviving a pinch
+     *  must never turn into a deploy stream or a wall-paint drag. */
+    private suppressPointerUntilAllUp: boolean = false;
+    /** Tap recognition stays disarmed for a short window after a pinch ends
+     *  so a quick pinch is never half of a double-tap. */
+    private lastPinchEndTime: number = 0;
+    /** Live invalid-drop shake (proxy-driven) + the transform it restores. */
+    private ghostNudgeTween: Phaser.Tweens.Tween | null = null;
+    private ghostNudgeBaseX = 0;
 
     constructor(scene: MainScene) {
         this.scene = scene;
@@ -44,20 +57,41 @@ export class SceneInputController {
         canvas.addEventListener('touchcancel', (e) => this.onTouchEnd(e), { passive: false });
     }
 
+    /** (Re-)anchor the pinch on the CURRENT finger set. Called when the pinch
+     *  starts and again whenever the set changes (third finger joins, or a
+     *  three-finger gesture drops back to two) — continuing against the old
+     *  anchors lurches zoom/pan. */
+    private anchorPinch(touches: TouchList): void {
+        this.isPinching = true;
+        this.isTouchDragging = false;
+        this.pinchStartDistance = MobileUtils.getTouchDistance(touches[0], touches[1]);
+        this.pinchStartZoom = toLogicalZoom(this.scene.cameras.main.zoom);
+        this.lastPinchCenter = MobileUtils.getTouchCenter(touches[0], touches[1], this.scene.game.canvas);
+    }
+
+    /** A gesture just went multi-touch: whatever the first finger was doing
+     *  (deploy stream, wall paint, camera drag, pending tap) is over. */
+    private resetPointerGameplayState(): void {
+        const scene = this.scene;
+        scene.isDragging = false;
+        scene.isLockingDragForTroops = false;
+        this.lastWallDragTile = null;
+        this.isTouchDragging = false;
+        this.lastTapTime = 0;
+    }
+
     private onTouchStart(e: TouchEvent): void {
         this.touchStartTime = Date.now();
         this.lastTouchCount = e.touches.length;
 
-        if (e.touches.length === 2) {
-            // Start pinch gesture
+        if (e.touches.length >= 2) {
+            // Any multi-touch is a camera gesture: kill live gameplay state
+            // and keep pointer handling suppressed until every finger lifts.
             e.preventDefault();
-            this.isPinching = true;
-            this.isTouchDragging = false;
-            this.pinchStartDistance = MobileUtils.getTouchDistance(e.touches[0], e.touches[1]);
-            this.pinchStartZoom = toLogicalZoom(this.scene.cameras.main.zoom);
-            // Store initial pinch center for pan tracking
-            const canvas = this.scene.game.canvas;
-            this.lastPinchCenter = MobileUtils.getTouchCenter(e.touches[0], e.touches[1], canvas);
+            if (!this.suppressPointerUntilAllUp) this.resetPointerGameplayState();
+            this.suppressPointerUntilAllUp = true;
+            this.lastTapTime = 0; // a pinch is never half of a double-tap
+            this.anchorPinch(e.touches);
         } else if (e.touches.length === 1) {
             this.isTouchDragging = false;
             this.lastPinchCenter = null;
@@ -65,7 +99,7 @@ export class SceneInputController {
     }
 
     private onTouchMove(e: TouchEvent): void {
-        if (e.touches.length === 2 && this.isPinching) {
+        if (e.touches.length >= 2 && this.isPinching) {
             e.preventDefault();
 
             const camera = this.scene.cameras.main;
@@ -127,17 +161,34 @@ export class SceneInputController {
     private onTouchEnd(e: TouchEvent): void {
         const touchDuration = Date.now() - this.touchStartTime;
 
-        if (e.touches.length < 2) {
-            if (this.isPinching) {
+        if (this.isPinching) {
+            if (e.touches.length >= 2) {
+                // 3 fingers dropped back to 2: still pinching — re-anchor on
+                // the survivors so the next move doesn't lurch against the
+                // lifted finger's stale anchors.
+                this.anchorPinch(e.touches);
+            } else {
                 this.isPinching = false;
+                this.lastPinchEndTime = Date.now();
                 // Once per pinch, when the second touch lifts (no-op outside 'snap' mode)
                 this.scene.settleZoomAfterGesture();
             }
+        }
+        if (e.touches.length < 2) {
             this.lastPinchCenter = null;
         }
+        if (e.touches.length === 0) {
+            // Every finger is up: the next touch is a fresh gesture.
+            this.suppressPointerUntilAllUp = false;
+        }
 
-        // Detect double-tap for quick zoom (only if not pinching and short touch)
-        if (e.touches.length === 0 && this.lastTouchCount === 1 && touchDuration < 200 && !this.isTouchDragging) {
+        // Detect double-tap for quick zoom. A qualifying tap is: single-finger,
+        // short, not dragged, outside the post-pinch window, and landing on
+        // non-interactive HOME ground — battle deploy taps and building taps
+        // must never toggle the camera.
+        if (e.touches.length === 0 && this.lastTouchCount === 1 && touchDuration < 200 && !this.isTouchDragging
+            && Date.now() - this.lastPinchEndTime > 400
+            && this.isNonInteractiveGroundTap(e.changedTouches[0])) {
             const now = Date.now();
             if (now - this.lastTapTime < 300) {
                 // Double tap - toggle zoom
@@ -148,15 +199,50 @@ export class SceneInputController {
                 } else {
                     camera.setZoom(toBackingZoom(Math.min(MobileUtils.getMaxZoom(), defaultZoom + 0.6)));
                 }
+                // Deliberate camera intent — the next resize must not snap
+                // the camera back to the fit view.
+                this.scene.hasUserMovedCamera = true;
                 this.scene.settleZoomAfterGesture();
                 this.lastTapTime = 0; // Reset to prevent triple tap
             } else {
                 this.lastTapTime = now;
             }
+        } else if (e.touches.length === 0) {
+            // A release that cannot be a tap breaks the double-tap chain: a
+            // building tap followed by a quick ground tap is not a double-tap.
+            this.lastTapTime = 0;
         }
 
         this.lastTouchCount = e.touches.length;
         this.isTouchDragging = false;
+    }
+
+    /** Double-tap zoom only fires from taps that could not have meant
+     *  anything else: HOME mode, nothing in hand, open ground. */
+    private isNonInteractiveGroundTap(touch: Touch | undefined): boolean {
+        const scene = this.scene;
+        if (!touch) return false;
+        if (scene.mode !== 'HOME') return false;
+        if (scene.selectedBuildingType || scene.isMoving) return false;
+        // Native TouchEvent coords are CSS pixels; Phaser cameras live in
+        // drawing-buffer pixels — cross the boundary exactly once, the same
+        // way MobileUtils.getTouchCenter does.
+        const canvas = scene.game.canvas;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / Math.max(1, rect.width);
+        const scaleY = canvas.height / Math.max(1, rect.height);
+        const worldPoint = scene.cameras.main.getWorldPoint(
+            (touch.clientX - rect.left) * scaleX,
+            (touch.clientY - rect.top) * scaleY
+        );
+        const cart = IsoUtils.isoToCart(worldPoint.x, worldPoint.y);
+        const gx = Math.floor(cart.x);
+        const gy = Math.floor(cart.y);
+        return !scene.buildings.some(b => {
+            const info = BUILDINGS[b.type];
+            return info && gx >= b.gridX && gx < b.gridX + info.width &&
+                gy >= b.gridY && gy < b.gridY + info.height;
+        });
     }
 
     /**
@@ -164,6 +250,34 @@ export class SceneInputController {
      */
     isPinchGesture(): boolean {
         return this.isPinching;
+    }
+
+    /** Gameplay listens to the mouse and the FIRST touch pointer only.
+     *  With multi-touch enabled (activePointers), extra fingers get their own
+     *  Phaser pointers whose down/move/up would otherwise deploy troops or
+     *  paint walls — they exist purely for the pinch gesture. */
+    private isGameplayPointer(pointer: Phaser.Input.Pointer): boolean {
+        const input = this.scene.input;
+        return pointer === input.mousePointer || pointer === input.pointer1;
+    }
+
+    /** True while gameplay pointer events must be ignored: mid-pinch, extra
+     *  fingers, and the tail of a multi-touch gesture (until all fingers up). */
+    private isPointerSuppressed(pointer: Phaser.Input.Pointer): boolean {
+        return this.isPinching || this.suppressPointerUntilAllUp || !this.isGameplayPointer(pointer);
+    }
+
+    /** THE tracked gameplay pointer: the mouse or the FIRST touch, whichever
+     *  acted most recently. Never `input.activePointer` — that can be a
+     *  pinch's second finger parked over the map. */
+    public getGameplayPointer(): Phaser.Input.Pointer {
+        const input = this.scene.input;
+        const mouse = input.mousePointer;
+        const touch = input.pointer1;
+        if (!touch) return mouse;
+        const touchT = Math.max(touch.moveTime, touch.downTime, touch.upTime);
+        const mouseT = Math.max(mouse.moveTime, mouse.downTime, mouse.upTime);
+        return touchT > mouseT ? touch : mouse;
     }
 
     private getWallPlacementTile(pointer: Phaser.Input.Pointer): { x: number; y: number } {
@@ -255,8 +369,7 @@ export class SceneInputController {
     }
 
     onPointerDown(pointer: Phaser.Input.Pointer) {
-        // Skip if pinching
-        if (this.isPinching) return;
+        if (this.isPointerSuppressed(pointer)) return;
 
         const scene = this.scene;
         if (pointer.button === 0 && scene.selectedBuildingType === 'wall' && !scene.worldMap.inBattleFrame()) {
@@ -273,6 +386,10 @@ export class SceneInputController {
         if (pointer.button === 0) {
             // Just set up for potential drag
             scene.isDragging = false;
+            // A new gesture never inherits the previous drag's camera lock —
+            // a pointerup swallowed by a pinch could otherwise leave it
+            // latched and make every later pan drag inert.
+            scene.isLockingDragForTroops = false;
             scene.dragOrigin.set(pointer.x, pointer.y);
 
             // Anchor for robust panning
@@ -282,23 +399,34 @@ export class SceneInputController {
             // Start deployment timer and spawn first troop immediately for responsiveness
             if (scene.mode === 'ATTACK' && !scene.isScouting) {
                 scene.deployStartTime = scene.time.now;
+                this.deployStreamIndex = 0;
                 const worldPoint = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
                 const gridPosFloat = IsoUtils.isoToCart(worldPoint.x, worldPoint.y);
-                const bounds = scene.getBuildingsBounds('ENEMY');
                 const margin = 2;
                 const isInsideMap = gridPosFloat.x >= -margin && gridPosFloat.x < scene.mapSize + margin &&
                     gridPosFloat.y >= -margin && gridPosFloat.y < scene.mapSize + margin;
-                const isForbidden = bounds && gridPosFloat.x >= bounds.minX && gridPosFloat.x <= bounds.maxX &&
-                    gridPosFloat.y >= bounds.minY && gridPosFloat.y <= bounds.maxY;
+                const isForbidden = scene.isDeployForbidden(gridPosFloat.x, gridPosFloat.y);
+
+                // A tap on forbidden ground must never be silent: light the
+                // red zone so the player sees WHY nothing spawned. (The
+                // hold-stream path below refreshes it for held gestures.)
+                if (isInsideMap && isForbidden) {
+                    scene.lastForbiddenInteractionTime = scene.time.now;
+                }
 
                 if (isInsideMap && !isForbidden) {
                     const army = gameManager.getArmy();
                     const selectedType = gameManager.getSelectedTroopType();
-                    scene.isLockingDragForTroops = true; // Lock camera panning for this drag
-                    if (selectedType && army[selectedType] > 0) {
+                    // Lock camera panning ONLY when this drag can actually
+                    // deploy — with no troop selected/remaining the lock made
+                    // open-ground drags neither pan nor deploy.
+                    const canDeploy = !!selectedType && (army[selectedType] ?? 0) > 0;
+                    scene.isLockingDragForTroops = canDeploy;
+                    if (canDeploy && selectedType) {
                         scene.spawnTroop(gridPosFloat.x, gridPosFloat.y, selectedType as TroopType, 'PLAYER');
                         gameManager.deployTroop(selectedType);
                         scene.lastDeployTime = scene.time.now;
+                        this.deployStreamIndex = 1;
                     }
                 }
             }
@@ -306,8 +434,7 @@ export class SceneInputController {
     }
 
     async onPointerUp(pointer: Phaser.Input.Pointer) {
-        // Skip if pinching
-        if (this.isPinching) return;
+        if (this.isPointerSuppressed(pointer)) return;
 
         this.lastWallDragTile = null;
 
@@ -315,8 +442,10 @@ export class SceneInputController {
         // Calculate drag distance
         const dist = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.upX, pointer.upY);
 
-        // If moved significantly, treat as drag and do nothing else
-        if (dist > cssPixelsToBacking(10)) {
+        // If this gesture ever crossed the drag threshold it stays a drag —
+        // a camera pan that wanders and ends near its origin must not be
+        // misread as a tap (deselecting/poking whatever sat under it).
+        if (scene.isDragging || dist > cssPixelsToBacking(10)) {
             scene.isDragging = false;
             scene.isLockingDragForTroops = false;
             if (scene.selectedInWorld && (scene.selectedInWorld as any).type === 'prism') {
@@ -386,8 +515,12 @@ export class SceneInputController {
                     scene.selectedInWorld.gridX = targetX;
                     scene.selectedInWorld.gridY = targetY;
                     scene.selectedInWorld.graphics.clear();
+                    // The carry hid the carrier (baked shadow sprites follow
+                    // carrier visibility) — restore it before the redraw.
+                    scene.selectedInWorld.graphics.setVisible(true);
                     if (scene.selectedInWorld.baseGraphics) {
                         scene.selectedInWorld.baseGraphics.clear();
+                        scene.selectedInWorld.baseGraphics.setVisible(true);
                     }
                     scene.drawBuildingVisuals(
                         scene.selectedInWorld.graphics,
@@ -437,14 +570,16 @@ export class SceneInputController {
                     if (scene.selectedInWorld.owner === 'PLAYER') {
                         await Backend.moveBuilding(scene.userId, scene.selectedInWorld.id, targetX, targetY);
                     }
+                } else {
+                    // Refused drop: the tap must never be silent.
+                    this.nudgeInvalidDrop();
                 }
                 return;
             }
 
-            if (pointer.rightButtonDown()) {
-                scene.cancelPlacement();
-                return;
-            }
+            // (No right-button handling here: this branch only runs for
+            // button===0 pointerups, so rightButtonDown() was always false.
+            // Right-click cancel lives in MainScene's pointerdown handler.)
 
             if (scene.selectedBuildingType) {
                 // Calculate centered position for new placement
@@ -466,14 +601,15 @@ export class SceneInputController {
                             gameManager.onPlacementCancelled();
                         }
                     } else {
-                        scene.tweens.add({
-                            targets: scene.ghostBuilding,
-                            x: scene.ghostBuilding.x + 5,
-                            duration: 50,
-                            yoyo: true,
-                            repeat: 3
-                        });
+                        this.nudgeInvalidDrop();
                     }
+                } else if (scene.selectedBuildingType !== 'wall') {
+                    // Invalid tile tapped with a ghost in hand — flash the
+                    // refusal instead of doing nothing (the red ghost tint
+                    // explains why). Walls are exempt: they paint on pointer-
+                    // DOWN, so by the time this up-handler runs the tile is
+                    // legitimately occupied by the wall just placed.
+                    this.nudgeInvalidDrop();
                 }
                 return;
             }
@@ -485,6 +621,17 @@ export class SceneInputController {
             });
             if (clicked) {
                 if (scene.selectedInWorld === clicked) {
+                    if (clicked.type === 'jukebox') {
+                        // Second tap on the selected jukebox: SWAP the
+                        // building panel for the track list — one surface
+                        // at a time, never both stacked.
+                        scene.selectedInWorld = null;
+                        gameManager.onBuildingSelected(null);
+                        scene.clearBuildingRangeIndicator();
+                        soundSystem.play('click');
+                        gameManager.openJukebox();
+                        return;
+                    }
                     scene.selectedInWorld = null;
                     gameManager.onBuildingSelected(null);
                     scene.clearBuildingRangeIndicator();
@@ -497,8 +644,10 @@ export class SceneInputController {
                     }
                     scene.selectedInWorld = clicked;
                     soundSystem.play('click');
+                    // The jukebox opens its track list on a SECOND tap; the
+                    // first tap shows the normal building panel like any
+                    // other building (upgrades stay reachable).
                     gameManager.onBuildingSelected({ id: clicked.id, type: clicked.type as BuildingType, level: clicked.level || 1, gridX: clicked.gridX, gridY: clicked.gridY, upgradeEndsAt: clicked.upgradeEndsAt });
-                    if (clicked.type === 'jukebox') gameManager.openJukebox();
                     scene.showBuildingRangeIndicator(clicked);
                 }
                 return;
@@ -520,9 +669,121 @@ export class SceneInputController {
         }
     }
 
+    /** Refused placement/move: a quick side-to-side shake of the ghost so an
+     *  invalid tap is never silent. The baked-sprite body follows the carrier
+     *  through its shadow binding, so the nudge reads on both render paths.
+     *
+     *  The shake drives a PROXY value, never the live transform, and any
+     *  previous shake is stopped and its base restored before re-arming — so
+     *  no interrupt (second nudge, external tween kill) can capture a
+     *  mid-shake offset as the new base and latch it onto the shared ghost. */
+    private nudgeInvalidDrop() {
+        const scene = this.scene;
+        const ghost = scene.ghostBuilding;
+        if (this.ghostNudgeTween) {
+            const previous = this.ghostNudgeTween;
+            this.ghostNudgeTween = null;
+            previous.stop();
+            ghost.x = this.ghostNudgeBaseX; // deterministic reset before re-arm
+        }
+        this.ghostNudgeBaseX = ghost.x;
+        const shake = { offset: 0 };
+        const tween = scene.tweens.add({
+            targets: shake,
+            offset: 5,
+            duration: 50,
+            yoyo: true,
+            repeat: 3,
+            onUpdate: () => {
+                if (ghost.active) ghost.x = this.ghostNudgeBaseX + shake.offset;
+            },
+            onComplete: () => {
+                if (this.ghostNudgeTween === tween) this.ghostNudgeTween = null;
+                if (ghost.active) ghost.x = this.ghostNudgeBaseX;
+            },
+            onStop: () => {
+                // Fires on ANY external interrupt path too (tween kill) —
+                // the ghost always lands back on its base transform.
+                if (this.ghostNudgeTween === tween) this.ghostNudgeTween = null;
+                if (ghost.active) ghost.x = this.ghostNudgeBaseX;
+            }
+        });
+        this.ghostNudgeTween = tween;
+    }
+
+    /**
+     * Per-frame tick from the scene's update loop. Drives the hold-to-deploy
+     * stream on the CLOCK instead of pointermove events — a perfectly still
+     * hold used to deploy exactly one troop because nothing ever moved.
+     *
+     * Only for a hold that STARTED as a deploy (camera lock taken at
+     * pointerdown). A hold that began as a pan — forbidden zone, no troop
+     * selected, or a pinch survivor — must not turn into a turbo spray, and
+     * the multi-touch suppression rules apply exactly as they do to events.
+     */
+    update() {
+        const scene = this.scene;
+        if (scene.mode !== 'ATTACK' || scene.isScouting) return;
+        const pointer = this.getGameplayPointer();
+        if (!pointer.isDown || this.isPointerSuppressed(pointer)) return;
+
+        const now = scene.time.now;
+        const worldPoint = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+        const gridPosFloat = IsoUtils.isoToCart(worldPoint.x, worldPoint.y);
+        const isForbidden = scene.isDeployForbidden(gridPosFloat.x, gridPosFloat.y);
+
+        // ANY held pointer over the base keeps the red zone lit — including
+        // holds that STARTED on forbidden ground (no camera lock taken), which
+        // previously gave zero feedback for the whole press.
+        if (isForbidden) {
+            scene.lastForbiddenInteractionTime = now;
+        }
+
+        if (!scene.isLockingDragForTroops) return;
+
+        const holdDuration = now - scene.deployStartTime;
+
+        // Ramping fire rate: Start slow (500ms), speed up (250ms), then turbo (100ms)
+        let interval = 500;
+        if (holdDuration > 1000) interval = 100;
+        else if (holdDuration > 500) interval = 250;
+
+        if (now - scene.lastDeployTime <= interval) return;
+
+        const margin = 2;
+        const isInsideMap = gridPosFloat.x >= -margin && gridPosFloat.x < scene.mapSize + margin &&
+            gridPosFloat.y >= -margin && gridPosFloat.y < scene.mapSize + margin;
+
+        if (!isInsideMap || isForbidden) return;
+
+        const army = gameManager.getArmy();
+        const selectedType = gameManager.getSelectedTroopType();
+        if (!selectedType || !(army[selectedType] > 0)) return;
+
+        // Fan the stream: successive spawns land on a small
+        // deterministic golden-angle spiral instead of one
+        // identical point (which force-fed the rim pile-up).
+        const index = this.deployStreamIndex++;
+        const fanAngle = index * 2.399963229728653;
+        const fanRadius = index === 0 ? 0 : 0.26 + 0.14 * Math.sqrt(index % 9);
+        const fanX = gridPosFloat.x + Math.cos(fanAngle) * fanRadius;
+        const fanY = gridPosFloat.y + Math.sin(fanAngle) * fanRadius;
+        const fanInside = fanX >= -margin && fanX < scene.mapSize + margin &&
+            fanY >= -margin && fanY < scene.mapSize + margin;
+        const fanForbidden = scene.isDeployForbidden(fanX, fanY);
+        const useFan = fanInside && !fanForbidden;
+        scene.spawnTroop(
+            useFan ? fanX : gridPosFloat.x,
+            useFan ? fanY : gridPosFloat.y,
+            selectedType as TroopType,
+            'PLAYER'
+        );
+        gameManager.deployTroop(selectedType);
+        scene.lastDeployTime = now;
+    }
+
     onPointerMove(pointer: Phaser.Input.Pointer) {
-        // Skip if pinching
-        if (this.isPinching) return;
+        if (this.isPointerSuppressed(pointer)) return;
 
         const scene = this.scene;
         // 1. Calculate common coordinate data immediately to avoid redundancy and shadowing
@@ -566,9 +827,7 @@ export class SceneInputController {
 
                 // Determine if we are hovering a valid deployment zone
                 // We reuse the pre-calculated coordinates
-                const bounds = scene.getBuildingsBounds('ENEMY');
-                const isForbidden = bounds && cartFloat.x >= bounds.minX && cartFloat.x <= bounds.maxX &&
-                    cartFloat.y >= bounds.minY && cartFloat.y <= bounds.maxY;
+                const isForbidden = scene.isDeployForbidden(cartFloat.x, cartFloat.y);
 
                 // Is strictly placing troops (Attack mode, troop selected, AND in valid spot OR already locked)
                 const isTroopPlacement = scene.mode === 'ATTACK' && scene.isLockingDragForTroops && !isForbidden;
@@ -589,40 +848,8 @@ export class SceneInputController {
         // Drag to build walls
         this.handleWallDragPaint(pointer);
 
-        if (scene.mode === 'ATTACK' && !scene.isScouting && pointer.isDown) {
-            const now = scene.time.now;
-            const holdDuration = now - scene.deployStartTime;
-
-            // Ramping fire rate: Start slow (500ms), speed up (250ms), then turbo (100ms)
-            let interval = 500;
-            if (holdDuration > 1000) interval = 100;
-            else if (holdDuration > 500) interval = 250;
-
-            if (now - scene.lastDeployTime > interval) {
-                const bounds = scene.getBuildingsBounds('ENEMY');
-                const margin = 2;
-                const isInsideMap = gridPosFloat.x >= -margin && gridPosFloat.x < scene.mapSize + margin &&
-                    gridPosFloat.y >= -margin && gridPosFloat.y < scene.mapSize + margin;
-                const isForbidden = bounds && gridPosFloat.x >= bounds.minX && gridPosFloat.x <= bounds.maxX &&
-                    gridPosFloat.y >= bounds.minY && gridPosFloat.y <= bounds.maxY;
-
-                if (isForbidden) {
-                    scene.lastForbiddenInteractionTime = now;
-                }
-
-                if (isInsideMap && !isForbidden) {
-                    const army = gameManager.getArmy();
-                    const selectedType = gameManager.getSelectedTroopType();
-                    if (selectedType && army[selectedType] > 0) {
-                        scene.spawnTroop(gridPosFloat.x, gridPosFloat.y, selectedType as TroopType, 'PLAYER');
-                        gameManager.deployTroop(selectedType);
-                        scene.lastDeployTime = now;
-                        return;
-                    }
-                }
-            }
-        }
-
+        // (Hold-to-deploy no longer ticks here: the stream is CLOCK-driven
+        // from update() below, so a perfectly still hold keeps deploying.)
 
         scene.ghostBuilding.clear();
         if (scene.selectedBuildingType || (scene.isMoving && scene.selectedInWorld)) {
@@ -633,7 +860,11 @@ export class SceneInputController {
                 const ghostX = Math.round(gridPosFloat.x - info.width / 2);
                 const ghostY = Math.round(gridPosFloat.y - info.height / 2);
 
-                if (ghostX >= 0 && ghostX < scene.mapSize && ghostY >= 0 && ghostY < scene.mapSize) {
+                // Footprint-aware edge handling: keep the ghost visible while
+                // ANY part of the footprint still overlaps the map. The old
+                // origin-only check vanished multi-tile ghosts at the west/
+                // north edges and never showed the "can't go here" state.
+                if (ghostX + info.width > 0 && ghostX < scene.mapSize && ghostY + info.height > 0 && ghostY < scene.mapSize) {
                     scene.ghostBuilding.setVisible(true);
 
                     // Determine Ghost Level for accurate preview
@@ -645,19 +876,77 @@ export class SceneInputController {
                     }
 
                     const ghostObj = { type: type as BuildingType, level: level, gridX: ghostX, gridY: ghostY };
-                    scene.drawBuildingVisuals(scene.ghostBuilding, ghostX, ghostY, type, 0.5, null, ghostObj as any);
+                    // Live validity feedback through the existing tint path
+                    // (works on both the baked-sprite and vector ghost):
+                    // green = this drop will land, red = it will be refused.
+                    const ignoreId = scene.isMoving && scene.selectedInWorld ? scene.selectedInWorld.id : null;
+                    let ghostValid = scene.isPositionValid(ghostX, ghostY, type, ignoreId);
+                    if (!ghostValid && type === 'wall' && !scene.isMoving) {
+                        // Wall paint treats an existing own wall as a quiet
+                        // no-op, not a refusal — don't flash red over the
+                        // segment the drag just placed.
+                        ghostValid = scene.buildings.some(b =>
+                            b.type === 'wall' && b.owner === 'PLAYER' && b.gridX === ghostX && b.gridY === ghostY);
+                    }
+                    // Ghost alpha 0.85 (was 0.5) and a NEAR-WHITE cast (was a
+                    // saturated multiply): the old 50%-alpha sprite under a
+                    // full green/red multiply crushed the art into a camo
+                    // smudge against grass. The verdict color lives on the
+                    // footprint diamond below; the sprite keeps its own
+                    // colors with only a light green/red cast.
+                    const ghostTint = ghostValid ? 0xd8ffdc : 0xffb4ab;
+                    scene.drawBuildingVisuals(scene.ghostBuilding, ghostX, ghostY, type, 0.85, ghostTint, ghostObj as any);
+
+                    // Validity footprint under the ghost: a filled diamond +
+                    // crisp edges in the drop verdict's color (green = will
+                    // land, red = refused). The tinted sprite alone
+                    // camouflaged against grass/occupied pads; the diamond is
+                    // the unambiguous signal, mirroring the selection
+                    // outline's pixel-line style.
+                    const fpColor = ghostValid ? 0x37e05a : 0xff4a3a;
+                    const f1 = IsoUtils.cartToIso(ghostX, ghostY);
+                    const f2 = IsoUtils.cartToIso(ghostX + info.width, ghostY);
+                    const f3 = IsoUtils.cartToIso(ghostX + info.width, ghostY + info.height);
+                    const f4 = IsoUtils.cartToIso(ghostX, ghostY + info.height);
+                    scene.ghostBuilding.fillStyle(fpColor, 0.16);
+                    scene.ghostBuilding.beginPath();
+                    scene.ghostBuilding.moveTo(f1.x, f1.y);
+                    scene.ghostBuilding.lineTo(f2.x, f2.y);
+                    scene.ghostBuilding.lineTo(f3.x, f3.y);
+                    scene.ghostBuilding.lineTo(f4.x, f4.y);
+                    scene.ghostBuilding.closePath();
+                    scene.ghostBuilding.fillPath();
+                    pixelLine(scene.ghostBuilding, f1.x, f1.y, f2.x, f2.y, 3, fpColor, 0.95);
+                    pixelLine(scene.ghostBuilding, f2.x, f2.y, f3.x, f3.y, 3, fpColor, 0.95);
+                    pixelLine(scene.ghostBuilding, f3.x, f3.y, f4.x, f4.y, 3, fpColor, 0.95);
+                    pixelLine(scene.ghostBuilding, f4.x, f4.y, f1.x, f1.y, 3, fpColor, 0.95);
 
                     // Ghost depth should be on top of everything for visibility
                     scene.ghostBuilding.setDepth(200000);
 
                     // Track ghost position so selection outline & range indicator follow
+                    const prevGhost = scene.ghostGridPos;
                     scene.ghostGridPos = { x: ghostX, y: ghostY };
 
-                    // Update range indicator to follow ghost
-                    if (scene.isMoving && scene.selectedInWorld?.rangeIndicator) {
-                        scene.showBuildingRangeIndicator(
-                            { ...scene.selectedInWorld, gridX: ghostX, gridY: ghostY } as any
-                        );
+                    // Update range indicator to follow ghost. Redraw on the
+                    // ORIGINAL building object, never a spread copy: the
+                    // clear inside showBuildingRangeIndicator nulls the
+                    // previous holder's rangeIndicator handle, so a copy
+                    // strands the real building without one and this follow
+                    // condition never fires again (ring frozen at the lift
+                    // position for the whole carry). Coordinates are swapped
+                    // in just for the draw. Only redraw on a tile change —
+                    // per-pointer-event redraws restart the pulse tween.
+                    if (scene.isMoving && scene.selectedInWorld?.rangeIndicator
+                        && (!prevGhost || prevGhost.x !== ghostX || prevGhost.y !== ghostY)) {
+                        const carried = scene.selectedInWorld;
+                        const homeX = carried.gridX;
+                        const homeY = carried.gridY;
+                        carried.gridX = ghostX;
+                        carried.gridY = ghostY;
+                        scene.showBuildingRangeIndicator(carried);
+                        carried.gridX = homeX;
+                        carried.gridY = homeY;
                     }
                 } else { scene.ghostBuilding.setVisible(false); }
             }

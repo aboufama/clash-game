@@ -128,7 +128,7 @@ function deployGolem(engaged: AttackAggregate, now = T0 + 200): AttackAggregate 
 function run(): void {
   const prepared = prepareAttack(playerInput(), { reserveArmy })
   check(prepared.phase === 'PREPARING' && prepared.version === 1, 'preparation starts at PREPARING v1')
-  check(prepared.rules.simulationVersion === 2, 'new attacks pin the current combat simulation version')
+  check(prepared.rules.simulationVersion === 3, 'new attacks pin the current combat simulation version')
   check(prepared.reservation.state === 'HELD' && prepared.reservation.reserved.golem === 1, 'preparation holds an exact army reservation')
   check(prepared.target.kind === 'PLAYER' && prepared.target.plot.x === 7, 'matchmade PLAYER target retains its real world plot')
 
@@ -235,13 +235,27 @@ function run(): void {
     type: 'DEPLOY', commandId: 'partial_deploy', sequence: 1,
     troopInstanceId: 'partial_warrior', troopType: 'warrior', gridX: 0, gridY: 0
   }, T0 + 200).attack
-  const version2Result = simulateCombat(partialActive, 1_000)
+  const version2Result = simulateCombat({
+    ...partialActive,
+    rules: { ...partialActive.rules, simulationVersion: 2 }
+  }, 1_000)
   const version1Result = simulateCombat({
     ...partialActive,
     rules: { ...partialActive.rules, simulationVersion: 1 }
   }, 1_000)
   check(version2Result.destruction > version1Result.destruction,
     'simulation v1 remains replayable while v2 credits deterministic partial structural damage')
+  // v3 attrition: against the snapshot's cannon, a lone warrior only earns
+  // credit for its expected survival window instead of the full 75s budget.
+  const longFightV3 = simulateCombat(partialActive, 75_000)
+  const longFightV2 = simulateCombat({
+    ...partialActive,
+    rules: { ...partialActive.rules, simulationVersion: 2 }
+  }, 75_000)
+  check(longFightV3.damageDealt > 0 && longFightV3.damageDealt < longFightV2.damageDealt,
+    'simulation v3 attrition banks materially less for a wiped army while v2 replays keep full credit')
+  check(simulateCombat(partialActive, 75_000).resultHash === longFightV3.resultHash,
+    'v3 attrition stays a deterministic function of snapshot, seed and events')
   check(finalizedA.finalization?.settlement.resourceMode === 'TRANSFER' && Boolean(finalizedA.finalization.settlement.defender), 'PLAYER outcome creates one self-contained transfer plan')
   check(finalizedA.finalization?.settlement.consumeArmy.golem === 1 && finalizedA.finalization.settlement.releaseArmy.warrior === 2, 'settlement consumes deployed troops and releases unused reservation')
 

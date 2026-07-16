@@ -1,0 +1,278 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "arrow",
+  "variants": {
+    "l1_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a00_idle0.png",
+              "texelW": 7,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.4074074074074068,
+              "originY": 0.42592592592592277
+            }
+          ]
+        }
+      }
+    },
+    "l1_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a01_idle0.png",
+              "texelW": 7,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.4074074074074068,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l1_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a02_idle0.png",
+              "texelW": 6,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.3086419753086419
+            }
+          ]
+        }
+      }
+    },
+    "l1_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a03_idle0.png",
+              "texelW": 4,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.4074074074074068
+            }
+          ]
+        }
+      }
+    },
+    "l1_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a04_idle0.png",
+              "texelW": 2,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.42592592592592277,
+              "originY": 0.4074074074074068
+            }
+          ]
+        }
+      }
+    },
+    "l1_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a05_idle0.png",
+              "texelW": 3,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.4074074074074068
+            }
+          ]
+        }
+      }
+    },
+    "l1_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a06_idle0.png",
+              "texelW": 6,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.6419753086419738,
+              "originY": 0.3086419753086419
+            }
+          ]
+        }
+      }
+    },
+    "l1_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a07_idle0.png",
+              "texelW": 8,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.6064814814814812,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l1_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a08_idle0.png",
+              "texelW": 8,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.6064814814814812,
+              "originY": 0.42592592592592277
+            }
+          ]
+        }
+      }
+    },
+    "l1_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a09_idle0.png",
+              "texelW": 8,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.6064814814814812,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    },
+    "l1_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a10_idle0.png",
+              "texelW": 6,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.6419753086419738,
+              "originY": 0.6419753086419738
+            }
+          ]
+        }
+      }
+    },
+    "l1_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a11_idle0.png",
+              "texelW": 3,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.6064814814814812
+            }
+          ]
+        }
+      }
+    },
+    "l1_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a12_idle0.png",
+              "texelW": 2,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.42592592592592277,
+              "originY": 0.6064814814814812
+            }
+          ]
+        }
+      }
+    },
+    "l1_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a13_idle0.png",
+              "texelW": 4,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.6064814814814812
+            }
+          ]
+        }
+      }
+    },
+    "l1_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a14_idle0.png",
+              "texelW": 6,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.3086419753086419,
+              "originY": 0.6419753086419738
+            }
+          ]
+        }
+      }
+    },
+    "l1_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "arrow_l1_a15_idle0.png",
+              "texelW": 7,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.4074074074074068,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "bird_heron",
+  "variants": {
+    "c": {
+      "states": {
+        "fly": {
+          "loopMs": 700,
+          "frames": [
+            {
+              "file": "bird_heron_c_fly0.png",
+              "texelW": 11,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5286195286195285,
+              "originY": 0.5703703703703703
+            },
+            {
+              "file": "bird_heron_c_fly1.png",
+              "texelW": 11,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.5286195286195285,
+              "originY": 0.6419753086419752
+            },
+            {
+              "file": "bird_heron_c_fly2.png",
+              "texelW": 11,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.5286195286195285,
+              "originY": 0.6419753086419752
+            },
+            {
+              "file": "bird_heron_c_fly3.png",
+              "texelW": 11,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5286195286195285,
+              "originY": 0.5703703703703703
+            },
+            {
+              "file": "bird_heron_c_fly4.png",
+              "texelW": 11,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5286195286195285,
+              "originY": 0.5703703703703703
+            },
+            {
+              "file": "bird_heron_c_fly5.png",
+              "texelW": 11,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5286195286195285,
+              "originY": 0.5703703703703703
+            }
+          ]
+        }
+      }
+    }
+  }
+}

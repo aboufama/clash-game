@@ -49,7 +49,10 @@ path — a raw assignment lets a stale snapshot clobber a newer one.
 - **Dev:** `npm run dev` — Vite on `127.0.0.1:5173`; the server mounts as a Vite
   plugin (`server/vite-plugin.ts`) and 301-canonicalizes `localhost` → `127.0.0.1`
   (a token/localStorage origin trap — respect it). Dev sets
-  `CLASH_ALLOW_DEBUG_GRANTS=1`, `CLASH_ALLOW_WORLD_RESEED=1`.
+  `CLASH_ALLOW_DEBUG_GRANTS=1`, `CLASH_ALLOW_WORLD_RESEED=1`,
+  `CLASH_INFINITE_RESOURCES=1`, and one-second upgrade timers. Infinite
+  resources are a virtual server-side wallet: saved balances stay finite while
+  player resource costs are waived.
 - **Prod:** `npm run build` → esbuild `server/index.ts` → `dist-server/index.mjs`;
   `npm start` serves `dist/` + API standalone (default port 8787).
 - **Tests:** `npm run test:server` (HTTP integration), `test:persistence`,

@@ -7,6 +7,11 @@ import { WreckRenderer } from '../renderers/WreckRenderer';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats } from '../config/GameDefinitions';
 import { TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
+import { VillageLifeSystem, VILLAGER_PALETTES, DOG_PALETTES } from '../systems/VillageLifeSystem';
+import { WorldFigureRenderer } from '../renderers/WorldFigureRenderer';
+import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
+import { setWindBoost } from '../systems/Wind';
+import { SpriteBank } from '../render/SpriteBank';
 
 /**
  * Asset-pipeline entry point (see docs/AGENTS_SPRITE_PIPELINE.md).
@@ -37,6 +42,21 @@ export function installBakeBridge(scene: Phaser.Scene) {
         getBuildingStats,
         getTroopStats,
         TILE_WIDTH,
-        TILE_HEIGHT
+        TILE_HEIGHT,
+        // Figure bake surface: villagers/animals/merchant/stall/thief/owl statics.
+        VillageLifeSystem,
+        VILLAGER_PALETTES,
+        DOG_PALETTES,
+        // World-map figures + rigid projectiles (extracted statics).
+        WorldFigureRenderer,
+        ProjectileRenderer,
+        // Wind pin: windAt() reads the mutable gustBoost module global, so
+        // without pinning, baked banner/crop poses would depend on whatever
+        // weather happened to be live at bake time. The harness calls
+        // setWindBoost(1) once at setup to capture at calm.
+        setWindBoost,
+        // Bank introspection for variant tooling: which atlases loaded, and
+        // how a plain unit name resolves to its '@slot' design-variant bake.
+        SpriteBank
     };
 }

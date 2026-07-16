@@ -16,7 +16,7 @@ import {
 } from '../src/game/config/Economy'
 import { generateBotWorldFromSeed } from '../src/game/backend/BotWorlds'
 import { clearWorldHydrologyCache } from '../src/game/config/WorldHydrology'
-import type { SerializedBuilding, SerializedObstacle, SerializedWorld } from '../src/game/data/Models'
+import { sanitizeVillageBanner, villageBannersEqual, type SerializedBuilding, type SerializedObstacle, type SerializedWorld, type VillageBanner } from '../src/game/data/Models'
 import type {
   AttackNotificationItem,
   AttackRecord,
@@ -111,6 +111,15 @@ const STARTING_BALANCE = 1000
 const UPGRADE_TIME_SCALE = (() => {
   const raw = Number(process.env.CLASH_UPGRADE_TIME_SCALE ?? '1')
   return Number.isFinite(raw) && raw >= 0 ? raw : 1
+})()
+
+// Local development can use one exact duration for every timed upgrade.
+// Production leaves this unset and continues to use the normal scaled clock.
+const FIXED_UPGRADE_DURATION_MS = (() => {
+  const configured = process.env.CLASH_UPGRADE_DURATION_MS
+  if (configured === undefined || configured.trim() === '') return undefined
+  const raw = Number(configured)
+  return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : undefined
 })()
 
 // ---- ore & food ----
@@ -258,6 +267,8 @@ interface PlayerRecord {
   /** Public presentation revisions are independent from private economy writes. */
   layoutRevision?: number
   appearanceRevision?: number
+  /** Owner-chosen village heraldry; absent = identity-derived default. */
+  banner?: VillageBanner
 }
 
 interface NotificationRecord {
@@ -375,6 +386,30 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
+function debugGrantsEnabled(): boolean {
+  return process.env.CLASH_ALLOW_DEBUG_GRANTS === '1'
+}
+
+function infiniteResourcesEnabled(): boolean {
+  return process.env.CLASH_INFINITE_RESOURCES === '1'
+}
+
+/** Apply storage rules, preserving existing overflow only in debug mode. */
+function storedResourceAfterDelta(
+  current: number,
+  delta: number,
+  capacity: number,
+  allowOverflow = false,
+  preserveOverflow = false
+): number {
+  const stored = clamp(toInt(current, 0), 0, MAX_BALANCE)
+  if (allowOverflow) return clamp(stored + delta, 0, MAX_BALANCE)
+  if (!preserveOverflow) return clamp(stored + delta, 0, capacity)
+  if (delta <= 0) return Math.max(0, stored + delta)
+  if (stored >= capacity) return stored
+  return Math.min(capacity, stored + delta)
+}
+
 function hasOwn(record: object, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(record, key)
 }
@@ -471,7 +506,8 @@ function publicWorldOf(player: PlayerRecord): PublicWorldSnapshot {
       population: player.population.count,
       bornAt: [...(player.population.bornAt ?? [])],
       simulatedThrough: player.simulatedThrough ?? player.lastAccrualAt
-    }
+    },
+    ...(player.banner ? { banner: { ...player.banner } } : {})
   }
 }
 
@@ -728,6 +764,18 @@ export class GameService {
       if ('botRaidResults' in player) {
         delete (player as PlayerRecord & { botRaidResults?: unknown }).botRaidResults
         this.players.markDirty(id)
+      }
+      // A corrupt persisted banner never reaches clients: drop it and the
+      // village falls back to its deterministic identity-derived heraldry.
+      if (player.banner !== undefined) {
+        const safeBanner = sanitizeVillageBanner(player.banner)
+        if (!safeBanner) {
+          delete player.banner
+          this.players.markDirty(id)
+        } else if (!villageBannersEqual(safeBanner, player.banner)) {
+          player.banner = safeBanner
+          this.players.markDirty(id)
+        }
       }
     }
     // One-time migration: Solana-era records used sol* field names for the
@@ -1056,7 +1104,8 @@ export class GameService {
       player: this.profileOf(player),
       world: this.worldOf(player),
       created,
-      unread: this.unreadCount(player.id)
+      unread: this.unreadCount(player.id),
+      features: { infiniteResources: infiniteResourcesEnabled() }
     }
   }
 
@@ -1157,6 +1206,12 @@ export class GameService {
 
   /** Map window around (x, y): players, deterministic bots, live battles. */
   map(player: PlayerRecord, rawX: unknown, rawY: unknown, rawR: unknown, rawKnown?: unknown) {
+    // Mature the viewer's own clocks FIRST: a watchtower upgrade that just
+    // completed must widen this very window. Without this, the refresh the
+    // client fires at completion reads the stale pre-upgrade level (the loop
+    // below only advances plot owners AFTER sight is computed) and the newly
+    // earned ring waits a whole client refresh cadence to fill in.
+    this.advancePlayer(player)
     const homeX = player.plotX ?? 0
     const homeY = player.plotY ?? 0
     const cx = worldCoord(rawX, homeX)
@@ -1232,7 +1287,7 @@ export class GameService {
           this.allocationState.presentationSeedVersion
         )
         if (seed !== null) {
-          plots.push({ x, y, kind: 'bot', seed, username: botNameFor(seed), trophies: 100 + (seed % 900) })
+          plots.push({ x, y, kind: 'bot', seed, username: botNameFor(seed, x, y), trophies: 100 + (seed % 900) })
         } else {
           plots.push({
             x,
@@ -1525,6 +1580,37 @@ export class GameService {
     return this.profileOf(player)
   }
 
+  /**
+   * Choose (or clear) the village banner — the heraldry flown at the town
+   * hall, carried to war and shown on every neighbour's world map. All axes
+   * are bounded enums validated here; `null` returns the village to its
+   * deterministic identity-derived default. Bumping appearanceRevision (not
+   * the economy revision) refreshes neighbour postcards without invalidating
+   * in-flight layout saves.
+   */
+  setBanner(player: PlayerRecord, rawBanner: unknown): { banner: VillageBanner | null } {
+    // JSON cannot express undefined: a request without a `banner` key is a
+    // malformed call, never a silent reset. Explicit null clears the choice.
+    if (rawBanner === undefined) throw new ApiError(400, 'Missing banner payload (use null to reset)')
+    if (rawBanner === null) {
+      if (player.banner !== undefined) {
+        delete player.banner
+        player.appearanceRevision = appearanceRevisionOf(player) + 1
+        player.lastMutationAt = Date.now()
+        this.players.markDirty(player.id)
+      }
+      return { banner: null }
+    }
+    const banner = sanitizeVillageBanner(rawBanner)
+    if (!banner) throw new ApiError(400, 'Invalid banner: palette 0-7, emblem 0-5, optional pattern 0-4')
+    if (villageBannersEqual(player.banner, banner)) return { banner: { ...banner } }
+    player.banner = banner
+    player.appearanceRevision = appearanceRevisionOf(player) + 1
+    player.lastMutationAt = Date.now()
+    this.players.markDirty(player.id)
+    return { banner: { ...banner } }
+  }
+
   // ---- world / resources ----
 
   /**
@@ -1574,7 +1660,8 @@ export class GameService {
       // Do not run expiry from inside simulation: expiry settles an attack and
       // settlement itself advances both villages. The tracked lease is the
       // exact lock signal needed here and avoids a recursive settlement loop.
-      populationLocked: (this.liveByVictim.get(player.id)?.size ?? 0) > 0
+      populationLocked: (this.liveByVictim.get(player.id)?.size ?? 0) > 0,
+      preserveOverCapacity: debugGrantsEnabled()
     })
     this.book('faucets', 'gold', result.produced.gold)
     this.book('faucets', 'ore', result.produced.ore)
@@ -1628,10 +1715,20 @@ export class GameService {
         bornAt: [...(player.population.bornAt ?? [])]
       },
       army: { ...player.army },
+      // Own-world payloads carry trophies so a defense loss reaches the HUD
+      // on the ordinary world poll instead of waiting for the next attack.
+      trophies: player.trophies,
+      // The effective upgrade clock, so client-advertised durations can never
+      // drift from what this server will actually bill.
+      upgradePolicy: {
+        ...(FIXED_UPGRADE_DURATION_MS !== undefined ? { fixedDurationMs: FIXED_UPGRADE_DURATION_MS } : {}),
+        timeScale: UPGRADE_TIME_SCALE
+      },
       wallLevel: player.wallLevel,
       // Real change time, so the client's "is the remote newer than my local?" check stays meaningful.
       lastSaveTime: player.lastMutationAt || player.lastAccrualAt,
-      revision: player.revision
+      revision: player.revision,
+      ...(player.banner ? { banner: { ...player.banner } } : {})
     }
   }
 
@@ -1753,26 +1850,30 @@ export class GameService {
       proposedBuildings: proposal.buildings,
       proposedObstacles: proposal.obstacles,
       now: Date.now(),
-      upgradeTimeScale: UPGRADE_TIME_SCALE
+      upgradeTimeScale: UPGRADE_TIME_SCALE,
+      fixedUpgradeDurationMs: FIXED_UPGRADE_DURATION_MS
     }))
     const { buildings, charges, refundGold, obstacleRewards, bill } = pricing
     const obstacles = proposal.obstacles
+    const infiniteResources = infiniteResourcesEnabled()
 
     // ---- settle or refuse (before any mutation, so a refusal changes nothing) ----
-    if (bill.gold > 0 && Math.floor(player.balance) < bill.gold) {
+    if (!infiniteResources && bill.gold > 0 && Math.floor(player.balance) < bill.gold) {
       throw new ApiError(409, `Not enough gold for these changes (need ${bill.gold})`, 'INSUFFICIENT_RESOURCES', { resource: 'gold' })
     }
-    if (bill.ore > 0 && player.ore < bill.ore) {
+    if (!infiniteResources && bill.ore > 0 && player.ore < bill.ore) {
       throw new ApiError(409, `Not enough ore for these changes (need ${bill.ore})`, 'INSUFFICIENT_RESOURCES', { resource: 'ore' })
     }
 
-    player.balance = clamp(player.balance - bill.gold, 0, MAX_BALANCE)
+    if (!infiniteResources) player.balance = clamp(player.balance - bill.gold, 0, MAX_BALANCE)
     player.buildings = buildings
     player.obstacles = obstacles
     // Ore settles against the NEW layout's storage (a save may add the storehouse it fills).
     const caps = resourceCapacity(player.buildings)
-    player.ore = clamp(player.ore - bill.ore, 0, caps.ore)
-    player.food = clamp(player.food, 0, caps.food)
+    if (!infiniteResources) {
+      player.ore = storedResourceAfterDelta(player.ore, -bill.ore, caps.ore, false, debugGrantsEnabled())
+      player.food = storedResourceAfterDelta(player.food, 0, caps.food, false, debugGrantsEnabled())
+    }
     this.discardCappedProduction(player, caps)
     player.wallLevel = proposal.wallLevel
     // The new layout may house fewer people; never let count exceed capacity.
@@ -1783,10 +1884,12 @@ export class GameService {
     player.lastMutationAt = Date.now()
     this.recordRequestKey(player, key)
     this.players.markDirty(player.id)
-    this.book('sinks', 'gold', charges.gold)
-    this.book('sinks', 'ore', charges.ore)
-    this.book('refunds', 'gold', refundGold)
-    this.book('faucets', 'gold', obstacleRewards)
+    if (!infiniteResources) {
+      this.book('sinks', 'gold', charges.gold)
+      this.book('sinks', 'ore', charges.ore)
+      this.book('refunds', 'gold', refundGold)
+      this.book('faucets', 'gold', obstacleRewards)
+    }
     if (charges.gold > 0 || charges.ore > 0 || refundGold > 0) this.bookCount('saves')
     return this.worldOf(player)
   }
@@ -1808,6 +1911,7 @@ export class GameService {
     if (!Number.isFinite(delta)) throw new ApiError(400, 'delta must be a finite number')
     const resource: ResourceKind = body?.resource === 'ore' ? 'ore' : body?.resource === 'food' ? 'food' : 'gold'
     const reason = typeof body?.reason === 'string' ? body.reason.slice(0, 40) : ''
+    const isDebugGrant = delta > 0 && reason === 'debug_grant' && debugGrantsEnabled()
 
     const balances = () => ({
       gold: Math.floor(player.balance),
@@ -1825,7 +1929,7 @@ export class GameService {
     if (delta === 0) return { applied: false, ...balances() }
     if (delta < 0) this.assertBaseEconomyUnlocked(player)
 
-    if (delta > 0 && !(reason === 'debug_grant' && process.env.CLASH_ALLOW_DEBUG_GRANTS === '1')) {
+    if (delta > 0 && !isDebugGrant) {
       const rule = AMBIENT_GRANTS[reason]
       if (!rule || rule.kind !== resource) {
         throw new ApiError(403, 'Resources are earned, not granted')
@@ -1845,21 +1949,26 @@ export class GameService {
       window.granted[reason] = soFar + delta
     }
 
+    const infiniteSpend = delta < 0 && infiniteResourcesEnabled()
     // Reject overdrafts WITHOUT recording the key, so the client can retry after earning more.
     const current = resource === 'gold' ? Math.floor(player.balance) : player[resource]
-    if (delta < 0 && current + delta < 0) {
+    if (!infiniteSpend && delta < 0 && current + delta < 0) {
       return { applied: false, ...balances() }
     }
 
-    if (resource === 'gold') {
-      player.balance = clamp(player.balance + delta, 0, MAX_BALANCE)
-    } else {
-      const caps = resourceCapacity(player.buildings)
-      player[resource] = clamp(player[resource] + delta, 0, caps[resource])
-      this.discardCappedProduction(player, caps)
+    if (!infiniteSpend) {
+      if (resource === 'gold') {
+        player.balance = clamp(player.balance + delta, 0, MAX_BALANCE)
+      } else {
+        const caps = resourceCapacity(player.buildings)
+        player[resource] = storedResourceAfterDelta(
+          player[resource], delta, caps[resource], isDebugGrant, debugGrantsEnabled()
+        )
+        this.discardCappedProduction(player, caps)
+      }
     }
     if (delta > 0) this.book('faucets', resource, delta)
-    else this.book('sinks', resource, -delta)
+    else if (!infiniteSpend) this.book('sinks', resource, -delta)
     player.revision += 1
     player.lastMutationAt = Date.now()
     this.recordRequestKey(player, key)
@@ -1898,14 +2007,19 @@ export class GameService {
     }
     const goldCost = def.cost * count
     const foodCost = troopFoodCostOf(type) * count
-    if (Math.floor(player.balance) < goldCost) throw new ApiError(409, `Not enough gold (need ${goldCost})`)
-    if (player.food < foodCost) throw new ApiError(409, `Not enough food (need ${foodCost})`)
+    const infiniteResources = infiniteResourcesEnabled()
+    if (!infiniteResources && Math.floor(player.balance) < goldCost) throw new ApiError(409, `Not enough gold (need ${goldCost})`)
+    if (!infiniteResources && player.food < foodCost) throw new ApiError(409, `Not enough food (need ${foodCost})`)
 
-    player.balance = clamp(player.balance - goldCost, 0, MAX_BALANCE)
-    player.food -= foodCost
+    if (!infiniteResources) {
+      player.balance = clamp(player.balance - goldCost, 0, MAX_BALANCE)
+      player.food -= foodCost
+    }
     player.army[type] = (player.army[type] ?? 0) + count
-    this.book('sinks', 'gold', goldCost)
-    this.book('sinks', 'food', foodCost)
+    if (!infiniteResources) {
+      this.book('sinks', 'gold', goldCost)
+      this.book('sinks', 'food', foodCost)
+    }
     player.revision += 1
     player.lastMutationAt = Date.now()
     this.recordRequestKey(player, key)
@@ -1934,12 +2048,16 @@ export class GameService {
     this.accrue(player)
     if (have - count <= 0) delete player.army[type]
     else player.army[type] = have - count
-    player.balance = clamp(player.balance + def.cost * count, 0, MAX_BALANCE)
-    const caps = resourceCapacity(player.buildings)
-    player.food = clamp(player.food + troopFoodCostOf(type) * count, 0, caps.food)
-    this.discardCappedProduction(player, caps)
-    this.book('refunds', 'gold', def.cost * count)
-    this.book('refunds', 'food', troopFoodCostOf(type) * count)
+    if (!infiniteResourcesEnabled()) {
+      player.balance = clamp(player.balance + def.cost * count, 0, MAX_BALANCE)
+      const caps = resourceCapacity(player.buildings)
+      player.food = storedResourceAfterDelta(
+        player.food, troopFoodCostOf(type) * count, caps.food, false, debugGrantsEnabled()
+      )
+      this.discardCappedProduction(player, caps)
+      this.book('refunds', 'gold', def.cost * count)
+      this.book('refunds', 'food', troopFoodCostOf(type) * count)
+    }
     player.revision += 1
     player.lastMutationAt = Date.now()
     this.recordRequestKey(player, key)
@@ -1992,20 +2110,23 @@ export class GameService {
 
     this.accrue(player)
     const have = offer.give.kind === 'gold' ? Math.floor(player.balance) : player[offer.give.kind]
-    if (have < offer.give.amount) {
+    const infiniteResources = infiniteResourcesEnabled()
+    if (!infiniteResources && have < offer.give.amount) {
       return { applied: false, offerId: offer.id, ...balances() }
     }
 
-    const caps = resourceCapacity(player.buildings)
-    const pay = (kind: 'gold' | 'ore' | 'food', delta: number) => {
-      if (kind === 'gold') player.balance = clamp(player.balance + delta, 0, MAX_BALANCE)
-      else player[kind] = clamp(player[kind] + delta, 0, caps[kind])
+    if (!infiniteResources) {
+      const caps = resourceCapacity(player.buildings)
+      const pay = (kind: 'gold' | 'ore' | 'food', delta: number) => {
+        if (kind === 'gold') player.balance = clamp(player.balance + delta, 0, MAX_BALANCE)
+        else player[kind] = storedResourceAfterDelta(player[kind], delta, caps[kind], false, debugGrantsEnabled())
+      }
+      pay(offer.give.kind, -offer.give.amount)
+      pay(offer.get.kind, offer.get.amount)
+      this.discardCappedProduction(player, caps)
+      this.book('sinks', offer.give.kind, offer.give.amount)
+      this.book('faucets', offer.get.kind, offer.get.amount)
     }
-    pay(offer.give.kind, -offer.give.amount)
-    pay(offer.get.kind, offer.get.amount)
-    this.discardCappedProduction(player, caps)
-    this.book('sinks', offer.give.kind, offer.give.amount)
-    this.book('faucets', offer.get.kind, offer.get.amount)
     this.bookCount('trades')
     player.revision += 1
     player.lastMutationAt = Date.now()
@@ -2918,7 +3039,7 @@ export class GameService {
     } else if (type === 'mobilemortar') {
       const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2, true)
       perVolley *= 1 + Math.max(0, hits - 1) * 0.6
-    } else if (type === 'golem') {
+    } else if (type === 'golem' || type === 'icegolem') {
       perVolley *= this.splashTargetCeiling(world, 3, false)
     } else if (type === 'wallbreaker') {
       const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2.5, false)
@@ -3879,8 +4000,12 @@ export class GameService {
       this.accrue(attacker, settlement.endedAt)
       attacker.balance = clamp(attacker.balance + settlement.goldLooted, 0, MAX_BALANCE)
       const caps = resourceCapacity(attacker.buildings)
-      attacker.ore = clamp(attacker.ore + settlement.oreLooted, 0, caps.ore)
-      attacker.food = clamp(attacker.food + settlement.foodLooted, 0, caps.food)
+      attacker.ore = storedResourceAfterDelta(
+        attacker.ore, settlement.oreLooted, caps.ore, false, debugGrantsEnabled()
+      )
+      attacker.food = storedResourceAfterDelta(
+        attacker.food, settlement.foodLooted, caps.food, false, debugGrantsEnabled()
+      )
       this.discardCappedProduction(attacker, caps)
       attacker.trophies = Math.max(0, attacker.trophies + settlement.trophyDelta)
       for (const [type, count] of Object.entries(settlement.deployed)) {

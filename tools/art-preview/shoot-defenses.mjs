@@ -10,8 +10,16 @@ const TENSION = Number(process.env.TENSION ?? 0)
 const RECOIL = Number(process.env.RECOIL ?? 0)
 const TAG = process.env.TAG ?? 'se'
 const PHASE = process.env.PHASE ? Number(process.env.PHASE) : null
+// VECTOR=1 → set the SpriteBank kill switch so the live VECTOR art renders
+// (authoring iteration); ONLY=<type,type> filters the close-up loop;
+// BURST=<n> takes n screenshots per building spaced BURST_MS apart so an
+// idle loop's motion is visible across the series.
+const VECTOR = process.env.VECTOR === '1'
+const ONLY = process.env.ONLY ? process.env.ONLY.split(',').map(s => s.trim()) : null
+const BURST = Math.max(1, Number(process.env.BURST ?? 1))
+const BURST_MS = Number(process.env.BURST_MS ?? 350)
 
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 mkdirSync(OUT, { recursive: true })
 
 // Showcase layout: [type, level, gridX, gridY, w, h]
@@ -37,9 +45,17 @@ const SHOWCASE = [
   ['barracks', 11, 2, 21, 2, 2],
   ['barracks', 13, 7, 21, 2, 2],
   ['dragons_breath', 2, 12, 21, 4, 4],
+  ['dragons_breath', 1, 13, 4, 4, 4],
   ['town_hall', 1, 17, 21, 3, 3],
   ['army_camp', 3, 17, 7, 2, 2],
   ['mortar', 2, 2, 2, 2, 2],
+  ['mortar', 1, 5, 7, 2, 2],
+  ['mortar', 3, 19, 2, 2, 2],
+  ['mortar', 4, 12, 7, 2, 2],
+  ['ballista', 2, 10, 7, 2, 2],
+  ['spike_launcher', 1, 10, 17, 2, 2],
+  ['spike_launcher', 2, 10, 21, 2, 2],
+  ['spike_launcher', 3, 12, 2, 2, 2],
   ['tesla', 2, 21, 2, 1, 1],
   ['frostfall', 2, 2, 7, 2, 2],
   ['mine', 3, 17, 12, 2, 2],
@@ -58,8 +74,19 @@ async function api(path, body, token) {
   return res.json()
 }
 
-const session = await api('/auth/session')
+// ONE shared art-preview identity for every harness run on this machine:
+// resuming a cached token bypasses the guest-creation rate limit (30/hour)
+// and stops screenshot/bake runs from littering the world map with junk
+// guest villages. Delete the cache file to mint a fresh identity.
+const TOKEN_CACHE = new URL('./.shared-device-token.json', import.meta.url).pathname
+let cachedToken = null
+try { cachedToken = JSON.parse(readFileSync(TOKEN_CACHE, 'utf8')).token ?? null } catch { /* no cache yet */ }
+const session = await api('/auth/session', cachedToken ? { token: cachedToken } : {})
+if (!session?.token) {
+  throw new Error(`auth/session failed: ${JSON.stringify(session)} — if this is the 429 guest limit, wait for the window to roll (≤1h) and re-run; the first success re-seeds ${TOKEN_CACHE}`)
+}
 const token = session.token
+try { writeFileSync(TOKEN_CACHE, JSON.stringify({ token })) } catch { /* non-fatal */ }
 
 const browser = await puppeteer.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -70,16 +97,20 @@ const browser = await puppeteer.launch({
 try {
   const page = await browser.newPage()
   await page.setViewport({ width: 1280, height: 900 })
-  await page.evaluateOnNewDocument(tok => {
+  await page.evaluateOnNewDocument((tok, vector) => {
     localStorage.setItem('clash.device.token', tok)
-  }, token)
+    if (vector) localStorage.setItem('clash.sprites.off', '1')
+    else localStorage.removeItem('clash.sprites.off')
+  }, token, VECTOR)
   const errors = []
   page.on('pageerror', e => errors.push(String(e.message)))
-  await page.goto(`${BASE}/game`, { waitUntil: 'networkidle2', timeout: 30000 })
+  // domcontentloaded + the scene waitForFunction below: networkidle2 flakes
+  // when several harnesses share one dev server and Vite is mid-transform.
+  await page.goto(`${BASE}/game`, { waitUntil: 'domcontentloaded', timeout: 90000 })
   // Wait until the scene exists and has buildings (dev-server recompiles can be slow)
   await page.waitForFunction(
     () => window.__clashGame?.scene?.keys?.MainScene?.buildings?.length > 0,
-    { timeout: 45000, polling: 500 }
+    { timeout: 90000, polling: 500 }
   )
   // Preview layouts deliberately exceed normal progression/count rules. Put
   // the fixture into the already-booted scene instead of asking production
@@ -103,7 +134,7 @@ try {
     { timeout: 45000, polling: 250 },
     SHOWCASE.length
   )
-  await new Promise(r => setTimeout(r, 1500))
+  await new Promise(r => setTimeout(r, 3000))
 
   // Pin the day/night clock if requested (e.g. PHASE=0.8 for deep night)
   if (PHASE !== null) {
@@ -142,6 +173,7 @@ try {
 
   // Close-up of each showcase building
   for (const [type, level, gx, gy, w, h] of SHOWCASE) {
+    if (ONLY && !ONLY.includes(type)) continue
     await waitScene()
     await page.evaluate(({ gx, gy, w, h, angle, tension, recoil }) => {
       const game = window.__clashGame
@@ -164,21 +196,26 @@ try {
       }
     }, { gx, gy, w, h, angle: ANGLE, tension: TENSION, recoil: RECOIL })
     await new Promise(r => setTimeout(r, 300))
-    await page.screenshot({
-      path: `${OUT}${type}-L${level}-${TAG}.png`,
-      clip: { x: 340, y: 150, width: 600, height: 600 }
-    })
+    for (let shot = 0; shot < BURST; shot++) {
+      if (shot > 0) await new Promise(r => setTimeout(r, BURST_MS))
+      await page.screenshot({
+        path: `${OUT}${type}-L${level}-${TAG}${BURST > 1 ? `-t${shot}` : ''}.png`,
+        clip: { x: 340, y: 150, width: 600, height: 600 }
+      })
+    }
   }
 
-  // One wide group shot
-  await waitScene()
-  await page.evaluate(() => {
-    const scene = window.__clashGame.scene.keys.MainScene
-    scene.cameras.main.setZoom(1.35)
-    scene.cameras.main.centerOn(0, 400)
-  })
-  await new Promise(r => setTimeout(r, 300))
-  await page.screenshot({ path: `${OUT}_group-${TAG}.png` })
+  // One wide group shot (skipped when ONLY filters the run)
+  if (!ONLY) {
+    await waitScene()
+    await page.evaluate(() => {
+      const scene = window.__clashGame.scene.keys.MainScene
+      scene.cameras.main.setZoom(1.35)
+      scene.cameras.main.centerOn(0, 400)
+    })
+    await new Promise(r => setTimeout(r, 300))
+    await page.screenshot({ path: `${OUT}_group-${TAG}.png` })
+  }
 
   console.log('shots done, page errors:', errors.length ? errors.slice(0, 3) : 'none')
 } finally {

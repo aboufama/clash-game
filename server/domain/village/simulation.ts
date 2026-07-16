@@ -51,6 +51,8 @@ export interface VillageAdvanceOptions {
   maxBalance?: number
   /** Raid settlement can freeze births while food is reserved as displayed loot. */
   populationLocked?: boolean
+  /** Local debug grants may intentionally hold ore/food above storage capacity. */
+  preserveOverCapacity?: boolean
 }
 
 export interface VillageAdvanceResult {
@@ -160,6 +162,7 @@ function resolveUpgradesAt(village: SimulatableVillage, at: number, completed: s
     building.level = clamp(finiteInt(building.upgradingTo, building.level), 1, definition?.maxLevel ?? finiteInt(building.upgradingTo, 1))
     building.builtAt = Number.isFinite(building.upgradeEndsAt) ? building.upgradeEndsAt : at
     delete building.upgradingTo
+    delete building.upgradeStartedAt
     delete building.upgradeEndsAt
     completed.push(building.id)
     changed = true
@@ -172,7 +175,8 @@ function accrueSegment(
   from: number,
   to: number,
   maxBalance: number,
-  produced: VillageAdvanceResult['produced']
+  produced: VillageAdvanceResult['produced'],
+  preserveOverCapacity: boolean
 ): void {
   if (to <= from) return
   const seconds = (to - from) / 1000
@@ -186,7 +190,9 @@ function accrueSegment(
   produced.gold += Math.max(0, Math.floor(village.balance) - beforeGold)
 
   const credit = (kind: 'ore' | 'food', rate: number, cap: number) => {
-    village[kind] = clamp(finiteInt(village[kind], 0), 0, cap)
+    village[kind] = preserveOverCapacity
+      ? Math.max(0, finiteInt(village[kind], 0))
+      : clamp(finiteInt(village[kind], 0), 0, cap)
     if (village[kind] >= cap) {
       remainders[kind] = 0
       return
@@ -306,7 +312,7 @@ export function advanceVillage(
       boundary = Math.min(boundary, dueAt > cursor ? dueAt : foodReadyAt(village, cursor))
     }
     if (!Number.isFinite(boundary) || boundary <= cursor) boundary = target
-    accrueSegment(village, cursor, boundary, maxBalance, result.produced)
+    accrueSegment(village, cursor, boundary, maxBalance, result.produced, Boolean(options.preserveOverCapacity))
     cursor = boundary
     village.lastAccrualAt = cursor
     result.through = cursor

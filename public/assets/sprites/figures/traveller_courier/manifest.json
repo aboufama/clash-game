@@ -1,0 +1,100 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "traveller_courier",
+  "variants": {
+    "c": {
+      "states": {
+        "walk": {
+          "loopMs": 393,
+          "frames": [
+            {
+              "file": "traveller_courier_c_walk0.png",
+              "texelW": 7,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5132275132275126,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "traveller_courier_c_walk1.png",
+              "texelW": 7,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5132275132275126,
+              "originY": 0.8765432098765428
+            },
+            {
+              "file": "traveller_courier_c_walk2.png",
+              "texelW": 7,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5132275132275126,
+              "originY": 0.8765432098765428
+            },
+            {
+              "file": "traveller_courier_c_walk3.png",
+              "texelW": 7,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5132275132275126,
+              "originY": 0.8518518518518519
+            },
+            {
+              "file": "traveller_courier_c_walk4.png",
+              "texelW": 7,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5132275132275126,
+              "originY": 0.8765432098765428
+            },
+            {
+              "file": "traveller_courier_c_walk5.png",
+              "texelW": 7,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5132275132275126,
+              "originY": 0.8765432098765428
+            }
+          ]
+        },
+        "camp": {
+          "loopMs": 314,
+          "frames": [
+            {
+              "file": "traveller_courier_c_camp0.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_courier_c_camp1.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_courier_c_camp2.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_courier_c_camp3.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            }
+          ]
+        }
+      }
+    }
+  }
+}

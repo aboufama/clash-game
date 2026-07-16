@@ -98,7 +98,6 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(users.length === 0);
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const inFlightRef = useRef<Promise<LeaderboardUser[] | null> | null>(null);
   const usersRef = useRef<LeaderboardUser[]>(users);
   const mountedRef = useRef(true);
@@ -224,7 +223,8 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
 
   useEffect(() => {
     return () => {
-      abortRef.current?.abort();
+      // Backend.getLeaderboard is not abortable; in-flight results are
+      // discarded via mountedRef instead.
       inFlightRef.current = null;
     };
   }, []);

@@ -54,7 +54,13 @@ export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameCon
         },
         input: {
             touch: true,
-            mouse: true
+            mouse: true,
+            // Multi-touch: the default (1) gave only ONE touch pointer, so a
+            // second finger never became a game pointer and pinch tracking
+            // rode on raw DOM events alone. Three touch pointers cover pinch
+            // plus a stray third finger; SceneInputController owns which of
+            // them (only the first) may drive gameplay.
+            activePointers: 3
         }
     };
 }

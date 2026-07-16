@@ -24,6 +24,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_m0_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mN": {
@@ -46,6 +54,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mN_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mE": {
@@ -68,6 +84,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mNE": {
@@ -90,6 +114,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mNE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mS": {
@@ -112,6 +144,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mS_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNS": {
@@ -134,6 +174,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mNS_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.8781362007168458,
+            "originY": 0.1045751633986918
           }
         },
         "mES": {
@@ -156,6 +204,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNES": {
@@ -178,6 +234,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mNES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mW": {
@@ -200,6 +264,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mNW": {
@@ -222,6 +294,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mNW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mEW": {
@@ -244,6 +324,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mEW_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.10394265232974896,
+            "originY": 0.1045751633986918
           }
         },
         "mNEW": {
@@ -266,6 +354,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mNEW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mSW": {
@@ -288,6 +384,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNSW": {
@@ -310,6 +414,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mNSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mESW": {
@@ -332,6 +444,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L1_mESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNESW": {
@@ -354,50 +474,14 @@
                 ]
               ]
             }
-          }
-        },
-        "mNS_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L1_mNS_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 26,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.9042145593869728,
-                    "originY": 0.5299145299145297,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
-          }
-        },
-        "mEW_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L1_mEW_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 26,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.11111111111111095,
-                    "originY": 0.5299145299145297,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
+          },
+          "ground": {
+            "file": "wall_L1_mNESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         }
       }
@@ -424,6 +508,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_m0_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mN": {
@@ -446,6 +538,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mN_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mE": {
@@ -468,6 +568,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mNE": {
@@ -490,6 +598,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mNE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mS": {
@@ -512,6 +628,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mS_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNS": {
@@ -534,6 +658,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mNS_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.8781362007168458,
+            "originY": 0.1045751633986918
           }
         },
         "mES": {
@@ -556,6 +688,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNES": {
@@ -578,6 +718,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mNES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mW": {
@@ -600,6 +748,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mNW": {
@@ -622,6 +778,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mNW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mEW": {
@@ -644,6 +808,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mEW_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.10394265232974896,
+            "originY": 0.1045751633986918
           }
         },
         "mNEW": {
@@ -666,6 +838,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mNEW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mSW": {
@@ -688,6 +868,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNSW": {
@@ -710,6 +898,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mNSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mESW": {
@@ -732,6 +928,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L2_mESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNESW": {
@@ -754,50 +958,14 @@
                 ]
               ]
             }
-          }
-        },
-        "mNS_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L2_mNS_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 25,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.9042145593869728,
-                    "originY": 0.5111111111111103,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
-          }
-        },
-        "mEW_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L2_mEW_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 25,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.11111111111111095,
-                    "originY": 0.5111111111111103,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
+          },
+          "ground": {
+            "file": "wall_L2_mNESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         }
       }
@@ -824,6 +992,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_m0_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mN": {
@@ -846,6 +1022,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mN_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mE": {
@@ -868,6 +1052,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mNE": {
@@ -890,6 +1082,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mNE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mS": {
@@ -912,6 +1112,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mS_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNS": {
@@ -934,6 +1142,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mNS_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.8781362007168458,
+            "originY": 0.1045751633986918
           }
         },
         "mES": {
@@ -956,6 +1172,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNES": {
@@ -978,6 +1202,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mNES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mW": {
@@ -1000,6 +1232,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mNW": {
@@ -1022,6 +1262,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mNW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mEW": {
@@ -1044,6 +1292,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mEW_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.10394265232974896,
+            "originY": 0.1045751633986918
           }
         },
         "mNEW": {
@@ -1066,6 +1322,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mNEW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mSW": {
@@ -1088,6 +1352,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNSW": {
@@ -1110,6 +1382,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mNSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mESW": {
@@ -1132,6 +1412,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L3_mESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNESW": {
@@ -1154,50 +1442,14 @@
                 ]
               ]
             }
-          }
-        },
-        "mNS_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L3_mNS_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 29,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.9042145593869728,
-                    "originY": 0.5440613026819918,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
-          }
-        },
-        "mEW_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L3_mEW_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 29,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.11111111111111095,
-                    "originY": 0.5440613026819918,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
+          },
+          "ground": {
+            "file": "wall_L3_mNESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         }
       }
@@ -1224,6 +1476,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_m0_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mN": {
@@ -1246,6 +1506,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mN_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mE": {
@@ -1268,6 +1536,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mNE": {
@@ -1290,6 +1566,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mNE_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mS": {
@@ -1312,6 +1596,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mS_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNS": {
@@ -1334,6 +1626,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mNS_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.8781362007168458,
+            "originY": 0.1045751633986918
           }
         },
         "mES": {
@@ -1356,6 +1656,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNES": {
@@ -1378,6 +1686,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mNES_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mW": {
@@ -1400,6 +1716,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mNW": {
@@ -1422,6 +1746,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mNW_ground.png",
+            "texelW": 25,
+            "texelH": 13,
+            "cellWorldPx": 1.35,
+            "originX": 0.4888888888888885,
+            "originY": 0.4444444444444435
           }
         },
         "mEW": {
@@ -1444,6 +1776,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mEW_ground.png",
+            "texelW": 31,
+            "texelH": 17,
+            "cellWorldPx": 1.35,
+            "originX": 0.10394265232974896,
+            "originY": 0.1045751633986918
           }
         },
         "mNEW": {
@@ -1466,6 +1806,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mNEW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.3055555555555553,
+            "originY": 0.2751322751322745
           }
         },
         "mSW": {
@@ -1488,6 +1836,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mNSW": {
@@ -1510,6 +1866,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mNSW_ground.png",
+            "texelW": 40,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.6805555555555556,
+            "originY": 0.2751322751322745
           }
         },
         "mESW": {
@@ -1532,6 +1896,14 @@
                 ]
               ]
             }
+          },
+          "ground": {
+            "file": "wall_L4_mESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         },
         "mNESW": {
@@ -1554,50 +1926,14 @@
                 ]
               ]
             }
-          }
-        },
-        "mNS_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L4_mNS_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 30,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.9042145593869728,
-                    "originY": 0.5592592592592587,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
-          }
-        },
-        "mEW_gate": {
-          "states": {
-            "idle": {
-              "angles": 1,
-              "frames": [
-                [
-                  {
-                    "file": "wall_L4_mEW_gate_idle0.png",
-                    "texelW": 29,
-                    "texelH": 30,
-                    "cellWorldPx": 1.35,
-                    "originX": 0.11111111111111095,
-                    "originY": 0.5592592592592587,
-                    "ov": {
-                      "timeAt": 1000
-                    }
-                  }
-                ]
-              ]
-            }
+          },
+          "ground": {
+            "file": "wall_L4_mNESW_ground.png",
+            "texelW": 55,
+            "texelH": 21,
+            "cellWorldPx": 1.35,
+            "originX": 0.494949494949495,
+            "originY": 0.2751322751322745
           }
         }
       }

@@ -29,6 +29,7 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!isOnline) return;
@@ -49,16 +50,24 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
     return () => clearInterval(interval);
   }, [userId, isOnline]);
 
-  const handleOpen = async () => {
+  // Open FIRST, fetch after: waiting on a slow network before showing the
+  // dropdown makes the bell feel dead. The list refreshes in place, and the
+  // badge re-anchors from the fresh list.
+  const handleOpen = () => {
     if (!isOnline) return;
-    try {
-      const notifs = await Backend.getNotifications(userId);
-      setNotifications(notifs);
-    } catch {
-      // Network blip: open with whatever we already have.
-    } finally {
-      setIsOpen(true);
-    }
+    setIsOpen(true);
+    setIsLoading(true);
+    void (async () => {
+      try {
+        const notifs = await Backend.getNotifications(userId);
+        setNotifications(notifs);
+        setUnreadCount(notifs.filter(n => !n.read).length);
+      } catch {
+        // Network blip: stay open with whatever we already have.
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   };
 
   const handleClose = () => {
@@ -125,7 +134,7 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
 
             {notifications.length === 0 && !incomingAttack ? (
               <div className="no-notifications">
-                No attacks yet. Your base is safe!
+                {isLoading ? 'Consulting the watch…' : 'No attacks yet. Your base is safe!'}
               </div>
             ) : (
               notifications.map(notif => {

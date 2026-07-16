@@ -27,8 +27,12 @@ export interface VillageBubbleSpec {
     closable?: boolean;
     /** A pixel icon class ('build-icon', 'sym sym-shield', ...) shown before the text. */
     icon?: string;
+    /** Put the icon AFTER the text (work tags: name + time left, hammer right). */
+    iconSide?: 'left' | 'right';
     /** Bob the icon — a two-step working animation (hammering, ringing). */
     animate?: boolean;
+    /** Live second line under the text (countdowns), polled like progress. */
+    subtext?: () => string;
     /** Live 0..1 progress, polled each frame into a pixel bar under the text. */
     progress?: () => number;
 }
@@ -38,6 +42,7 @@ interface LiveBubble {
     spec: VillageBubbleSpec;
     until: number; // 0 = sticky
     fill: HTMLElement | null;
+    sub: HTMLElement | null;
 }
 
 /**
@@ -94,15 +99,33 @@ export class VillageBubbles {
         el.className = `village-bubble ${spec.kind === 'danger' ? 'danger' : ''}`;
         const row = document.createElement('span');
         row.className = 'vb-row';
+        let icon: HTMLSpanElement | null = null;
         if (spec.icon) {
-            const icon = document.createElement('span');
+            icon = document.createElement('span');
             icon.className = `${spec.icon.includes('sym') ? 'sym small ' : 'icon '}${spec.icon} vb-icon ${spec.animate ? 'working' : ''}`;
-            row.appendChild(icon);
         }
+        if (icon && spec.iconSide !== 'right') row.appendChild(icon);
         const text = document.createElement('span');
         text.className = 'vb-text';
         text.textContent = spec.text;
-        row.appendChild(text);
+        let sub: HTMLElement | null = null;
+        if (spec.subtext) {
+            // Work-tag layout: text + live countdown stacked, both left-aligned.
+            const col = document.createElement('span');
+            col.className = 'vb-col';
+            sub = document.createElement('span');
+            sub.className = 'vb-sub';
+            sub.textContent = spec.subtext();
+            col.appendChild(text);
+            col.appendChild(sub);
+            row.appendChild(col);
+        } else {
+            row.appendChild(text);
+        }
+        if (icon && spec.iconSide === 'right') {
+            icon.classList.add('vb-icon-right');
+            row.appendChild(icon);
+        }
         el.appendChild(row);
         let fill: HTMLElement | null = null;
         if (spec.progress) {
@@ -139,7 +162,7 @@ export class VillageBubbles {
         layer.appendChild(el);
 
         const ttl = spec.ttlMs ?? 8000;
-        this.bubbles.set(spec.key, { el, spec, until: ttl > 0 ? this.scene.time.now + ttl : 0, fill });
+        this.bubbles.set(spec.key, { el, spec, until: ttl > 0 ? this.scene.time.now + ttl : 0, fill, sub });
     }
 
     /** raise() with a per-key cooldown — for recurring conditions. */
@@ -172,6 +195,10 @@ export class VillageBubbles {
             if (live.fill && live.spec.progress) {
                 const pct = Math.max(0, Math.min(1, live.spec.progress()));
                 live.fill.style.width = `${Math.round(pct * 100)}%`;
+            }
+            if (live.sub && live.spec.subtext) {
+                const s = live.spec.subtext();
+                if (live.sub.textContent !== s) live.sub.textContent = s;
             }
         }
     }

@@ -1,6 +1,6 @@
-import type { SerializedBuilding, SerializedObstacle, SerializedWorld, VillageLifeManifest } from '../src/game/data/Models'
+import type { SerializedBuilding, SerializedObstacle, SerializedWorld, VillageBanner, VillageLifeManifest } from '../src/game/data/Models'
 import type { AttackAggregate } from './attack-domain'
-export type { VillageLifeManifest } from '../src/game/data/Models'
+export type { VillageBanner, VillageLifeManifest } from '../src/game/data/Models'
 
 /** A village postcard that is safe to expose to nearby players. */
 export interface PublicWorldSnapshot {
@@ -13,6 +13,8 @@ export interface PublicWorldSnapshot {
   lastSaveTime: number
   revision: number
   life: VillageLifeManifest
+  /** Owner-chosen heraldry; omitted = deterministic identity default. */
+  banner?: VillageBanner
 }
 
 /** Public profile of a player, as exposed to clients. */
@@ -163,6 +165,9 @@ export interface SessionResponse {
   world: SerializedWorld
   created: boolean
   unread: number
+  features: {
+    infiniteResources: boolean
+  }
 }
 
 export interface EndAttackResponse {

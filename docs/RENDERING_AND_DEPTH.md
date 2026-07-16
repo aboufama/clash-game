@@ -1,6 +1,7 @@
 # Rendering and Depth (Isometric)
 
-Use this when a building or troop appears in front of the wrong thing.
+Use this when a building, troop, projectile or effect appears in front of the
+wrong thing.
 
 ## Core Rule
 
@@ -19,12 +20,155 @@ Tile geometry used by scene:
 All depth values come from:
 - `src/game/systems/DepthSystem.ts`
 
-Main functions:
-- `depthForGroundPlane()`
-- `depthForBuilding(gridX, gridY, type)`
-- `depthForTroop(gridX, gridY, type)`
+The painter's-order base formula (fractional grid coords are fine):
 
-For buildings, depth anchor is the bottom-right tile of the footprint.
+```
+baseDepth(x, y) = 1000 + (x + y) * 100 + (x - y) * 0.1
+```
+
+`(x + y)` is the isometric row (100 per row); `(x - y)` is a tiny tie-break
+along the row (it must stay tiny: two same-row objects whose art can overlap
+on screen sit within ~4 tiles along the row, so their tie difference stays
+under the 0.5 sub-band rungs below — a tie scale of 1 once let a wall
+two tiles along the row out-tie a same-row 3x3 roof). Everything visible in
+the world adds a LAYER OFFSET to that base — offsets never approach 100, so
+nothing can cross into the next row:
+
+| layer                    | offset       | notes                                    |
+| ------------------------ | ------------ | ---------------------------------------- |
+| rubble / wrecks          | 3            | floor-center anchor — walk-over art      |
+| troop / character        | 15 + bias    | bias `min(6, max(1, space))` → [16, 21]  |
+| obstacle                 | 18 + 0.5·sz  | occluder band, capped bias (sz ≤ 4)      |
+| building / wall          | 18.5 + 0.5·(sz−1) | occluder band → wall/1x1 18.5 … 4x4 20 |
+| projectile               | 60           | `depthForProjectile(x, y)`               |
+| ground effect (impacts)  | 62           | `depthForGroundEffect(x, y)`             |
+
+## The Occluder Band (characters vs solids)
+
+Characters anchor at their FEET (fractional position) with offset
+`15 + bias ∈ [16, 21]`. Every solid occluder — wall, building, obstacle —
+anchors at its exact footprint CENTER (the visual boundary of its art) with
+an offset strictly INSIDE the character range. For any character/solid pair:
+
+```
+charDepth − solidDepth = 100·(charRow − centerRow) + (charOff − solidOff)
+                       = 100·Δrow ± ≤3
+```
+
+so the painter flips within ±0.03 rows (≈1 screen px) of the art's center:
+feet in front of the tile/footprint center → character paints over the
+crest/roof; feet behind → occluded. This holds for EVERY troop type at every
+sub-tile offset. Two consequences are load-bearing:
+
+- **Never anchor a solid behind its center** (the old back-corner /
+  floor-center anchor). It re-opens the band `anchorRow < charRow <
+  centerRow` where a character standing BEHIND the art out-depths it
+  (villagers stood on the town-hall roof; every troop painted over walls it
+  stood 0.05–0.6 tiles behind; characters on the walkable tile north of a
+  2x2 tower drew on top of it).
+- **Never give a solid an offset outside (16, 21).** Above 21 it swallows
+  characters standing just in front; at/below 16 tall troops pop over it
+  from behind. The old barracks roof lift (+60) violated this and is gone —
+  same-row roof-over-wall ordering now comes from the 0.5 sub-band rungs
+  (bigger footprint = higher rung) plus the shrunken tie scale.
+
+Exported functions:
+- `depthForGroundPlane()` — the baked ground RT (0)
+- `depthForFootprint(gridX, gridY, w, h, layerOffset, bias)`
+- `depthForBuilding(gridX, gridY, type)`
+- `depthForObstacle(gridX, gridY, w, h)`
+- `depthForRubble(gridX, gridY, w, h)`
+- `depthForTroop(gridX, gridY, type)`
+- `depthForProjectile(gridX, gridY)` — rigid shots, at their CURRENT position
+- `depthForGroundEffect(gridX, gridY)` — muzzle flashes / impact FX
+
+## Footprint Anchor
+
+For buildings/walls/obstacles the depth anchor is the EXACT footprint center
+(the visual boundary of the art):
+
+```
+anchorX = gridX + width / 2
+anchorY = gridY + height / 2
+```
+
+For non-square footprints (farm 3x2) the center row is the optimal
+compromise between the two diagonal ambiguity zones (a single painter scalar
+cannot sort both perfectly — errors are confined to art slivers at the
+extreme E/W corners). Rubble/wrecks are the exception: they keep the legacy
+floor-center anchor + offset 3 so a character standing anywhere ON a wreck
+always paints over it.
+
+## Special Cases
+
+- **Walls vs characters**: handled entirely by the occluder band above — a
+  wall is just a 1x1 solid at 18.5, no special wall offset exists anymore.
+  Villagers (`VillageLifeSystem.characterDepth`) use exactly
+  `depthForTroop(x, y)` — same anchor and offsets as combat troops. Never
+  re-fix wall occlusion by shifting a character's anchor; that de-syncs
+  villagers from troops (an attacker used to overpaint a defender standing
+  ~0.95 tiles in FRONT of it). The permanent regression harness for this is
+  `tools/art-preview/verify-layering.mjs` — run it after ANY depth change.
+- **Construction/scar/forge overlays** (`VillageLifeSystem`) ride on
+  `depthForBuilding(...) + 37/38/39`: above the building carrier and any
+  same-row character (55.5..59 total), still below the projectile band (60).
+- **Projectiles** re-derive `depthForProjectile` per frame in their tween's
+  `onUpdate`, lerping the GRID ground track (launch tile → target tile) by
+  tween progress — never from the arced iso `y`. Impact/muzzle FX use
+  `depthForGroundEffect(tile)` plus tiny ±N offsets for internal stacking.
+- **Shared particle emitters**: `ParticleManager` banding — one emitter per
+  64-depth band (`depthBandOf`). Never `setDepth` a shared emitter per burst;
+  it retro-depths every particle still alive on it.
+
+## Silhouette Dead Zone (behavioural, NOT a depth rule)
+
+The baked iso art of a building rises only a few px above its REAR footprint
+corner (the drawn roofline is the ridge apex→E/W eaves; the back walls are
+never drawn). A figure standing within ~0.75 tiles behind the footprint (or
+in the footprint's back half) therefore pokes its whole body above the drawn
+silhouette and reads as **perched on the roof** — even though the painter's
+order is exactly right. This was measured pixel-level (2026-07): a villager
+at (11.6, 9.5) behind a 3x3 hall at (11,10) covers ZERO opaque art pixels
+(depth 3126 vs hall 3419.6, correctly under); everything you see of him sits
+in the transparent sky INSIDE the art's rect. No depth scalar can clip
+pixels the art never painted, so the fix is behavioural:
+
+- `VillageLifeSystem.inSilhouetteShadow(x, y)` defines the band (footprint
+  expanded 0.75, rows in front of `centerRow − 0.4` excluded). Ambient
+  figures may WALK through it but never STOP in it: `openTileAt` /
+  `openTileNear` reject band tiles (this also keeps `doorOf`'s fallback from
+  ever picking a behind-the-building "door"), and a walk that ends in the
+  band immediately walks out to the nearest clear tile.
+- The panic-refuge path no longer passes the refuge as `throughId` — a
+  villager routed straight ACROSS the hall footprint to its south door read
+  as walking through the building for seconds.
+- Construction scaffolds (`drawScaffold`) omit poles planted on corner
+  points shared with another building's footprint and rail runs along faces
+  whose door-step tiles another building occupies — a rail riding the
+  sky-gap just above a front-neighbour's roofline read as "fence planted in
+  the roof face" (its depth was correctly below; the sliver was sky).
+
+If a "figure on the roof" report comes in: FIRST verify the painter order
+with a pixel diff (hide the figure's carrier, diff, classify what was
+underneath) before touching depth math — every 2026-07 case was this read
+artifact, and "fixing" it by shifting anchors/offsets re-opens the real
+occluder-band bugs listed above.
+
+## Ground-Decal Band (absolute, below 1000)
+
+Scorches/craters/hazard zones that must sit ON the lawn but never over
+entities use small absolute depths:
+
+- ground RT: 0
+- stone lanes RT (`VillageLifeSystem.presentStonePaths`): 2.5
+- mortar craters / cracks: 3
+- spike-launcher zones: 4
+- prism scorch: 5
+- dragons-breath scorch: 6
+- frostfall rime / spike-impact cracks: 7
+
+Anything new in this band goes ABOVE 2.5 (the stone lanes RT) and below the
+entity range (1000+).
 
 ## Ground Plane Contract
 
@@ -60,6 +204,13 @@ if (!onlyBase) {
 
 If this split is not respected, layering bugs return.
 
+## Overlay Scene
+
+`BattleOverlayScene` (health bars, level chips) mirrors the main camera every
+frame: zoom, scroll AND the shake offset (`shakeEffect._offsetX/_offsetY`,
+applied as `scroll - offset`). Copying only zoom+scroll makes health bars
+slide off buildings during every camera shake.
+
 ## Quick Layering Test
 
 1. Place walls/buildings and a large troop nearby.
@@ -67,3 +218,5 @@ If this split is not respected, layering bugs return.
 3. Confirm:
 - Floor/base never draws over troops
 - Elevated geometry overlaps correctly by depth
+- A defense shot fired south stays visible in front of everything it passes,
+  and disappears behind things a full row in front of it

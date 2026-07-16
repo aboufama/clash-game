@@ -8,14 +8,13 @@ export interface PlacedBuilding {
     level: number; // Added level property
     /** Server stamp from placement/last upgrade — drives the age patina. */
     builtAt?: number;
-    /** Wall piece designated as a gate (villagers pass; battles treat it as wall). */
-    isGate?: boolean;
     /** A villager is working here right now (mine pulley speeds up...). */
     crewedUntil?: number;
     /** Server-owned upgrade timer (mirrored locally): the target level, and
      *  when it lands. While set the building is offline — defenses hold fire,
      *  production pauses — and its level stays at the old value. */
     upgradingTo?: number;
+    upgradeStartedAt?: number;
     upgradeEndsAt?: number;
     gridX: number;
     gridY: number;
@@ -25,7 +24,6 @@ export interface PlacedBuilding {
     health: number;
     maxHealth: number;
     owner: 'PLAYER' | 'ENEMY';
-    loot?: { gold: number; ore: number; food: number };
     // Ballista-specific properties
     ballistaAngle?: number;        // Current angle in radians (0 = facing right/east)
     ballistaTargetAngle?: number;  // Target angle to smoothly rotate towards
@@ -44,6 +42,13 @@ export interface PlacedBuilding {
     prismLaserCore?: Phaser.GameObjects.Graphics;     // Inner core of laser
     // Frostfall Monolith
     frostfallProjectileActive?: boolean; // true when the big crystal has launched and is flying
+    // Ice-golem freeze-on-death debuff: while `time < frozenUntil` this
+    // defense holds fire entirely (DefenseSystem skips it; client battle
+    // sim + presentation only — server settlement ignores debuffs by
+    // design). `frostOverlay` is the tracked icy dressing drawn over the
+    // building for the freeze window.
+    frozenUntil?: number;
+    frostOverlay?: Phaser.GameObjects.Graphics;
     // Tesla charge state
     teslaCharging?: boolean;
     teslaChargeStart?: number;
@@ -69,6 +74,10 @@ export interface PlacedBuilding {
     lastBarDrawHealth?: number;
     lastBarDrawX?: number;
     lastBarDrawY?: number;
+    // Health-bar anchor: world px from the iso center up to the baked
+    // silhouette's top (cached per level; null = not sprite-backed).
+    barAnchorTop?: number | null;
+    barAnchorLevel?: number;
     // Door animation (town hall / barracks / lab): villagers going in or out
     // hold the door open until doorOpenUntil; doorOpen eases 0..1 toward that.
     doorOpen?: number;
@@ -115,10 +124,16 @@ export interface Troop {
     lastProgressTime?: number;
     stuckTicks?: number;
     retargetPauseUntil?: number;
+    /** While set (and in the future), velocity is a knockback impulse that
+     * updateTroops integrates through the collision resolver each frame. */
+    knockbackUntil?: number;
     lastTargetSwitchTime?: number;
     lastOpportunityScanTime?: number;
     target: any; // PlacedBuilding | Troop | null
     chillRemainingMs?: number;
+    /** Last time the ice golem's on-hit frost FX played (throttle gate —
+     *  continuous-beam damage ticks would otherwise spam a burst per tick). */
+    frostHitFxAt?: number;
     // Special troop properties
     recursionGen?: number; // For recursion (0 = original, 1 = first split, 2 = final)
     slamOffset?: number; // For golem body slam animation

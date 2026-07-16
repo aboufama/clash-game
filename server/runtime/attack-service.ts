@@ -96,6 +96,7 @@ type IdFactory = (prefix: 'atk' | 'botraid') => string
 export interface PersistenceAttackServiceOptions {
   now?: Clock
   createId?: IdFactory
+  preserveOverCapacity?: boolean
 }
 
 type StartedPlayerAttack = {
@@ -403,11 +404,14 @@ export class PersistenceAttackService implements RuntimeAttackService {
   private readonly persistence: Persistence
   private readonly now: Clock
   private readonly createId: IdFactory
+  private readonly preserveOverCapacity: boolean
 
   constructor(persistence: Persistence, options: PersistenceAttackServiceOptions = {}) {
     this.persistence = persistence
     this.now = options.now ?? (() => new Date())
     this.createId = options.createId ?? randomId
+    this.preserveOverCapacity = options.preserveOverCapacity
+      ?? process.env.CLASH_ALLOW_DEBUG_GRANTS === '1'
   }
 
   private async serializable<T>(work: (tx: UnitOfWork, now: Date) => Promise<T>): Promise<T> {
@@ -435,7 +439,10 @@ export class PersistenceAttackService implements RuntimeAttackService {
     populationLocked = false
   ) {
     const before = { gold: village.gold, ore: village.ore, food: village.food }
-    const result = materializeVillage(village, now, { populationLocked })
+    const result = materializeVillage(village, now, {
+      populationLocked,
+      preserveOverCapacity: this.preserveOverCapacity
+    })
     const auditId = `sim:${result.from}:${result.through}`
     for (const currency of ['gold', 'ore', 'food'] as const) {
       const delta = village[currency] - before[currency]
@@ -1387,6 +1394,13 @@ export class PersistenceAttackService implements RuntimeAttackService {
       for (const raw of rawFrames) {
         const frame = sanitizeFrame(raw, maxT)
         if (!frame) continue
+        // Mirror legacy game.ts: stored replay frames advertise the settled
+        // loot curve (authoritative caps × destruction), never the attacker's
+        // claimed counters — defender-side replays/reports must not inflate.
+        const lootCaps = record.authority.rewardPolicy.lootCaps
+        frame.goldLooted = Math.floor(lootCaps.gold * frame.destruction / 100)
+        frame.oreLooted = Math.floor(lootCaps.ore * frame.destruction / 100)
+        frame.foodLooted = Math.floor(lootCaps.food * frame.destruction / 100)
         const checksum = stableHash(frame)
         const sequence = presentationSequence(frame.t, maxT)
         const existing = (await tx.replays.listForParticipant({

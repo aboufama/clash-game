@@ -164,6 +164,13 @@
     },
     {
       "kind": "troops",
+      "unit": "icegolem",
+      "atlas": "troops/icegolem/atlas.png",
+      "frames": "troops/icegolem/atlas.json",
+      "manifest": "troops/icegolem/manifest.json"
+    },
+    {
+      "kind": "troops",
       "unit": "mobilemortar",
       "atlas": "troops/mobilemortar/atlas.png",
       "frames": "troops/mobilemortar/atlas.json",
@@ -399,6 +406,223 @@
       "atlas": "obstacles/tree_pine/atlas.png",
       "frames": "obstacles/tree_pine/atlas.json",
       "manifest": "obstacles/tree_pine/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "bird_dove",
+      "atlas": "villagers/bird_dove/atlas.png",
+      "frames": "villagers/bird_dove/atlas.json",
+      "manifest": "villagers/bird_dove/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "bird_heron",
+      "atlas": "villagers/bird_heron/atlas.png",
+      "frames": "villagers/bird_heron/atlas.json",
+      "manifest": "villagers/bird_heron/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "bird_sparrow",
+      "atlas": "villagers/bird_sparrow/atlas.png",
+      "frames": "villagers/bird_sparrow/atlas.json",
+      "manifest": "villagers/bird_sparrow/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "chicken",
+      "atlas": "villagers/chicken/atlas.png",
+      "frames": "villagers/chicken/atlas.json",
+      "manifest": "villagers/chicken/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "dog",
+      "atlas": "villagers/dog/atlas.png",
+      "frames": "villagers/dog/atlas.json",
+      "manifest": "villagers/dog/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "dragon",
+      "atlas": "villagers/dragon/atlas.png",
+      "frames": "villagers/dragon/atlas.json",
+      "manifest": "villagers/dragon/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "merchant",
+      "atlas": "villagers/merchant/atlas.png",
+      "frames": "villagers/merchant/atlas.json",
+      "manifest": "villagers/merchant/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "owl",
+      "atlas": "villagers/owl/atlas.png",
+      "frames": "villagers/owl/atlas.json",
+      "manifest": "villagers/owl/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "stall",
+      "atlas": "villagers/stall/atlas.png",
+      "frames": "villagers/stall/atlas.json",
+      "manifest": "villagers/stall/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "thief",
+      "atlas": "villagers/thief/atlas.png",
+      "frames": "villagers/thief/atlas.json",
+      "manifest": "villagers/thief/manifest.json"
+    },
+    {
+      "kind": "villagers",
+      "unit": "villager",
+      "atlas": "villagers/villager/atlas.png",
+      "frames": "villagers/villager/atlas.json",
+      "manifest": "villagers/villager/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "caravan_soldier",
+      "atlas": "figures/caravan_soldier/atlas.png",
+      "frames": "figures/caravan_soldier/atlas.json",
+      "manifest": "figures/caravan_soldier/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "fish",
+      "atlas": "figures/fish/atlas.png",
+      "frames": "figures/fish/atlas.json",
+      "manifest": "figures/fish/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_courier",
+      "atlas": "figures/traveller_courier/atlas.png",
+      "frames": "figures/traveller_courier/atlas.json",
+      "manifest": "figures/traveller_courier/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_hunter",
+      "atlas": "figures/traveller_hunter/atlas.png",
+      "frames": "figures/traveller_hunter/atlas.json",
+      "manifest": "figures/traveller_hunter/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_marketgoer",
+      "atlas": "figures/traveller_marketgoer/atlas.png",
+      "frames": "figures/traveller_marketgoer/atlas.json",
+      "manifest": "figures/traveller_marketgoer/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_monk",
+      "atlas": "figures/traveller_monk/atlas.png",
+      "frames": "figures/traveller_monk/atlas.json",
+      "manifest": "figures/traveller_monk/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_patrol",
+      "atlas": "figures/traveller_patrol/atlas.png",
+      "frames": "figures/traveller_patrol/atlas.json",
+      "manifest": "figures/traveller_patrol/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_shepherd",
+      "atlas": "figures/traveller_shepherd/atlas.png",
+      "frames": "figures/traveller_shepherd/atlas.json",
+      "manifest": "figures/traveller_shepherd/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_wanderer",
+      "atlas": "figures/traveller_wanderer/atlas.png",
+      "frames": "figures/traveller_wanderer/atlas.json",
+      "manifest": "figures/traveller_wanderer/manifest.json"
+    },
+    {
+      "kind": "figures",
+      "unit": "traveller_woodcutter",
+      "atlas": "figures/traveller_woodcutter/atlas.png",
+      "frames": "figures/traveller_woodcutter/atlas.json",
+      "manifest": "figures/traveller_woodcutter/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "arrow",
+      "atlas": "projectiles/arrow/atlas.png",
+      "frames": "projectiles/arrow/atlas.json",
+      "manifest": "projectiles/arrow/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "ballista_bolt",
+      "atlas": "projectiles/ballista_bolt/atlas.png",
+      "frames": "projectiles/ballista_bolt/atlas.json",
+      "manifest": "projectiles/ballista_bolt/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "cannonball",
+      "atlas": "projectiles/cannonball/atlas.png",
+      "frames": "projectiles/cannonball/atlas.json",
+      "manifest": "projectiles/cannonball/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "dragon_rocket",
+      "atlas": "projectiles/dragon_rocket/atlas.png",
+      "frames": "projectiles/dragon_rocket/atlas.json",
+      "manifest": "projectiles/dragon_rocket/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "frostfall_shard",
+      "atlas": "projectiles/frostfall_shard/atlas.png",
+      "frames": "projectiles/frostfall_shard/atlas.json",
+      "manifest": "projectiles/frostfall_shard/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "mm_shell",
+      "atlas": "projectiles/mm_shell/atlas.png",
+      "frames": "projectiles/mm_shell/atlas.json",
+      "manifest": "projectiles/mm_shell/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "mortar_shell",
+      "atlas": "projectiles/mortar_shell/atlas.png",
+      "frames": "projectiles/mortar_shell/atlas.json",
+      "manifest": "projectiles/mortar_shell/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "musket_ball",
+      "atlas": "projectiles/musket_ball/atlas.png",
+      "frames": "projectiles/musket_ball/atlas.json",
+      "manifest": "projectiles/musket_ball/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "spike_ball",
+      "atlas": "projectiles/spike_ball/atlas.png",
+      "frames": "projectiles/spike_ball/atlas.json",
+      "manifest": "projectiles/spike_ball/manifest.json"
+    },
+    {
+      "kind": "projectiles",
+      "unit": "xbow_bolt",
+      "atlas": "projectiles/xbow_bolt/atlas.png",
+      "frames": "projectiles/xbow_bolt/atlas.json",
+      "manifest": "projectiles/xbow_bolt/manifest.json"
     }
   ]
 }

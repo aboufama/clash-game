@@ -26,7 +26,7 @@ import { outboxEvent, postgresErrorCode } from '../persistence'
 import type { SessionResponse } from '../protocol'
 import type { RuntimePrincipal } from './contracts'
 import { randomId } from './ids'
-import { profileOf, serializedWorldOf } from './village-state'
+import { profileOf, serializedWorldOf, type AdvertisedUpgradePolicy } from './village-state'
 import { VillageAuthority, type OwnedState } from './village-authority'
 import {
   allocatePlayerPlot,
@@ -46,6 +46,9 @@ export interface AuthSessionOptions {
   clock: () => Date
   starterShieldMs?: number
   sessionTtlMs?: number
+  infiniteResources?: boolean
+  /** Effective upgrade clock advertised on session world payloads. */
+  upgradePolicy?: AdvertisedUpgradePolicy
 }
 
 function starterBuildings(): SerializedBuilding[] {
@@ -86,6 +89,8 @@ export class AuthSessionService {
   private readonly clock: () => Date
   private readonly starterShieldMs: number
   private readonly sessionTtlMs: number
+  private readonly infiniteResources: boolean
+  private readonly upgradePolicy?: AdvertisedUpgradePolicy
   private readonly limiter: InMemoryAuthRateLimiter
 
   constructor(persistence: Persistence, authority: VillageAuthority, options: AuthSessionOptions) {
@@ -94,6 +99,8 @@ export class AuthSessionService {
     this.clock = options.clock
     this.starterShieldMs = options.starterShieldMs ?? DEFAULT_STARTER_SHIELD_MS
     this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS
+    this.infiniteResources = options.infiniteResources ?? false
+    this.upgradePolicy = options.upgradePolicy
     this.limiter = new InMemoryAuthRateLimiter({
       loginMaximumFailures: 8,
       loginLockoutMs: 60_000,
@@ -159,9 +166,10 @@ export class AuthSessionService {
     return {
       token,
       player: profileOf(state.account, state.plot),
-      world: serializedWorldOf(state.account, state.village, now),
+      world: serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy }),
       created,
-      unread
+      unread,
+      features: { infiniteResources: this.infiniteResources }
     }
   }
 
@@ -267,9 +275,10 @@ export class AuthSessionService {
       return {
         token: newToken,
         player: profileOf(account, plot),
-        world: serializedWorldOf(account, village, now),
+        world: serializedWorldOf(account, village, now, { upgradePolicy: this.upgradePolicy }),
         created: true,
-        unread: 0
+        unread: 0,
+        features: { infiniteResources: this.infiniteResources }
       }
     })
   }

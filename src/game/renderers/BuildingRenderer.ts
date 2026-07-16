@@ -1,8 +1,12 @@
 
 import Phaser from 'phaser';
-import { windAtScreen, windSwayAtScreen } from '../systems/Wind';
+import { windLoopAtScreen, windSwayLoopAtScreen } from '../systems/Wind';
 import { IsoUtils, TILE_HEIGHT } from '../utils/IsoUtils';
 import { BUILDING_DEFINITIONS } from '../config/GameDefinitions';
+import { activeDesign } from './redesign/DesignRegistry';
+// Cannon: design B ("Bulldog Bombard") won the clean-room tournament and is
+// the SHIPPED canonical cannon — called directly, no registry indirection.
+import { drawCannonB } from './redesign/CannonB';
 
 export class BuildingRenderer {
 
@@ -32,8 +36,10 @@ export class BuildingRenderer {
      * A two-tier keep in the village's clean box-and-pyramid language: a
      * stone ground story with an arched, lantern-lit door; a walled roof
      * terrace with gold pinnacles; a timber-framed upper hall; and a
-     * terracotta pyramid crown flying the village banner. Chimney smoke
-     * drifts, lanterns breathe, windows glow.
+     * terracotta pyramid crown topped by a gold apex ball. Chimney smoke
+     * drifts, lanterns breathe, windows glow. The village banner is NOT part
+     * of this art: MainScene.updateHallBanner flies the owner's real
+     * heraldry from the apex at runtime (drawVillageFlag).
      */
     /**
      * Clash-style defense footing: a compact chamfered platform just big
@@ -213,7 +219,14 @@ export class BuildingRenderer {
             graphics.fillCircle(dp(-2, 5)[0], dp(-2, 5)[1], 1);
             graphics.fillCircle(dp(2, 5)[0], dp(2, 5)[1], 1);
         }
-        const lamp = 0.6 + Math.sin(time / 340) * 0.25;
+        // ===== IDLE LOOP TIME BASE (exact 3000 ms period) =====
+        // Lamp/window/smoke terms are integer harmonics of wIdle (the
+        // chimney puffs cycle every 1500 ms = wIdle × 2), so the baked
+        // ambient loop closes seamlessly. The smoke drift samples the
+        // CLOSED-LOOP wind (windLoopAtScreen) — the live wind's three
+        // rates never co-repeat, so it can never bake.
+        const wIdle = (Math.PI * 2) / 3000;
+        const lamp = 0.6 + Math.sin(time * wIdle * 2) * 0.25;
         for (const side of [-1, 1]) {
             const [lx, ly] = dp(side * 11, 9);
             graphics.fillStyle(0x2a2a2a, alpha);
@@ -226,7 +239,7 @@ export class BuildingRenderer {
 
         // Ground-story windows
         const win = (wx: number, wy: number, phase: number) => {
-            const glow2 = 0.5 + Math.sin(time / 420 + phase) * 0.22;
+            const glow2 = 0.5 + Math.sin(time * wIdle + phase) * 0.22;
             quad(graphics, [[wx - 2.8, wy + 3], [wx + 2.8, wy + 4.2], [wx + 2.8, wy - 2.6], [wx - 2.8, wy - 3.8]], timber, alpha);
             quad(graphics, [[wx - 1.9, wy + 2.1], [wx + 1.9, wy + 3], [wx + 1.9, wy - 1.9], [wx - 1.9, wy - 2.8]], warm, alpha * glow2);
         };
@@ -275,26 +288,15 @@ export class BuildingRenderer {
         if (BuildingRenderer.AMBIENT_VAPOR) for (let i = 0; i < 3; i++) {
             const t = ((time / 1500) + i * 0.33) % 1;
             graphics.fillStyle(0xe8e4dc, alpha * (1 - t) * 0.5);
-            graphics.fillCircle(chX + t * (3 + windAtScreen(chX, chY, time) * 9) + Math.sin(t * 6 + i) * 2, chY - 11 - t * 14, 1.8 + t * 3);
+            graphics.fillCircle(chX + t * (3 + windLoopAtScreen(chX, chY, time, 3000) * 9) + Math.sin(t * 6 + i) * 2, chY - 11 - t * 14, 1.8 + t * 3);
         }
 
-        // Gold finial + the village banner at the very top
+        // Gold apex ball only — the village banner that used to bake here is
+        // now a RUNTIME layer: MainScene.updateHallBanner flies the owner's
+        // REAL heraldry from this peak (drawVillageFlag plants its own pole
+        // on this ball), so the baked sprite must ship no cloth of its own.
         graphics.fillStyle(gold, alpha);
         graphics.fillCircle(peak[0], peak[1] - 1, 2.4);
-        graphics.lineStyle(2, timber, alpha);
-        graphics.lineBetween(peak[0], peak[1] - 2, peak[0], peak[1] - 17);
-        graphics.fillStyle(gold, alpha);
-        graphics.fillCircle(peak[0], peak[1] - 17.5, 1.7);
-        const wave = windSwayAtScreen(peak[0], peak[1], time);
-        quad(graphics, [
-            [peak[0], peak[1] - 16.5],
-            [peak[0] + 14, peak[1] - 13.5 + wave * 2.4],
-            [peak[0] + 11, peak[1] - 11 + wave * 1.6],
-            [peak[0] + 14.5, peak[1] - 8.5 + wave * 2.4],
-            [peak[0], peak[1] - 6]
-        ], 0xc0392b, alpha);
-        graphics.fillStyle(gold, alpha * 0.95);
-        graphics.fillCircle(peak[0] + 5, peak[1] - 11 + wave * 0.8, 1.9);
     }
 
     static drawBarracks(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
@@ -345,7 +347,13 @@ export class BuildingRenderer {
         }
         if (onlyBase) return;
 
-        const wave = windSwayAtScreen(center.x, center.y, time);
+        // ===== IDLE LOOP TIME BASE (exact 3000 ms period) =====
+        // The banners sample the CLOSED-LOOP wind (the live windSwayAtScreen
+        // rates never co-repeat, so it can never bake) and the forge-flame
+        // terms below are integer harmonics of wIdle; the chimney puffs cycle
+        // every 1500 ms = wIdle × 2 — the whole idle closes at 3000 ms.
+        const wIdle = (Math.PI * 2) / 3000;
+        const wave = windSwayLoopAtScreen(center.x, center.y, time, 3000);
 
         if (tier === 1) {
             // ===== WAR CAMP: canvas tent + palisade =====
@@ -489,7 +497,7 @@ export class BuildingRenderer {
                 if (BuildingRenderer.AMBIENT_VAPOR) for (let i = 0; i < 2; i++) {
                     const t = ((time / 1500) + i * 0.5) % 1;
                     graphics.fillStyle(0xe8e4dc, alpha * (1 - t) * 0.45);
-                    graphics.fillCircle(chX + t * (2.5 + windAtScreen(chX, chY, time) * 8), chY - 11 - t * 12, 1.6 + t * 2.6);
+                    graphics.fillCircle(chX + t * (2.5 + windLoopAtScreen(chX, chY, time, 3000) * 8), chY - 11 - t * 12, 1.6 + t * 2.6);
                 }
             } else if (tier === 4) {
                 // Iron spikes along the ridge
@@ -609,7 +617,7 @@ export class BuildingRenderer {
         if (level >= 3) {
             const fX = center.x - 2;
             const fY = center.y + 22;
-            const flick = 0.7 + Math.sin(time / 130) * 0.2;
+            const flick = 0.7 + Math.sin(time * wIdle * 4) * 0.2;
             if (tier >= 3) {
                 graphics.fillStyle(iron, alpha);
                 graphics.fillEllipse(fX, fY, 9, 4);
@@ -624,7 +632,7 @@ export class BuildingRenderer {
             }
             quad(graphics, [
                 [fX - 3, fY - 5], [fX + 3, fY - 5],
-                [fX + 1 + Math.sin(time / 90) * 1.2, fY - 11 - flick * 3], [fX - 1, fY - 8.5]
+                [fX + 1 + Math.sin(time * wIdle * 5) * 1.2, fY - 11 - flick * 3], [fX - 1, fY - 8.5]
             ], 0xff8c2e, alpha * flick);
             quad(graphics, [
                 [fX - 1.4, fY - 5.5], [fX + 1.6, fY - 5.5], [fX + 0.2, fY - 9 - flick * 2]
@@ -964,11 +972,13 @@ export class BuildingRenderer {
                 [doorX + 4, doorBaseY - 9], [doorX - 4, doorBaseY - 11]
             ], 0x3a2a1a, alpha);
         }
-        graphics.lineStyle(1.4, frame, alpha);
-        graphics.strokeRect(doorX - 4, doorBaseY - 11, 0.01, 0.01);
+        // ===== IDLE LOOP TIME BASE (exact 3000 ms period) =====
+        // Every idle term below (window pulse, slosh, bubbles, drip, orrery)
+        // is an integer harmonic of labW so the baked ambient loop closes.
+        const labW = (Math.PI * 2) / 3000;
 
         // Glowing window on the SE face (potion light)
-        const winPulse = 0.55 + Math.sin(time / 480) * 0.2;
+        const winPulse = 0.55 + Math.sin(time * labW) * 0.2;
         const wx = (p2[0] + p3[0]) / 2 + 2;
         const wy = (p2[1] + p3[1]) / 2 - wallH * 0.52;
         quad(graphics, [
@@ -1009,14 +1019,14 @@ export class BuildingRenderer {
         graphics.lineBetween(bulbX + bulbR * 0.7, bulbY + bulbR * 0.6, peak[0] + 4, peak[1] + 2);
 
         // Liquid inside (drawn first, glass over) with a sloshing surface
-        const slosh = Math.sin(time / 520) * 1.4;
+        const slosh = Math.sin(time * labW + 1.7) * 1.4;
         graphics.fillStyle(liquid, alpha * 0.9);
         graphics.fillEllipse(bulbX, bulbY + bulbR * 0.32, bulbR * 1.62, bulbR * 1.05);
         graphics.fillStyle(liquidHi, alpha * 0.8);
         graphics.fillEllipse(bulbX + slosh, bulbY + bulbR * 0.02, bulbR * 1.3, bulbR * 0.34);
-        // Bubbles rising on a deterministic clock
+        // Bubbles rising on a deterministic clock (750 ms — 4 cycles per loop)
         for (let i = 0; i < 3; i++) {
-            const t = ((time / 900) + i * 0.37) % 1;
+            const t = ((time / 750) + i * 0.37) % 1;
             const bx = bulbX + Math.sin(i * 2.4 + t * 5) * bulbR * 0.34;
             const by = bulbY + bulbR * 0.42 - t * bulbR * 0.85;
             graphics.fillStyle(liquidHi, alpha * (1 - t) * 0.9);
@@ -1053,8 +1063,8 @@ export class BuildingRenderer {
         graphics.lineBetween(kegX - 5, kegY + 0.5, kegX + 5, kegY + 0.5);
         graphics.fillStyle(0x795548, alpha);
         graphics.fillEllipse(kegX, kegY - 8, 9, 3.6);
-        // Drip glow where the pipe meets the keg
-        const drip = 0.5 + Math.sin(time / 260) * 0.35;
+        // Drip glow where the pipe meets the keg (1500 ms — harmonic 2)
+        const drip = 0.5 + Math.sin(time * labW * 2 + 0.8) * 0.35;
         graphics.fillStyle(liquid, alpha * drip);
         graphics.fillCircle(kegX + 2, kegY - 8.5, 1.6);
 
@@ -1079,341 +1089,54 @@ export class BuildingRenderer {
 
         // ===== ORRERY (L3): brass rings swinging around the retort =====
         if (isL3) {
-            const swing = Math.sin(time / 700);
+            const swing = Math.sin(time * labW);
             graphics.lineStyle(1.6, 0xdaa520, alpha * 0.9);
             graphics.strokeEllipse(bulbX, bulbY, bulbR * 2.5, bulbR * (0.7 + 0.5 * Math.abs(swing)));
             graphics.lineStyle(1.2, 0xffd700, alpha * 0.75);
-            graphics.strokeEllipse(bulbX, bulbY, bulbR * (0.7 + 0.5 * Math.abs(Math.cos(time / 700))), bulbR * 2.5);
-            // Two orbiting motes
+            graphics.strokeEllipse(bulbX, bulbY, bulbR * (0.7 + 0.5 * Math.abs(Math.cos(time * labW))), bulbR * 2.5);
+            // Two orbiting motes (one orbit per loop)
             for (let i = 0; i < 2; i++) {
-                const a2 = time / 620 + i * Math.PI;
+                const a2 = time * labW + i * Math.PI;
                 graphics.fillStyle(0xffd700, alpha * 0.95);
                 graphics.fillCircle(bulbX + Math.cos(a2) * bulbR * 1.25, bulbY + Math.sin(a2) * bulbR * 0.42, 1.7);
             }
         }
     }
 
+    /** Neutral flat placeholder drawn while a unit's art is redesigned in the
+     *  clean room. Keeps the base/elevated split contract intact; carries no
+     *  visual design information. */
+    private static drawRedesignPlaceholder(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
+        const g = baseGraphics || graphics;
+        if (!skipBase) {
+            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.78);
+        }
+        if (onlyBase) return;
+        const w = Math.max(18, (c2.x - c4.x) * 0.4);
+        const h = w * 0.55;
+        graphics.fillStyle(0x8a8a8a, alpha);
+        graphics.fillRect(center.x - w / 2, center.y - h, w, h);
+        graphics.fillStyle(0x6f6f6f, alpha);
+        graphics.fillRect(center.x - w / 2, center.y - 2, w, 2);
+    }
+
     static drawCannon(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
-        BuildingRenderer.renderCannonV2(1, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+        // Canonical cannon = tournament winner B (see redesign/CannonB.ts).
+        drawCannonB(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
     }
 
     static drawCannonLevel2(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
-        BuildingRenderer.renderCannonV2(2, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+        drawCannonB(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
     }
 
     static drawCannonLevel3(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
-        BuildingRenderer.renderCannonV2(3, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+        drawCannonB(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
     }
 
     static drawCannonLevel4(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
-        BuildingRenderer.renderCannonV2(4, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+        drawCannonB(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
     }
 
-    /**
-     * CANNON — a real artillery emplacement.
-     *
-     * Story across levels: field gun on packed earth (L1) -> emplaced gun on
-     * cobbles with a powder keg (L2) -> brooding iron bastion gun (L3) ->
-     * gilded royal basilisk on marble (L4).
-     *
-     * Layer order (back to front):
-     *   ground pad (baseGraphics) -> static props -> barrel shadow ->
-     *   [barrel if aiming up-screen] -> carriage cheeks + pivot ->
-     *   [barrel if aiming down-screen] -> muzzle smoke.
-     * The barrel pivots at (center.x, center.y - 14) and its muzzle sits at
-     * +28 along the aim — exactly where MainScene spawns the cannonball.
-     */
-    private static renderCannonV2(level: number, graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
-        const g = baseGraphics || graphics;
-        const isL2 = level >= 2;
-        const isL3 = level >= 3;
-        const isL4 = level >= 4;
-
-        const angle = building?.ballistaAngle ?? Math.PI / 4;
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        // Aim-space helpers: a() walks along the barrel, p() walks across it.
-        // Y is squashed x0.5 for the isometric ground plane — but when the gun
-        // points up-screen the squash would collapse the tube to a stub, so
-        // the barrel reads as pitched slightly upward instead (x0.74).
-        const ax = (d: number) => cos * d;
-        const aySquash = sin < 0 ? 0.74 : 0.5;
-        const ay = (d: number) => sin * aySquash * d;
-        const px = (w: number) => -sin * w;
-        const py = (w: number) => cos * 0.5 * w;
-
-        const quad = (gr: Phaser.GameObjects.Graphics, pts: number[][], color: number, a: number) => {
-            gr.fillStyle(color, a);
-            gr.beginPath();
-            gr.moveTo(pts[0][0], pts[0][1]);
-            for (let i = 1; i < pts.length; i++) gr.lineTo(pts[i][0], pts[i][1]);
-            gr.closePath();
-            gr.fillPath();
-        };
-
-        // ===== PALETTE =====
-        const timberDark = isL4 ? 0xb9b4a2 : isL3 ? 0x241a12 : 0x3f2a18;
-        const timberMid = isL4 ? 0xd8d4c4 : isL3 ? 0x35261a : 0x5d4037;
-        const timberLight = isL4 ? 0xefece0 : isL3 ? 0x453424 : 0x795548;
-        const ironDark = isL4 ? 0x8a6508 : 0x2b2b2b;
-        const ironMid = isL4 ? 0xb8860b : 0x4a4a4a;
-        const barrelDark = isL4 ? 0x9c7208 : isL3 ? 0x14141a : 0x1c1c1c;
-        const barrelMid = isL4 ? 0xc9992a : isL3 ? 0x2c2c38 : 0x323232;
-        const barrelLight = isL4 ? 0xe8c25a : isL3 ? 0x474758 : 0x515151;
-        const bandColor = isL4 ? 0xffd700 : isL3 ? 0x5a5a6e : 0x101010;
-
-        // ===== GROUND PAD =====
-        if (!skipBase) {
-            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.78);
-            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.72,
-                isL4 ? 0xcfc5ae : isL3 ? 0x3c3c46 : isL2 ? 0x8a8272 : 0x8a7355,
-                isL4 ? 0xafa58c : isL3 ? 0x23232b : isL2 ? 0x5f5b50 : 0x5f4d38,
-                isL4 ? 0xdaa520 : null);
-        }
-
-        if (onlyBase) return;
-
-        // ===== STATIC PROPS (do not rotate with the barrel) =====
-        // Cannonball stack, tucked on the west corner of the pad.
-        const stackX = center.x - 17;
-        const stackY = center.y + 6;
-        const ballC = isL4 ? 0xf3f3e6 : 0x22222a;
-        const ballHi = isL4 ? 0xffffff : 0x3d3d49;
-        graphics.fillStyle(0x111111, alpha * 0.3);
-        graphics.fillEllipse(stackX + 1, stackY + 3, 14, 5);
-        graphics.fillStyle(ballC, alpha);
-        graphics.fillCircle(stackX - 3.2, stackY, 3.4);
-        graphics.fillCircle(stackX + 3.2, stackY, 3.4);
-        graphics.fillCircle(stackX, stackY - 4.4, 3.4);
-        graphics.fillStyle(ballHi, alpha * 0.8);
-        graphics.fillCircle(stackX - 4.2, stackY - 1.2, 1.1);
-        graphics.fillCircle(stackX + 2.2, stackY - 1.2, 1.1);
-        graphics.fillCircle(stackX - 1, stackY - 5.6, 1.1);
-
-        if (isL2 && !isL4) {
-            // Powder keg on the east side: small upright barrel
-            const kx = center.x + 18;
-            const ky = center.y + 4;
-            graphics.fillStyle(0x111111, alpha * 0.3);
-            graphics.fillEllipse(kx, ky + 4, 10, 4);
-            graphics.fillStyle(timberMid, alpha);
-            graphics.fillRect(kx - 4, ky - 8, 8, 11);
-            graphics.fillStyle(timberLight, alpha);
-            graphics.fillRect(kx - 4, ky - 8, 3, 11);
-            graphics.fillStyle(ironMid, alpha);
-            graphics.fillRect(kx - 4.5, ky - 6.5, 9, 1.5);
-            graphics.fillRect(kx - 4.5, ky - 0.5, 9, 1.5);
-            graphics.fillStyle(timberLight, alpha);
-            graphics.fillEllipse(kx, ky - 8, 8, 3.4);
-        }
-
-        if (isL4) {
-            // Royal pennant on a short pole at the east corner, waving gently
-            const bx = center.x + 19;
-            const by = center.y + 2;
-            graphics.lineStyle(2, 0x8a6508, alpha);
-            graphics.lineBetween(bx, by, bx, by - 22);
-            graphics.fillStyle(0xffd700, alpha);
-            const wave = windSwayAtScreen(bx, by, time) * 2.5;
-            graphics.beginPath();
-            graphics.moveTo(bx, by - 22);
-            graphics.lineTo(bx + 11, by - 19.5 + wave);
-            graphics.lineTo(bx, by - 17);
-            graphics.closePath();
-            graphics.fillPath();
-        }
-
-        // ===== TURRET GEOMETRY =====
-        const pivotX = center.x;
-        const pivotY = center.y - 14;
-        const recoil = (building?.cannonRecoilOffset ?? 0) * (isL4 ? 7 : 6);
-        const rX = -ax(recoil);
-        const rY = -ay(recoil);
-        const breechD = -6;
-        const muzzleD = 34;
-        const wBreech = 6.8 + level * 0.85;
-        const wMuzzle = 4.5 + level * 0.7;
-
-        const bX = pivotX + ax(breechD) + rX;
-        const bY = pivotY + ay(breechD) + rY;
-        const mX = pivotX + ax(muzzleD) + rX;
-        const mY = pivotY + ay(muzzleD) + rY;
-
-        // Shadow cast by the barrel on the pad
-        graphics.fillStyle(0x111111, alpha * 0.3);
-        graphics.fillEllipse(center.x + ax(10), center.y + ay(10) + 3, 30, 8);
-
-        // ===== BARREL, split so each half can layer against the carriage =====
-        // The breech (with its round gold cap) points toward the viewer when
-        // the gun aims up-screen and must then draw OVER the carriage.
-        const drawBreech = () => {
-            // Rounded closed end of the tube: a cap tucked into the barrel so
-            // it only bulges slightly past the rear, plus a small cascabel
-            // knob — unmistakably a cannon's back end, never a ball.
-            graphics.fillStyle(barrelMid, alpha);
-            graphics.fillCircle(bX + ax(2), bY + ay(2), wBreech * 0.85);
-            graphics.fillStyle(barrelLight, alpha * 0.45);
-            graphics.fillCircle(bX + ax(1), bY + ay(1) - wBreech * 0.3, wBreech * 0.34);
-            // Cascabel knob
-            graphics.fillStyle(isL4 ? 0xb8860b : barrelDark, alpha);
-            graphics.fillCircle(bX + ax(-wBreech * 0.55), bY + ay(-wBreech * 0.55), isL4 ? 3.2 : 2.7);
-        };
-
-        const drawBarrel = () => {
-            // A cannon tube is a CYLINDER: its silhouette is a capsule in
-            // screen space (offset perpendicular to the projected axis), and
-            // its shading wraps around it — belly shadow, broad top light,
-            // and rings that curve with the surface. Never a flat ribbon.
-            const dxs = mX - bX;
-            const dys = mY - bY;
-            const lenS = Math.max(0.001, Math.hypot(dxs, dys));
-            const uxS = dxs / lenS;
-            const uyS = dys / lenS;
-            // Screen normal, oriented to point down-screen (the belly side)
-            let nxS = -uyS;
-            let nyS = uxS;
-            if (nyS < 0) { nxS = -nxS; nyS = -nyS; }
-            const edge = (d: number, w: number, sgn: number): [number, number] => [
-                bX + uxS * d + nxS * w * sgn,
-                bY + uyS * d + nyS * w * sgn
-            ];
-            const tubeLen = lenS;
-            const wAt = (t: number) => wBreech + (wMuzzle - wBreech) * t;
-
-            // Full silhouette (mid tone)
-            quad(graphics, [
-                edge(0, wBreech, 1), edge(0, wBreech, -1),
-                edge(tubeLen, wMuzzle, -1), edge(tubeLen, wMuzzle, 1)
-            ], barrelMid, alpha);
-
-            // Belly shadow hugging the lower edge
-            quad(graphics, [
-                edge(0, wBreech * 0.35, 1), edge(0, wBreech, 1),
-                edge(tubeLen, wMuzzle, 1), edge(tubeLen, wMuzzle * 0.35, 1)
-            ], barrelDark, alpha * 0.9);
-
-            // Broad top light + a thin specular line
-            quad(graphics, [
-                edge(0, wBreech * 0.75, -1), edge(0, wBreech * 0.2, -1),
-                edge(tubeLen, wMuzzle * 0.2, -1), edge(tubeLen, wMuzzle * 0.75, -1)
-            ], barrelLight, alpha * 0.65);
-
-            // Reinforcing rings that curve around the cylinder
-            const bands = [0.3, 0.62];
-            for (const t of bands) {
-                const w = wAt(t) + 0.6;
-                const d0 = tubeLen * t;
-                graphics.lineStyle(isL3 ? 2.8 : 2.2, bandColor, alpha * 0.95);
-                let prev: [number, number] | null = null;
-                for (let i = 0; i <= 6; i++) {
-                    const phi = -1 + (i / 3);
-                    const pt = edge(d0 + (1 - phi * phi) * w * 0.35, w * phi, 1);
-                    if (prev) graphics.lineBetween(prev[0], prev[1], pt[0], pt[1]);
-                    prev = pt;
-                }
-            }
-
-            // Muzzle collar: a short, slightly wider drum at the mouth
-            const wC = wMuzzle + 1.9;
-            const cLen = tubeLen - 5;
-            quad(graphics, [
-                edge(cLen, wC, 1), edge(cLen, wC, -1),
-                edge(tubeLen, wC, -1), edge(tubeLen, wC, 1)
-            ], isL4 ? 0xb8860b : barrelDark, alpha);
-
-            // Muzzle face + bore, as a true disc perpendicular to the barrel:
-            // edge-on when sideways, round toward the viewer; the bore is a
-            // hole and only shows when the gun points down-screen.
-            const disc = (x: number, y: number, r: number): number[][] => {
-                const pts: number[][] = [];
-                for (let i = 0; i < 14; i++) {
-                    const t = (i / 14) * Math.PI * 2;
-                    pts.push([
-                        x + px(Math.cos(t) * r),
-                        y + py(Math.cos(t) * r) - Math.sin(t) * r
-                    ]);
-                }
-                return pts;
-            };
-            if (sin > 0.05) {
-                quad(graphics, disc(mX, mY, wC), isL4 ? 0xc9992a : barrelMid, alpha);
-                quad(graphics, disc(mX + ax(0.6), mY + ay(0.6), wMuzzle * 0.72), 0x000000, alpha * Math.min(1, sin * 3));
-            }
-        };
-
-        // ===== CARRIAGE (cheeks + pivot cap; rocks slightly with recoil) =====
-        const drawCarriage = () => {
-            const rock = (building?.cannonRecoilOffset ?? 0) * 1.4;
-            // Rotating footing ring under the carriage
-            graphics.fillStyle(timberDark, alpha);
-            graphics.fillEllipse(center.x, center.y - 1, 24, 12.5);
-            graphics.fillStyle(timberMid, alpha);
-            graphics.fillEllipse(center.x, center.y - 2, 21, 10.5);
-
-            // Two timber cheeks flanking the barrel; they carry the trunnions.
-            for (const side of [-1, 1]) {
-                const w0 = wBreech * 1.18;
-                const rearD = -7;
-                const frontD = 7.5;
-                const topY = pivotY + 2 + rock;
-                const baseY = center.y - 1;
-                const cheekDark = side === 1 ? timberDark : timberMid;
-                const cheekLit = side === 1 ? timberMid : timberLight;
-                // Face
-                quad(graphics, [
-                    [center.x + ax(rearD) + px(side * w0) + rX * 0.5, baseY + ay(rearD) + py(side * w0)],
-                    [center.x + ax(frontD) + px(side * w0) + rX * 0.5, baseY + ay(frontD) + py(side * w0)],
-                    [center.x + ax(frontD - 2.4) + px(side * w0) + rX * 0.5, topY + ay(frontD - 2.4) + py(side * w0)],
-                    [center.x + ax(rearD + 1.2) + px(side * w0) + rX * 0.5, topY + ay(rearD + 1.2) + py(side * w0)]
-                ], cheekLit, alpha);
-                // Top edge sliver for thickness
-                quad(graphics, [
-                    [center.x + ax(rearD + 1.2) + px(side * w0) + rX * 0.5, topY + ay(rearD + 1.2) + py(side * w0)],
-                    [center.x + ax(frontD - 2.4) + px(side * w0) + rX * 0.5, topY + ay(frontD - 2.4) + py(side * w0)],
-                    [center.x + ax(frontD - 2.4) + px(side * (w0 - 2.4)) + rX * 0.5, topY + ay(frontD - 2.4) + py(side * (w0 - 2.4))],
-                    [center.x + ax(rearD + 1.2) + px(side * (w0 - 2.4)) + rX * 0.5, topY + ay(rearD + 1.2) + py(side * (w0 - 2.4))]
-                ], cheekDark, alpha);
-            }
-
-            // Trunnion axle: crosses over the barrel between cheek tops
-            const axW = wBreech * 1.24;
-            graphics.lineStyle(3.4, ironDark, alpha);
-            graphics.lineBetween(
-                pivotX + px(axW) + rX * 0.5, pivotY + 2 + py(axW) + rock,
-                pivotX - px(axW) + rX * 0.5, pivotY + 2 - py(axW) + rock
-            );
-            graphics.fillStyle(ironMid, alpha);
-            graphics.fillCircle(pivotX + px(axW) + rX * 0.5, pivotY + 2 + py(axW) + rock, 2.6);
-            graphics.fillCircle(pivotX - px(axW) + rX * 0.5, pivotY + 2 - py(axW) + rock, 2.6);
-
-        };
-
-        // Aim-aware layering: always far half -> carriage -> near half.
-        // Aiming down-screen: breech is far, muzzle near. Aiming up-screen:
-        // muzzle is far, the round breech cap is nearest and draws on top.
-        if (sin < 0) {
-            drawBarrel();
-            drawCarriage();
-            drawBreech();
-        } else {
-            drawBreech();
-            drawCarriage();
-            drawBarrel();
-        }
-
-        // ===== POWDER SMOKE after firing (deterministic drift, no flicker) =====
-        const sinceFire = building?.lastFireTime ? (time - building.lastFireTime) : Infinity;
-        if (BuildingRenderer.AMBIENT_VAPOR && sinceFire < 1400 && time > 0) {
-            for (let i = 0; i < 3; i++) {
-                const p = sinceFire / 1400 - i * 0.14;
-                if (p <= 0 || p >= 1) continue;
-                const drift = 5 + p * 13;
-                const sway = Math.sin(p * 5 + i * 2.1) * 2.5;
-                graphics.fillStyle(0xd8d8d2, alpha * (1 - p) * 0.5);
-                graphics.fillCircle(mX + ax(drift) + sway, mY + ay(drift) - p * 15, 2.2 + p * 4);
-            }
-        }
-    }
 
     static drawBallista(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
         BuildingRenderer.renderBallistaV2(1, graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
@@ -1494,6 +1217,20 @@ export class BuildingRenderer {
         }
 
         if (onlyBase) return;
+
+        // ===== IDLE LOOP (elevated pass only; exact 1500 ms ambient period)
+        // Every term below repeats exactly every IDLE_P ms — the sprite bake
+        // measures this loop by autocorrelation and replays it as frames.
+        const IDLE_P = 1500;
+        const iw = (Math.PI * 2) / IDLE_P;
+        // Windlass ratchet: the crank bar does ONE full revolution per loop
+        // in 4 discrete 90° notches — a step function of time, nothing else.
+        const idleNotch = Math.floor(((time % IDLE_P) / IDLE_P) * 4);
+        const crankA = 0.6 + idleNotch * (Math.PI / 2);
+        // Torsion-skein breathing: the two rope bundles work in opposition.
+        const skein = (side: number) => Math.sin(time * iw + (side < 0 ? 0 : Math.PI));
+        // Staggered specular windows cycling across the metal fittings.
+        const glintOn = (ph: number) => Math.cos(time * iw + ph) > 0.55;
 
         // ===== STATIC PROP: bolt quiver near the east corner =====
         const qx = center.x + 34;
@@ -1580,11 +1317,28 @@ export class BuildingRenderer {
             graphics.lineBetween(x1, y1, x2, y2);
             graphics.lineStyle(3, woodLight, alpha);
             graphics.lineBetween(x1, y1, x2, y2);
+            let winchEnd = 0;
             for (const [ex, ey] of [[x1, y1], [x2, y2]]) {
                 graphics.fillStyle(ironMid, alpha);
                 graphics.fillCircle(ex, ey, 3.2);
                 graphics.fillStyle(ironLight, alpha * 0.7);
                 graphics.fillCircle(ex - 0.8, ey - 0.8, 1.3);
+                // Idle ratchet crank: a rigid handle bar through the axle.
+                // It turns in the along-aim/vertical plane (perpendicular to
+                // the axle), so along-aim uses ax/ay and vertical is raw.
+                const armR = 5.2;
+                const tipX = ex + ax(Math.cos(crankA) * armR);
+                const tipY = ey + ay(Math.cos(crankA) * armR) - Math.sin(crankA) * armR;
+                graphics.lineStyle(1.8, ironMid, alpha);
+                graphics.lineBetween(ex, ey, tipX, tipY);
+                graphics.fillStyle(isL3 ? 0xffd700 : ironLight, alpha);
+                graphics.fillCircle(tipX, tipY, 1.7);
+                // Specular window on the axle cap (ends alternate)
+                if (glintOn(winchEnd * Math.PI)) {
+                    graphics.fillStyle(isL3 ? 0xfff2c0 : 0xd8dce0, alpha * 0.9);
+                    graphics.fillCircle(ex - 1, ey - 1.2, 1.4);
+                }
+                winchEnd++;
             }
         };
 
@@ -1623,13 +1377,24 @@ export class BuildingRenderer {
                 graphics.fillStyle(0x000000, alpha * 0.18);
                 graphics.fillRect(hx + r * 0.25, hy - hh, r * 0.75, hh);
                 // Rope windings
+                // Skein breathing: the windings creep as the bundle works
+                const br = skein(side);
                 graphics.lineStyle(1.6, rope, alpha);
                 for (let i = 1; i <= 2; i++) {
-                    graphics.lineBetween(hx - r + 0.5, hy - (hh * i) / 3, hx + r - 0.5, hy - (hh * i) / 3 - 0.8);
+                    graphics.lineBetween(hx - r + 0.5, hy - (hh * i) / 3 + br * 0.9, hx + r - 0.5, hy - (hh * i) / 3 - 0.8 + br * 0.9);
                 }
+                // ...and the twisted bundle's sheen slides across the housing
+                const shx = hx - 1 + br * 2.0;
+                graphics.fillStyle(isL3 ? 0xe8d8a8 : 0xcdb890, alpha * 0.38);
+                graphics.fillRect(shx - 1.1, hy - hh + 1.5, 2.2, hh - 3.5);
                 // Cap
                 graphics.fillStyle(isL3 ? 0xdaa520 : isL2 ? ironMid : woodLight, alpha);
                 graphics.fillEllipse(hx, hy - hh, r * 2 + 1, r + 0.5);
+                // Max level: a gold finial glint sweeps the two caps in turn
+                if (isL3 && glintOn(side < 0 ? Math.PI / 4 : (5 * Math.PI) / 4)) {
+                    graphics.fillStyle(0xfff6d0, alpha * 0.95);
+                    graphics.fillCircle(hx - 1.5, hy - hh - 0.5, 1.3);
+                }
 
                 // Limb: grows out of the housing, sweeping outward then
                 // curling forward — two tapered blade segments
@@ -1641,6 +1406,11 @@ export class BuildingRenderer {
                 // Limb tip cap
                 graphics.fillStyle(isL3 ? 0xffd700 : ironMid, alpha);
                 graphics.fillCircle(k3[0], k3[1], 2.8);
+                // Specular window on the tip fitting (sides stagger the cycle)
+                if (glintOn(side < 0 ? Math.PI / 2 : (3 * Math.PI) / 2)) {
+                    graphics.fillStyle(isL3 ? 0xfff2c0 : 0xd8dce0, alpha * 0.9);
+                    graphics.fillCircle(k3[0] - 0.8, k3[1] - 0.8, 1.4);
+                }
             }
         };
 
@@ -1734,6 +1504,10 @@ export class BuildingRenderer {
      *
      * Story across levels: timber repeater (L1) -> iron autobow (L2) ->
      * gilded marble arbalest (L3).
+     *
+     * Idle (baked ambient loop, P = 1500ms): the 4-spoke cocking reels creep
+     * at ~today's rate with an exact 90°-per-P pattern repeat, and a glint
+     * chases the magazine bolt butts row by row once per P.
      */
     private static renderXBowV2(level: number, graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, time: number = 0, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
         const g = baseGraphics || graphics;
@@ -1905,10 +1679,16 @@ export class BuildingRenderer {
             graphics.lineStyle(2, isL3 ? 0xdaa520 : steelMid, alpha);
             graphics.strokeEllipse(mz[0], mz[1], 6.6, 4.2);
 
-            // Cocking cranks hugging the receiver's rear flanks: the
-            // repeating mechanism, spinning while the weapon cycles. They sit
-            // directly against the rail so nothing floats free of the body.
-            const crank = cycling ? time / 90 : time / 1100;
+            // Cocking crank-reels hugging the receiver's rear flanks: the
+            // repeating mechanism, whirring while the weapon cycles and
+            // creeping while it idles. They sit directly against the rail so
+            // nothing floats free of the body. The reel is 4-fold symmetric
+            // (4 identical spokes + knobs), and the idle rate advances the
+            // crank exactly 90° per 1500ms — so the DRAWN pattern repeats
+            // exactly every 1500ms (the bake's ambient-loop period) while
+            // the perceived creep stays at today's ~time/1100 speed. The
+            // fast time/90 combat re-cock whirl is untouched.
+            const crank = cycling ? time / 90 : time * (Math.PI * 2) / 6000;
             for (const side of [-1, 1]) {
                 const [ex, ey] = P(railBack + 2.5, side * 6, H + 1.2);
                 graphics.fillStyle(steelDark, alpha);
@@ -1916,9 +1696,15 @@ export class BuildingRenderer {
                 graphics.fillStyle(steelMid, alpha);
                 graphics.fillCircle(ex, ey, 2.2);
                 graphics.lineStyle(1.8, steelDark, alpha);
-                graphics.lineBetween(ex, ey, ex + Math.cos(crank) * 4.6, ey + Math.sin(crank) * 2.9);
+                for (let sp = 0; sp < 4; sp++) {
+                    const sa = crank + sp * (Math.PI / 2);
+                    graphics.lineBetween(ex, ey, ex + Math.cos(sa) * 4.6, ey + Math.sin(sa) * 2.9);
+                }
                 graphics.fillStyle(isL3 ? 0xffd700 : steelLight, alpha);
-                graphics.fillCircle(ex + Math.cos(crank) * 4.6, ey + Math.sin(crank) * 2.9, 1.6);
+                for (let sp = 0; sp < 4; sp++) {
+                    const sa = crank + sp * (Math.PI / 2);
+                    graphics.fillCircle(ex + Math.cos(sa) * 4.6, ey + Math.sin(sa) * 2.9, 1.4);
+                }
             }
         };
 
@@ -1990,14 +1776,26 @@ export class BuildingRenderer {
                 graphics.lineStyle(1.4, 0xdaa520, alpha * 0.95);
                 graphics.lineBetween(e1[0], e1[1], e2[0], e2[1]);
             }
-            // Bolt butts waiting in the magazine
-            graphics.fillStyle(boltTipC, alpha);
+            // Bolt butts waiting in the magazine. A soft glint chases down
+            // the rows toward the feed chute as the mechanism ticks over —
+            // each row pulses once per 1500ms (exactly the ambient-loop
+            // period), an opaque RGB overdraw (never an alpha shimmer), so
+            // the idle reads at aims where the crank-reels hide behind the
+            // hopper.
+            const glintW = (Math.PI * 2) / 1500;
             for (let i = 0; i < 3; i++) {
                 const d = b0 + 3.2 + i * 4.3;
                 const s1 = P(d, 2.8, hTop + 0.4 + (d - b0) / (b1 - b0) * 1.8);
                 const s2 = P(d, -2.8, hTop + 0.4 + (d - b0) / (b1 - b0) * 1.8);
+                graphics.fillStyle(boltTipC, alpha);
                 graphics.fillCircle(s1[0], s1[1], 1.45);
                 graphics.fillCircle(s2[0], s2[1], 1.45);
+                const gl = Math.pow(Math.max(0, Math.cos(time * glintW - i * (Math.PI * 2) / 3)), 3);
+                if (gl > 0.04) {
+                    graphics.fillStyle(0xffffff, alpha * 0.85 * gl);
+                    graphics.fillCircle(s1[0], s1[1], 1.05);
+                    graphics.fillCircle(s2[0], s2[1], 1.05);
+                }
             }
             // Feed chute hint down to the rail
             graphics.lineStyle(1.4, steelDark, alpha * 0.8);
@@ -2415,15 +2213,23 @@ export class BuildingRenderer {
             graphics.fillStyle(0x778899, 0.3 * alpha);
             graphics.fillCircle(center.x - 2, orbY - 2, 1.5);
 
-            // Occasional idle crackle — small dim arcs to feel alive
-            const idleSeed = Math.floor(time / 300);
-            if (idleSeed % 4 === 0) {
-                const arcAngle = ((idleSeed * 2.618) % 6.28);
-                const arcLen = 8 + (idleSeed % 5);
+            // Occasional idle crackle — small dim arcs to feel alive. The
+            // old golden-angle sequence (idleSeed * 2.618) never repeated, so
+            // the baked ambient loop could not close; now the whole pattern
+            // is a closed 3000 ms cycle (250 ms-multiple, probe-measurable):
+            // three crackle windows per loop, each at its own fixed angle,
+            // with jitter terms on exact harmonics (k=16, k=14).
+            const IDLE_P = 3000;
+            const iw = (Math.PI * 2) / IDLE_P;
+            const slot = Math.floor(((time % IDLE_P) + IDLE_P) % IDLE_P / 250); // 0..11
+            const arcIdx = slot === 0 ? 0 : slot === 5 ? 1 : slot === 9 ? 2 : -1;
+            if (arcIdx >= 0) {
+                const arcAngle = 0.7 + arcIdx * 2.3;
+                const arcLen = 8 + arcIdx * 2;
                 const sx = center.x + Math.cos(arcAngle) * 5;
                 const sy = orbY + Math.sin(arcAngle) * 5;
-                const ex = center.x + Math.cos(arcAngle) * arcLen + Math.sin(time / 30) * 2;
-                const ey = orbY + Math.sin(arcAngle) * arcLen + Math.cos(time / 35) * 1.5;
+                const ex = center.x + Math.cos(arcAngle) * arcLen + Math.sin(time * iw * 16) * 2;
+                const ey = orbY + Math.sin(arcAngle) * arcLen + Math.cos(time * iw * 14) * 1.5;
 
                 graphics.lineStyle(1, 0x6699aa, alpha * 0.4);
                 graphics.beginPath();
@@ -2437,395 +2243,14 @@ export class BuildingRenderer {
         }
     }
 
-    static drawFrostfall(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, _building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
-        if (time === 0) time = Date.now();
-        const level = Number(_building?.level) || 1;
-        const g = baseGraphics || graphics;
-        const fireRate = 5000;
-        const timeSinceFire = _building && _building.lastFireTime ? time - _building.lastFireTime : fireRate + 1;
-        const projectileActive = _building?.frostfallProjectileActive === true;
-
-        // --- COLORS (max level: gilded marble housing around the same ice) ---
-        const isMax = level >= 4;
-        const stoneDark = isMax ? 0xafa78f : 0x3a4550;
-        const frostAccent = 0x88ccff;
-        const woodColor = isMax ? 0x9a7428 : 0x6b4226;
-        const woodDark = isMax ? 0x74560f : 0x4a2e1a;
-        const woodLight = isMax ? 0xc9992a : 0x8b5a3a;
-        const ropeColor = isMax ? 0xdaa520 : 0x8b7355;
-
-        // --- DIMENSIONS ---
-        const pitRadiusX = 22;
-        const pitRadiusY = 11;
-        const pitY = center.y + 2;
-        const crystalH = level >= 4 ? 50 : level >= 3 ? 45 : (level >= 2 ? 40 : 35);
-        const crystalW = level >= 4 ? 24 : level >= 3 ? 22 : (level >= 2 ? 20 : 18);
-
-        // --- SCAFFOLDING POSITIONS ---
-        const scaffX = center.x - 22;
-        const scaffBaseY = center.y - 2;
-        const scaffTopY = center.y - 62;
-        const pulleyX = center.x;
-        const pulleyY = scaffTopY;
-
-        // --- PENDULUM ---
-        const pendulumLength = 25;
-        const crystalPivotX = pulleyX;
-        const crystalPivotY = pulleyY + 4;
-
-        // === ANIMATION TIMELINE (5000ms cycle) ===
-        // 0-500ms:      Post-fire pause, crystal hidden
-        // 500-3000ms:   Crystal rises from pit (winch cranks)
-        // 3000-3500ms:  Crystal at top, harness visible, keeper braces
-        // 3500-4200ms:  Single swing: pull back then release forward
-        // 4200-5000ms:  Crystal gone (projectile in flight)
-
-        let crystalRise = 0;
-        let swingAngle = 0;
-        let showCrystal = true;
-        let showHarness = false;
-        let crankActive = false;
-        let keeperBracing = false;
-        let keeperFlinching = false;
-
-        if (projectileActive) {
-            showCrystal = false;
-        } else if (timeSinceFire < 500) {
-            crystalRise = 0;
-            showCrystal = false;
-            keeperFlinching = true;
-        } else if (timeSinceFire < 3000) {
-            crystalRise = (timeSinceFire - 500) / 2500;
-            showHarness = true;
-            crankActive = true;
-        } else if (timeSinceFire < 3500) {
-            crystalRise = 1;
-            showHarness = true;
-            keeperBracing = true;
-        } else if (timeSinceFire < 4200) {
-            // Single swing: ease back then snap forward
-            crystalRise = 1;
-            showHarness = true;
-            const swingT = (timeSinceFire - 3500) / 700; // 0→1 over 700ms
-            if (swingT < 0.6) {
-                // Pull back slowly (0→0.6 of time = 0→-0.35 radians)
-                const backT = swingT / 0.6;
-                swingAngle = -backT * 0.35;
-                keeperBracing = true;
-            } else {
-                // Snap forward quickly (0.6→1.0 of time = -0.35→+0.4 radians)
-                const fwdT = (swingT - 0.6) / 0.4;
-                swingAngle = -0.35 + fwdT * 0.75;
-                keeperFlinching = true;
-            }
-        } else {
-            showCrystal = false;
-            crystalRise = 0;
+    static drawFrostfall(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        const design = activeDesign('frostfall');
+        if (design) {
+            design(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
+            return;
         }
-
-        // Idle state
-        if (timeSinceFire > fireRate && !projectileActive) {
-            crystalRise = 1;
-            showCrystal = true;
-            showHarness = false;
-            swingAngle = 0;
-        }
-
-        // === COMPUTE CRYSTAL POSITION (needed by multiple sections) ===
-        let crystalCX: number = center.x;
-        let crystalCY: number = pitY + 8;
-
-        if (crystalRise < 1 && crystalRise > 0) {
-            const pitCenterY = pitY + 8;
-            const hangY = crystalPivotY + pendulumLength;
-            crystalCX = center.x;
-            crystalCY = pitCenterY + (hangY - pitCenterY) * crystalRise;
-        } else if (crystalRise >= 1) {
-            crystalCX = crystalPivotX + Math.sin(swingAngle) * pendulumLength;
-            crystalCY = crystalPivotY + Math.cos(swingAngle) * pendulumLength;
-        }
-
-        // ============================================
-        // 1. STONE BASE PLATFORM
-        // ============================================
-        if (!skipBase) {
-            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.85, 0.8);
-            BuildingRenderer.chamferPad(g, c1, c2, c3, c4, center, alpha, 0.68,
-                isMax ? 0xd3ccb8 : 0x4a5560,
-                isMax ? 0xafa78f : 0x3a4550,
-                isMax ? 0xdaa520 : null);
-        }
-        if (onlyBase) return;
-
-        // ============================================
-        // 2. WELL PIT
-        // ============================================
-        graphics.fillStyle(stoneDark, alpha);
-        graphics.fillEllipse(center.x, pitY, pitRadiusX * 2.4, pitRadiusY * 2.4);
-        graphics.lineStyle(2, frostAccent, alpha * 0.3);
-        graphics.strokeEllipse(center.x, pitY, pitRadiusX * 2.4, pitRadiusY * 2.4);
-        graphics.fillStyle(0x0a0a15, alpha);
-        graphics.fillEllipse(center.x, pitY, pitRadiusX * 2.0, pitRadiusY * 2.0);
-        graphics.fillStyle(0x000008, alpha);
-        graphics.fillEllipse(center.x, pitY + 1, pitRadiusX * 1.6, pitRadiusY * 1.6);
-
-        // ============================================
-        // 3. FRONT WALL ARC (mortar-style mask — drawn BEFORE crystal)
-        // ============================================
-        graphics.fillStyle(stoneDark, alpha);
-        graphics.beginPath();
-        for (let i = 0; i <= 16; i++) {
-            const angle = (i / 32) * Math.PI * 2;
-            const px = center.x + Math.cos(angle) * pitRadiusX * 1.2;
-            const py = pitY + Math.sin(angle) * pitRadiusY * 1.2;
-            if (i === 0) graphics.moveTo(px, py);
-            else graphics.lineTo(px, py);
-        }
-        for (let i = 16; i >= 0; i--) {
-            const angle = (i / 32) * Math.PI * 2;
-            const px = center.x + Math.cos(angle) * pitRadiusX * 0.75;
-            const py = pitY + Math.sin(angle) * pitRadiusY * 0.75;
-            graphics.lineTo(px, py);
-        }
-        graphics.closePath();
-        graphics.fillPath();
-
-        graphics.lineStyle(1, frostAccent, alpha * 0.2);
-        graphics.beginPath();
-        for (let i = 0; i <= 16; i++) {
-            const angle = (i / 32) * Math.PI * 2;
-            const px = center.x + Math.cos(angle) * pitRadiusX * 1.2;
-            const py = pitY + Math.sin(angle) * pitRadiusY * 1.2;
-            if (i === 0) graphics.moveTo(px, py);
-            else graphics.lineTo(px, py);
-        }
-        graphics.strokePath();
-
-        // ============================================
-        // 4. SCAFFOLDING (tall frame, left side)
-        // ============================================
-        const scaffW = 4;
-
-        graphics.fillStyle(woodColor, alpha);
-        graphics.fillRect(scaffX - scaffW / 2, scaffTopY, scaffW, scaffBaseY - scaffTopY);
-        graphics.fillRect(scaffX + 12 - scaffW / 2, scaffTopY, scaffW, scaffBaseY - scaffTopY);
-
-        graphics.lineStyle(1, woodDark, alpha * 0.6);
-        graphics.lineBetween(scaffX + scaffW / 2, scaffTopY, scaffX + scaffW / 2, scaffBaseY);
-        graphics.lineBetween(scaffX + 12 + scaffW / 2, scaffTopY, scaffX + 12 + scaffW / 2, scaffBaseY);
-
-        graphics.lineStyle(1, woodLight, alpha * 0.3);
-        graphics.lineBetween(scaffX - scaffW / 2, scaffTopY, scaffX - scaffW / 2, scaffBaseY);
-
-        graphics.lineStyle(2, woodColor, alpha * 0.8);
-        graphics.lineBetween(scaffX, scaffBaseY - 20, scaffX + 12, scaffTopY + 15);
-        graphics.lineBetween(scaffX + 12, scaffBaseY - 20, scaffX, scaffTopY + 15);
-
-        graphics.lineStyle(2, woodColor, alpha * 0.9);
-        graphics.lineBetween(scaffX, scaffBaseY - 5, scaffX + 12, scaffBaseY - 5);
-        graphics.lineBetween(scaffX, scaffTopY + 8, scaffX + 12, scaffTopY + 8);
-
-        // Top horizontal beam
-        graphics.fillStyle(woodColor, alpha);
-        const beamLength = center.x - scaffX + 8;
-        graphics.fillRect(scaffX - 2, scaffTopY - 2, beamLength, 4);
-        graphics.lineStyle(1, woodDark, alpha * 0.5);
-        graphics.lineBetween(scaffX - 2, scaffTopY + 2, scaffX + beamLength - 2, scaffTopY + 2);
-        graphics.lineStyle(1, woodLight, alpha * 0.3);
-        graphics.lineBetween(scaffX - 2, scaffTopY - 2, scaffX + beamLength - 2, scaffTopY - 2);
-
-        // Pulley
-        graphics.fillStyle(0x555555, alpha);
-        graphics.fillCircle(pulleyX, pulleyY, 5);
-        graphics.lineStyle(1, 0x333333, alpha * 0.5);
-        graphics.strokeCircle(pulleyX, pulleyY, 5);
-        graphics.fillStyle(0x777777, alpha);
-        graphics.fillCircle(pulleyX, pulleyY, 2.5);
-        graphics.fillStyle(0x444444, alpha);
-        graphics.fillRect(pulleyX - 1, pulleyY - 6, 2, 4);
-
-        // Winch drum
-        const winchY = scaffBaseY - 5;
-        graphics.fillStyle(woodDark, alpha);
-        graphics.fillEllipse(scaffX + 6, winchY, 10, 6);
-        graphics.lineStyle(1, woodColor, alpha * 0.5);
-        graphics.strokeEllipse(scaffX + 6, winchY, 10, 6);
-
-        if (crankActive) {
-            const crankAngle = (timeSinceFire - 500) / 250 * Math.PI;
-            const crankR = 7;
-            const cx = scaffX + 6 + Math.cos(crankAngle) * crankR;
-            const cy = winchY + Math.sin(crankAngle) * crankR * 0.5;
-            graphics.lineStyle(2, 0x555555, alpha);
-            graphics.lineBetween(scaffX + 6, winchY, cx, cy);
-            graphics.fillStyle(0x444444, alpha);
-            graphics.fillCircle(cx, cy, 2.5);
-        }
-
-        // ============================================
-        // 5. FROST KEEPER (left of scaffolding)
-        // ============================================
-        const keeperX = scaffX - 10;
-        const keeperBaseY = scaffBaseY;
-
-        graphics.lineStyle(2, 0x2a2a4a, alpha);
-        graphics.lineBetween(keeperX - 2, keeperBaseY - 2, keeperX - 2, keeperBaseY);
-        graphics.lineBetween(keeperX + 2, keeperBaseY - 2, keeperX + 2, keeperBaseY);
-
-        graphics.fillStyle(0x2a4488, alpha);
-        graphics.beginPath();
-        graphics.moveTo(keeperX - 4, keeperBaseY - 2);
-        graphics.lineTo(keeperX - 5, keeperBaseY - 14);
-        graphics.lineTo(keeperX + 5, keeperBaseY - 14);
-        graphics.lineTo(keeperX + 4, keeperBaseY - 2);
-        graphics.closePath();
-        graphics.fillPath();
-
-        graphics.lineStyle(1, frostAccent, alpha * 0.3);
-        graphics.lineBetween(keeperX - 4, keeperBaseY - 2, keeperX + 4, keeperBaseY - 2);
-
-        graphics.lineStyle(2, 0x665533, alpha * 0.8);
-        graphics.lineBetween(keeperX - 4, keeperBaseY - 7, keeperX + 4, keeperBaseY - 7);
-
-        graphics.fillStyle(0xd4a574, alpha);
-        graphics.fillCircle(keeperX, keeperBaseY - 16, 3.5);
-
-        graphics.fillStyle(0x223366, alpha);
-        graphics.beginPath();
-        graphics.moveTo(keeperX - 5, keeperBaseY - 14);
-        graphics.lineTo(keeperX, keeperBaseY - 22);
-        graphics.lineTo(keeperX + 5, keeperBaseY - 14);
-        graphics.lineTo(keeperX + 4, keeperBaseY - 12);
-        graphics.lineTo(keeperX - 4, keeperBaseY - 12);
-        graphics.closePath();
-        graphics.fillPath();
-
-        graphics.fillStyle(0x000000, alpha);
-        if (keeperFlinching) {
-            graphics.lineStyle(1, 0x000000, alpha);
-            graphics.lineBetween(keeperX - 2, keeperBaseY - 16, keeperX - 1, keeperBaseY - 16);
-            graphics.lineBetween(keeperX + 1, keeperBaseY - 16, keeperX + 2, keeperBaseY - 16);
-        } else {
-            graphics.fillCircle(keeperX + 1.5, keeperBaseY - 16.5, 0.8);
-            graphics.fillCircle(keeperX + 3, keeperBaseY - 16.5, 0.8);
-        }
-
-        graphics.lineStyle(2, 0x2a4488, alpha);
-        if (keeperBracing) {
-            graphics.lineBetween(keeperX + 4, keeperBaseY - 11, scaffX, scaffBaseY - 12);
-            graphics.lineBetween(keeperX + 4, keeperBaseY - 9, scaffX, scaffBaseY - 8);
-        } else if (keeperFlinching) {
-            graphics.lineBetween(keeperX + 3, keeperBaseY - 12, keeperX + 6, keeperBaseY - 18);
-            graphics.lineBetween(keeperX - 3, keeperBaseY - 12, keeperX - 2, keeperBaseY - 18);
-        } else {
-            graphics.lineBetween(keeperX + 4, keeperBaseY - 10, keeperX + 10, keeperBaseY - 12);
-            graphics.lineBetween(keeperX - 3, keeperBaseY - 8, keeperX - 5, keeperBaseY - 6);
-        }
-
-        graphics.lineStyle(2, 0x6b4226, alpha * 0.9);
-        graphics.lineBetween(keeperX - 6, keeperBaseY + 1, keeperX - 5, keeperBaseY - 20);
-        graphics.fillStyle(frostAccent, alpha * 0.6);
-        graphics.fillCircle(keeperX - 5, keeperBaseY - 21, 2);
-
-        // ============================================
-        // 6. ICE CRYSTAL + ROPE + HARNESS (drawn LAST = on top of scaffolding)
-        // ============================================
-        if (showCrystal && crystalRise > 0) {
-            const topPt = crystalCY - crystalH * 0.5;
-            // Clamp bottom to pitY so crystal doesn't overlap the floor during rise
-            const botPt = Math.min(crystalCY + crystalH * 0.5, pitY - 2);
-            // Clamp the midpoints too
-            const midY = Math.min(crystalCY, pitY - 2);
-            const halfW = crystalW * 0.5;
-
-            // Rope from pulley to crystal top
-            graphics.lineStyle(1, ropeColor, alpha * 0.7);
-            graphics.lineBetween(crystalPivotX, crystalPivotY, crystalCX, topPt);
-
-            // Main body
-            graphics.fillStyle(0xaaddff, alpha * 0.9);
-            graphics.beginPath();
-            graphics.moveTo(crystalCX, topPt);
-            graphics.lineTo(crystalCX + halfW, midY);
-            graphics.lineTo(crystalCX, botPt);
-            graphics.lineTo(crystalCX - halfW, midY);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Left face
-            graphics.fillStyle(0x77bbee, alpha * 0.5);
-            graphics.beginPath();
-            graphics.moveTo(crystalCX, topPt);
-            graphics.lineTo(crystalCX, botPt);
-            graphics.lineTo(crystalCX - halfW, midY);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Highlight
-            graphics.fillStyle(0xcceeFF, alpha * 0.4);
-            graphics.beginPath();
-            graphics.moveTo(crystalCX, topPt);
-            graphics.lineTo(crystalCX + halfW, midY);
-            graphics.lineTo(crystalCX + crystalW * 0.15, midY - crystalH * 0.15);
-            graphics.closePath();
-            graphics.fillPath();
-
-            // Outline
-            graphics.lineStyle(1, 0x5599cc, alpha * 0.6);
-            graphics.beginPath();
-            graphics.moveTo(crystalCX, topPt);
-            graphics.lineTo(crystalCX + halfW, midY);
-            graphics.lineTo(crystalCX, botPt);
-            graphics.lineTo(crystalCX - halfW, midY);
-            graphics.closePath();
-            graphics.strokePath();
-
-            // Facet line
-            graphics.lineStyle(1, 0x99ccee, alpha * 0.3);
-            graphics.lineBetween(crystalCX, topPt, crystalCX, botPt);
-
-            // Harness ON TOP of crystal (drawn after crystal body)
-            if (showHarness) {
-                graphics.lineStyle(2, ropeColor, alpha * 0.8);
-                graphics.lineBetween(
-                    crystalCX - crystalW * 0.55, midY,
-                    crystalCX + crystalW * 0.55, midY
-                );
-                graphics.lineBetween(crystalCX - crystalW * 0.4, midY, crystalCX, topPt);
-                graphics.lineBetween(crystalCX + crystalW * 0.4, midY, crystalCX, topPt);
-            }
-        } else if (!showCrystal) {
-            // Crystal gone — harness flops from pulley
-            const flopTime = timeSinceFire - 4200;
-            if (flopTime > 0 && flopTime < 2000) {
-                const flopDecay = Math.max(0, 1 - flopTime / 2000);
-                const flopSwing = Math.sin(flopTime * 0.008) * 8 * flopDecay;
-                const ropeEndX = crystalPivotX + flopSwing;
-                const ropeEndY = crystalPivotY + pendulumLength + 10;
-                graphics.lineStyle(1, ropeColor, alpha * 0.6);
-                graphics.lineBetween(crystalPivotX, crystalPivotY, ropeEndX, ropeEndY);
-                graphics.lineStyle(1, ropeColor, alpha * 0.4);
-                graphics.lineBetween(ropeEndX - 6, ropeEndY + 3 + flopSwing * 0.3, ropeEndX, ropeEndY - 5);
-                graphics.lineBetween(ropeEndX + 6, ropeEndY + 3 - flopSwing * 0.3, ropeEndX, ropeEndY - 5);
-                graphics.lineBetween(ropeEndX - 8, ropeEndY, ropeEndX + 8, ropeEndY);
-            } else if (flopTime <= 0) {
-                graphics.lineStyle(1, ropeColor, alpha * 0.5);
-                graphics.lineBetween(crystalPivotX, crystalPivotY, center.x, pitY + 3);
-            }
-        }
-
-        // ============================================
-        // 7. FROST PARTICLES (when crystal ready)
-        // ============================================
-        if (showCrystal && crystalRise >= 0.9 && swingAngle === 0) {
-            const t = time * 0.002;
-            for (let i = 0; i < 4; i++) {
-                const px = crystalCX + Math.sin(t + i * 1.5) * 12;
-                const py = crystalCY - 5 + Math.cos(t + i * 2.1) * 8;
-                graphics.fillStyle(frostAccent, alpha * 0.3);
-                graphics.fillCircle(px, py, 1.5);
-            }
-        }
+        // CLEAN-ROOM REDESIGN IN PROGRESS
+        BuildingRenderer.drawRedesignPlaceholder(graphics, c1, c2, c3, c4, center, alpha, baseGraphics, skipBase, onlyBase);
     }
     /**
      * PRISM TOWER — the Suspended Prism.
@@ -2870,21 +2295,35 @@ export class BuildingRenderer {
                 isL4 ? 0xa89f8a : 0x2e2e38,
                 isL4 ? 0x8a8272 : 0x1c1c24,
                 isL4 ? 0xdaa520 : null);
-            const ringPulse = 0.35 + Math.sin(time / 420) * 0.15;
-            g.lineStyle(1.8, glow, alpha * ringPulse);
-            g.strokeEllipse(center.x, center.y, 34, 17);
-            g.lineStyle(1, glowDeep, alpha * ringPulse * 0.8);
-            g.strokeEllipse(center.x, center.y, 24, 12);
         }
 
         if (onlyBase) return;
 
+        // ===== IDLE LOOP TIME BASE (exact 3000 ms period) =====
+        // Every idle term below is an integer harmonic of wIdle (the halo
+        // wobble uses wIdle/2 inside an abs(), which still repeats at
+        // exactly 3000 ms), so the baked ambient loop closes seamlessly at
+        // 12 fps. The old free rates (time/420, /640, /300, /160, ...)
+        // never co-repeated, so the probe flagged the prism non-periodic
+        // and the bake seamed every 2 s.
+        const wIdle = (Math.PI * 2) / 3000;
+
+        // Arcane ring on the pad — ANIMATED, so it draws in the elevated
+        // pass (the base layer bakes once and would freeze the pulse at an
+        // arbitrary phase). The body pass paints it before everything else,
+        // so it still reads as ground decal under the pylons/crystal.
+        const ringPulse = 0.35 + Math.sin(time * wIdle) * 0.15;
+        graphics.lineStyle(1.8, glow, alpha * ringPulse);
+        graphics.strokeEllipse(center.x, center.y, 34, 17);
+        graphics.lineStyle(1, glowDeep, alpha * ringPulse * 0.8);
+        graphics.strokeEllipse(center.x, center.y, 24, 12);
+
         // ===== CRYSTAL STATE =====
-        const bob = Math.sin(time / 420) * 2.4;
+        const bob = Math.sin(time * wIdle) * 2.4;
         const crystalY = center.y - 46 - bob;
         const halfH = isL4 ? 11 : isL3 ? 10 : isL2 ? 9 : 8;
         // Fake spin: the silhouette breathes as the prism rotates
-        const spinPhase = Math.cos(time / 640);
+        const spinPhase = Math.cos(time * wIdle);
         const halfW = (isL4 ? 8 : isL3 ? 7 : isL2 ? 6 : 5) * (0.6 + 0.4 * Math.abs(spinPhase));
 
         // Floating shadow: tightens when the crystal rises (soft on marble)
@@ -2922,7 +2361,7 @@ export class BuildingRenderer {
                 [p.tx + wTip, p.ty - 0.5], [p.tx, p.ty + wTip * 0.5]
             ], stoneDark, alpha);
             // Rune seam glowing up the lit face
-            const runePulse = 0.5 + Math.sin(time / 300 + p.bx) * 0.3;
+            const runePulse = 0.5 + Math.sin(time * wIdle * 2 + p.bx) * 0.3;
             graphics.lineStyle(1.2, isL4 ? 0xdaa520 : glow, alpha * runePulse);
             graphics.lineBetween(p.bx - wBase * 0.4, p.by - 1, p.tx - wTip * 0.4, p.ty + 0.5);
             // Tip cap
@@ -2936,7 +2375,7 @@ export class BuildingRenderer {
         const drawTethers = () => {
             for (let i = 0; i < pylons.length; i++) {
                 const p = pylons[i];
-                const flicker = 0.4 + Math.sin(time / 160 + i * 2.1) * 0.25;
+                const flicker = 0.4 + Math.sin(time * wIdle * 3 + i * 2.1) * 0.25;
                 graphics.lineStyle(1.2, glow, alpha * flicker);
                 graphics.lineBetween(p.tx, p.ty - 3, center.x, crystalY + halfH * 0.4);
             }
@@ -2977,7 +2416,7 @@ export class BuildingRenderer {
 
         const drawCrystal = () => {
             // Soft aura
-            const aura = 0.14 + Math.sin(time / 300) * 0.05;
+            const aura = 0.14 + Math.sin(time * wIdle * 2) * 0.05;
             graphics.fillStyle(glow, alpha * aura);
             graphics.fillCircle(center.x, crystalY, halfH + 7);
 
@@ -2998,14 +2437,15 @@ export class BuildingRenderer {
                 [center.x + halfW * 0.4, crystalY]
             ], 0xffffff, alpha * 0.75);
             // Glint at the beam tip
-            const glint = 0.5 + Math.sin(time / 190) * 0.35;
+            const glint = 0.5 + Math.sin(time * wIdle * 3) * 0.35;
             graphics.fillStyle(0xffffff, alpha * glint);
             graphics.fillCircle(center.x, crystalY - halfH, 1.7);
         };
 
         const drawHalos = () => {
             if (!isL3) return;
-            const wob = Math.abs(Math.sin(time / 780));
+            // abs() halves the sin's period, so wIdle/2 repeats at exactly P.
+            const wob = Math.abs(Math.sin(time * wIdle / 2));
             graphics.lineStyle(1.4, trim, alpha * 0.8);
             graphics.strokeEllipse(center.x, crystalY, halfH * 2.4, 3.5 + wob * 4);
             if (isL4) {
@@ -3013,7 +2453,7 @@ export class BuildingRenderer {
                 graphics.strokeEllipse(center.x, crystalY, halfH * 3.1, 5.5 + (1 - wob) * 4);
                 // Orbiting motes
                 for (let i = 0; i < 3; i++) {
-                    const a2 = time / 520 + (i * Math.PI * 2) / 3;
+                    const a2 = time * wIdle + (i * Math.PI * 2) / 3;
                     graphics.fillStyle(0xffe9a0, alpha * 0.95);
                     graphics.fillCircle(
                         center.x + Math.cos(a2) * halfH * 1.7,
@@ -3035,8 +2475,7 @@ export class BuildingRenderer {
         drawHalos();
         near.forEach(drawPylon);
     }
-    static drawArmyCamp(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, baseGraphics ?: Phaser.GameObjects.Graphics, building ?: any, skipBase: boolean = false, onlyBase: boolean = false) {
-    const time = Date.now();
+    static drawArmyCamp(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, baseGraphics ?: Phaser.GameObjects.Graphics, building ?: any, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
     const g = baseGraphics || graphics; // Ground-plane elements render here.
     const level = Number(building?.level) || 1;
     const isLevel4 = level >= 4;
@@ -3100,22 +2539,28 @@ export class BuildingRenderer {
         graphics.fillStyle(0x2a2020, alpha);
         graphics.fillEllipse(fireX, fireY, 10, 5);
 
+        // ===== IDLE LOOP TIME BASE (exact 1500 ms period) =====
+        // Every flame/coal/spark term below is an integer harmonic of wIdle
+        // so the baked ambient loop closes seamlessly.
+        const wIdle = (Math.PI * 2) / 1500;
+
         // Glowing coals
-        const coalGlow = 0.5 + Math.sin(time / 200) * 0.2;
+        const coalGlow = 0.5 + Math.sin(time * wIdle) * 0.2;
         graphics.fillStyle(0x881100, alpha * coalGlow);
         graphics.fillEllipse(fireX, fireY, 8, 4);
         graphics.fillStyle(0xcc3300, alpha * coalGlow * 0.7);
         graphics.fillEllipse(fireX - 2, fireY, 4, 2);
         graphics.fillEllipse(fireX + 3, fireY + 1, 3, 1.5);
 
-        // Main flame animation
-        const flame1 = Math.sin(time / 60) * 0.3 + 0.7;
-        const flame2 = Math.sin(time / 45 + 1) * 0.25 + 0.75;
-        const flame3 = Math.sin(time / 80 + 2) * 0.35 + 0.65;
+        // Main flame animation (375/300/500 ms — harmonics 4/5/3 of the loop)
+        const flame1 = Math.sin(time * wIdle * 4) * 0.3 + 0.7;
+        const flame2 = Math.sin(time * wIdle * 5 + 1) * 0.25 + 0.75;
+        const flame3 = Math.sin(time * wIdle * 3 + 2) * 0.35 + 0.65;
 
-        // Flame glow on ground
-        g.fillStyle(0xff4400, alpha * 0.15 * flame1);
-        g.fillEllipse(fireX, fireY, 25, 12);
+        // Flame glow on ground — animated, so it must live on the ELEVATED
+        // layer (the base layer bakes once and freezes at one phase).
+        graphics.fillStyle(0xff4400, alpha * 0.15 * flame1);
+        graphics.fillEllipse(fireX, fireY, 25, 12);
 
         // Flames (multi-layer)
         graphics.fillStyle(0xdd4400, alpha * flame3);
@@ -3167,9 +2612,9 @@ export class BuildingRenderer {
         graphics.closePath();
         graphics.fillPath();
 
-        // Fire sparks rising
+        // Fire sparks rising (one 40-unit cycle per 1500 ms loop; i*8 staggers)
         for (let i = 0; i < 5; i++) {
-            const sparkPhase = (time / 80 + i * 40) % 40;
+            const sparkPhase = (time / 37.5 + i * 8) % 40;
             if (sparkPhase < 35) {
                 const sparkRise = sparkPhase * 0.7;
                 const sparkDrift = Math.sin(sparkPhase * 0.3 + i) * 4;
@@ -3290,6 +2735,58 @@ export class BuildingRenderer {
      * Levels: wooden stakes (1) -> sandstone (2) -> dark rampart (3) ->
      * gold-crowned stone (4).
      */
+    /**
+     * Wall contact shadow — the ground pass walls never had (guide §4 says
+     * EVERY building gets one; shadowless posts read as floating up-left of
+     * their tile). Baked into the per-topology wall ground decal and stamped
+     * under the body by SpriteBank.syncBuilding's wall-ground slot; the full
+     * vector draw (kill switch, postcards) paints it directly under the post.
+     *
+     * ONE closed polygon at uniform alpha (guide §8 — stacked sub-shapes
+     * double-darken). The union is computed in CART space where every piece
+     * is axis-aligned: a square pad under the post, slim strips under the
+     * tile's own S/E connector bars (center-to-center, same partition as the
+     * bars themselves, so neighbouring decals butt instead of stacking).
+     */
+    static drawWallShadow(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, alpha: number, neighbors: { nN: boolean, nS: boolean, nE: boolean, nW: boolean }) {
+        const { nN, nS, nE, nW } = neighbors;
+        const isStraight = (nN && nS && !nE && !nW) || (nE && nW && !nN && !nS);
+        const hasPost = !isStraight;
+        const a = 0.28;   // post pad half-size (post base is ~0.19 + breathing room)
+        const b = 0.175;  // connector strip half-width (bar hw ~0.12 + margin)
+        const cx = gridX + 0.5;
+        const cy = gridY + 0.5;
+        // Trace the rectilinear union clockwise (cart offsets from the tile
+        // center; +x = east, +y = south). Bars run center-to-center like the
+        // wall bars: the strip under a bar entering a neighbour post tucks
+        // beneath that post's opaque base, so no visible double-darkening.
+        let pts: [number, number][];
+        if (hasPost) {
+            if (nE && nS) {
+                pts = [[-a, -a], [a, -a], [a, -b], [1, -b], [1, b], [a, b], [a, a], [b, a], [b, 1], [-b, 1], [-b, a], [-a, a]];
+            } else if (nE) {
+                pts = [[-a, -a], [a, -a], [a, -b], [1, -b], [1, b], [a, b], [a, a], [-a, a]];
+            } else if (nS) {
+                pts = [[-a, -a], [a, -a], [a, a], [b, a], [b, 1], [-b, 1], [-b, a], [-a, a]];
+            } else {
+                pts = [[-a, -a], [a, -a], [a, a], [-a, a]];
+            }
+        } else if (nE) { // EW straight run: own E half-bar (W half belongs to the west neighbour)
+            pts = [[0, -b], [1, -b], [1, b], [0, b]];
+        } else {         // NS straight run
+            pts = [[-b, 0], [b, 0], [b, 1], [-b, 1]];
+        }
+        graphics.fillStyle(0x18220f, alpha * 0.3);
+        graphics.beginPath();
+        pts.forEach(([dx, dy], i) => {
+            const p = IsoUtils.cartToIso(cx + dx, cy + dy);
+            if (i === 0) graphics.moveTo(p.x, p.y + 1);
+            else graphics.lineTo(p.x, p.y + 1);
+        });
+        graphics.closePath();
+        graphics.fillPath();
+    }
+
     static drawWall(graphics: Phaser.GameObjects.Graphics, _center: Phaser.Math.Vector2, gridX: number, gridY: number, alpha: number, tint: number | null, building: any, neighbors: { nN: boolean, nS: boolean, nE: boolean, nW: boolean, owner: string }) {
         const level = Math.max(1, Math.min(4, Number(building?.level) || 1));
         const { nN, nS, nE, nW } = neighbors;
@@ -3328,12 +2825,6 @@ export class BuildingRenderer {
 
         // Bars begin at the post's face on post tiles, at the centre otherwise.
         const barStart = isStraight ? 0 : hw + 0.07;
-        // A GATE (straight pieces only): the bar starts late, leaving a
-        // doorway between this centre and the bar's end — the neighbour's
-        // own half-bar forms the far jamb. Battles treat it as plain wall;
-        // only villagers (and the eye) pass through.
-        const isGate = Boolean(building?.isGate) && isStraight;
-        const GATE_GAP = 0.42;
 
         if (!isStraight) {
             // ---- POST: corners, junctions, ends and lone blocks only.
@@ -3404,7 +2895,7 @@ export class BuildingRenderer {
 
         // ---- EAST bar: own centre -> east neighbour's centre ----
         if (nE) {
-            const x0 = cx + (isGate && nE && nW ? GATE_GAP : barStart);
+            const x0 = cx + barStart;
             const nw = IsoUtils.cartToIso(x0, cy - hw);
             const ne = IsoUtils.cartToIso(cx + 1, cy - hw);
             const se = IsoUtils.cartToIso(cx + 1, cy + hw);
@@ -3427,7 +2918,7 @@ export class BuildingRenderer {
 
         // ---- SOUTH bar: own centre -> south neighbour's centre ----
         if (nS) {
-            const y0 = cy + (isGate && nN && nS ? GATE_GAP : barStart);
+            const y0 = cy + barStart;
             const nw = IsoUtils.cartToIso(cx - hw, y0);
             const ne = IsoUtils.cartToIso(cx + hw, y0);
             const se = IsoUtils.cartToIso(cx + hw, cy + 1);
@@ -3446,28 +2937,6 @@ export class BuildingRenderer {
             }
         }
 
-        // ---- the gateway dressing: lintel over the doorway, an end-cap
-        // jamb, and a worn threshold. Subtle by design — the opening itself
-        // is the tell, in every direction and at every wall level.
-        if (isGate) {
-            const eastGate = nE && nW;
-            const a0 = eastGate ? IsoUtils.cartToIso(cx, cy - hw) : IsoUtils.cartToIso(cx - hw, cy);
-            const a1 = eastGate ? IsoUtils.cartToIso(cx + GATE_GAP, cy - hw) : IsoUtils.cartToIso(cx + hw, cy);
-            const b0 = eastGate ? IsoUtils.cartToIso(cx, cy + hw) : IsoUtils.cartToIso(cx - hw, cy + GATE_GAP);
-            const b1 = eastGate ? IsoUtils.cartToIso(cx + GATE_GAP, cy + hw) : IsoUtils.cartToIso(cx + hw, cy + GATE_GAP);
-            // Lintel: the wall carries on ABOVE the doorway (top slab + fascia).
-            quad([up(a0), up(a1), up(b1), up(b0)], cfg.top);
-            const f0 = eastGate ? b0 : a1;
-            const f1 = b1;
-            quad([up(f0), up(f1), up(f1, H - 4), up(f0, H - 4)], eastGate ? cfg.front : cfg.side);
-            // End-cap jamb where the late bar begins (its open end face).
-            const j0 = eastGate ? a1 : b0;
-            const j1 = b1;
-            quad([j0, j1, up(j1), up(j0)], cfg.seam, alpha * 0.9);
-            // Worn threshold under the doorway.
-            graphics.lineStyle(1.4, 0x1c1410, alpha * 0.35);
-            graphics.lineBetween((a0.x + b0.x) / 2, (a0.y + b0.y) / 2 + 1, (a1.x + b1.x) / 2, (a1.y + b1.y) / 2 + 1);
-        }
    }
 
     /**
@@ -3501,6 +2970,21 @@ export class BuildingRenderer {
         const timeSinceFire = building?.lastFireTime ? (time - building.lastFireTime) : 100000;
         const fireRate = 3000;
         const salvoActive = timeSinceFire < 800;
+
+        // ==== Idle ambient clock ====
+        // Declared ambient period P = 2000 ms. EVERY idle term below is an
+        // integer harmonic k of idleW (or a whole number of cycles per P) so
+        // the bake's autocorrelation probe measures one clean loop — the old
+        // ad-hoc rates (time/380, time/200, time/300, ...) never closed a
+        // cycle and the battery baked as a frozen frame. Combat (salvo)
+        // branches keep their exact original values.
+        const idleW = (Math.PI * 2) / 2000;
+        const mix = (cA: number, cB: number, t: number) => {
+            const r = ((cA >> 16) & 0xff) + (((cB >> 16) & 0xff) - ((cA >> 16) & 0xff)) * t;
+            const gc = ((cA >> 8) & 0xff) + (((cB >> 8) & 0xff) - ((cA >> 8) & 0xff)) * t;
+            const b = (cA & 0xff) + ((cB & 0xff) - (cA & 0xff)) * t;
+            return (Math.round(r) << 16) | (Math.round(gc) << 8) | Math.round(b);
+        };
 
         if (!skipBase) {
             // ===== PLATFORM =====
@@ -3539,16 +3023,22 @@ export class BuildingRenderer {
 
         // ===== MOLTEN VEINS (max level): the dragon's blood feeds the silos =====
         if (isLevel2) {
-            const veinPulse = salvoActive
-                ? 0.75 + Math.sin(time / 60) * 0.25
-                : 0.3 + Math.sin(time / 380) * 0.15;
-            graphics.lineStyle(1.6, 0xff5a1e, alpha * veinPulse);
+            // Idle: the dragon's blood SURGES through the channels — a color
+            // swing from deep cooled red to bright molten orange (k=1 of the
+            // 2000 ms loop), phase-staggered per channel so the surge washes
+            // across the deck. Color at fixed high alpha, never an alpha
+            // shimmer: the bake's 50% alpha snap erases faint strokes.
+            const veinColor = (ph: number) =>
+                mix(0x76200f, 0xff5a1e, 0.5 + 0.5 * Math.sin(time * idleW + ph));
+            if (salvoActive) graphics.lineStyle(1.6, 0xff5a1e, alpha * (0.75 + Math.sin(time / 60) * 0.25));
             for (let row = 0; row < 4; row++) {
+                if (!salvoActive) graphics.lineStyle(1.8, veinColor(row * 1.1), alpha * 0.9);
                 const a2 = IsoUtils.cartToIso(gridX + 0.5, gridY + row + 0.5);
                 const b2 = IsoUtils.cartToIso(gridX + 3.5, gridY + row + 0.5);
                 graphics.lineBetween(a2.x, a2.y + 2, b2.x, b2.y + 2);
             }
             for (let col = 0; col < 4; col++) {
+                if (!salvoActive) graphics.lineStyle(1.8, veinColor(2.2 + col * 1.1), alpha * 0.9);
                 const a2 = IsoUtils.cartToIso(gridX + col + 0.5, gridY + 0.5);
                 const b2 = IsoUtils.cartToIso(gridX + col + 0.5, gridY + 3.5);
                 graphics.lineBetween(a2.x, a2.y + 2, b2.x, b2.y + 2);
@@ -3670,13 +3160,26 @@ export class BuildingRenderer {
                     [tileCenter.x + w, baseY - 3], [tileCenter.x + w + 3, baseY + 1], [tileCenter.x + w, baseY + 0.5]
                 ], 0xb8860b, alpha);
             }
-            // Fuse
-            if (isFuseGlowing || (!isReloading && !salvoActive)) {
-                const spark = isFuseGlowing ? 1 : 0.4 + Math.sin(time / 200 + podIndex * 1.3) * 0.2;
+            // Fuse — every armed pod keeps a live, sputtering spark. The old
+            // (!isReloading && !salvoActive) gate was unreachable at rest
+            // (timeSinceFire defaults huge, so isReloading was always true)
+            // which is why the battery baked frozen; armed now means "fully
+            // seated, outside a salvo". Idle terms are harmonics of the
+            // 2000 ms loop: the spark crawls ~2 px along the fuse line (k=2)
+            // with a fast shimmer (k=4), inside a slow per-pod color breath
+            // deep-ember -> white-hot (k=1) that makes the full pattern
+            // repeat exactly once per period. Alpha stays >= 0.75 — the
+            // bake's 50% alpha snap erases anything fainter.
+            if (isFuseGlowing || (!salvoActive && podHeight >= 28)) {
                 graphics.lineStyle(1.2, 0x8a6a2a, alpha);
                 graphics.lineBetween(tileCenter.x, topY - 4, tileCenter.x + 2.4, topY - 7.5);
-                graphics.fillStyle(0xffd25e, alpha * spark);
-                graphics.fillCircle(tileCenter.x + 2.4, topY - 7.5, isFuseGlowing ? 2.2 : 1.4);
+                const sput = Math.sin(time * idleW * 2 + podIndex * 1.3);
+                const shim = Math.sin(time * idleW * 4 + podIndex * 2.1);
+                const glow = 0.5 + 0.5 * Math.sin(time * idleW + podIndex * 0.7);
+                const sparkX = tileCenter.x + 2.4 + (isFuseGlowing ? 0 : 0.57 * sput + 0.33 * shim);
+                const sparkY = topY - 7.5 + (isFuseGlowing ? 0 : -0.83 * sput + 0.23 * shim);
+                graphics.fillStyle(isFuseGlowing ? 0xffd25e : mix(0xff8a26, 0xfff0b4, glow), alpha * (isFuseGlowing ? 1 : 0.75 + glow * 0.25));
+                graphics.fillCircle(sparkX, sparkY, isFuseGlowing ? 2.2 : 1.5 + 0.25 * (sput + 1) + 0.1 * (shim + 1));
             }
 
         };
@@ -3685,7 +3188,12 @@ export class BuildingRenderer {
         const drawDragonHead = () => {
             const hx = center.x;
             const hy = center.y + 4;
-            const rage = salvoActive ? 1 : 0.35 + Math.sin(time / 520) * 0.15;
+            // Idle: the whole head assembly BREATHES on the 2000 ms ambient
+            // loop (+-1.2 px vertical, k=1); rage feeds the aura and the
+            // ember heat on the same slow cycle. Salvo pins both (combat
+            // look unchanged).
+            const breathe = salvoActive ? 0 : Math.sin(time * idleW) * 1.2;
+            const rage = salvoActive ? 1 : 0.55 + Math.sin(time * idleW) * 0.25;
 
             // Heat aura under the head
             graphics.fillStyle(0xff5a1e, alpha * 0.16 * rage);
@@ -3693,7 +3201,9 @@ export class BuildingRenderer {
 
             // Serpentine trunk: four lacquered scale rings rising and narrowing
             for (let i = 0; i < 4; i++) {
-                const ry = hy - i * 9;
+                // Upper rings inherit a share of the breath so the neck
+                // flexes while the base ring stays seated on the deck.
+                const ry = hy - i * 9 + breathe * (i / 3);
                 const rw = 32 - i * 5;
                 graphics.fillStyle(i % 2 === 0 ? 0x8a1c1c : 0xa32424, alpha);
                 graphics.fillEllipse(hx, ry - 5, rw, rw * 0.46);
@@ -3701,8 +3211,10 @@ export class BuildingRenderer {
                 graphics.strokeEllipse(hx, ry - 5, rw, rw * 0.46);
             }
 
-            // Skull, towering over the battery
-            const sy = hy - 44;
+            // Skull, towering over the battery — everything below builds off
+            // sy, so the whole head (horns, snout, maw, eyes, whiskers,
+            // ember origin) rides the breath together.
+            const sy = hy - 44 + breathe;
             graphics.fillStyle(0xdaa520, alpha);
             graphics.fillCircle(hx, sy, 12.5);
             graphics.fillStyle(0xf0c24a, alpha);
@@ -3735,8 +3247,11 @@ export class BuildingRenderer {
                 [hx - 7.4, sy + 16], [hx + 7.4, sy + 16],
                 [hx + 5.4, sy + 21], [hx - 5.4, sy + 21]
             ], 0xb8860b, alpha);
-            // Maw: molten glow between upper snout and lower jaw
-            const mawGlow = salvoActive ? 0.95 : 0.45 + Math.sin(time / 300) * 0.2;
+            // Maw: molten glow between upper snout and lower jaw — idles as
+            // a COLOR swing deep red -> bright molten (k=1, offset from the
+            // breath); alpha stays fixed because the bake's alpha snap would
+            // erase an alpha pulse.
+            const mawT = salvoActive ? 1 : 0.5 + 0.5 * Math.sin(time * idleW + 2.1);
             quad(graphics, [
                 [hx - 5.4, sy + 21], [hx + 5.4, sy + 21],
                 [hx + 3.8, sy + 27.5], [hx - 3.8, sy + 27.5]
@@ -3744,7 +3259,7 @@ export class BuildingRenderer {
             quad(graphics, [
                 [hx - 4.2, sy + 21.8], [hx + 4.2, sy + 21.8],
                 [hx + 3, sy + 26.4], [hx - 3, sy + 26.4]
-            ], salvoActive ? 0xffe9a0 : 0xff5a1e, alpha * mawGlow);
+            ], salvoActive ? 0xffe9a0 : mix(0x5f200d, 0xd8521a, mawT), alpha * 0.95);
             // Lower jaw
             quad(graphics, [
                 [hx - 5, sy + 27.5], [hx + 5, sy + 27.5],
@@ -3756,11 +3271,13 @@ export class BuildingRenderer {
             quad(graphics, [[hx + 2.4, sy + 21], [hx + 4.4, sy + 21], [hx + 3.4, sy + 24.5]], 0xf8f4e8, alpha);
 
             // Jade eyes, smouldering
-            const eyeGlow = salvoActive ? 1 : 0.55 + Math.sin(time / 260) * 0.25;
+            // Eye ember cycles COLOR deep jade -> bright jade (k=2 — the
+            // eyes smoulder twice per breath), fixed alpha for the bake.
+            const eyeT = salvoActive ? 1 : 0.5 + 0.5 * Math.sin(time * idleW * 2 + 0.7);
             graphics.fillStyle(0x123a24, alpha);
             graphics.fillEllipse(hx - 6.4, sy + 5.4, 5.2, 3.8);
             graphics.fillEllipse(hx + 6.4, sy + 5.4, 5.2, 3.8);
-            graphics.fillStyle(0x58e88a, alpha * eyeGlow);
+            graphics.fillStyle(salvoActive ? 0x58e88a : mix(0x2a6e44, 0x64eb96, eyeT), alpha);
             graphics.fillEllipse(hx - 6.4, sy + 5.4, 3, 2.1);
             graphics.fillEllipse(hx + 6.4, sy + 5.4, 3, 2.1);
 
@@ -3773,7 +3290,9 @@ export class BuildingRenderer {
 
             // Breath embers rising from the maw
             for (let i = 0; i < (salvoActive ? 5 : 3); i++) {
-                const t = ((time / (salvoActive ? 420 : 900)) + i * 0.37) % 1;
+                // Idle drift period 1000 ms = exactly 2 cycles per ambient
+                // loop (the (1-t) alpha fade masks the wrap).
+                const t = ((time / (salvoActive ? 420 : 1000)) + i * 0.37) % 1;
                 const ex = hx + (i % 2 === 0 ? -3 : 3) + Math.sin(t * 7 + i * 2) * 3.4;
                 const ey = sy + 19 - t * 24;
                 graphics.fillStyle(t < 0.45 ? 0xffd25e : 0xff5a1e, alpha * (1 - t) * 0.9 * rage);
@@ -3819,7 +3338,12 @@ export class BuildingRenderer {
         ];
         const up = (pt: number[], h: number): number[] => [pt[0], pt[1] - h];
 
-        const pulse = playing ? 0.62 + Math.sin(time / 180) * 0.34 : 0.26 + Math.sin(time / 900) * 0.07;
+        // Playing terms close every 2000 ms (glass pulse = harmonic 2, notes
+        // below share the same 2000 ms period); the idle shimmer closes on
+        // its own exact 5500 ms loop.
+        const pulse = playing
+            ? 0.62 + Math.sin(time * (Math.PI * 2) / 1000) * 0.34
+            : 0.26 + Math.sin(time * (Math.PI * 2) / 5500) * 0.07;
         const woodLit = tint ?? 0x8a5c38;
         const woodDark = 0x6b4226;
         const woodTop = 0x9c6c42;
@@ -3940,7 +3464,10 @@ export class BuildingRenderer {
             const sx0 = rimX + dirX * 2;
             const sy0 = rimY + dirY * 2;
             for (let i = 0; i < 3; i++) {
-                const period = 2000 + i * 260;
+                // ONE shared 2000 ms period (the old 2000/2260/2520 trio
+                // never co-repeated, so the loop could not close); the i*733
+                // clock offsets keep the three quavers staggered.
+                const period = 2000;
                 const t = ((time + i * 733) % period) / period;
                 const fade = Math.min(1, t / 0.15) * Math.max(0, 1 - Math.max(0, (t - 0.68) / 0.32));
                 if (fade <= 0.01) continue;
@@ -4078,6 +3605,13 @@ export class BuildingRenderer {
 
         if (onlyBase) return;
 
+        // ===== IDLE LOOP TIME BASE (exact 3000 ms period) =====
+        // The crop sway samples the CLOSED-LOOP wind (the live
+        // windSwayAtScreen rates never co-repeat, so it can never bake) and
+        // the per-stalk jitter + trough shimmer are exact harmonics of
+        // wIdle — the whole idle closes at 3000 ms.
+        const wIdle = (Math.PI * 2) / 3000;
+
         // Crops along the furrows: green sprouts push up, turn golden as they
         // ripen, and start over after each harvest run.
         const fill = Math.max(0, Math.min(1, Number(building?.fillLevel ?? 1)));
@@ -4097,7 +3631,7 @@ export class BuildingRenderer {
                 const ff = i / 6;
                 const px = center.x + ((sx + (ex - sx) * ff) - center.x) * 0.86;
                 const py = center.y + ((sy + (ey - sy) * ff) - center.y) * 0.86;
-                const sway = (windSwayAtScreen(px, py, time) * 1.5 + Math.sin(time / 620 + r + i) * 0.35) * (0.4 + fill);
+                const sway = (windSwayLoopAtScreen(px, py, time, 3000) * 1.5 + Math.sin(time * wIdle + r + i) * 0.35) * (0.4 + fill);
                 graphics.lineStyle(1.4, stalkColor, alpha);
                 graphics.lineBetween(px, py, px + sway, py - cropHeight);
                 // Grain heads only once the crop is past half grown.
@@ -4124,7 +3658,7 @@ export class BuildingRenderer {
         const trY = center.y + (c4.y - center.y) * 0.6 - 2;
         graphics.fillStyle(0x5c4326, alpha);
         graphics.fillRect(trX - 7, trY - 3, 14, 6);
-        const shimmer = 0.75 + Math.sin(time / 700) * 0.15;
+        const shimmer = 0.75 + Math.sin(time * wIdle) * 0.15;
         graphics.fillStyle(0x4a7a9e, alpha * shimmer);
         graphics.fillRect(trX - 5.6, trY - 1.8, 11.2, 3.4);
 
@@ -4472,6 +4006,17 @@ export class BuildingRenderer {
         loaderY = 10;
     }
 
+    // ===== IDLE AMBIENT (P = 2000 ms, deterministic in `time`) =====
+    // Breathing loader + a spike-tip glint; every term repeats exactly every
+    // 2000 ms (the bake probe measures this loop). idleGate is 0 through the
+    // whole fire animation and eases back in over 600 ms, so the idle blends
+    // out of the settle pose without popping.
+    const idleW = (Math.PI * 2) / 2000;
+    const idleGate = Math.max(0, Math.min(1, (timeSinceFire - fireAnimDuration) / 600));
+    const chestRise = Math.sin(time * idleW) * 0.8 * idleGate;
+    const headRise = chestRise + Math.sin(time * idleW - 1.1) * 0.35 * idleGate;
+    const headLook = (((time % 2000) + 2000) % 2000 < 1000 ? -0.7 : 0.7) * dirX * idleGate;
+
     // Facing variables for arm rendering
     const mirrorX = dirX;
     const facingOffset = Math.cos(aimAngle) * 0.15;
@@ -4770,17 +4315,18 @@ export class BuildingRenderer {
         const ly = center.y + loaderY;
 
         if (loaderSitting) {
-            // SITTING pose (shorter, legs bent)
+            // SITTING pose (shorter, legs bent) — breathes while idle:
+            // chest rises/falls, head + hands ride it with a slight lag
             graphics.fillStyle(0x8b6914, alpha);
-            graphics.fillRect(lx - 3, ly - 2, 6, 5);
+            graphics.fillRect(lx - 3, ly - 2 - chestRise, 6, 5 + chestRise);
             graphics.fillStyle(0xdeb887, alpha);
-            graphics.fillCircle(lx, ly - 5, 3);
+            graphics.fillCircle(lx + headLook, ly - 5 - headRise, 3);
             graphics.fillStyle(0x654321, alpha);
             graphics.fillRect(lx - 4, ly + 3, 3, 3);
             graphics.fillRect(lx + 1, ly + 3, 3, 3);
             graphics.fillStyle(0xdeb887, alpha);
-            graphics.fillRect(lx - 5, ly - 1, 2, 3);
-            graphics.fillRect(lx + 3, ly - 1, 2, 3);
+            graphics.fillRect(lx - 5, ly - 1 - headRise * 0.7, 2, 3);
+            graphics.fillRect(lx + 3, ly - 1 - headRise * 0.7, 2, 3);
         } else if (loaderPulling) {
             // PULLING LEVER pose
             graphics.fillStyle(0x8b6914, alpha);
@@ -4828,6 +4374,33 @@ export class BuildingRenderer {
             graphics.fillStyle(0xdeb887, alpha);
             graphics.fillRect(lx - 5, ly - 2, 2, 4);
             graphics.fillRect(lx + 3, ly - 2, 2, 4);
+        }
+    }
+
+    // ===== IDLE SPIKE-TIP GLINT (specular sweep across the tips) =====
+    // Four sites visited in turn (500 ms each, sine size envelope): loaded
+    // ball tip -> ammo pile -> ground spike -> rack. Opaque sparkle colors
+    // (steel-white; gold accent at L4); geometry-gated, no faint alpha.
+    if (idleGate > 0.01) {
+        const gp = ((time % 2000) + 2000) % 2000;
+        const gSite = Math.floor(gp / 500);
+        const gt = (gp % 500) / 500;
+        const gr = Math.sin(gt * Math.PI) * 1.8 * idleGate;
+        if (gr > 0.55) {
+            const tipUp = isLevel4 ? 13 : isLevel3 ? 11 : 9;
+            const gSites = [
+                [armTipX, armTipY + slingDrop + 5 - tipUp],
+                [center.x - 14, center.y + 1.5],
+                [center.x + 8, center.y + 11],
+                [center.x + 20, center.y - (isLevel3 ? 8 : 6)],
+            ];
+            const gx = gSites[gSite][0], gy = gSites[gSite][1];
+            graphics.fillStyle(isLevel4 ? 0xffe98c : 0xe9f2f4, alpha);
+            graphics.fillCircle(gx, gy, gr);
+            if (gr > 1.2) {
+                graphics.fillStyle(isLevel4 ? 0xfff6cf : 0xffffff, alpha);
+                graphics.fillCircle(gx, gy - 0.4, gr * 0.45);
+            }
         }
     }
 

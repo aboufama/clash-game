@@ -1,49 +1,28 @@
-/* ALL GAME ICONS - Large detailed pixel art 48x48 */
+/* ALL GAME ICONS — baked data-URI PNG pixel art (1 png px per CSS px,
+   image-rendering: pixelated). Troop/building/obstacle rules are GENERATED
+   by tools/art-preview/gen-game-icons.mjs from the hand-authored pixel lists
+   in tools/art-preview/game-icon-data.mjs — edit the lists there, regenerate,
+   and splice; never hand-edit the data URIs. Resource icons (gold/ore/pop/
+   food) come from tools/art-preview/gen-icons.mjs. The old 2px box-shadow
+   grids are gone for good: box-shadow cell edges land on fractional device
+   pixels and AA-bleed hairline gaps; nearest-neighbour PNG sampling covers
+   every device pixel exactly once at any offset, DPR, filter or transform.
+   Each PNG is padded so the old 2×2 base element's centre is the image
+   centre — the top/left 50% + translate(-50%,-50%) anchor is therefore
+   unchanged and consumer overrides (.icon.large top nudge, .bb-icon scale)
+   keep working. */
 
 /* WARRIOR - Barbarian with sword, leather straps, muscular */
 .warrior-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #DEB887;
+    width: 50px;
+    height: 38px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Spiky hair / bald head */
-        -2px -18px #CD853F, 0 -18px #DEB887, 2px -18px #CD853F,
-        -4px -16px #DEB887, -2px -16px #F5DEB3, 0 -16px #FFE4C4, 2px -16px #F5DEB3, 4px -16px #DEB887,
-        /* Angry face */
-        -4px -14px #DEB887, -2px -14px #8B0000, 0 -14px #DEB887, 2px -14px #8B0000, 4px -14px #DEB887,
-        -4px -12px #CD853F, -2px -12px #DEB887, 0 -12px #8B4513, 2px -12px #DEB887, 4px -12px #CD853F,
-        /* Neck */
-        -2px -10px #CD853F, 0 -10px #DEB887, 2px -10px #CD853F,
-        /* Muscular shoulders & arms */
-        -12px -8px #CD853F, -10px -8px #DEB887, -8px -8px #F5DEB3, -6px -8px #DEB887,
-        6px -8px #DEB887, 8px -8px #F5DEB3, 10px -8px #DEB887, 12px -8px #CD853F,
-        /* Leather straps on chest */
-        -4px -8px #5C3317, -2px -8px #DEB887, 0 -8px #5C3317, 2px -8px #DEB887, 4px -8px #5C3317,
-        -4px -6px #DEB887, -2px -6px #5C3317, 0 -6px #DEB887, 2px -6px #5C3317, 4px -6px #DEB887,
-        /* Arms extended */
-        -14px -6px #DEB887, -12px -6px #F5DEB3, -10px -6px #DEB887,
-        10px -6px #DEB887, 12px -6px #F5DEB3, 14px -6px #DEB887,
-        /* Hands */
-        -16px -4px #CD853F, -14px -4px #DEB887,
-        /* Sword in right hand */
-        14px -4px #DEB887, 16px -4px #696969, 18px -4px #808080, 20px -4px #A9A9A9,
-        16px -6px #505050, 18px -6px #696969, 20px -6px #808080, 22px -6px #A9A9A9, 24px -6px #C0C0C0,
-        /* Belt */
-        -6px -4px #8B4513, -4px -4px #654321, -2px -4px #8B4513, 0 -4px #654321, 2px -4px #8B4513, 4px -4px #654321, 6px -4px #8B4513,
-        /* Fur kilt */
-        -6px -2px #5C3317, -4px -2px #8B4513, -2px -2px #654321, 0 -2px #8B4513, 2px -2px #654321, 4px -2px #8B4513, 6px -2px #5C3317,
-        -6px 0 #3E2723, -4px 0 #5C3317, -2px 0 #8B4513, 0 0 #5C3317, 2px 0 #8B4513, 4px 0 #5C3317, 6px 0 #3E2723,
-        /* Legs */
-        -4px 2px #CD853F, -2px 2px #DEB887, 2px 2px #DEB887, 4px 2px #CD853F,
-        -4px 4px #CD853F, -2px 4px #DEB887, 2px 4px #DEB887, 4px 4px #CD853F,
-        /* Boots */
-        -6px 6px #3E2723, -4px 6px #5C3317, -2px 6px #3E2723,
-        2px 6px #3E2723, 4px 6px #5C3317, 6px 6px #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAmCAYAAACGeMg8AAAA50lEQVR42mNgoBE422r/H4Tv7WgHYxifYaiBIe8RmMO/3tsMxv+fHAFjGB8mP+oRenukm4EBjHHxRz0yUJm821UYjIdcph82HhmtRwbagejFaoyxOBgTy0fXTzcPD3mP4LIYlzpCHiDW/ICAADDOzMwE44aGBjBeuXIlGB84cACMR45H0JMSLnWwYjbVWRGMieUTCjhcHqA4TwxZjxALYEmHWA/A1A+6emPYeMROXfk/CKN7CL2pApOHqR/1CL0rTPTMO2Rbv6MeGfUIlTM7emYmJD/qkVEwCkbBKBgFo2AUjIJRQHMAAPL1i8LF7v+YAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -51,173 +30,52 @@
 .archer-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #228B22;
+    width: 38px;
+    height: 38px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Pink ponytail */
-        4px -18px #FF1493, 6px -18px #FF69B4, 8px -16px #FF1493, 10px -14px #FF69B4,
-        /* Green Hood */
-        -4px -16px #1B5E20, -2px -16px #228B22, 0 -16px #228B22, 2px -16px #1B5E20,
-        -6px -14px #1B5E20, -4px -14px #228B22, -2px -14px #2E7D32, 0 -14px #228B22, 2px -14px #1B5E20,
-        /* Face */
-        -4px -12px #DEB887, -2px -12px #F5DEB3, 0 -12px #DEB887, 2px -12px #F5DEB3, 4px -12px #DEB887,
-        /* Eyes */
-        -2px -12px #228B22, 2px -12px #228B22,
-        /* Green cloak/body */
-        -6px -10px #145214, -4px -10px #1B5E20, -2px -10px #228B22, 0 -10px #1B5E20, 2px -10px #228B22, 4px -10px #1B5E20, 6px -10px #145214,
-        -6px -8px #0D3D0D, -4px -8px #145214, -2px -8px #1B5E20, 0 -8px #145214, 2px -8px #1B5E20, 4px -8px #145214, 6px -8px #0D3D0D,
-        /* Left arm holding bow */
-        -10px -8px #DEB887, -12px -6px #DEB887, -14px -6px #CD853F,
-        /* BOW (curved on left) */
-        -18px -12px #8B4513, -18px -10px #654321, -18px -8px #8B4513, -18px -6px #654321, -18px -4px #8B4513, -18px -2px #654321, -18px 0 #8B4513,
-        -16px -14px #654321, -16px 2px #654321,
-        /* Bowstring */
-        -16px -12px #A9A9A9, -14px -10px #C0C0C0, -12px -8px #A9A9A9, -14px -4px #C0C0C0, -16px -2px #A9A9A9,
-        /* Arrow nocked */
-        -14px -6px #8B4513, -12px -6px #654321, -10px -6px #8B4513, -8px -6px #C0C0C0, -6px -6px #A9A9A9,
-        /* Right arm drawing */
-        8px -8px #DEB887, 10px -6px #DEB887, 12px -6px #CD853F,
-        /* Lower green body */
-        -4px -6px #145214, -2px -6px #1B5E20, 0 -6px #145214, 2px -6px #1B5E20, 4px -6px #145214,
-        /* Legs */
-        -4px -4px #0D3D0D, -2px -4px #145214, 2px -4px #145214, 4px -4px #0D3D0D,
-        -4px -2px #DEB887, -2px -2px #CD853F, 2px -2px #CD853F, 4px -2px #DEB887,
-        /* Boots */
-        -4px 0 #5C3317, -2px 0 #8B4513, 2px 0 #8B4513, 4px 0 #5C3317,
-        -4px 2px #3E2723, -2px 2px #5C3317, 2px 2px #5C3317, 4px 2px #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAABCElEQVR42u2WPQrCQBCFc4FUBixsNBZ2FlqrhXgBa7Gz8BCWYmHpKVJrYZkLeIXcwnpkFp7gwJAfkazLPHjF7G42X3i7Q6LoR6LkQs77m3Pki1oD6237xE7P6YcxroGGA7ZbDohdF2h8mDiXgb0B60brHdh51SF2lmXOVT+kuJ+I/Syuzlrd+Kx4CyYjzPOc2Nr6ZJ0QW0aq1VgfDhiilOOIVkYSz2JiS0Ctxvra0XoLJqN8HBfExkYAR8QArgqmXRq85//AZJRlh1+LVF4OzH/dx7wDQ5RNG6yMRB6F8MC0dlGmzbRLbDyPxooa8+GB1f3tgeajIbElAGrMhwtmMplMJpPJZGpFL5eMiQtzj52RAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* GIANT - Large muscular human with leather vest, dark hair, wooden bat */
 .giant-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #DEB887;
+    width: 38px;
+    height: 46px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Dark short hair */
-        -4px -22px #3A2A1A, -2px -22px #3A2A1A, 0 -22px #3A2A1A, 2px -22px #3A2A1A, 4px -22px #3A2A1A,
-        -6px -20px #3A2A1A, -4px -20px #4A3A2A, -2px -20px #3A2A1A, 0 -20px #4A3A2A, 2px -20px #3A2A1A, 4px -20px #4A3A2A, 6px -20px #3A2A1A,
-        /* Face */
-        -6px -18px #C9A66B, -4px -18px #DEB887, -2px -18px #DEB887, 0 -18px #DEB887, 2px -18px #DEB887, 4px -18px #DEB887, 6px -18px #C9A66B,
-        /* Eyes + brow */
-        -4px -16px #1A1A1A, -2px -16px #DEB887, 0 -16px #DEB887, 2px -16px #DEB887, 4px -16px #1A1A1A,
-        /* Jaw / stubble */
-        -6px -14px #C9A66B, -4px -14px #B8956E, -2px -14px #C9A66B, 0 -14px #B8956E, 2px -14px #C9A66B, 4px -14px #B8956E, 6px -14px #C9A66B,
-        /* Neck */
-        -4px -12px #C9A66B, -2px -12px #DEB887, 0 -12px #DEB887, 2px -12px #DEB887, 4px -12px #C9A66B,
-        /* Broad shoulders (skin) + bat on right */
-        -16px -10px #C9A66B, -14px -10px #DEB887, -12px -10px #DEB887,
-        12px -10px #DEB887, 14px -10px #DEB887, 16px -10px #C9A66B,
-        18px -10px #8B6B4A, 18px -12px #8B6B4A, 18px -14px #8B6B4A, 18px -16px #6B4A30, 18px -18px #6B4A30, 18px -20px #6B4A30,
-        /* Vest over chest */
-        -10px -10px #6B4226, -8px -10px #6B4226, -6px -10px #6B4226, -4px -10px #6B4226, -2px -10px #4A2F1A, 0 -10px #6B4226, 2px -10px #4A2F1A, 4px -10px #6B4226, 6px -10px #6B4226, 8px -10px #6B4226, 10px -10px #6B4226,
-        -10px -8px #6B4226, -8px -8px #4A2F1A, -6px -8px #6B4226, -4px -8px #6B4226, -2px -8px #4A2F1A, 0 -8px #6B4226, 2px -8px #4A2F1A, 4px -8px #6B4226, 6px -8px #6B4226, 8px -8px #4A2F1A, 10px -8px #6B4226,
-        /* Left arm (skin) */
-        -16px -8px #DEB887, -14px -8px #C9A66B, -16px -6px #DEB887, -14px -6px #C9A66B,
-        -16px -4px #C9A66B, -14px -4px #C9A66B,
-        /* Right arm holding bat */
-        16px -8px #DEB887, 14px -8px #C9A66B, 16px -6px #DEB887,
-        /* Belt */
-        -10px -6px #4A3520, -8px -6px #4A3520, -6px -6px #4A3520, -4px -6px #4A3520, -2px -6px #C9A227, 0 -6px #C9A227, 2px -6px #C9A227, 4px -6px #4A3520, 6px -6px #4A3520, 8px -6px #4A3520, 10px -6px #4A3520,
-        /* Pants */
-        -8px -4px #5A4A3A, -6px -4px #5A4A3A, -4px -4px #5A4A3A, -2px -4px #5A4A3A, 2px -4px #5A4A3A, 4px -4px #5A4A3A, 6px -4px #5A4A3A, 8px -4px #5A4A3A,
-        -8px -2px #4A3A2A, -6px -2px #5A4A3A, -4px -2px #4A3A2A, 4px -2px #4A3A2A, 6px -2px #5A4A3A, 8px -2px #4A3A2A,
-        /* Legs */
-        -8px 0 #5A4A3A, -6px 0 #4A3A2A, -4px 0 #5A4A3A, 4px 0 #5A4A3A, 6px 0 #4A3A2A, 8px 0 #5A4A3A,
-        -8px 2px #4A3A2A, -6px 2px #5A4A3A, -4px 2px #4A3A2A, 4px 2px #4A3A2A, 6px 2px #5A4A3A, 8px 2px #4A3A2A,
-        /* Boots */
-        -10px 4px #3A2A1A, -8px 4px #3A2A1A, -6px 4px #3A2A1A, -4px 4px #3A2A1A,
-        4px 4px #3A2A1A, 6px 4px #3A2A1A, 8px 4px #3A2A1A, 10px 4px #3A2A1A,
-        /* Left fist */
-        -18px -2px #C9A66B, -16px -2px #DEB887;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAuCAYAAABEbmvDAAAA80lEQVR42u2XsQ3CMBBFPYcrKpDSQEPjktIjsIIl1qCgZgEKZsgKWYJVDtniGpOzzxEg29yXfnHJxfeci61YqYUygwaO1a9VHRgWtGYI5sbc8Z3dgXc/YNPdgfdjPLOM+f8LhtJagzcFhPdLx+0PDFszXk/B3Jg7/sVZ8O4HjLsISoHaA6MKucM6abvVwVRMmZpIO2BUC3IFuWDxdeqFvPW2OTC7X0HK020z69xzVP12wBCIWuZHayDl0rzifakasOzHhy19/fhhAYw/ld8OGFdxgbg18cRy+f2DVdvK6sCWHmi/fhCuFkwkEolEIpFIJKpKT26GOMUJAZ+7AAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* WALL BREAKER - Small guy with barrel of explosives overhead */
 .wallbreaker-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #DEB887;
+    width: 18px;
+    height: 54px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Barrel (brown, above head) */
-        -6px -22px #5A3A1A, -4px -22px #6B4A2A, -2px -22px #6B4A2A, 0 -22px #6B4A2A, 2px -22px #6B4A2A, 4px -22px #6B4A2A, 6px -22px #5A3A1A,
-        -8px -20px #5A3A1A, -6px -20px #6B4A2A, -4px -20px #7B5A3A, -2px -20px #6B4A2A, 0 -20px #7B5A3A, 2px -20px #6B4A2A, 4px -20px #7B5A3A, 6px -20px #6B4A2A, 8px -20px #5A3A1A,
-        -8px -18px #555555, -6px -18px #6B4A2A, -4px -18px #6B4A2A, -2px -18px #6B4A2A, 0 -18px #6B4A2A, 2px -18px #6B4A2A, 4px -18px #6B4A2A, 6px -18px #6B4A2A, 8px -18px #555555,
-        /* Fuse + spark */
-        0 -24px #3A3A2A, 0 -26px #FFAA00, 2px -26px #FF4400,
-        /* Arms reaching up */
-        -8px -16px #DEB887, -6px -16px #C9A66B, 6px -16px #C9A66B, 8px -16px #DEB887,
-        -8px -14px #DEB887, 8px -14px #DEB887,
-        /* Hands on barrel */
-        -6px -18px #C9A66B, 6px -18px #C9A66B,
-        /* Head (under barrel) */
-        -4px -12px #DEB887, -2px -12px #DEB887, 0 -12px #DEB887, 2px -12px #DEB887, 4px -12px #DEB887,
-        /* Headband */
-        -4px -14px #CC3333, -2px -14px #CC3333, 0 -14px #CC3333, 2px -14px #CC3333, 4px -14px #CC3333,
-        /* Eyes */
-        -2px -12px #1A1A1A, 2px -12px #1A1A1A,
-        /* Body (shirt) */
-        -6px -10px #885533, -4px -10px #885533, -2px -10px #885533, 0 -10px #885533, 2px -10px #885533, 4px -10px #885533, 6px -10px #885533,
-        -6px -8px #885533, -4px -8px #664422, -2px -8px #885533, 0 -8px #664422, 2px -8px #885533, 4px -8px #664422, 6px -8px #885533,
-        -6px -6px #885533, -4px -6px #885533, -2px -6px #885533, 0 -6px #885533, 2px -6px #885533, 4px -6px #885533, 6px -6px #885533,
-        /* Legs */
-        -4px -4px #664422, -2px -4px #664422, 2px -4px #664422, 4px -4px #664422,
-        -4px -2px #664422, -2px -2px #885533, 2px -2px #885533, 4px -2px #664422,
-        -4px 0 #664422, -2px 0 #664422, 2px 0 #664422, 4px 0 #664422,
-        /* Boots */
-        -6px 2px #3A2A1A, -4px 2px #3A2A1A, -2px 2px #3A2A1A,
-        2px 2px #3A2A1A, 4px 2px #3A2A1A, 6px 2px #3A2A1A;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAA2CAYAAADK88l3AAAAv0lEQVR42u2TsQ3DIBBFbw6XKWnpqF2lp/EAaTxCBkgmSZEJskIkz+BVLoLop0CROJuzFUX3pVcAxxMcgqgSvhNn+je0NmqiEBwnqDWLRUPoODEenQjU64tKwXkIGen4I1QTxRg5Ib1SCfbriebHhRPP25iRvjLqsV9fhILJe5aAen1RGSzUqN69WXSNntewvejUHzLS8fai3+kRgqOD2vx+ovLoZbP3FwF8ieYeLRYF1/E3pOv6IovFYrFY/iAvgeG5w6UW+boAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* WARD - Magical guardian with green shield aura, hooded */
 .ward-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #32CD32;
+    width: 30px;
+    height: 34px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Hooded head */
-        -4px -16px #1B5E20, -2px -16px #228B22, 0 -16px #2E7D32, 2px -16px #228B22, 4px -16px #1B5E20,
-        -6px -14px #145214, -4px -14px #1B5E20, -2px -14px #228B22, 0 -14px #2E7D32, 2px -14px #228B22, 4px -14px #1B5E20, 6px -14px #145214,
-        /* Face visible under hood */
-        -4px -12px #1B5E20, -2px -12px #DEB887, 0 -12px #F5DEB3, 2px -12px #DEB887, 4px -12px #1B5E20,
-        /* Green glowing eyes */
-        -2px -12px #90EE90, 2px -12px #90EE90,
-        /* Body robes */
-        -6px -10px #0D3D0D, -4px -10px #145214, -2px -10px #1B5E20, 0 -10px #228B22, 2px -10px #1B5E20, 4px -10px #145214, 6px -10px #0D3D0D,
-        -6px -8px #0A2F0A, -4px -8px #0D3D0D, -2px -8px #145214, 0 -8px #1B5E20, 2px -8px #145214, 4px -8px #0D3D0D, 6px -8px #0A2F0A,
-        /* Shield aura (glowing green) */
-        -12px -6px #90EE90, -10px -6px #32CD32, 10px -6px #32CD32, 12px -6px #90EE90,
-        -14px -2px #228B22, -12px -2px #90EE90, 12px -2px #90EE90, 14px -2px #228B22,
-        -14px 2px #228B22, -12px 2px #90EE90, 12px 2px #90EE90, 14px 2px #228B22,
-        -12px 6px #90EE90, -10px 6px #32CD32, 10px 6px #32CD32, 12px 6px #90EE90,
-        /* Arms holding staff */
-        -8px -6px #1B5E20, 8px -6px #1B5E20,
-        /* Staff with gem */
-        -10px -10px #8B4513, -10px -8px #654321, -10px -4px #654321, -10px 0 #8B4513,
-        -10px -12px #90EE90, -10px -14px #00FF00,
-        /* Lower robes */
-        -6px -6px #145214, -4px -6px #1B5E20, -2px -6px #228B22, 0 -6px #1B5E20, 2px -6px #228B22, 4px -6px #1B5E20, 6px -6px #145214,
-        -6px -4px #0D3D0D, -4px -4px #145214, -2px -4px #1B5E20, 0 -4px #145214, 2px -4px #1B5E20, 4px -4px #145214, 6px -4px #0D3D0D,
-        -4px -2px #0D3D0D, -2px -2px #145214, 0 -2px #0D3D0D, 2px -2px #145214, 4px -2px #0D3D0D,
-        /* Feet */
-        -4px 0 #3E2723, -2px 0 #5C3317, 2px 0 #5C3317, 4px 0 #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAiCAYAAABIiGl0AAAA6klEQVR42mNgIBJIxyn8B2GlbiUw1qs1AmMYHybPQG1Ae4v/QyEUiASJ/AdhYi2GqR86Fk94N+E/COMK6ns72sH4673NYAzjUxzUA2Zxt6vwfxCG8Xltef+DMK4gRw9imPqhY3Gqs+J/EIbxufS5/oMwLgegWwhTP/gthiUqo7NGYIxuMK4gxhXkMD7MPFyJduAsxhXUhIKYZomLZhbDgopQUKA7ABefUBqC2TdwFhMqQGDATl35PwjHGIuDMSzRwPgweaoVmTSzmNigphSQHcdUt3jkAvQik1rmklxW083iUTAKRsEoGDIAANJuSlNqVsavAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -225,73 +83,26 @@
 .recursion-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #00FFAA;
+    width: 22px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Outer hexagon shell */
-        0 -14px #00AA77, 2px -14px #00FFAA, -2px -14px #00FFAA,
-        -6px -12px #00AA77, -4px -12px #00FFAA, -2px -12px #00DDAA, 0 -12px #00FFAA, 2px -12px #00DDAA, 4px -12px #00FFAA, 6px -12px #00AA77,
-        -8px -10px #00AA77, -6px -10px #00CC88, -4px -10px #00FFAA, -2px -10px #00FFAA, 0 -10px #00FFAA, 2px -10px #00FFAA, 4px -10px #00FFAA, 6px -10px #00CC88, 8px -10px #00AA77,
-        -10px -8px #008866, -8px -8px #00AA77, -6px -8px #00CC88, -4px -8px #00DDAA, -2px -8px #00FFAA, 0 -8px #00FFAA, 2px -8px #00FFAA, 4px -8px #00DDAA, 6px -8px #00CC88, 8px -8px #00AA77, 10px -8px #008866,
-        /* Inner hexagon (darker) */
-        -4px -6px #007755, -2px -6px #008866, 0 -6px #00AA77, 2px -6px #008866, 4px -6px #007755,
-        -10px -6px #008866, -8px -6px #00AA77, -6px -6px #00AA77, 6px -6px #00AA77, 8px -6px #00AA77, 10px -6px #008866,
-        /* Central core - white with split cross */
-        -2px -4px #007755, 0 -4px #FFFFFF, 2px -4px #007755,
-        -10px -4px #00AA77, -8px -4px #00CC88, -6px -4px #008866, 6px -4px #008866, 8px -4px #00CC88, 10px -4px #00AA77,
-        -2px -2px #FFFFFF, 0 -2px #00FFAA, 2px -2px #FFFFFF,
-        -10px -2px #008866, -8px -2px #00AA77, -6px -2px #007755, 6px -2px #007755, 8px -2px #00AA77, 10px -2px #008866,
-        -2px 0 #007755, 0 0 #FFFFFF, 2px 0 #007755,
-        /* Lower hexagon */
-        -8px 0 #00AA77, -6px 0 #00CC88, -4px 0 #00AA77, 4px 0 #00AA77, 6px 0 #00CC88, 8px 0 #00AA77,
-        -6px 2px #00AA77, -4px 2px #00FFAA, -2px 2px #00FFAA, 0 2px #00FFAA, 2px 2px #00FFAA, 4px 2px #00FFAA, 6px 2px #00AA77,
-        -4px 4px #00AA77, -2px 4px #00CC88, 0 4px #00FFAA, 2px 4px #00CC88, 4px 4px #00AA77,
-        -2px 6px #008866, 0 6px #00AA77, 2px 6px #008866;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAeCAYAAAAo5+5WAAAApklEQVR42u2U0QnAIAxEXbIrdAVXcBZn6QqdxYJ6fpwEbRvFDw/uIyQ+0WiMaSn4EO1tMuLfUgMz4M6WYtTPB6PgcsnB9xn14gbqYHeGaAbzkdnIMxi8eWDYHsmcR4w8rxsP5isoiawMgAqQe1Q1cRiYj0oLCzA3rcS0cfuO1cDSB+GN8MwY9PrnqYGlIdTy5+mmBm4Npe6jTwdL0696TsuBt7bW1wM1Yv63s9ZzhQAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* RAM - Battering ram siege weapon with log, metal head, wooden frame, wheels */
 .ram-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #8B4513;
+    width: 42px;
+    height: 22px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Metal ram head (left side) - pointed */
-        -20px -4px #505050, -18px -4px #696969, -16px -4px #808080,
-        -20px -2px #404040, -18px -2px #505050, -16px -2px #696969, -14px -2px #808080,
-        -20px 0 #303030, -18px 0 #404040, -16px 0 #505050, -14px 0 #696969,
-        -20px 2px #404040, -18px 2px #505050, -16px 2px #696969, -14px 2px #808080,
-        -20px 4px #505050, -18px 4px #696969, -16px 4px #808080,
-        /* Main battering log */
-        -12px -4px #654321, -10px -4px #8B4513, -8px -4px #A0522D, -6px -4px #8B4513, -4px -4px #A0522D, -2px -4px #8B4513, 0 -4px #A0522D, 2px -4px #8B4513, 4px -4px #A0522D, 6px -4px #8B4513,
-        -12px -2px #5C3317, -10px -2px #654321, -8px -2px #8B4513, -6px -2px #A0522D, -4px -2px #8B4513, -2px -2px #A0522D, 0 -2px #8B4513, 2px -2px #A0522D, 4px -2px #8B4513, 6px -2px #654321,
-        -12px 0 #5C3317, -10px 0 #654321, -8px 0 #8B4513, -6px 0 #8B4513, -4px 0 #A0522D, -2px 0 #8B4513, 0 0 #A0522D, 2px 0 #8B4513, 4px 0 #8B4513, 6px 0 #654321,
-        -12px 2px #5C3317, -10px 2px #654321, -8px 2px #8B4513, -6px 2px #A0522D, -4px 2px #8B4513, -2px 2px #A0522D, 0 2px #8B4513, 2px 2px #A0522D, 4px 2px #8B4513, 6px 2px #654321,
-        -12px 4px #654321, -10px 4px #8B4513, -8px 4px #A0522D, -6px 4px #8B4513, -4px 4px #A0522D, -2px 4px #8B4513, 0 4px #A0522D, 2px 4px #8B4513, 4px 4px #A0522D, 6px 4px #8B4513,
-        /* Ropes/chains suspending ram */
-        -8px -8px #696969, -4px -8px #808080, 0 -8px #696969, 4px -8px #808080,
-        -8px -6px #505050, -4px -6px #696969, 0 -6px #505050, 4px -6px #696969,
-        /* Wooden frame top */
-        -12px -10px #5C3317, -10px -10px #654321, -8px -10px #8B4513, -6px -10px #654321, -4px -10px #8B4513, -2px -10px #654321, 0 -10px #8B4513, 2px -10px #654321, 4px -10px #8B4513, 6px -10px #654321, 8px -10px #5C3317,
-        /* Frame supports */
-        -12px -8px #5C3317, 8px -8px #5C3317,
-        -14px -6px #3E2723, 10px -6px #3E2723,
-        /* Wheels left */
-        -14px 6px #3E2723, -12px 6px #5C3317, -10px 6px #3E2723,
-        -16px 8px #3E2723, -14px 8px #654321, -12px 8px #8B4513, -10px 8px #654321, -8px 8px #3E2723,
-        -14px 10px #3E2723, -12px 10px #5C3317, -10px 10px #3E2723,
-        /* Wheels right */
-        6px 6px #3E2723, 8px 6px #5C3317, 10px 6px #3E2723,
-        4px 8px #3E2723, 6px 8px #654321, 8px 8px #8B4513, 10px 8px #654321, 12px 8px #3E2723,
-        6px 10px #3E2723, 8px 10px #5C3317, 10px 10px #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAWCAYAAAC2ew6NAAAAtUlEQVR42mNgIABijMX/g3CqsyIYd7sKgzG5fJh5DNQGQ86hMH5mZuZ/EIbxGxoa/oMwsfIj16F26sr/QRhdPCAg4D8I43IYIXlC5g99h8IMhhmIHlXomWJBkC4Yk8snO+SGjEMdHBz+gzAuB+Mqnkh1IEz/8HeogYHBfxDG5WBcDsXlIFx45Dh0NI1S26Gj5Si1HUqoCoVFPaV1M7XNGzoOhRmAq+FLqgXUNm/oOXQ0jVJoHgBkKFWO9tFabAAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -300,150 +111,52 @@
 .stormmage-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #4169E1;
+    width: 26px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Hooded head */
-        -4px -16px #191970, -2px -16px #0000CD, 0 -16px #4169E1, 2px -16px #0000CD, 4px -16px #191970,
-        -6px -14px #0D0D5C, -4px -14px #191970, -2px -14px #0000CD, 0 -14px #4169E1, 2px -14px #0000CD, 4px -14px #191970, 6px -14px #0D0D5C,
-        /* Face visible */
-        -4px -12px #191970, -2px -12px #DEB887, 0 -12px #F5DEB3, 2px -12px #DEB887, 4px -12px #191970,
-        /* Glowing electric blue eyes */
-        -2px -12px #00BFFF, 2px -12px #00BFFF,
-        /* Lightning bolts above */
-        0 -20px #FFFF00, -2px -18px #FFFFFF, 2px -18px #FFFFFF,
-        -4px -20px #FFFF00, 4px -20px #FFFF00,
-        /* Body robes */
-        -6px -10px #0A0A4A, -4px -10px #0D0D5C, -2px -10px #191970, 0 -10px #0000CD, 2px -10px #191970, 4px -10px #0D0D5C, 6px -10px #0A0A4A,
-        -6px -8px #080838, -4px -8px #0A0A4A, -2px -8px #0D0D5C, 0 -8px #191970, 2px -8px #0D0D5C, 4px -8px #0A0A4A, 6px -8px #080838,
-        /* Electric staff */
-        10px -12px #FFFF00, 10px -10px #1E90FF,
-        10px -8px #654321, 10px -6px #8B4513, 10px -4px #654321, 10px -2px #8B4513, 10px 0 #654321,
-        /* Lightning sparks */
-        8px -14px #FFFFFF, 12px -12px #FFFF00, 8px -10px #00BFFF, 12px -8px #FFFFFF,
-        /* Arms */
-        -8px -6px #0D0D5C, 8px -6px #DEB887,
-        /* Lower robes */
-        -6px -6px #0D0D5C, -4px -6px #191970, -2px -6px #0000CD, 0 -6px #191970, 2px -6px #0000CD, 4px -6px #191970, 6px -6px #0D0D5C,
-        -6px -4px #0A0A4A, -4px -4px #0D0D5C, -2px -4px #191970, 0 -4px #0D0D5C, 2px -4px #191970, 4px -4px #0D0D5C, 6px -4px #0A0A4A,
-        -4px -2px #0A0A4A, -2px -2px #0D0D5C, 0 -2px #0A0A4A, 2px -2px #0D0D5C, 4px -2px #0A0A4A,
-        /* Feet */
-        -4px 0 #3E2723, -2px 0 #5C3317, 2px 0 #5C3317, 4px 0 #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAqCAYAAACtMEtjAAAA4UlEQVR42mNgIAD+/wciICaWTzagm0UIAyEAF3/oWCQpWfAfhBkYzoKxY+ZDMIbxEfKD3SJe3pj/IEysRTD1JAcp3SxCD7p7O9rB+Ou9zWAM4+MKOliyJzr509wiLi6v/yCMKwjRgwymnmH/fzCWmwDBBH1CN4s4OCz+gzAuC9EtgKmH6U91VvwPwgQTB80tghlAKMhwBSEskXS7CoMxwfxDc4sIJQZCQYgedIPHIlwW4uKj6yM66OhukZ268n8QjjEWB2NYoQrjw+TR9ZEcdHSzaBSMglEwCkbBKBgFowAIAAHTO1+JAImiAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* GOLEM - Massive stone humanoid with glowing eyes, rock body, thick limbs */
 .golem-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #696969;
+    width: 42px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Boxy head */
-        -4px -20px #808080, -2px -20px #909090, 0 -20px #909090, 2px -20px #909090, 4px -20px #808080,
-        -6px -18px #707070, -4px -18px #808080, -2px -18px #909090, 0 -18px #A0A0A0, 2px -18px #909090, 4px -18px #808080, 6px -18px #707070,
-        /* Glowing eyes */
-        -4px -16px #FFFF00, -2px -16px #FFA500, 2px -16px #FFFF00, 4px -16px #FFA500,
-        -6px -16px #606060, 0 -16px #707070, 6px -16px #606060,
-        /* Mouth/jaw */
-        -4px -14px #505050, -2px -14px #606060, 0 -14px #404040, 2px -14px #606060, 4px -14px #505050,
-        /* Neck */
-        -2px -12px #505050, 0 -12px #606060, 2px -12px #505050,
-        /* Broad shoulders */
-        -14px -10px #606060, -12px -10px #707070, -10px -10px #808080, -8px -10px #707070,
-        8px -10px #707070, 10px -10px #808080, 12px -10px #707070, 14px -10px #606060,
-        -4px -10px #606060, -2px -10px #707070, 0 -10px #808080, 2px -10px #707070, 4px -10px #606060,
-        /* Left arm */
-        -16px -8px #505050, -14px -8px #606060, -12px -8px #707070, -10px -8px #606060,
-        -18px -6px #404040, -16px -6px #505050, -14px -6px #606060, -12px -6px #505050,
-        -18px -4px #505050, -16px -4px #606060, -14px -4px #505050,
-        -18px -2px #404040, -16px -2px #505050, -14px -2px #404040,
-        /* Left fist */
-        -20px 0 #505050, -18px 0 #606060, -16px 0 #707070, -14px 0 #606060,
-        -20px 2px #404040, -18px 2px #505050, -16px 2px #606060, -14px 2px #505050,
-        /* Right arm */
-        10px -8px #606060, 12px -8px #707070, 14px -8px #606060, 16px -8px #505050,
-        12px -6px #505050, 14px -6px #606060, 16px -6px #505050, 18px -6px #404040,
-        14px -4px #505050, 16px -4px #606060, 18px -4px #505050,
-        14px -2px #404040, 16px -2px #505050, 18px -2px #404040,
-        /* Right fist */
-        14px 0 #606060, 16px 0 #707070, 18px 0 #606060, 20px 0 #505050,
-        14px 2px #505050, 16px 2px #606060, 18px 2px #505050, 20px 2px #404040,
-        /* Chest/torso with rocky cracks */
-        -8px -8px #606060, -6px -8px #707070, -4px -8px #808080, -2px -8px #707070, 0 -8px #808080, 2px -8px #707070, 4px -8px #808080, 6px -8px #707070, 8px -8px #606060,
-        -8px -6px #505050, -6px -6px #606060, -4px -6px #707070, -2px -6px #404040, 0 -6px #707070, 2px -6px #404040, 4px -6px #707070, 6px -6px #606060, 8px -6px #505050,
-        -8px -4px #505050, -6px -4px #606060, -4px -4px #505050, -2px -4px #606060, 0 -4px #707070, 2px -4px #606060, 4px -4px #505050, 6px -4px #606060, 8px -4px #505050,
-        -8px -2px #404040, -6px -2px #505050, -4px -2px #606060, -2px -2px #505050, 0 -2px #606060, 2px -2px #505050, 4px -2px #606060, 6px -2px #505050, 8px -2px #404040,
-        /* Lower torso */
-        -6px 0 #404040, -4px 0 #505050, -2px 0 #606060, 0 0 #505050, 2px 0 #606060, 4px 0 #505050, 6px 0 #404040,
-        /* Left leg */
-        -6px 2px #404040, -4px 2px #505050, -2px 2px #404040,
-        -6px 4px #303030, -4px 4px #404040, -2px 4px #505050,
-        -8px 6px #303030, -6px 6px #404040, -4px 6px #505050, -2px 6px #404040,
-        -8px 8px #202020, -6px 8px #303030, -4px 8px #404040, -2px 8px #303030,
-        /* Right leg */
-        2px 2px #404040, 4px 2px #505050, 6px 2px #404040,
-        2px 4px #505050, 4px 4px #404040, 6px 4px #303030,
-        2px 6px #404040, 4px 6px #505050, 6px 6px #404040, 8px 6px #303030,
-        2px 8px #303030, 4px 8px #404040, 6px 8px #303030, 8px 8px #202020;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAABCklEQVR42u2WwQ2DMAxFMwojMAIjZASu3DICI2QELp3TVUD/4tayoRLElb/0D2kc81o7pin9qHVdqbnW+tXYT0+re9BSCjVz0G3bdnNQxAeopHmeqZkoHX4dBhD/HPEBqinnTM0AmaZpN9bYf/zWuwGVgLsDfBwUD+RjiI8ZLY5fImvc/4DyEvJEGpi2lvKcbpnuQTFWtEshfRGcl9bWfFjjvF9Q63iR4rRSXs3rF5SXXvrptRbR1ta85h7tDlQr3dkpsSzLbvPlEF4cHy3gBtQ6ls6Wytxz1jHlBvSqxnGkZg7EH4x9xN/+/7N7UAnQWvrbgN2ADsNAzRyYA0j7OB+goVAoFAqFXOoNKkL9Td/hwfcAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
+}
+
+/* ICE GOLEM - Icy recolor of the golem silhouette (placeholder until the icy redesign ships its own icon) */
+.icegolem-icon::before {
+    content: '';
+    position: absolute;
+    width: 42px;
+    height: 42px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAABHElEQVR42u2WsQ3CQAxFMw0bsAJD0NHQUjECEmIECtiAAjEABQ0dEhUF1BENFbXRBf3GYNkJUnJG/tIvzPmcR3xnKIoftT6XlLy7Pb4a60XXyh50frhSMgc9ls/KHBT5ASppsj1R8p2o8vjyNoD458gPUE3D1Z6SATJYbCojxnrnt94NqAScHWDnoHggH0N8zGh5/BJZ8/4HlLeQF9LAtFiqU/vIZA+KsaJdCumLYL8UW+shxn6/oNbxIuVprWxa1y8ob7306rUjosXWuuYzmh2o1rq6U4JbfUPCD8fHEXADah1LdVtlPnPWMeUGtKn60yUlcyD+YKwjv/X/n9mDSoDW1rcG7Aa0N5pRMgfmANI69gdoKBQKhUIhl3oBmH3nq3aiLPcAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* SHARPSHOOTER - Elite hooded crossbow marksman with scope */
 .sharpshooter-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #228B22;
+    width: 38px;
+    height: 38px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Hood/head */
-        -4px -18px #1B5E20, -2px -18px #228B22, 0 -18px #228B22, 2px -18px #1B5E20,
-        -6px -16px #145214, -4px -16px #1B5E20, -2px -16px #228B22, 0 -16px #2E7D32, 2px -16px #228B22, 4px -16px #1B5E20, 6px -16px #145214,
-        /* Face peeking from hood */
-        -4px -14px #1B5E20, -2px -14px #DEB887, 0 -14px #F5DEB3, 2px -14px #DEB887, 4px -14px #1B5E20,
-        /* Eyes */
-        -2px -14px #654321, 2px -14px #654321,
-        /* Dark green cloak body */
-        -6px -12px #145214, -4px -12px #1B5E20, -2px -12px #228B22, 0 -12px #1B5E20, 2px -12px #228B22, 4px -12px #1B5E20, 6px -12px #145214,
-        -6px -10px #0D3D0D, -4px -10px #145214, -2px -10px #1B5E20, 0 -10px #228B22, 2px -10px #1B5E20, 4px -10px #145214, 6px -10px #0D3D0D,
-        /* Arms holding crossbow */
-        -10px -10px #DEB887, -8px -8px #DEB887, -10px -8px #145214,
-        8px -10px #DEB887, 10px -10px #145214,
-        /* CROSSBOW (held horizontally) */
-        -18px -8px #654321, -16px -8px #8B4513, -14px -8px #654321, -12px -8px #8B4513,
-        /* Crossbow bow arms */
-        -18px -12px #5C3317, -16px -12px #654321, -16px -14px #5C3317,
-        -18px -4px #5C3317, -16px -4px #654321, -16px -2px #5C3317,
-        /* Bowstring */
-        -14px -12px #A9A9A9, -12px -10px #C0C0C0, -12px -8px #A9A9A9, -12px -6px #C0C0C0, -14px -4px #A9A9A9,
-        /* Scope on crossbow */
-        -10px -10px #505050, -8px -10px #696969, -6px -10px #87CEEB,
-        /* Bolt loaded */
-        -10px -8px #8B4513, -8px -8px #654321, -6px -8px #C0C0C0,
-        /* Body/torso */
-        -6px -8px #0D3D0D, -4px -8px #145214, -2px -8px #1B5E20, 0 -8px #145214, 2px -8px #1B5E20, 4px -8px #145214, 6px -8px #0D3D0D,
-        /* Quiver on back */
-        6px -12px #5C3317, 8px -12px #654321, 10px -12px #5C3317,
-        6px -10px #654321, 8px -10px #8B4513, 10px -10px #654321,
-        8px -14px #C0C0C0, 10px -14px #C0C0C0, 12px -14px #C0C0C0,
-        /* Belt with pouches */
-        -6px -6px #5C3317, -4px -6px #654321, -2px -6px #8B4513, 0 -6px #654321, 2px -6px #8B4513, 4px -6px #654321, 6px -6px #5C3317,
-        /* Legs */
-        -4px -4px #0D3D0D, -2px -4px #145214, 2px -4px #145214, 4px -4px #0D3D0D,
-        -4px -2px #0D3D0D, -2px -2px #145214, 2px -2px #145214, 4px -2px #0D3D0D,
-        /* Boots */
-        -6px 0 #3E2723, -4px 0 #5C3317, -2px 0 #3E2723,
-        2px 0 #3E2723, 4px 0 #5C3317, 6px 0 #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAA7ElEQVR42u2VIQ7CMBSGd4EpliAwMAQOARoM4QJogkP0EGjETlKNQfYkuwW6pC/5BS80XTeSFnhf8ou3Nc3XvrUrip5MTlPrUjf1S/C8SEV2YtWhsi5cbHlZUbggxv+e2HE9ti6xrWzvV8qjvVFQ85YaY+y7fJ8YhM67GUVrTYltpa/GeMzfeQOyFfOBrUZrlFKUclNSQoJ4j/GYZ/BhSC6GLW72IwqvMREmhjAX89UQi96ZbMVCrQwdFt+CPvaxZycWe10Afgj4dTK4hdmK9f0liVhXtou5dcFCUOOC9b3/XzFBEARBEARBSMoTAOB3mzbpo2QAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -451,128 +164,39 @@
 .mobilemortar-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #696969;
+    width: 42px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* SOLDIER (on left, pulling) */
-        /* Helmet */
-        -18px -14px #505050, -16px -14px #606060, -14px -14px #505050,
-        -18px -12px #404040, -16px -12px #505050, -14px -12px #404040,
-        /* Face */
-        -16px -10px #DEB887, -14px -10px #F5DEB3,
-        /* Body/torso */
-        -18px -8px #8B0000, -16px -8px #B22222, -14px -8px #8B0000,
-        -18px -6px #660000, -16px -6px #8B0000, -14px -6px #660000,
-        /* Arms pulling rope */
-        -20px -6px #DEB887, -12px -6px #DEB887,
-        -12px -4px #8B4513, -10px -4px #A0522D, -8px -4px #8B4513,
-        /* Legs */
-        -18px -4px #4A4A4A, -16px -4px #5A5A5A, -14px -4px #4A4A4A,
-        -18px -2px #3A3A3A, -14px -2px #3A3A3A,
-        -18px 0 #2A2A2A, -14px 0 #2A2A2A,
-        /* ROPE connecting to cart */
-        -6px -4px #A0522D, -4px -2px #8B4513, -2px 0 #A0522D,
-        /* MORTAR on cart (right side) */
-        /* Mortar barrel opening */
-        2px -12px #303030, 4px -12px #404040, 6px -12px #505050, 8px -12px #404040, 10px -12px #303030,
-        0 -10px #404040, 2px -10px #1A1A1A, 4px -10px #0A0A0A, 6px -10px #0A0A0A, 8px -10px #1A1A1A, 10px -10px #404040, 12px -10px #303030,
-        /* Mortar body */
-        0 -8px #505050, 2px -8px #606060, 4px -8px #696969, 6px -8px #808080, 8px -8px #696969, 10px -8px #606060, 12px -8px #505050,
-        0 -6px #404040, 2px -6px #505050, 4px -6px #606060, 6px -6px #696969, 8px -6px #606060, 10px -6px #505050, 12px -6px #404040,
-        /* Mortar base */
-        0 -4px #303030, 2px -4px #404040, 4px -4px #505050, 6px -4px #606060, 8px -4px #505050, 10px -4px #404040, 12px -4px #303030,
-        /* Cart platform */
-        -2px -2px #5C3317, 0 -2px #654321, 2px -2px #8B4513, 4px -2px #654321, 6px -2px #8B4513, 8px -2px #654321, 10px -2px #8B4513, 12px -2px #654321, 14px -2px #5C3317,
-        -2px 0 #3E2723, 0 0 #5C3317, 2px 0 #654321, 4px 0 #5C3317, 6px 0 #654321, 8px 0 #5C3317, 10px 0 #654321, 12px 0 #5C3317, 14px 0 #3E2723,
-        /* Cart wheels (left) */
-        -2px 2px #3E2723, 0 2px #5C3317, 2px 2px #3E2723,
-        -4px 4px #3E2723, -2px 4px #654321, 0 4px #8B4513, 2px 4px #654321, 4px 4px #3E2723,
-        -2px 6px #3E2723, 0 6px #5C3317, 2px 6px #3E2723,
-        /* Cart wheels (right) */
-        10px 2px #3E2723, 12px 2px #5C3317, 14px 2px #3E2723,
-        8px 4px #3E2723, 10px 4px #654321, 12px 4px #8B4513, 14px 4px #654321, 16px 4px #3E2723,
-        10px 6px #3E2723, 12px 6px #5C3317, 14px 6px #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAeCAYAAABaKIzgAAABDElEQVR42u2UvQqCUBiGz+zaELhVQyAEQptDCNHiJI3S4JLgXbg1eBNdQy1djXfRfOr78B06cFCPDf6cFx7w9e88op9C1InjWBJpmjLoYmgZjWgYhpKAILrp/Xzfl4Tuvjg+XVGket0k8a6ejOkDu67LOI7zA/b3Fh68aCmEJB7rNYPedyjzPGeKomDQjYd28KJ41dlXKqvlynqbwHHToVSFVcHWQzsaUSSKIkkkScKgl6cFcz/vGLW3/S3pBDsP02hEgyCQhK5rh7AWv+yXzPW4YrC/bcf10xH1PE8Sut4UfAoYGlWgqR+2G2Y6on2Dhdou3PX8+YhiAd2QqAJdz5+fqP1GbWxsbGz+mg9j+N47KX8FOwAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* DA VINCI TANK - Leonardo's iconic conical armored war machine with cannons */
 .davincitank-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #C9A07A;
+    width: 42px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Top finial/spike */
-        0 -20px #505050, 0 -18px #606060,
-        /* Upper turret cone */
-        -2px -16px #C9A07A, 0 -16px #DAB898, 2px -16px #C9A07A,
-        -4px -14px #B08560, -2px -14px #C9A07A, 0 -14px #DAB898, 2px -14px #C9A07A, 4px -14px #B08560,
-        /* Upper metal band */
-        -6px -12px #505050, -4px -12px #606060, -2px -12px #505050, 0 -12px #606060, 2px -12px #505050, 4px -12px #606060, 6px -12px #505050,
-        /* Middle cone section */
-        -8px -10px #9A7050, -6px -10px #B08560, -4px -10px #C9A07A, -2px -10px #B08560, 0 -10px #C9A07A, 2px -10px #B08560, 4px -10px #C9A07A, 6px -10px #B08560, 8px -10px #9A7050,
-        -10px -8px #8A6548, -8px -8px #9A7050, -6px -8px #B08560, -4px -8px #C9A07A, -2px -8px #B08560, 0 -8px #C9A07A, 2px -8px #B08560, 4px -8px #C9A07A, 6px -8px #B08560, 8px -8px #9A7050, 10px -8px #8A6548,
-        /* Lower metal band with rivets */
-        -12px -6px #404040, -10px -6px #505050, -8px -6px #606060, -6px -6px #505050, -4px -6px #606060, -2px -6px #505050, 0 -6px #606060, 2px -6px #505050, 4px -6px #606060, 6px -6px #505050, 8px -6px #606060, 10px -6px #505050, 12px -6px #404040,
-        /* Lower cone (widest) */
-        -14px -4px #8A6548, -12px -4px #9A7050, -10px -4px #B08560, -8px -4px #C9A07A, -6px -4px #B08560, -4px -4px #C9A07A, -2px -4px #B08560, 0 -4px #C9A07A, 2px -4px #B08560, 4px -4px #C9A07A, 6px -4px #B08560, 8px -4px #C9A07A, 10px -4px #B08560, 12px -4px #9A7050, 14px -4px #8A6548,
-        /* Cannon barrels sticking out */
-        -18px -2px #1A1A1A, -16px -2px #303030,
-        18px -2px #1A1A1A, 16px -2px #303030,
-        -20px 0 #1A1A1A, -18px 0 #303030,
-        20px 0 #1A1A1A, 18px 0 #303030,
-        /* Base platform */
-        -14px -2px #654321, -12px -2px #8B4513, -10px -2px #9A7050, -8px -2px #8B4513, -6px -2px #9A7050, -4px -2px #8B4513, -2px -2px #9A7050, 0 -2px #8B4513, 2px -2px #9A7050, 4px -2px #8B4513, 6px -2px #9A7050, 8px -2px #8B4513, 10px -2px #9A7050, 12px -2px #8B4513, 14px -2px #654321,
-        -12px 0 #5C3317, -10px 0 #654321, -8px 0 #8B4513, -6px 0 #654321, -4px 0 #8B4513, -2px 0 #654321, 0 0 #8B4513, 2px 0 #654321, 4px 0 #8B4513, 6px 0 #654321, 8px 0 #8B4513, 10px 0 #654321, 12px 0 #5C3317,
-        /* Ground base */
-        -10px 2px #3E2723, -8px 2px #5C3317, -6px 2px #654321, -4px 2px #5C3317, -2px 2px #654321, 0 2px #5C3317, 2px 2px #654321, 4px 2px #5C3317, 6px 2px #654321, 8px 2px #5C3317, 10px 2px #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAAA4ElEQVR42u2VPQrCQBCFcwcLIZ1Y2AbsJSCC5R7AYpv01vY2egGx8giWXsEreJmRWXjNSHCNG8jq++AVjySzX9j8FEVinHOiKYZONqLee9FQ9Fvul51oHrdTCDpFP+W696JpE8VxisZ+hvDyxHaKWs5bJxq75bEd11P00KxFk0oU8/5PtK5r0XR9ed51zP990VRb3fujMFjRsixFU1VVSLOchBxXoxAM7KtjPawPn/xEraC9gc18LBor3taxtbHnY75d90U4G9FYFrOpaKx41455yf9M2YgSQgghhBBCMuAJypbKyh9E20sAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* PHALANX - Roman Testudo Formation (3x3 shield wall) */
 .phalanx-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #CC3333;
+    width: 22px;
+    height: 46px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Back row shields (3) */
-        -10px -12px #CC3333, -8px -12px #CC3333, -6px -12px #D4A84B,
-        0 -12px #CC3333, -2px -12px #CC3333, 2px -12px #D4A84B,
-        10px -12px #CC3333, 8px -12px #CC3333, 6px -12px #D4A84B,
-        /* Middle row shields (3) */
-        -10px -6px #CC3333, -8px -6px #AA2222, -6px -6px #D4A84B,
-        0 -6px #CC3333, -2px -6px #AA2222, 2px -6px #D4A84B,
-        10px -6px #CC3333, 8px -6px #AA2222, 6px -6px #D4A84B,
-        /* Front row shields (3) */
-        -10px 0 #CC3333, -8px 0 #AA2222, -6px 0 #D4A84B,
-        0 0 #CC3333, -2px 0 #AA2222, 2px 0 #D4A84B,
-        10px 0 #CC3333, 8px 0 #AA2222, 6px 0 #D4A84B,
-        /* Gold shield bosses */
-        -8px -10px #FFD700, 0 -10px #FFD700, 8px -10px #FFD700,
-        -8px -4px #FFD700, 0 -4px #FFD700, 8px -4px #FFD700,
-        -8px 2px #FFD700, 0 2px #FFD700, 8px 2px #FFD700,
-        /* Spear tips sticking out top */
-        -8px -16px #666677, 0 -16px #666677, 8px -16px #666677,
-        -8px -18px #555566, 0 -18px #555566, 8px -18px #555566,
-        /* Banner pole */
-        0 -20px #5D4E37,
-        /* Banner */
-        -2px -22px #CC3333, 0 -22px #FFD700, 2px -22px #CC3333,
-        /* Soldier legs visible at bottom */
-        -10px 4px #BB2222, -8px 4px #BB2222,
-        0 4px #BB2222, 2px 4px #BB2222,
-        10px 4px #BB2222, 8px 4px #BB2222;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAuCAYAAAAsnen7AAAAlklEQVR42mNgIADOGBv/B+H/1xnAGMZnoBTQzGAYiPUz/w/CDNQGZBscGpr2H4SpLk8zg9PSyv+DMC6NZMvTzOChA2AJHoavrPAGY2LlYXx0dbQzGAZgWRaXz8iWp5nBQy9VrFJSAmP0yIGJE4o8dHW0M3g0VYymiuGQKnYDnY+McWkkpA5DnmYGj4JRMApGwSgYBWQBAGW66UD6V9WrAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -590,31 +214,13 @@
 .ore-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #6b6e78;
+    width: 22.5px;
+    height: 22.5px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* dark outline: top */
-        -4px -10px #1a1c20, -2px -10px #1a1c20, 0 -10px #1a1c20, 2px -10px #1a1c20, 4px -10px #1a1c20,
-        -6px -8px #1a1c20, 6px -8px #1a1c20,
-        /* top facet (light) */
-        -4px -8px #9aa0ac, -2px -8px #b6bcc8, 0 -8px #b6bcc8, 2px -8px #a8aeba, 4px -8px #9aa0ac,
-        /* upper body: big left nugget */
-        -8px -6px #1a1c20, -6px -6px #848a96, -4px -6px #ffd84a, -2px -6px #ffed9a, 0 -6px #8f95a1, 2px -6px #848a96, 4px -6px #79808c, 6px -6px #6b6e78, 8px -6px #1a1c20,
-        -10px -4px #1a1c20, -8px -4px #79808c, -6px -4px #e8b62e, -4px -4px #ffd84a, -2px -4px #ffd84a, 0 -4px #79808c, 2px -4px #6b6e78, 4px -4px #6b6e78, 6px -4px #5e616b, 8px -4px #5e616b, 10px -4px #1a1c20,
-        /* mid body: big right nugget */
-        -10px -2px #1a1c20, -8px -2px #6b6e78, -6px -2px #c9992a, -4px -2px #6b6e78, -2px -2px #6b6e78, 0 -2px #6b6e78, 2px -2px #ffd84a, 4px -2px #ffed9a, 6px -2px #5e616b, 8px -2px #52555e, 10px -2px #1a1c20,
-        -10px 0 #1a1c20, -8px 0 #5e616b, -6px 0 #5e616b, -4px 0 #5e616b, -2px 0 #5e616b, 0 0 #e8b62e, 2px 0 #ffd84a, 4px 0 #e8b62e, 6px 0 #52555e, 8px 0 #52555e, 10px 0 #1a1c20,
-        /* lower body: small center-bottom nugget */
-        -10px 2px #1a1c20, -8px 2px #52555e, -6px 2px #52555e, -4px 2px #52555e, -2px 2px #ffd84a, 0 2px #c9992a, 2px 2px #52555e, 4px 2px #484b53, 6px 2px #484b53, 8px 2px #484b53, 10px 2px #1a1c20,
-        /* base */
-        -8px 4px #1a1c20, -6px 4px #484b53, -4px 4px #484b53, -2px 4px #3e4148, 0 4px #3e4148, 2px 4px #3e4148, 4px 4px #3e4148, 6px 4px #484b53, 8px 4px #1a1c20,
-        -6px 6px #1a1c20, -4px 6px #1a1c20, -2px 6px #1a1c20, 0 6px #1a1c20, 2px 6px #1a1c20, 4px 6px #1a1c20, 6px 6px #1a1c20,
-        /* ground shadow */
-        -4px 8px #14161a, -2px 8px #14161a, 0 8px #14161a, 2px 8px #14161a, 4px 8px #14161a;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAABbElEQVR4AWyQsUrDUBSGj3kGUZAMUnDWF3AXQRdxdxGkD6BTUdRJOtatoN0EFxdF0EmHCupgsCoqKnJpMIJLaocsmu+kN9yWlH73nvuf/z83iScFvzF//K+IQWtf2Abq+weysV3tA42+OyAP08BAyBiTe3zf1xqNPj4V0kXDCDQwzI9syvLcT9rK/mhZJUKNDz+ahiloEBwtpTd9Hwk1ehRF4oIPHTymMI3DIITQQvPJpliNg95s0ndErN+vyNebUagxhL0gO6BZNEwQgebW6awANdTKgdTWS7SV58eW7iwapsDI7lKZOcmO6TfI60zRVcPutDiOxbJ6OK2vwKtQh2FbOp1YgywaprCBxtq7NKqTSEp5b0rAhrrdX9VZvLb5GDo/O9aJGLhF0sfcWbxUDbNLcHcrZDTMAhjYuWWhMixLuxOC5kLfRR+bSUy8al4UBl5fngTw4LUDNMwBMUkSubluKg+tQCzogAev5R8AAP//SGO4PwAAAAZJREFUAwBBOBxGxnpZ5gAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* POPULATION - Little villager: skin face, brown hair, tunic shoulders */
@@ -626,28 +232,16 @@
 .pop-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #deb887;
+    width: 22.5px;
+    height: 22.5px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* hair cap */
-        -4px -10px #3b2a1a, -2px -10px #4e3823, 0 -10px #4e3823, 2px -10px #4e3823, 4px -10px #3b2a1a,
-        -6px -8px #3b2a1a, -4px -8px #4e3823, -2px -8px #5c422a, 0 -8px #5c422a, 2px -8px #5c422a, 4px -8px #4e3823, 6px -8px #3b2a1a,
-        /* face */
-        -6px -6px #3b2a1a, -4px -6px #deb887, -2px -6px #ecd0a4, 0 -6px #ecd0a4, 2px -6px #deb887, 4px -6px #deb887, 6px -6px #3b2a1a,
-        -6px -4px #3b2a1a, -4px -4px #deb887, -2px -4px #2a2018, 0 -4px #deb887, 2px -4px #2a2018, 4px -4px #deb887, 6px -4px #3b2a1a,
-        -6px -2px #3b2a1a, -4px -2px #deb887, -2px -2px #deb887, 0 -2px #c9975e, 2px -2px #deb887, 4px -2px #deb887, 6px -2px #3b2a1a,
-        -4px 0 #cfa06a, -2px 0 #b8683c, 0 0 #b8683c, 2px 0 #b8683c, 4px 0 #cfa06a,
-        /* tunic shoulders */
-        -6px 2px #6b5138, -4px 2px #8d6e4a, -2px 2px #8d6e4a, 0 2px #8d6e4a, 2px 2px #8d6e4a, 4px 2px #8d6e4a, 6px 2px #6b5138,
-        -8px 4px #6b5138, -6px 4px #8d6e4a, -4px 4px #9d7e56, -2px 4px #9d7e56, 0 4px #9d7e56, 2px 4px #9d7e56, 4px 4px #9d7e56, 6px 4px #8d6e4a, 8px 4px #6b5138,
-        -8px 6px #5c4530, -6px 6px #6b5138, -4px 6px #6b5138, -2px 6px #6b5138, 0 6px #6b5138, 2px 6px #6b5138, 4px 6px #6b5138, 6px 6px #6b5138, 8px 6px #5c4530;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAABIklEQVR4AYyOMUtCURzFjw1FEY9HLRI41NjUGARNfYBqd2tri2hoiuYIIfoG7bm01BZETaGIDoIOCuKkKA5u6u/Cvbx79aEXfv7v+Z9z3nVNwTk53JukEUTllSntRpuC/WwsCxrwlTiujEEg2toQKHHQgE/OWq5sF8zHu7wKz/cONPsQr1x4uDKFKJvzcmjzsZmfNLyyNU7PbzXsto1koo0IfhaWv4tP4jWyTDT3kLkyL9lQ4/dTgE7u0eDKP7VOJn/zws78ZUr9ctNpLvjkuIMrIzAI1IsfskUmmj0+OYsrX18cT+Dy7EjV9WgO9vjglVkc5HYEcbytNPCBPB9wLyMoMdMIfVMejMZqtnv6r7SWQo48D5jy21cp8/r+tzLkKU8BAAD//01T/ZQAAAAGSURBVAMAiTWsH4spS7QAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
-/* FOOD - Golden wheat sheaf tied with a red band */
+/* FOOD - Drumstick: the universal food glyph (food is not always wheat) */
 .food-icon {
     position: relative !important;
     overflow: hidden;
@@ -656,28 +250,13 @@
 .food-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #d8a83e;
+    width: 22.5px;
+    height: 22.5px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* grain heads (three ears) */
-        -4px -10px #f2d268, 0 -10px #f8e08c, 4px -10px #f2d268,
-        -6px -8px #d8a83e, -4px -8px #f2d268, -2px -8px #b8882e, 0 -8px #f8e08c, 2px -8px #b8882e, 4px -8px #f2d268, 6px -8px #d8a83e,
-        -6px -6px #b8882e, -4px -6px #f2d268, -2px -6px #d8a83e, 0 -6px #f2d268, 2px -6px #d8a83e, 4px -6px #f2d268, 6px -6px #b8882e,
-        -4px -4px #d8a83e, -2px -4px #f2d268, 0 -4px #d8a83e, 2px -4px #f2d268, 4px -4px #d8a83e,
-        /* stalks converging */
-        -4px -2px #c09232, -2px -2px #d8a83e, 0 -2px #c09232, 2px -2px #d8a83e, 4px -2px #c09232,
-        /* red tie band */
-        -4px 0 #b8392e, -2px 0 #d84a3c, 0 0 #e8695a, 2px 0 #d84a3c, 4px 0 #b8392e,
-        /* stalks splaying at the base */
-        -4px 2px #c09232, -2px 2px #a87c28, 0 2px #d8a83e, 2px 2px #a87c28, 4px 2px #c09232,
-        -6px 4px #a87c28, -4px 4px #c09232, -2px 4px #a87c28, 0 4px #c09232, 2px 4px #a87c28, 4px 4px #c09232, 6px 4px #a87c28,
-        -6px 6px #8a6620, -4px 6px #a87c28, 0 6px #a87c28, 4px 6px #a87c28, 6px 6px #8a6620,
-        /* ground shadow */
-        -4px 8px #2e3034, -2px 8px #2e3034, 0 8px #2e3034, 2px 8px #2e3034, 4px 8px #2e3034;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAABCklEQVR4AYSPPwtBURjGXz6ChUHcmcXG5gMQZZKsDEbF4AMY2A2sMkmxmC2yUmQjUf6EMljpOXlP55x7b2499z33eZ7fe7pecnkaydDHSWrdBjOQjQbJSch5gQYjYMBvBcgUIOTo4SxhGAgY8EUSxEIRQobJkjAbmIAwWeY3+44wh/+mI/zYLP5xIrfBl/1ZBFigCj4kwt9Lg3fXx8/WhwqN10dqzg4eNCQMY3V7ExaoZfWsghqMD3MBQCwDFO/MPcjRY8mb2bBSacr0phSutmhpxSg/3Nog7mpwt1X5FEs1et1PNBkNqFzviH/jsjkFDOj93EkQpUyuQPBxdpMXBb6t32uLG93Kpv8FAAD//6DtlnQAAAAGSURBVAMA3nqRqwDRiXkAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* GOLD COIN - Detailed shiny coin with $ symbol */
@@ -686,32 +265,19 @@
     overflow: hidden;
 }
 
+/* Redrawn from scratch: a clean ROUND coin. Solid dark rim all the way
+   around (crisp silhouette), bright gold face, white glint on the upper-left
+   shoulder, deep gold shading hugging the lower-right rim. */
 .gold-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #FFD700;
+    width: 22.5px;
+    height: 22.5px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Top edge highlight */
-        -2px -10px #FFFACD, 0 -10px #FFF, 2px -10px #FFFACD,
-        -4px -8px #FFD700, -2px -8px #FFFACD, 0 -8px #FFF, 2px -8px #FFFACD, 4px -8px #FFD700,
-        /* Upper body */
-        -6px -6px #DAA520, -4px -6px #FFD700, -2px -6px #FFFACD, 0 -6px #FFF, 2px -6px #FFFACD, 4px -6px #FFD700, 6px -6px #DAA520,
-        -8px -4px #B8860B, -6px -4px #DAA520, -4px -4px #FFD700, -2px -4px #FFFACD, 0 -4px #FFF, 2px -4px #FFD700, 4px -4px #FFD700, 6px -4px #DAA520, 8px -4px #B8860B,
-        /* Center with S shape */
-        -8px -2px #B8860B, -6px -2px #DAA520, -4px -2px #FFD700, -2px -2px #8B6914, 0 -2px #FFD700, 2px -2px #FFD700, 4px -2px #FFD700, 6px -2px #DAA520, 8px -2px #B8860B,
-        -10px 0 #8B6914, -8px 0 #B8860B, -6px 0 #DAA520, -4px 0 #8B6914, -2px 0 #8B6914, 0 0 #FFD700, 2px 0 #8B6914, 4px 0 #FFD700, 6px 0 #DAA520, 8px 0 #B8860B, 10px 0 #8B6914,
-        -8px 2px #B8860B, -6px 2px #DAA520, -4px 2px #FFD700, -2px 2px #FFD700, 0 2px #FFD700, 2px 2px #8B6914, 4px 2px #FFD700, 6px 2px #DAA520, 8px 2px #B8860B,
-        /* Lower body */
-        -8px 4px #8B6914, -6px 4px #B8860B, -4px 4px #DAA520, -2px 4px #FFD700, 0 4px #FFD700, 2px 4px #FFD700, 4px 4px #DAA520, 6px 4px #B8860B, 8px 4px #8B6914,
-        -6px 6px #8B6914, -4px 6px #B8860B, -2px 6px #DAA520, 0 6px #DAA520, 2px 6px #DAA520, 4px 6px #B8860B, 6px 6px #8B6914,
-        /* Bottom edge */
-        -4px 8px #6B5610, -2px 8px #8B6914, 0 8px #B8860B, 2px 8px #8B6914, 4px 8px #6B5610,
-        -2px 10px #6B5610, 0 10px #8B6914, 2px 10px #6B5610;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAABKUlEQVR4AWyRMUsDQRSEnwc22uS3WFgKgpBaEBsLf4K9wUrO3lZIoWgjovWBleUV/pUERRsLvW/WWV6OBGbfm9mZt9m9Jtb8zo8mv2OsscVK2AGM7V0X7fWxAM97cFDDbCIoNARjMYdGfNxEe7kUEOyjV9gCQcR+vh/9833B61b0A9AZQrVfYYQchO8efIcBHw9AazwFwolUQlTD3APQyelknfp/RxsxdC/bFCHrezs/0hSujyOpLASnpydBLUpZMy9h9OFVKcb08Cu624egWhtXhWdnj1XP98rBrL+9b8rfXD0tN9QNi++VjYNcP9Xis1qDnE7GMLuYUPR5aBhgwB30qWgKMwWSB/AvCBjsO2i/wmxYYADIr0oIZB99DUMYAOgxG3B0QG/8AQAA//9z3BHpAAAABklEQVQDANq4pXC3s6SrAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* ELIXIR BOTTLE - Detailed potion bottle with cork */
@@ -789,17 +355,17 @@
 
     15% {
         transform: translate(-50%, -50%) scale(1.2) translateY(-2px);
-        filter: brightness(1.4) drop-shadow(0 0 8px #14F195);
+        filter: brightness(1.4) drop-shadow(0 0 8px #FFD700);
     }
 
     30% {
         transform: translate(-50%, -50%) scale(1.08);
-        filter: brightness(1.2) drop-shadow(0 0 4px #9945FF);
+        filter: brightness(1.2) drop-shadow(0 0 4px #DAA520);
     }
 
     50% {
         transform: translate(-50%, -50%) scale(1.12);
-        filter: brightness(1.3) drop-shadow(0 0 6px #14F195);
+        filter: brightness(1.3) drop-shadow(0 0 6px #FFD700);
     }
 
     70% {
@@ -817,33 +383,13 @@
 .town_hall-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #FFD700;
+    width: 30px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Flag pole and flag */
-        0 -20px #DC143C, 2px -20px #FF0000, 4px -20px #DC143C,
-        0 -18px #DC143C, 2px -18px #DC143C,
-        0 -16px #696969, 0 -14px #696969,
-        /* Gold dome top */
-        -2px -12px #FFFACD, 0 -12px #FFF, 2px -12px #FFFACD,
-        -4px -10px #FFD700, -2px -10px #FFFACD, 0 -10px #FFF, 2px -10px #FFFACD, 4px -10px #FFD700,
-        -6px -8px #DAA520, -4px -8px #FFD700, -2px -8px #FFFACD, 0 -8px #FFFACD, 2px -8px #FFFACD, 4px -8px #FFD700, 6px -8px #DAA520,
-        /* Red roof layer */
-        -10px -6px #8B0000, -8px -6px #B22222, -6px -6px #DC143C, -4px -6px #DC143C, -2px -6px #FF4500, 0 -6px #FF4500, 2px -6px #FF4500, 4px -6px #DC143C, 6px -6px #DC143C, 8px -6px #B22222, 10px -6px #8B0000,
-        -12px -4px #660000, -10px -4px #8B0000, -8px -4px #B22222, -6px -4px #DC143C, -4px -4px #DC143C, -2px -4px #DC143C, 0 -4px #DC143C, 2px -4px #DC143C, 4px -4px #DC143C, 6px -4px #DC143C, 8px -4px #B22222, 10px -4px #8B0000, 12px -4px #660000,
-        /* Stone walls */
-        -12px -2px #8B4513, -10px -2px #A0522D, -8px -2px #D2691E, -6px -2px #CD853F, -4px -2px #D2691E, -2px -2px #CD853F, 0 -2px #DEB887, 2px -2px #CD853F, 4px -2px #D2691E, 6px -2px #CD853F, 8px -2px #D2691E, 10px -2px #A0522D, 12px -2px #8B4513,
-        -12px 0 #654321, -10px 0 #8B4513, -8px 0 #A0522D, -6px 0 #CD853F, -4px 0 #D2691E, -2px 0 #000, 0 0 #2A1A0A, 2px 0 #000, 4px 0 #D2691E, 6px 0 #CD853F, 8px 0 #A0522D, 10px 0 #8B4513, 12px 0 #654321,
-        -12px 2px #5C3317, -10px 2px #654321, -8px 2px #8B4513, -6px 2px #A0522D, -4px 2px #8B4513, -2px 2px #3E2723, 0 2px #2A1A0A, 2px 2px #3E2723, 4px 2px #8B4513, 6px 2px #A0522D, 8px 2px #8B4513, 10px 2px #654321, 12px 2px #5C3317,
-        /* Windows */
-        -8px 0 #87CEEB, -6px 0 #B0E0E6, 6px 0 #87CEEB, 8px 0 #B0E0E6,
-        /* Stone foundation */
-        -14px 4px #404040, -12px 4px #505050, -10px 4px #606060, -8px 4px #505050, -6px 4px #606060, -4px 4px #505050, -2px 4px #606060, 0 4px #505050, 2px 4px #606060, 4px 4px #505050, 6px 4px #606060, 8px 4px #505050, 10px 4px #606060, 12px 4px #505050, 14px 4px #404040,
-        -14px 6px #303030, -12px 6px #404040, -10px 6px #505050, -8px 6px #404040, -6px 6px #505050, -4px 6px #404040, -2px 6px #505050, 0 6px #404040, 2px 6px #505050, 4px 6px #404040, 6px 6px #505050, 8px 6px #404040, 10px 6px #505050, 12px 6px #404040, 14px 6px #303030;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAqCAYAAACk2+sZAAABD0lEQVR42u2UsUoDQRCGp06rEEgh5iyEQODAVsyBpD+sLa4xsA8iFvcSNr6AlS9xjY0gIQ9iM96M94OMbgiBy+6F/eErfmZvvuWKJdoz69NrFphIQae+E1x8MGFwsXOOBTp0krj38FfDCtL14xPzR/tQCB4x5sMXf76cs/BHbOnmOD8ccd3+VeE1yxT7NPKS/sWew/fYF5941Q5X3aFt4l2xYuyPR1wvT1h4vpsr7+5MaR4Xiu2btyfFN0fHPuyPR/xwO2XBXsAuop/f9fvBUKzYCrE/HvH91ZgF3wXQby4vlNlkpKD7zmMf9ocXF0XBQlmWSlVVSl8dvnDiPM9ZsBfoq8MXTpySkpKSkhJdvgGki+hargq4/QAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -851,247 +397,91 @@
 .cannon-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #505050;
+    width: 38px;
+    height: 38px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Barrel muzzle */
-        -2px -18px #404040, 0 -18px #505050, 2px -18px #404040,
-        -4px -16px #505050, -2px -16px #696969, 0 -16px #808080, 2px -16px #696969, 4px -16px #505050,
-        /* Long barrel body */
-        -4px -14px #404040, -2px -14px #606060, 0 -14px #808080, 2px -14px #606060, 4px -14px #404040,
-        -4px -12px #505050, -2px -12px #696969, 0 -12px #A9A9A9, 2px -12px #696969, 4px -12px #505050,
-        -4px -10px #505050, -2px -10px #707070, 0 -10px #909090, 2px -10px #707070, 4px -10px #505050,
-        -4px -8px #404040, -2px -8px #606060, 0 -8px #808080, 2px -8px #606060, 4px -8px #404040,
-        /* Barrel base ring */
-        -6px -6px #404040, -4px -6px #505050, -2px -6px #606060, 0 -6px #696969, 2px -6px #606060, 4px -6px #505050, 6px -6px #404040,
-        /* Wooden carriage */
-        -8px -4px #8B4513, -6px -4px #A0522D, -4px -4px #D2691E, -2px -4px #CD853F, 0 -4px #D2691E, 2px -4px #CD853F, 4px -4px #D2691E, 6px -4px #A0522D, 8px -4px #8B4513,
-        -10px -2px #654321, -8px -2px #8B4513, -6px -2px #A0522D, -4px -2px #8B4513, -2px -2px #A0522D, 0 -2px #8B4513, 2px -2px #A0522D, 4px -2px #8B4513, 6px -2px #A0522D, 8px -2px #8B4513, 10px -2px #654321,
-        /* Axle */
-        -14px 0 #404040, -12px 0 #505050, -10px 0 #404040, 10px 0 #404040, 12px 0 #505050, 14px 0 #404040,
-        /* Left wheel */
-        -16px -4px #3A2A1A, -14px -4px #5C3317, -12px -4px #3A2A1A,
-        -18px -2px #3A2A1A, -16px -2px #654321, -14px -2px #8B4513, -12px -2px #654321, -10px -2px #3A2A1A,
-        -18px 0 #3A2A1A, -16px 0 #8B4513, -14px 0 #A0522D, -12px 0 #8B4513, -10px 0 #3A2A1A,
-        -18px 2px #3A2A1A, -16px 2px #654321, -14px 2px #8B4513, -12px 2px #654321, -10px 2px #3A2A1A,
-        -16px 4px #3A2A1A, -14px 4px #5C3317, -12px 4px #3A2A1A,
-        /* Right wheel */
-        12px -4px #3A2A1A, 14px -4px #5C3317, 16px -4px #3A2A1A,
-        10px -2px #3A2A1A, 12px -2px #654321, 14px -2px #8B4513, 16px -2px #654321, 18px -2px #3A2A1A,
-        10px 0 #3A2A1A, 12px 0 #8B4513, 14px 0 #A0522D, 16px 0 #8B4513, 18px 0 #3A2A1A,
-        10px 2px #3A2A1A, 12px 2px #654321, 14px 2px #8B4513, 16px 2px #654321, 18px 2px #3A2A1A,
-        12px 4px #3A2A1A, 14px 4px #5C3317, 16px 4px #3A2A1A;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAA50lEQVR42u2WMQrCMBiFewcHwUFwFZzcXAyIe+ns0MUhW46QxcklR3DtYVy8UKQPnkOg2NrQ/sL/4A0vSfN/NGnSohgpY0xsXZYlzFzMLXFgBLHWwt57mJn9CpYuYV3XMMGYZ1tSsWDpUjZNA4vbY+LAnHNwCAFmVjD9KnNdQQThpmee/IqaHOywXcXWl/0SZmb//byIrR/VDn7ZNfy8HeGuzPF8vm89uWBsuJ42MCdgTtvTQkNz17zMH0DxYBzw649f3wO1a37W/x+wr682k3rXEws2+FzJDDj6HJsNTKVSqVQqlSqL3rUL3Westp6JAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* JUKEBOX - Carved music cabinet with a brass horn */
 .jukebox-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #6d4230;
+    width: 30px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Brass horn */
-        8px -14px #d8b13a, 10px -14px #f2d268, 12px -14px #f2d268, 14px -14px #d8b13a,
-        8px -12px #f2d268, 10px -12px #8a6a1e, 12px -12px #8a6a1e, 14px -12px #f2d268,
-        6px -10px #d8b13a, 8px -10px #f2d268, 10px -10px #8a6a1e, 12px -10px #f2d268, 14px -10px #d8b13a,
-        4px -8px #b8912e, 6px -8px #d8b13a,
-        /* Arched crown */
-        -6px -12px #7e5138, -4px -12px #8a5c40, -2px -12px #8a5c40, 0 -12px #8a5c40, 2px -12px #7e5138,
-        -8px -10px #6d4230, -6px -10px #7e5138, -4px -10px #8a5c40, -2px -10px #8a5c40, 0 -10px #8a5c40, 2px -10px #7e5138, 4px -10px #6d4230,
-        /* Gold trim */
-        -8px -8px #c9a227, -6px -8px #c9a227, -4px -8px #c9a227, -2px -8px #c9a227, 0 -8px #c9a227, 2px -8px #c9a227, 4px -8px #c9a227,
-        /* Cabinet with glowing panel */
-        -8px -6px #6d4230, -6px -6px #2a1a30, -4px -6px #c98aff, -2px -6px #d8a8ff, 0 -6px #c98aff, 2px -6px #2a1a30, 4px -6px #6d4230,
-        -8px -4px #6d4230, -6px -4px #2a1a30, -4px -4px #9a5abe, -2px -4px #c98aff, 0 -4px #9a5abe, 2px -4px #2a1a30, 4px -4px #6d4230,
-        -8px -2px #6d4230, -6px -2px #2a1a30, -4px -2px #c98aff, -2px -2px #d8a8ff, 0 -2px #c98aff, 2px -2px #2a1a30, 4px -2px #6d4230,
-        -8px 0 #6d4230, -6px 0 #2a1a30, -4px 0 #9a5abe, -2px 0 #c98aff, 0 0 #9a5abe, 2px 0 #2a1a30, 4px 0 #6d4230,
-        /* Crank */
-        -10px -4px #c9a227, -12px -5px #8a6a1e,
-        /* Base */
-        -8px 2px #5c3826, -6px 2px #6d4230, -4px 2px #6d4230, -2px 2px #6d4230, 0 2px #6d4230, 2px 2px #6d4230, 4px 2px #5c3826,
-        -10px 4px #4a2c1e, -8px 4px #5c3826, -6px 4px #5c3826, -4px 4px #5c3826, -2px 4px #5c3826, 0 4px #5c3826, 2px 4px #5c3826, 4px 4px #5c3826, 6px 4px #4a2c1e,
-        /* Ground shadow */
-        -6px 6px #2e3034, -4px 6px #2e3034, -2px 6px #2e3034, 0 6px #2e3034, 2px 6px #2e3034,
-        /* Floating note */
-        -12px -14px #d8a8ff, -12px -12px #d8a8ff, -10px -11px #d8a8ff;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAA2klEQVR42mNggIIbK/7/B2EGKoEbG63+g/CnSxkoGCbOMGgtrgu0+A/CXTEOWDFMHl0fzKKuLDkUDBPHsBjdATS3GN0BuU4GYEysxTD16EGMbiFGUKODAbP45CL1/6TgHRP1wJigwYTAgFkMCzotKQg+2fUfjGFpAMaHycPUk2wRLC4GzGJY0KFbPCtqHxjDLITxKbYYPW7pbjHdg3rQWowe1OjyQ9/iGAu1/yAMM5AQhqkfehZ76cj9B2GYQaRimP6hYzE60DMw+U8MZqA2GDCLR8EoGAWDHgAAOKMPhpqaw9AAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* FROSTFALL MONOLITH - Towering ice crystal on a frosted stone base */
 .frostfall-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #9fd8f2;
+    width: 22px;
+    height: 34px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Crystal tip */
-        0 -16px #e8f6ff,
-        -2px -14px #bfe6f8, 0 -14px #e8f6ff, 2px -14px #bfe6f8,
-        /* Upper shaft */
-        -2px -12px #9fd8f2, 0 -12px #d4eefc, 2px -12px #9fd8f2,
-        -4px -10px #7fc4e8, -2px -10px #bfe6f8, 0 -10px #e8f6ff, 2px -10px #9fd8f2, 4px -10px #7fc4e8,
-        -4px -8px #7fc4e8, -2px -8px #9fd8f2, 0 -8px #d4eefc, 2px -8px #9fd8f2, 4px -8px #6ab0d8,
-        /* Mid shaft with inner glow */
-        -6px -6px #5a9cc8, -4px -6px #7fc4e8, -2px -6px #bfe6f8, 0 -6px #e8f6ff, 2px -6px #9fd8f2, 4px -6px #7fc4e8, 6px -6px #5a9cc8,
-        -6px -4px #5a9cc8, -4px -4px #7fc4e8, -2px -4px #9fd8f2, 0 -4px #d4eefc, 2px -4px #7fc4e8, 4px -4px #6ab0d8, 6px -4px #4a88b4,
-        -6px -2px #4a88b4, -4px -2px #6ab0d8, -2px -2px #9fd8f2, 0 -2px #bfe6f8, 2px -2px #7fc4e8, 4px -2px #5a9cc8, 6px -2px #4a88b4,
-        /* Base of the crystal */
-        -4px 0 #4a88b4, -2px 0 #6ab0d8, 0 0 #7fc4e8, 2px 0 #5a9cc8, 4px 0 #4a88b4,
-        /* Frosted stone plinth */
-        -8px 2px #8a97a4, -6px 2px #a8b4c0, -4px 2px #c4ccd6, -2px 2px #c4ccd6, 0 2px #c4ccd6, 2px 2px #a8b4c0, 4px 2px #a8b4c0, 6px 2px #8a97a4, 8px 2px #8a97a4,
-        -10px 4px #6d7884, -8px 4px #8a97a4, -6px 4px #a8b4c0, -4px 4px #a8b4c0, -2px 4px #a8b4c0, 0 4px #a8b4c0, 2px 4px #8a97a4, 4px 4px #8a97a4, 6px 4px #8a97a4, 8px 4px #6d7884, 10px 4px #6d7884,
-        -8px 6px #545e68, -6px 6px #6d7884, -4px 6px #6d7884, -2px 6px #6d7884, 0 6px #6d7884, 2px 6px #6d7884, 4px 6px #6d7884, 6px 6px #545e68, 8px 6px #545e68,
-        /* Ice shards + sparkle */
-        -8px 0 #bfe6f8, -10px 2px #9fd8f2, 8px 0 #bfe6f8, 10px 2px #9fd8f2,
-        6px -12px #ffffff, -6px -9px #ffffff;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAiCAYAAABbXymAAAAA10lEQVR42u2UIQvCQBiG9/vMJoNZBLvNYhD/gEWwGIyGdQ0LBqPIfoEsGQxiED75Dh/Dp4cT7tzCXnjC7e57Nl7GJUnJFFcRJQmd4OLN6SYKYtb1FS/yiyiH893Bmn15pnrxKCtEsVUgZr+0kC+ILvZV0V/njp+7DS7uzHeilK2C8/UR2yp4ThWtSeqoTsxBBhFTia2gOrG9XHwv8Am9l1NwMQPT2dKxSreObH/8CPvAHLwuqWjiwXAsihX7sCLAA/HEpN3tiWIPfIM5ePsroombNGnyxzwA72q//tPa6CIAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* ORE MINE - Rock face with a timbered entrance and glinting ore */
 .mine-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #6b6e78;
+    width: 30px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Rock hill crown */
-        -4px -14px #7a7d88, -2px -14px #8a8d98, 0 -14px #8a8d98, 2px -14px #7a7d88,
-        -8px -12px #6b6e78, -6px -12px #8a8d98, -4px -12px #9aa0ac, -2px -12px #9aa0ac, 0 -12px #9aa0ac, 2px -12px #8a8d98, 4px -12px #8a8d98, 6px -12px #6b6e78,
-        -12px -10px #5c5f68, -10px -10px #7a7d88, -8px -10px #8a8d98, -6px -10px #9aa0ac, -4px -10px #8a8d98, -2px -10px #8a8d98, 0 -10px #8a8d98, 2px -10px #9aa0ac, 4px -10px #8a8d98, 6px -10px #7a7d88, 8px -10px #7a7d88, 10px -10px #5c5f68,
-        /* Face with ore glints */
-        -14px -8px #52555e, -12px -8px #6b6e78, -10px -8px #ffd84a, -8px -8px #7a7d88, -6px -8px #7a7d88, -4px -8px #6b6e78, -2px -8px #6b6e78, 0 -8px #6b6e78, 2px -8px #7a7d88, 4px -8px #7a7d88, 6px -8px #ffd84a, 8px -8px #6b6e78, 10px -8px #6b6e78, 12px -8px #52555e,
-        -14px -6px #52555e, -12px -6px #6b6e78, -10px -6px #6b6e78, -8px -6px #6b6e78, 8px -6px #7a7d88, 10px -6px #e8b62e, 12px -6px #52555e,
-        -14px -4px #4a4c54, -12px -4px #5c5f68, -10px -4px #6b6e78, -8px -4px #6b6e78, 8px -4px #6b6e78, 10px -4px #6b6e78, 12px -4px #4a4c54,
-        -14px -2px #4a4c54, -12px -2px #5c5f68, -10px -2px #5c5f68, -8px -2px #6b6e78, 8px -2px #5c5f68, 10px -2px #5c5f68, 12px -2px #4a4c54,
-        -14px 0 #42444c, -12px 0 #52555e, -10px 0 #5c5f68, -8px 0 #5c5f68, 8px 0 #5c5f68, 10px 0 #52555e, 12px 0 #42444c,
-        -14px 2px #42444c, -12px 2px #52555e, -10px 2px #52555e, -8px 2px #52555e, 8px 2px #52555e, 10px 2px #4a4c54, 12px 2px #42444c,
-        /* Timber frame */
-        -6px -6px #8a6438, -4px -6px #a07444, -2px -6px #a07444, 0 -6px #a07444, 2px -6px #a07444, 4px -6px #8a6438, 6px -6px #8a6438,
-        -6px -4px #8a6438, 6px -4px #8a6438,
-        -6px -2px #8a6438, 6px -2px #8a6438,
-        -6px 0 #8a6438, 6px 0 #8a6438,
-        -6px 2px #8a6438, 6px 2px #8a6438,
-        /* Dark entrance */
-        -4px -4px #14100c, -2px -4px #1a140e, 0 -4px #14100c, 2px -4px #1a140e, 4px -4px #14100c,
-        -4px -2px #0e0a08, -2px -2px #14100c, 0 -2px #0e0a08, 2px -2px #14100c, 4px -2px #0e0a08,
-        -4px 0 #0a0806, -2px 0 #0e0a08, 0 0 #0a0806, 2px 0 #0e0a08, 4px 0 #0a0806,
-        -4px 2px #0a0806, -2px 2px #0a0806, 0 2px #0a0806, 2px 2px #0a0806, 4px 2px #0a0806,
-        /* Rails running out of the mouth */
-        -3px 4px #5c4326, 3px 4px #5c4326,
-        -3px 6px #5c4326, 3px 6px #5c4326, -1px 5px #6d5230, 1px 5px #6d5230,
-        /* Ground */
-        -12px 4px #4a4c54, -10px 4px #52555e, -8px 4px #52555e, 6px 4px #52555e, 8px 4px #52555e, 10px 4px #4a4c54,
-        -10px 6px #3e4046, -8px 6px #42444c, 8px 6px #42444c, 10px 6px #3e4046;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAABF0lEQVR42u2VPQrCQBBGU4mIiEUqD2ApllYiGizESrQTbSwE0cpCBHsR7MXKA1h7Fo/gLUZm4QPzmY3iHytk4BW7OzNvmSzE856M5Wotyma7C4F971vxM/FkthAFgv3hGAlfBHXui/vDsSg8UpvAdo56gL7uiDu9gSgYkZxbBm6Ac4bzUM958LgnZjajiuEwD2JBHsBFLqeSwR1xq90VBY/AJvbzWUPBzxlsa+RzH3jcE/MF0CiXSRsgsK2Rz/3cEdeDtij4+FyARpl0ygABLoY1zlmMvvC4J2ZY/Ajkox4jdkfMj4zFoR9JoyjK3Q/mZp/r7x7VO+JppxziLTGiWmuKEjWaZ8T8CdHvI+K4Ub8sTiKJJP4urqTXBbnqQE0jAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* FARM - Tilled rows with sprouting crops and a wheat corner */
 .farm-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #6d4f30;
+    width: 26px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Field bed */
-        -12px -8px #59402a, -10px -8px #6d4f30, -8px -8px #6d4f30, -6px -8px #6d4f30, -4px -8px #6d4f30, -2px -8px #6d4f30, 0 -8px #6d4f30, 2px -8px #6d4f30, 4px -8px #6d4f30, 6px -8px #6d4f30, 8px -8px #6d4f30, 10px -8px #6d4f30, 12px -8px #59402a,
-        -12px -4px #59402a, -10px -4px #7a5a38, -8px -4px #7a5a38, -6px -4px #7a5a38, -4px -4px #7a5a38, -2px -4px #7a5a38, 0 -4px #7a5a38, 2px -4px #7a5a38, 4px -4px #7a5a38, 6px -4px #7a5a38, 8px -4px #7a5a38, 10px -4px #7a5a38, 12px -4px #59402a,
-        -12px 0 #59402a, -10px 0 #6d4f30, -8px 0 #6d4f30, -6px 0 #6d4f30, -4px 0 #6d4f30, -2px 0 #6d4f30, 0 0 #6d4f30, 2px 0 #6d4f30, 4px 0 #6d4f30, 6px 0 #6d4f30, 8px 0 #6d4f30, 10px 0 #6d4f30, 12px 0 #59402a,
-        -12px 4px #59402a, -10px 4px #7a5a38, -8px 4px #7a5a38, -6px 4px #7a5a38, -4px 4px #7a5a38, -2px 4px #7a5a38, 0 4px #7a5a38, 2px 4px #7a5a38, 4px 4px #7a5a38, 6px 4px #7a5a38, 8px 4px #7a5a38, 10px 4px #7a5a38, 12px 4px #59402a,
-        -12px 8px #4a3422, -10px 8px #59402a, -8px 8px #59402a, -6px 8px #59402a, -4px 8px #59402a, -2px 8px #59402a, 0 8px #59402a, 2px 8px #59402a, 4px 8px #59402a, 6px 8px #59402a, 8px 8px #59402a, 10px 8px #59402a, 12px 8px #4a3422,
-        /* Sprout rows */
-        -10px -10px #4f8a3c, -6px -10px #5fa848, -2px -10px #4f8a3c, 2px -10px #5fa848, 6px -10px #4f8a3c, 10px -10px #5fa848,
-        -10px -6px #5fa848, -6px -6px #4f8a3c, -2px -6px #5fa848, 2px -6px #4f8a3c, 6px -6px #5fa848, 10px -6px #4f8a3c,
-        -10px -2px #4f8a3c, -6px -2px #5fa848, -2px -2px #4f8a3c, 2px -2px #5fa848, 6px -2px #4f8a3c, 10px -2px #5fa848,
-        -10px 2px #5fa848, -6px 2px #4f8a3c, -2px 2px #5fa848, 2px 2px #4f8a3c, 6px 2px #5fa848, 10px 2px #4f8a3c,
-        -10px 6px #4f8a3c, -6px 6px #5fa848, -2px 6px #4f8a3c, 2px 6px #5fa848, 6px 6px #4f8a3c, 10px 6px #5fa848,
-        /* Ripe wheat corner */
-        8px -12px #e8c04a, 10px -12px #f2d268, 12px -12px #e8c04a,
-        10px -14px #f2d268, 12px -14px #e8c04a;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAeCAYAAAAy2w7YAAAAdUlEQVR42mNgoBH4dCnjPwi/OOAFxgxD1iKYwQNvkX+XzX8QhvHjV3j8B2FqydPPokgHrf8gnOtvQBMMM59+FtEqqNDl6WcRzGtVURY0wRhxRHOLRvPRaD4azUej+QjTIi8Tpf8gDPMitTHMfPpZNApGAd0BAEZoMuofwpA4AAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* STOREHOUSE - Timber barn with cross-braced doors and a barrel */
 .storage-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #8a6438;
+    width: 30px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Roof ridge */
-        -2px -14px #a25b31, 0 -14px #b4703c, 2px -14px #a25b31,
-        -6px -12px #a25b31, -4px -12px #b4703c, -2px -12px #c07a44, 0 -12px #c07a44, 2px -12px #b4703c, 4px -12px #b4703c, 6px -12px #a25b31,
-        -10px -10px #8a4a28, -8px -10px #a25b31, -6px -10px #b4703c, -4px -10px #c07a44, -2px -10px #c07a44, 0 -10px #c07a44, 2px -10px #b4703c, 4px -10px #b4703c, 6px -10px #a25b31, 8px -10px #a25b31, 10px -10px #8a4a28,
-        -12px -8px #7e4423, -10px -8px #8a4a28, 10px -8px #8a4a28, 12px -8px #7e4423,
-        /* Walls */
-        -10px -6px #8a6438, -8px -6px #9a7040, -6px -6px #9a7040, -4px -6px #9a7040, -2px -6px #9a7040, 0 -6px #9a7040, 2px -6px #9a7040, 4px -6px #9a7040, 6px -6px #9a7040, 8px -6px #9a7040, 10px -6px #8a6438,
-        -10px -4px #8a6438, -8px -4px #9a7040, -6px -4px #9a7040, 6px -4px #9a7040, 8px -4px #9a7040, 10px -4px #8a6438,
-        -10px -2px #7a5830, -8px -2px #8a6438, -6px -2px #8a6438, 6px -2px #8a6438, 8px -2px #8a6438, 10px -2px #7a5830,
-        -10px 0 #7a5830, -8px 0 #8a6438, -6px 0 #8a6438, 6px 0 #8a6438, 8px 0 #8a6438, 10px 0 #7a5830,
-        -10px 2px #6d4c28, -8px 2px #7a5830, -6px 2px #7a5830, 6px 2px #7a5830, 8px 2px #7a5830, 10px 2px #6d4c28,
-        -10px 4px #6d4c28, -8px 4px #6d4c28, -6px 4px #6d4c28, 6px 4px #6d4c28, 8px 4px #6d4c28, 10px 4px #6d4c28,
-        /* Cross-braced barn door */
-        -4px -4px #5c4326, -2px -4px #4a3a24, 0 -4px #4a3a24, 2px -4px #4a3a24, 4px -4px #5c4326,
-        -4px -2px #4a3a24, -2px -2px #6d5230, 0 -2px #4a3a24, 2px -2px #6d5230, 4px -2px #4a3a24,
-        -4px 0 #4a3a24, -2px 0 #4a3a24, 0 0 #6d5230, 2px 0 #4a3a24, 4px 0 #4a3a24,
-        -4px 2px #4a3a24, -2px 2px #6d5230, 0 2px #4a3a24, 2px 2px #6d5230, 4px 2px #4a3a24,
-        -4px 4px #5c4326, -2px 4px #4a3a24, 0 4px #4a3a24, 2px 4px #4a3a24, 4px 4px #5c4326,
-        /* Barrel by the door */
-        12px -2px #7a5230, 14px -2px #8f6238,
-        12px 0 #8f6238, 14px 0 #7a5230,
-        12px 2px #7a5230, 14px 2px #8f6238,
-        12px 4px #5e3f24, 14px 4px #5e3f24,
-        /* Grain sacks on the left */
-        -14px 2px #c9ae86, -12px 2px #d8bd94,
-        -14px 4px #c9ae86, -12px 4px #b0966e,
-        /* Ground shadow */
-        -8px 6px #2e3034, -6px 6px #2e3034, -4px 6px #2e3034, -2px 6px #2e3034, 0 6px #2e3034, 2px 6px #2e3034, 4px 6px #2e3034, 6px 6px #2e3034, 8px 6px #2e3034;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAA5UlEQVR42mNgIBEsijb8D8JbCmzAGMZnoDWgm8XoFh2ockHBMHGqO4RuFnd5afwHYUIWErIYhmHmDT6L61yU/4Mw0S4kMQRh5g8ei+EKUyz+g/CsAgeqYJh5hF042CyOcVYDYy8rFawYJj/0LK6KMPgPwjANMAyzIDfIAIxx8dH1wcyrCoLg/iQLMB46FqNbgEsc3WKYhTAHDJzFJ9e1/QfhG3ungHGujwYYw4MIiokNanR9cPPQg3rALd4wLQ+MYQrRMbHZCZf+OHsVFDxwFuMCegYm/6mBSa5VBsziUTAKRsGQAQAPoo6+u5VeCwAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* MORTAR - Wide stumpy barrel on rotating stone base */
 .mortar-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #505050;
+    width: 30px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Wide barrel opening with dark inside */
-        -6px -14px #303030, -4px -14px #404040, -2px -14px #505050, 0 -14px #606060, 2px -14px #505050, 4px -14px #404040, 6px -14px #303030,
-        -8px -12px #404040, -6px -12px #505050, -4px -12px #1A1A1A, -2px -12px #0A0A0A, 0 -12px #0A0A0A, 2px -12px #0A0A0A, 4px -12px #1A1A1A, 6px -12px #505050, 8px -12px #404040,
-        /* Barrel body */
-        -10px -10px #505050, -8px -10px #606060, -6px -10px #696969, -4px -10px #808080, -2px -10px #909090, 0 -10px #A0A0A0, 2px -10px #909090, 4px -10px #808080, 6px -10px #696969, 8px -10px #606060, 10px -10px #505050,
-        -10px -8px #404040, -8px -8px #505050, -6px -8px #606060, -4px -8px #696969, -2px -8px #808080, 0 -8px #909090, 2px -8px #808080, 4px -8px #696969, 6px -8px #606060, 8px -8px #505050, 10px -8px #404040,
-        /* Barrel base */
-        -8px -6px #303030, -6px -6px #404040, -4px -6px #505050, -2px -6px #606060, 0 -6px #696969, 2px -6px #606060, 4px -6px #505050, 6px -6px #404040, 8px -6px #303030,
-        /* Stone rotating base */
-        -12px -4px #4A4A4A, -10px -4px #5A5A5A, -8px -4px #6A6A6A, -6px -4px #7A7A7A, -4px -4px #8A8A8A, -2px -4px #7A7A7A, 0 -4px #8A8A8A, 2px -4px #7A7A7A, 4px -4px #8A8A8A, 6px -4px #7A7A7A, 8px -4px #6A6A6A, 10px -4px #5A5A5A, 12px -4px #4A4A4A,
-        -14px -2px #393939, -12px -2px #494949, -10px -2px #595959, -8px -2px #696969, -6px -2px #797979, -4px -2px #696969, -2px -2px #797979, 0 -2px #696969, 2px -2px #797979, 4px -2px #696969, 6px -2px #797979, 8px -2px #696969, 10px -2px #595959, 12px -2px #494949, 14px -2px #393939,
-        /* Ground base */
-        -14px 0 #2A2A2A, -12px 0 #393939, -10px 0 #494949, -8px 0 #595959, -6px 0 #494949, -4px 0 #595959, -2px 0 #494949, 0 0 #595959, 2px 0 #494949, 4px 0 #595959, 6px 0 #494949, 8px 0 #595959, 10px 0 #494949, 12px 0 #393939, 14px 0 #2A2A2A,
-        -12px 2px #1A1A1A, -10px 2px #2A2A2A, -8px 2px #393939, -6px 2px #2A2A2A, -4px 2px #393939, -2px 2px #2A2A2A, 0 2px #393939, 2px 2px #2A2A2A, 4px 2px #393939, 6px 2px #2A2A2A, 8px 2px #393939, 10px 2px #2A2A2A, 12px 2px #1A1A1A;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAA10lEQVR42u2UMQ6EIBBFrTmCR7CytaPVylYqW7yBVtZUHsGbsuEnv2GXSHQjFPzkFRNw3gTRqrpI27bWIaUE4ziCeZ4Ba65zf/U0r4t9UV3XQAjxE677g+Qv9o9Saw32fQfHcYDzPAFrrnO//yryFYcuUWiAK2H0kScTx35GV6Lbn9Vr4mEYrEMpBZZlAdu2AWMMiK35PPuxf3px13XW0fc9mKYJ8CjXdQV3a/Zjf/rSiZumsY7QAKGalyl2P/vTl07M8CfvD/Kvmv2/bnUycUlJSUlJtvkA+swmDqroquEAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -1099,41 +489,13 @@
 .ballista-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #8B4513;
+    width: 38px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Arrow/bolt tip */
-        0 -20px #B0C4DE, 0 -18px #C0C0C0,
-        -2px -16px #A9A9A9, 0 -16px #C0C0C0, 2px -16px #A9A9A9,
-        /* Arrow shaft */
-        0 -14px #8B4513, 0 -12px #A0522D, 0 -10px #8B4513, 0 -8px #A0522D, 0 -6px #8B4513,
-        /* Fletching */
-        -2px -6px #DC143C, 2px -6px #DC143C,
-        -2px -4px #B22222, 2px -4px #B22222,
-        /* Bow arm - left curving */
-        -4px -10px #654321, -6px -10px #8B4513,
-        -8px -8px #654321, -10px -8px #8B4513, -12px -8px #654321,
-        -14px -6px #5C3317, -16px -6px #654321, -18px -4px #5C3317,
-        -18px -2px #654321, -16px 0 #8B4513,
-        /* Bow arm - right curving */
-        4px -10px #654321, 6px -10px #8B4513,
-        8px -8px #654321, 10px -8px #8B4513, 12px -8px #654321,
-        14px -6px #5C3317, 16px -6px #654321, 18px -4px #5C3317,
-        18px -2px #654321, 16px 0 #8B4513,
-        /* Bowstring - taut */
-        -16px -2px #808080, -14px -2px #909090, -12px -4px #909090, -10px -4px #A0A0A0, -8px -4px #909090, -6px -4px #909090, -4px -4px #808080,
-        4px -4px #808080, 6px -4px #909090, 8px -4px #909090, 10px -4px #A0A0A0, 12px -4px #909090, 14px -2px #909090, 16px -2px #808080,
-        /* Main crossbow body */
-        -4px -2px #654321, -2px -2px #8B4513, 0 -2px #A0522D, 2px -2px #8B4513, 4px -2px #654321,
-        -6px 0 #5C3317, -4px 0 #654321, -2px 0 #8B4513, 0 0 #A0522D, 2px 0 #8B4513, 4px 0 #654321, 6px 0 #5C3317,
-        /* Tripod stand */
-        -8px 2px #5C3317, -4px 2px #654321, 0 2px #8B4513, 4px 2px #654321, 8px 2px #5C3317,
-        -12px 4px #3A2A1A, -10px 4px #5C3317, -6px 4px #654321, 0 4px #8B4513, 6px 4px #654321, 10px 4px #5C3317, 12px 4px #3A2A1A,
-        -14px 6px #2A1A0A, -12px 6px #3A2A1A, 0 6px #5C3317, 12px 6px #3A2A1A, 14px 6px #2A1A0A;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAqCAYAAADf/ynVAAABBElEQVR42u2VsQrCQAyGO7sqCN3sWHByEzfxBTq7+h7dXfoIt3YTn6CDjyG+SiQHv0PguIaKppAf/iFck3zX3HFF8SXdHi9iF9ZkFmwYBmI7WE593xMbYIgdLKfraUlsc2fMLFhotsR2sNTILsdNdGqUWP/ZiP8OJgtLEO0otfXsg+HD824dPXYDz9WB2GiIeGw++iVBzYGlQLquI3YIIRox3LZt9L2qopGHGOsyT9ZLgdoFwy+UhbSXA4dfe7jlRj95ZsG0j7A8rMiT1l6mZH+zYGOB5ChzT1Lu9k+WGbB9XRI7B5QbRQoQ9ecPVpcLYmsTtaNCffSbL5jL5XK5XC7XJL0B49xxr03lYzsAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 
@@ -1141,96 +503,39 @@
 .xbow-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #8B008B;
+    width: 26px;
+    height: 38px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Barrel pointing up */
-        0 -18px #505050, 0 -16px #606060, 0 -14px #505050,
-        -2px -12px #404040, 0 -12px #505050, 2px -12px #404040,
-        /* X-shaped bow arms - left upper */
-        -4px -14px #9B30FF, -6px -12px #8B008B, -8px -10px #9B30FF, -10px -8px #8B008B, -12px -6px #9B30FF,
-        /* X-shaped bow arms - right upper */
-        4px -14px #9B30FF, 6px -12px #8B008B, 8px -10px #9B30FF, 10px -8px #8B008B, 12px -6px #9B30FF,
-        /* X-shaped bow arms - left lower */
-        -12px -4px #8B008B, -10px -2px #9B30FF, -8px 0 #8B008B,
-        /* X-shaped bow arms - right lower */
-        12px -4px #8B008B, 10px -2px #9B30FF, 8px 0 #8B008B,
-        /* Center turret body */
-        -6px -8px #404040, -4px -8px #505050, -2px -8px #606060, 0 -8px #8B008B, 2px -8px #606060, 4px -8px #505050, 6px -8px #404040,
-        -6px -6px #303030, -4px -6px #8B008B, -2px -6px #9B30FF, 0 -6px #BA55D3, 2px -6px #9B30FF, 4px -6px #8B008B, 6px -6px #303030,
-        -6px -4px #404040, -4px -4px #505050, -2px -4px #8B008B, 0 -4px #9B30FF, 2px -4px #8B008B, 4px -4px #505050, 6px -4px #404040,
-        /* Ammo magazine */
-        -4px -2px #FFD700, -2px -2px #FFA500, 0 -2px #FFD700, 2px -2px #FFA500, 4px -2px #FFD700,
-        /* Rotating base */
-        -8px 0 #404040, -6px 0 #505050, -4px 0 #606060, -2px 0 #505050, 0 0 #606060, 2px 0 #505050, 4px 0 #606060, 6px 0 #505050, 8px 0 #404040,
-        -10px 2px #303030, -8px 2px #404040, -6px 2px #505050, -4px 2px #404040, -2px 2px #505050, 0 2px #404040, 2px 2px #505050, 4px 2px #404040, 6px 2px #505050, 8px 2px #404040, 10px 2px #303030,
-        -8px 4px #202020, -6px 4px #303030, -4px 4px #404040, -2px 4px #303030, 0 4px #404040, 2px 4px #303030, 4px 4px #404040, 6px 4px #303030, 8px 4px #202020;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAmCAYAAADa8osYAAAAxElEQVR42u2UwQkEIQxFU4olWIIleNm7/UwJe54mto09bDlZMuy/ZAgqi2EG8uEfPioPv0GiSdVaWUyr5QZqrbH4vqBnZhZb1en164I22liMXEphMUDI1v7rgP6tYvj8clCvKow19iFPV7kcZF0158xiHMC+1+N9GBnr2G9W6QayutTVaSCyVd2pQjdQ7634Q3x4/9nIw2PuBtJX1WOtK+ytD/9xy0AYT+vznM3WuPuBoJQSizV4NON8943cQKFQKBS6gb4jJm7rDTWNjQAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* TESLA COIL - Electric tower with glowing orb and lightning */
 .tesla-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #00BFFF;
+    width: 22px;
+    height: 46px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Lightning sparks branching out */
-        -8px -20px #FFFF00, -6px -18px #FFF, -4px -16px #FFFF00,
-        8px -20px #FFFF00, 6px -18px #FFF, 4px -16px #FFFF00,
-        0 -22px #FFF, 0 -20px #FFFF00, 0 -18px #FFF,
-        /* Glowing electric orb */
-        -4px -14px #4169E1, -2px -14px #00BFFF, 0 -14px #87CEEB, 2px -14px #00BFFF, 4px -14px #4169E1,
-        -6px -12px #0000CD, -4px -12px #4169E1, -2px -12px #00BFFF, 0 -12px #FFF, 2px -12px #00BFFF, 4px -12px #4169E1, 6px -12px #0000CD,
-        -6px -10px #0000CD, -4px -10px #00BFFF, -2px -10px #87CEEB, 0 -10px #FFF, 2px -10px #87CEEB, 4px -10px #00BFFF, 6px -10px #0000CD,
-        -4px -8px #4169E1, -2px -8px #00BFFF, 0 -8px #87CEEB, 2px -8px #00BFFF, 4px -8px #4169E1,
-        /* Coil rings */
-        -4px -6px #B87333, -2px -6px #CD7F32, 0 -6px #D4AF37, 2px -6px #CD7F32, 4px -6px #B87333,
-        -4px -4px #8B6914, -2px -4px #B87333, 0 -4px #CD7F32, 2px -4px #B87333, 4px -4px #8B6914,
-        /* Metal pole */
-        -2px -2px #505050, 0 -2px #696969, 2px -2px #505050,
-        -2px 0 #404040, 0 0 #505050, 2px 0 #404040,
-        /* Metal base platform */
-        -8px 2px #404040, -6px 2px #505050, -4px 2px #606060, -2px 2px #505050, 0 2px #606060, 2px 2px #505050, 4px 2px #606060, 6px 2px #505050, 8px 2px #404040,
-        -10px 4px #303030, -8px 4px #404040, -6px 4px #505050, -4px 4px #404040, -2px 4px #505050, 0 4px #404040, 2px 4px #505050, 4px 4px #404040, 6px 4px #505050, 8px 4px #404040, 10px 4px #303030,
-        -8px 6px #202020, -6px 6px #303030, -4px 6px #404040, -2px 6px #303030, 0 6px #404040, 2px 6px #303030, 4px 6px #404040, 6px 6px #303030, 8px 6px #202020;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAuCAYAAAAsnen7AAAA2UlEQVR42u2VsQ0CIRSGGcIBbgSihS1uwAi01A5gaeEwtnZOgJULWDvE04f3X8HFiCccmPAnX/HfCx+Bu+SEiAz1EakzWfxcwsso+Tyb+NORv30+nzjZ0WcXb+yNGHEmz/5y96AP8wrEjphQPLykkdj1lBaHV4CEV1KD+P++ildO2xUxbrf0XI9rDzrm9YgPdkFMuAE65vWIEa01MdZaD/rP/7psYqUUMfjMhl5cjAU4qjHGE9vfbphcLKUkJhRP7fDlEyNd1xETbhTbsX50x9nELS0tLS1F8wDa0t5ji5oOvwAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* PRISM TOWER - Tall faceted glowing crystal on stone pedestal */
 .prism-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #FF69B4;
+    width: 22px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Crystal tip - bright white glow */
-        0 -20px #FFF, 0 -18px #FFF,
-        -2px -16px #FFB6C1, 0 -16px #FFF, 2px -16px #FFB6C1,
-        /* Upper crystal facets */
-        -4px -14px #FF69B4, -2px -14px #FFB6C1, 0 -14px #FFF, 2px -14px #FFB6C1, 4px -14px #FF69B4,
-        -6px -12px #FF1493, -4px -12px #FF69B4, -2px -12px #FFB6C1, 0 -12px #FFF, 2px -12px #FFB6C1, 4px -12px #FF69B4, 6px -12px #FF1493,
-        /* Middle crystal body */
-        -6px -10px #C71585, -4px -10px #FF1493, -2px -10px #FF69B4, 0 -10px #FFB6C1, 2px -10px #FF69B4, 4px -10px #FF1493, 6px -10px #C71585,
-        -6px -8px #8B008B, -4px -8px #C71585, -2px -8px #FF1493, 0 -8px #FF69B4, 2px -8px #FF1493, 4px -8px #C71585, 6px -8px #8B008B,
-        -6px -6px #800080, -4px -6px #8B008B, -2px -6px #C71585, 0 -6px #FF1493, 2px -6px #C71585, 4px -6px #8B008B, 6px -6px #800080,
-        /* Crystal base */
-        -4px -4px #4B0082, -2px -4px #8B008B, 0 -4px #C71585, 2px -4px #8B008B, 4px -4px #4B0082,
-        /* Stone pedestal */
-        -8px -2px #606060, -6px -2px #707070, -4px -2px #808080, -2px -2px #707070, 0 -2px #808080, 2px -2px #707070, 4px -2px #808080, 6px -2px #707070, 8px -2px #606060,
-        -10px 0 #505050, -8px 0 #606060, -6px 0 #707070, -4px 0 #606060, -2px 0 #707070, 0 0 #606060, 2px 0 #707070, 4px 0 #606060, 6px 0 #707070, 8px 0 #606060, 10px 0 #505050,
-        -10px 2px #404040, -8px 2px #505050, -6px 2px #606060, -4px 2px #505050, -2px 2px #606060, 0 2px #505050, 2px 2px #606060, 4px 2px #505050, 6px 2px #606060, 8px 2px #505050, 10px 2px #404040,
-        -8px 4px #303030, -6px 4px #404040, -4px 4px #505050, -2px 4px #404040, 0 4px #505050, 2px 4px #404040, 4px 4px #505050, 6px 4px #404040, 8px 4px #303030;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAqCAYAAAC3DKvtAAAAvUlEQVR42u2TMQoCMRBF5xB6jxwhvc0eIa1djhAEqy29ithbeawvE/Y3I4EoG2IxH17xyeRNk4h0Bltk77hY8Hiiwmz9/8Q431FpiHk+X4zDDZVOMefniV/HK5TmAiPk/DzxKiuU5gIj5Pw8cZECpbXACjk/T8yc5ALFLmDn+dc/bzdxSglKzrlSSqn0dt4fL16WBYoV287n1jpnp2+cOMYIxS74tdM3TsyEEKDYRb2d9z9exTCxx+PxeKbmDckcMUq5iyHJAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* MAGMA VENT - Volcanic crater with bubbling lava and smoke */
@@ -1239,246 +544,102 @@
 .dragons_breath-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #CC0000;
+    width: 34px;
+    height: 34px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Flames shooting out */
-        -12px -16px #FFFF00, -10px -14px #FF8C00, -8px -12px #FFFF00,
-        -14px -14px #FF4500, -12px -12px #FF8C00, -10px -10px #FFFF00,
-        -16px -12px #FF4500, -14px -10px #FF6347, -12px -8px #FF8C00, -10px -6px #FFFF00,
-        /* Dragon head - snout */
-        -8px -14px #8B0000, -6px -14px #CC0000, -4px -14px #8B0000,
-        -6px -12px #CC0000, -4px -12px #DC143C, -2px -12px #CC0000,
-        /* Dragon head - main */
-        -4px -10px #8B0000, -2px -10px #CC0000, 0 -10px #DC143C, 2px -10px #CC0000, 4px -10px #8B0000,
-        -6px -8px #660000, -4px -8px #8B0000, -2px -8px #CC0000, 0 -8px #DC143C, 2px -8px #CC0000, 4px -8px #8B0000, 6px -8px #660000,
-        /* Dragon eyes */
-        0 -8px #FFFF00, 2px -8px #FF8C00,
-        /* Dragon horns */
-        -8px -8px #5C3317, 8px -8px #5C3317,
-        -10px -6px #654321, 10px -6px #654321,
-        /* Dragon neck/body */
-        -6px -6px #660000, -4px -6px #8B0000, -2px -6px #CC0000, 0 -6px #CC0000, 2px -6px #CC0000, 4px -6px #8B0000, 6px -6px #660000,
-        -6px -4px #4A0000, -4px -4px #660000, -2px -4px #8B0000, 0 -4px #8B0000, 2px -4px #8B0000, 4px -4px #660000, 6px -4px #4A0000,
-        /* Stone base */
-        -10px -2px #505050, -8px -2px #606060, -6px -2px #707070, -4px -2px #606060, -2px -2px #707070, 0 -2px #606060, 2px -2px #707070, 4px -2px #606060, 6px -2px #707070, 8px -2px #606060, 10px -2px #505050,
-        -12px 0 #404040, -10px 0 #505050, -8px 0 #606060, -6px 0 #505050, -4px 0 #606060, -2px 0 #505050, 0 0 #606060, 2px 0 #505050, 4px 0 #606060, 6px 0 #505050, 8px 0 #606060, 10px 0 #505050, 12px 0 #404040,
-        -10px 2px #303030, -8px 2px #404040, -6px 2px #505050, -4px 2px #404040, -2px 2px #505050, 0 2px #404040, 2px 2px #505050, 4px 2px #404040, 6px 2px #505050, 8px 2px #404040, 10px 2px #303030;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACIAAAAiCAYAAAA6RwvCAAAA2ElEQVR42u2TQQrCMBBFcwjBtTcIuHVRkCJ0lQO4KIhd5x71aB7Bu4yT6lcZGdSqtCnz6VsMSSYPJnVOhIg/xg2dwUWoZIHyLkAHrpnWXTheQT1dEU1Ajgoip9mqA/X0RG4X7jaUePVo5aik2NejG42INprtck6Jhpca9/x4NRHsx/l8RbTRaCISKYLz+/WCEvmKyFTctHq4oFXAOvb//PceTCSEQIm6rjtijB19a/TLT6QoCkpIEa3GI313P/rnI4J47ykhxfrW6PfxGxmNiMVisVgslj/lDN5zYz+jmPooAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* BARRACKS - Military training building with red roof, door, and crossed swords */
 .barracks-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #DC143C;
+    width: 26px;
+    height: 38px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Sword crossed on roof (left) */
-        -8px -18px #C0C0C0, -6px -16px #A9A9A9, -4px -14px #C0C0C0,
-        /* Sword crossed on roof (right) */
-        8px -18px #C0C0C0, 6px -16px #A9A9A9, 4px -14px #C0C0C0,
-        /* Red peaked roof */
-        -2px -16px #8B0000, 0 -16px #DC143C, 2px -16px #8B0000,
-        -6px -14px #8B0000, -4px -14px #B22222, -2px -14px #DC143C, 0 -14px #FF4500, 2px -14px #DC143C, 4px -14px #B22222, 6px -14px #8B0000,
-        -10px -12px #660000, -8px -12px #8B0000, -6px -12px #B22222, -4px -12px #DC143C, -2px -12px #DC143C, 0 -12px #DC143C, 2px -12px #DC143C, 4px -12px #DC143C, 6px -12px #B22222, 8px -12px #8B0000, 10px -12px #660000,
-        /* Stone building walls */
-        -10px -10px #8B4513, -8px -10px #A0522D, -6px -10px #D2691E, -4px -10px #CD853F, -2px -10px #D2691E, 0 -10px #CD853F, 2px -10px #D2691E, 4px -10px #CD853F, 6px -10px #D2691E, 8px -10px #A0522D, 10px -10px #8B4513,
-        -10px -8px #654321, -8px -8px #8B4513, -6px -8px #A0522D, -4px -8px #8B4513, -2px -8px #A0522D, 0 -8px #8B4513, 2px -8px #A0522D, 4px -8px #8B4513, 6px -8px #A0522D, 8px -8px #8B4513, 10px -8px #654321,
-        /* Windows */
-        -6px -8px #4169E1, -4px -8px #87CEEB, 4px -8px #4169E1, 6px -8px #87CEEB,
-        /* More walls */
-        -10px -6px #5C3317, -8px -6px #654321, -6px -6px #8B4513, -4px -6px #654321, -2px -6px #8B4513, 0 -6px #654321, 2px -6px #8B4513, 4px -6px #654321, 6px -6px #8B4513, 8px -6px #654321, 10px -6px #5C3317,
-        /* Door (center) */
-        -10px -4px #5C3317, -8px -4px #654321, -6px -4px #8B4513, -4px -4px #3E2723, -2px -4px #2A1A0A, 0 -4px #2A1A0A, 2px -4px #2A1A0A, 4px -4px #3E2723, 6px -4px #8B4513, 8px -4px #654321, 10px -4px #5C3317,
-        -10px -2px #3E2723, -8px -2px #5C3317, -6px -2px #654321, -4px -2px #3E2723, -2px -2px #1A0A00, 0 -2px #1A0A00, 2px -2px #1A0A00, 4px -2px #3E2723, 6px -2px #654321, 8px -2px #5C3317, 10px -2px #3E2723,
-        /* Foundation */
-        -12px 0 #404040, -10px 0 #505050, -8px 0 #606060, -6px 0 #505050, -4px 0 #606060, -2px 0 #505050, 0 0 #606060, 2px 0 #505050, 4px 0 #606060, 6px 0 #505050, 8px 0 #606060, 10px 0 #505050, 12px 0 #404040,
-        -10px 2px #303030, -8px 2px #404040, -6px 2px #505050, -4px 2px #404040, -2px 2px #505050, 0 2px #404040, 2px 2px #505050, 4px 2px #404040, 6px 2px #505050, 8px 2px #404040, 10px 2px #303030;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAmCAYAAADa8osYAAAA60lEQVR42u2UMQrCQBBFp06rIKQQjIUgCAFb0YCkD9YWaQx4ECsvYZvWE+QCNtbeZXQGf7MmGLbYTbEfXvGzs/MggRAZaZqGBbJM7/vOREhd1yygX4lYeI03CnrX/PBEWIRXAQHnpKDj3BT7F1Wfoeo7LNyTRMHCf2Ae97HPn+iaj1i4HVbK8zxVHped0rfjPvb5E532MxZMoW3HPn+i43rCgim07dg3PNF2MVeWcdQKzocnwgVTiOdxRK3g3BTguXtRlmUsFEWhlGWpdHX8cvrOY787EZKmKQum2LZj3883ciYKCQkJCQnxmDd9NyAiii69DgAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* LAB - Alchemist's workshop with smokestack, bubbling flask, and purple glow */
 .lab-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #6644AA;
+    width: 26px;
+    height: 50px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Smokestack */
-        8px -18px #555, 8px -16px #666, 8px -14px #666, 8px -12px #555,
-        10px -18px #444, 10px -16px #555, 10px -14px #555, 10px -12px #444,
-        /* Smoke puffs */
-        8px -20px rgba(120,80,180,0.6), 10px -22px rgba(120,80,180,0.4), 6px -24px rgba(120,80,180,0.2),
-        /* Slate roof */
-        -10px -10px #3a3448, -8px -10px #3a3448, -6px -10px #4a4458, -4px -10px #4a4458, -2px -10px #4a4458, 0 -10px #4a4458, 2px -10px #4a4458, 4px -10px #3a3448, 6px -10px #3a3448,
-        -8px -12px #2a2438, -6px -12px #3a3448, -4px -12px #3a3448, -2px -12px #3a3448, 0 -12px #3a3448, 2px -12px #3a3448, 4px -12px #3a3448, 6px -12px #2a2438,
-        /* Stone walls */
-        -10px -8px #5a5a6a, -8px -8px #6a6a7a, -6px -8px #5a5a6a, -4px -8px #6a6a7a, -2px -8px #5a5a6a, 0 -8px #6a6a7a, 2px -8px #5a5a6a, 4px -8px #6a6a7a, 6px -8px #5a5a6a, 8px -8px #6a6a7a, 10px -8px #5a5a6a,
-        -10px -6px #4a4a5a, -8px -6px #5a5a6a, -6px -6px #4a4a5a, -4px -6px #5a5a6a, -2px -6px #4a4a5a, 0 -6px #5a5a6a, 2px -6px #4a4a5a, 4px -6px #5a5a6a, 6px -6px #4a4a5a, 8px -6px #5a5a6a, 10px -6px #4a4a5a,
-        /* Glowing windows */
-        -6px -6px #44CC88, -4px -6px #44CC88, 4px -6px #44CC88, 6px -6px #44CC88,
-        /* More walls with door */
-        -10px -4px #4a4a5a, -8px -4px #5a5a6a, -6px -4px #4a4a5a, -4px -4px #0a0a15, -2px -4px #0a0a15, 0 -4px #0a0a15, 2px -4px #0a0a15, 4px -4px #4a4a5a, 6px -4px #5a5a6a, 8px -4px #5a5a6a, 10px -4px #4a4a5a,
-        -10px -2px #3a3a4a, -8px -2px #4a4a5a, -6px -2px #3a3a4a, -4px -2px #0a0a15, -2px -2px #33AA66, 0 -2px #0a0a15, 2px -2px #0a0a15, 4px -2px #3a3a4a, 6px -2px #4a4a5a, 8px -2px #4a4a5a, 10px -2px #3a3a4a,
-        /* Flask inside door glow */
-        -2px -4px #33AA66,
-        /* Stone foundation */
-        -12px 0 #404050, -10px 0 #505060, -8px 0 #606070, -6px 0 #505060, -4px 0 #606070, -2px 0 #505060, 0 0 #606070, 2px 0 #505060, 4px 0 #606070, 6px 0 #505060, 8px 0 #606070, 10px 0 #505060, 12px 0 #404050,
-        /* Foundation base */
-        -10px 2px #303040, -8px 2px #404050, -6px 2px #505060, -4px 2px #404050, -2px 2px #505060, 0 2px #404050, 2px 2px #505060, 4px 2px #404050, 6px 2px #505060, 8px 2px #404050, 10px 2px #303040,
-        /* Acid stain on ground */
-        -6px 4px #334433, -4px 4px #445544, 4px 4px #334433;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAyCAYAAABCtcuVAAAA5klEQVR42u2VPQrCQBBGU6f3BlZWQiwkVYopZKttFiRVqi1SWYo38Qqpvd/oLAzI+JMYNmsC88ErBuabRzSQLIuUs70VRDZ1koneiD2xfNHj+JVI8SRpRM45JAAgsHyR9x4JFqoovmiz3iNR7g4/wb3BL8PkIlk0cByE7PX+tslEdd0i0baXQKz5fyJjaiR4IdY8P1Ger74ie/MRlaVBghd45oNF5wNSJHuyn15UVRYJa5tA05wCn2YPXWDoPt9PJ+JstxUSUjx25nsv/1EykUwBBRLgINC3N/pLmUyk0Wg0Go1G85Q7Ai3q65Eqe64AAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* ARMY CAMP - Military tent with campfire and weapons rack */
 .army_camp-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #D2691E;
+    width: 22px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Tent pole flag */
-        0 -20px #DC143C, 2px -20px #FF0000, 4px -20px #DC143C,
-        0 -18px #DC143C, 2px -18px #B22222,
-        0 -16px #654321,
-        /* Tent top */
-        -2px -14px #D2691E, 0 -14px #A0522D, 2px -14px #D2691E,
-        -4px -12px #CD853F, -2px -12px #D2691E, 0 -12px #A0522D, 2px -12px #D2691E, 4px -12px #CD853F,
-        -6px -10px #A0522D, -4px -10px #D2691E, -2px -10px #CD853F, 0 -10px #D2691E, 2px -10px #CD853F, 4px -10px #D2691E, 6px -10px #A0522D,
-        -8px -8px #8B4513, -6px -8px #A0522D, -4px -8px #D2691E, -2px -8px #CD853F, 0 -8px #D2691E, 2px -8px #CD853F, 4px -8px #D2691E, 6px -8px #A0522D, 8px -8px #8B4513,
-        /* Tent body */
-        -10px -6px #654321, -8px -6px #8B4513, -6px -6px #A0522D, -4px -6px #8B4513, -2px -6px #A0522D, 0 -6px #8B4513, 2px -6px #A0522D, 4px -6px #8B4513, 6px -6px #A0522D, 8px -6px #8B4513, 10px -6px #654321,
-        /* Tent entrance (dark) */
-        -10px -4px #5C3317, -8px -4px #654321, -6px -4px #8B4513, -4px -4px #2A1A0A, -2px -4px #1A0A00, 0 -4px #1A0A00, 2px -4px #1A0A00, 4px -4px #2A1A0A, 6px -4px #8B4513, 8px -4px #654321, 10px -4px #5C3317,
-        /* Campfire in front */
-        -2px -2px #FF4500, 0 -2px #FFFF00, 2px -2px #FF4500,
-        -4px 0 #FF8C00, -2px 0 #FFFF00, 0 0 #FFF, 2px 0 #FFFF00, 4px 0 #FF8C00,
-        /* Logs */
-        -6px 2px #5C3317, -4px 2px #654321, -2px 2px #8B0000, 0 2px #DC143C, 2px 2px #8B0000, 4px 2px #654321, 6px 2px #5C3317,
-        -4px 4px #3E2723, -2px 4px #5C3317, 0 4px #654321, 2px 4px #5C3317, 4px 4px #3E2723;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAqCAYAAAC3DKvtAAAA2UlEQVR42mNgIBLcEbH5D8L/GRjAGMZnoBTQ3OBNSkpgzEAtQDODU50V/4MwA7UB1Q2+lCn3H4QXBOmCMYw/+Aw+22r/H4RxGQyTH3iDcRmAiw9TT3+Du12F/4MwuQbD9NPeYFjCRzeYXD48I9HM4Bhj8f8gjG6BlhQXGEtxMWDFMHl0A2Hm0c5gQuC/K7BgB+H/UAzlU1xWUN3g/z1AA3oQBsKSF9wCqPzAG4wRmUA7upEqTxif5MiimcEwYKeu/B+E0S2C8WHyJIcxzQweBaNgFIyCUUBXAACiGEsDvfA2gwAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* WALL - Strong stone fortification block */
 .wall-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #808080;
+    width: 26px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* Top battlements */
-        -10px -14px #808080, -8px -14px #909090, -6px -14px #808080,
-        2px -14px #808080, 4px -14px #909090, 6px -14px #808080,
-        -10px -12px #707070, -8px -12px #808080, -6px -12px #707070,
-        2px -12px #707070, 4px -12px #808080, 6px -12px #707070,
-        /* Wall face - upper */
-        -10px -10px #606060, -8px -10px #707070, -6px -10px #808080, -4px -10px #707070, -2px -10px #808080, 0 -10px #707070, 2px -10px #808080, 4px -10px #707070, 6px -10px #808080, 8px -10px #707070, 10px -10px #606060,
-        -10px -8px #505050, -8px -8px #606060, -6px -8px #707070, -4px -8px #808080, -2px -8px #707070, 0 -8px #808080, 2px -8px #707070, 4px -8px #808080, 6px -8px #707070, 8px -8px #606060, 10px -8px #505050,
-        /* Stone blocks pattern */
-        -10px -6px #606060, -8px -6px #707070, -6px -6px #505050, -4px -6px #707070, -2px -6px #606060, 0 -6px #707070, 2px -6px #505050, 4px -6px #707070, 6px -6px #606060, 8px -6px #707070, 10px -6px #606060,
-        -10px -4px #505050, -8px -4px #606060, -6px -4px #707070, -4px -4px #606060, -2px -4px #707070, 0 -4px #606060, 2px -4px #707070, 4px -4px #606060, 6px -4px #707070, 8px -4px #606060, 10px -4px #505050,
-        /* Lower wall */
-        -10px -2px #404040, -8px -2px #505050, -6px -2px #606060, -4px -2px #505050, -2px -2px #606060, 0 -2px #505050, 2px -2px #606060, 4px -2px #505050, 6px -2px #606060, 8px -2px #505050, 10px -2px #404040,
-        -10px 0 #303030, -8px 0 #404040, -6px 0 #505050, -4px 0 #404040, -2px 0 #505050, 0 0 #404040, 2px 0 #505050, 4px 0 #404040, 6px 0 #505050, 8px 0 #404040, 10px 0 #303030,
-        /* Foundation */
-        -12px 2px #202020, -10px 2px #303030, -8px 2px #404040, -6px 2px #303030, -4px 2px #404040, -2px 2px #303030, 0 2px #404040, 2px 2px #303030, 4px 2px #404040, 6px 2px #303030, 8px 2px #404040, 10px 2px #303030, 12px 2px #202020,
-        -10px 4px #101010, -8px 4px #202020, -6px 4px #303030, -4px 4px #202020, -2px 4px #303030, 0 4px #202020, 2px 4px #303030, 4px 4px #202020, 6px 4px #303030, 8px 4px #202020, 10px 4px #101010;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAeCAYAAAAy2w7YAAAApElEQVR42u2S0QnAIAxEHcERHMERHMERHMERHMGNU1J6/UgRqrXxx4P7OIz3wGjMpVIKsWutp5FNQ73zRh2UcyY2LiDPmtcHpZSI3SrozehbB4oxEvsrEPfRtw4kARiUBW/PX+/oN1Dr6UZz946mg0IIxJbA0Yy+dSDvPbElUGZ859Y5Mvr0Qc45YkvQrIx+PRBkrSW2BI9m9D12pAba2traunUAm384Vu4gJGkAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* Tree and rock obstacles - keep simpler */
 .tree-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #228B22;
+    width: 10px;
+    height: 30px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        0 -14px #006400, 0 -12px #228B22,
-        -2px -10px #006400, 0 -10px #32CD32, 2px -10px #006400,
-        -4px -8px #228B22, -2px -8px #32CD32, 0 -8px #90EE90, 2px -8px #32CD32, 4px -8px #228B22,
-        -4px -6px #006400, -2px -6px #228B22, 0 -6px #32CD32, 2px -6px #228B22, 4px -6px #006400,
-        -2px -4px #006400, 0 -4px #228B22, 2px -4px #006400,
-        0 -2px #8B4513, 0 0 #654321, 0 2px #5C3317;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAeCAYAAAAVdY8wAAAAZUlEQVR42mNgQAcpDP/BmCAgVqFSt9J/EKaCQqiVRmeNwBi3EwgphFkFUzDh3QQwhvHhTiFaIcwKdA1wBXAnEK0QzTO4FZCsEAq6XYX/gzDBmCFaIRXjGgpijMX/gzD1FI6CYQsAYauWrVVZ/LAAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 .rock-icon::before,
 .bush-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #808080;
+    width: 14px;
+    height: 18px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        -2px -8px #909090, 0 -8px #A0A0A0, 2px -8px #909090,
-        -4px -6px #707070, -2px -6px #808080, 0 -6px #909090, 2px -6px #808080, 4px -6px #707070,
-        -6px -4px #606060, -4px -4px #707070, -2px -4px #808080, 0 -4px #909090, 2px -4px #808080, 4px -4px #707070, 6px -4px #606060,
-        -6px -2px #505050, -4px -2px #606060, -2px -2px #707070, 0 -2px #808080, 2px -2px #707070, 4px -2px #606060, 6px -2px #505050,
-        -4px 0 #404040, -2px 0 #505050, 0 0 #606060, 2px 0 #505050, 4px 0 #404040;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAASCAYAAABrXO8xAAAAYUlEQVR42mNgQAMTJkz4D8ILFiwAYxifgRAgWWNBQcF/EG5oaABjmAYYHyZPucaEhIT/IEysRph68jUGBAT8B2FcBqBrgKknXyMMODg4/AdhmARMI4wPk8cIVbI1joIhDQBcNPiVA+Q/WgAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
 /* SPIKE LAUNCHER - Medieval trebuchet with spike bag ammunition */
 .spike_launcher-icon::before {
     content: '';
     position: absolute;
-    width: 2px;
-    height: 2px;
-    background: #8B4513;
+    width: 30px;
+    height: 34px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    box-shadow:
-        /* A-Frame support structure */
-        -8px 6px #5D4037, -6px 4px #6D5047, -4px 2px #5D4037, -2px 0 #8B4513,
-        8px 6px #5D4037, 6px 4px #6D5047, 4px 2px #5D4037, 2px 0 #8B4513,
-        /* Cross beam at top */
-        -4px -2px #795548, -2px -2px #8D6E63, 0 -2px #A1887F, 2px -2px #8D6E63, 4px -2px #795548,
-        /* Pivot hub */
-        0 -4px #616161, -2px -4px #424242, 2px -4px #424242,
-        /* Throwing arm (at rest angle) */
-        -2px -6px #795548, 0 -6px #8D6E63, 2px -6px #795548,
-        -4px -8px #6D5047, -2px -8px #795548, 0 -8px #8D6E63, 2px -8px #795548,
-        -6px -10px #5D4037, -4px -10px #6D5047, -2px -10px #795548,
-        -8px -12px #5D4037, -6px -12px #6D5047, -4px -12px #795548,
-        /* Arm tip with sling */
-        -10px -14px #B8A07A, -8px -14px #A08060,
-        /* Spike bag in sling */
-        -12px -12px #6B5B45, -10px -12px #7A6B55, -12px -10px #5A4A35,
-        /* Spikes poking from bag */
-        -14px -14px #888888, -10px -16px #888888, -14px -10px #888888,
-        /* Counterweight */
-        4px -8px #757575, 6px -8px #616161, 8px -8px #757575,
-        4px -6px #5A5A5A, 6px -6px #4A4A4A, 8px -6px #5A5A5A,
-        /* Rope winch */
-        10px 0 #5D4037, 12px 0 #6D5047,
-        10px 2px #B8A07A, 12px 2px #A08060,
-        /* Spike bag pile */
-        -8px 6px #6B5B45, -6px 8px #7A6B55, -4px 6px #5A4A35,
-        -10px 8px #666666, -4px 8px #666666, -6px 4px #666666,
-        /* Stone base platform */
-        -12px 8px #5A5A5A, -10px 8px #6A6A6A, -8px 8px #7A7A7A, -6px 8px #6A6A6A, -4px 8px #7A7A7A, -2px 8px #6A6A6A, 0 8px #7A7A7A, 2px 8px #6A6A6A, 4px 8px #7A7A7A, 6px 8px #6A6A6A, 8px 8px #7A7A7A, 10px 8px #6A6A6A, 12px 8px #5A5A5A,
-        -10px 10px #4A4A4A, -8px 10px #5A5A5A, -6px 10px #4A4A4A, -4px 10px #5A5A5A, -2px 10px #4A4A4A, 0 10px #5A5A5A, 2px 10px #4A4A4A, 4px 10px #5A5A5A, 6px 10px #4A4A4A, 8px 10px #5A5A5A, 10px 10px #4A4A4A;
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAiCAYAAABIiGl0AAAA7klEQVR42u2WsQrCMBCG+w4+i7hKoSiZXLpUBIvQoUW3DmbRMSC+Q30L3y6S0385DLbWJqT4wzdcU/qVS8k1iliUUtoQuY4zMRfdG6kNzXlLjE+MVOtEG2SVEpv5jNivFsQxXRLhi9HqTEwJvj7YC3gTtw0XXw87AnVd10Se5wTqcMWITZxlGSGEIFCHL47jWBvQUtSDf2TOxbzFN3UieMvHI0YuyUS/w3Y/P4DCEeMBXdd7j1nn4q4t6r2X3sS8dbax+e3W+BfjUC+KgpBSPnn9CuF6WZYE1tvW1qHhTYzwsfar+mPLvYn/+Sf4PAAOh2uzgcMrKQAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }

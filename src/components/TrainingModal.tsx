@@ -15,6 +15,7 @@ const TROOP_FLAVOR: Record<string, string> = {
     ram: 'Armored battering ram that charges the Town Hall. 4x wall damage.',
     stormmage: 'Chain lightning hits up to 4 targets per strike.',
     golem: 'Massive stone titan. Nearly indestructible, targets defenses.',
+    icegolem: 'Frozen colossus. Lighter than stone but slams faster.',
     sharpshooter: 'Elite archer with extended range and heavy single-target damage.',
     mobilemortar: 'Sets up and lobs splash damage shells from long range.',
     davincitank: "Armored war machine that fires cannons in all directions.",
@@ -29,7 +30,12 @@ interface TrainingModalProps {
   army: Record<string, number>;
   troops: TroopDef[];
   troopLevel: number;
+  /** True while a lab upgrade runs: the server treats troops as level 1, so the badge explains the drop. */
+  troopLevelUpgrading?: boolean;
+  /** Highest barracks level that can train RIGHT NOW (0 = none: absent or all mid-upgrade), mirroring the server's gate. */
   barracksLevel: number;
+  /** True when barracks exist but every one is a construction site — the locked cards say so instead of quoting a level. */
+  barracksUpgrading?: boolean;
   onClose: () => void;
   onStartPractice: () => void;
   onFindMatch: () => void;
@@ -51,7 +57,9 @@ export function TrainingModal({
   army,
   troops,
   troopLevel,
+  troopLevelUpgrading = false,
   barracksLevel,
+  barracksUpgrading = false,
   onClose,
   onStartPractice,
   onFindMatch,
@@ -100,13 +108,13 @@ export function TrainingModal({
               <div className="btn-icon icon findmatch-icon"></div>
               <span className="btn-label">FIND MATCH</span>
             </button>
-            <button className="header-btn close" onClick={onClose}>×</button>
+            <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
           </div>
         </div>
 
         <div className="modal-body">
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
-            <span className="queue-label" style={{ margin: 0, color: capacity.current >= capacity.max ? '#ff4444' : '#fff' }}>
+            <span className="queue-label" style={{ margin: 0, color: capacity.current >= capacity.max ? 'var(--warn-red)' : '#fff' }}>
               {capacity.current}/{capacity.max}
             </span>
           </div>
@@ -140,9 +148,13 @@ export function TrainingModal({
                   onMouseLeave={handleMouseLeave}
                 >
                   {isLocked ? (
-                    <div className="level-badge locked-badge">Barracks Lvl {unlockLevel}</div>
+                    <div className="level-badge locked-badge">
+                      {barracksUpgrading ? 'Barracks upgrading' : `Barracks Lvl ${unlockLevel}`}
+                    </div>
                   ) : (
-                    <div className="level-badge">Lv{troopLevel}</div>
+                    <div className="level-badge" title={troopLevelUpgrading ? 'Troops fight at level 1 while the lab is upgrading' : undefined}>
+                      Lv{troopLevel}{troopLevelUpgrading ? ' · LAB UPGRADING' : ''}
+                    </div>
                   )}
                   <div className={`icon ${t.id}-icon large`}></div>
                   <span className="name" style={{ fontSize: '0.7rem', fontWeight: 900 }}>{t.name}</span>
@@ -151,10 +163,10 @@ export function TrainingModal({
                       <span className="icon gold-icon"></span>
                       {formatGold(t.cost, false, false)}
                       <span className={`icon food-icon`} style={{ marginLeft: 6 }}></span>
-                      <span style={{ color: hasFood ? undefined : '#ff4444' }}>{foodCost}</span>
+                      <span style={{ color: hasFood ? undefined : 'var(--warn-red)' }}>{foodCost}</span>
                     </div>
                   )}
-                  {!isLocked && !hasSpace && <div style={{ fontSize: '8px', color: '#ff4444', position: 'absolute', bottom: '2px' }}>NO SPACE</div>}
+                  {!isLocked && !hasSpace && <div style={{ fontSize: '8px', color: 'var(--warn-red)', position: 'absolute', bottom: '2px' }}>NO SPACE</div>}
                 </div>
               );
             })}
@@ -176,8 +188,10 @@ export function TrainingModal({
         >
           <div className="tooltip-flavor">{tooltipFlavor}</div>
           <div className="tooltip-stats">
+            {/* Lab-scaled damage is a deliberate float for the sim (14 × 1.3
+                = 18.2) — the sheet shows whole numbers like health does. */}
             <span><span className="sym sym-heart small" /> {tooltipScaled.health}</span>
-            <span><span className="sym sym-swords small" /> {tooltipScaled.damage}</span>
+            <span><span className="sym sym-swords small" /> {Math.round(tooltipScaled.damage)}</span>
             <span><span className="sym sym-slot small" /> {tooltipTroop.space}</span>
           </div>
         </div>

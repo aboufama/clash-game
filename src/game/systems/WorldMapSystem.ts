@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, WORLD_COORD_LIMIT, type BuildingType } from '../config/GameDefinitions';
+import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, WORLD_COORD_LIMIT, type BuildingType } from '../config/GameDefinitions';
 import type { SerializedWorld } from '../data/Models';
 import {
     Backend,
@@ -10,8 +10,8 @@ import {
 } from '../backend/GameBackend';
 import { BOT_WORLD_GENERATION_VERSION, generateBotWorldFromSeed } from '../backend/BotWorlds';
 import { drawBuildingVisual } from '../renderers/BuildingVisualDispatcher';
-import { IsoUtils } from '../utils/IsoUtils';
-import { villageFlagFor, drawFlagBearer, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
+import { IsoUtils, TILE_WIDTH, TILE_HEIGHT } from '../utils/IsoUtils';
+import { bannerDesignFor, drawFlagBearer, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
 import { gameManager, type PlotPanelAction } from '../GameManager';
 import { soundSystem } from './SoundSystem';
 import { DayNightSystem, type PostcardLightAnchor } from './DayNightSystem';
@@ -32,6 +32,8 @@ import {
     wildernessPlotPresentationSeed
 } from '../renderers/WorldNatureSeed';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
+import { WorldFigureRenderer } from '../renderers/WorldFigureRenderer';
+import { FIGURE_ANIM_HZ, PIXEL_CELL, figureTick, pixelBitmap, pixelEllipse, pixelLine, pixelRect } from '../render/PixelDraw';
 import { applyTextureSampling, registerPixelSurface, TextureSampling } from '../renderers/TextureRenderPolicy';
 import { windSway } from './Wind';
 import { hashString, isWildernessPreserveAt, watchtowerSightOf } from '../config/Economy';
@@ -103,8 +105,69 @@ const ROAD_CROWN = roadBlend(ROAD_EARTH, 0x9c8a6a, 0.55);
 const ROAD_RUT = roadBlend(ROAD_CROWN, 0x7a6a50, 0.5);
 const ROAD_SHOULDER = roadBlend(ROAD_EARTH, 0x6f6048, 0.75);
 const ROAD_COBBLE = roadBlend(ROAD_CROWN, 0x7d6f56, 0.8);
+/** The two junction faces (road arms) incident to each corner quadrant. A
+ * quadrant's plot corner is flanked by exactly these faces; an absent arm
+ * means that face is a JOINED grass band (both adjoining plots wild). */
+const QUADRANT_FACES: Record<WildernessJunctionQuadrant, readonly [keyof WildernessRoadArms, keyof WildernessRoadArms]> = {
+    nw: ['n', 'w'],
+    ne: ['n', 'e'],
+    se: ['s', 'e'],
+    sw: ['s', 'w']
+};
 const REFRESH_MS = 25_000;
 const SNAPSHOT_SCALE = PLAYER_POSTCARD_SCALE; // player villages are never downsampled
+
+/**
+ * A filled triangle as three stacked pixel-cell rows (PixelDraw deliberately
+ * has no triangle): rows interpolate from the base corners toward the apex.
+ */
+function pixelTriangleRows(
+    g: Phaser.GameObjects.Graphics,
+    apexX: number,
+    apexY: number,
+    baseLeftX: number,
+    baseRightX: number,
+    baseY: number,
+    color: number,
+    alpha = 1,
+    rows = 3
+) {
+    for (let row = 0; row < rows; row++) {
+        const mid = (row + 0.5) / rows;
+        const y0 = baseY + (apexY - baseY) * (row / rows);
+        const y1 = baseY + (apexY - baseY) * ((row + 1) / rows);
+        const x0 = baseLeftX + (apexX - baseLeftX) * mid;
+        const x1 = baseRightX + (apexX - baseRightX) * mid;
+        pixelRect(g, Math.min(x0, x1), Math.min(y0, y1),
+            Math.max(0.5, Math.abs(x1 - x0)), Math.max(0.5, Math.abs(y1 - y0)), color, alpha);
+    }
+}
+
+/** A strokeEllipse replacement: the ring lands as one pixel cell per ~24 angle steps. */
+function pixelRing(
+    g: Phaser.GameObjects.Graphics,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    color: number,
+    alpha = 1
+) {
+    // Cells are DEDUPED per ring: at small radii several perimeter samples
+    // land in the same cell, and stamping one twice at alpha < 1 stacks into
+    // dark blotches (the same guard PixelFx.stampRing keeps).
+    const STEPS = 24;
+    const seen = new Set<string>();
+    for (let i = 0; i < STEPS; i++) {
+        const a = (i / STEPS) * Math.PI * 2;
+        const ix = Math.floor((cx + Math.cos(a) * rx) / PIXEL_CELL);
+        const iy = Math.floor((cy + Math.sin(a) * ry) / PIXEL_CELL);
+        const key = `${ix},${iy}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pixelRect(g, ix * PIXEL_CELL, iy * PIXEL_CELL, PIXEL_CELL, PIXEL_CELL, color, alpha);
+    }
+}
 
 interface NeighborView {
     key: string;
@@ -126,6 +189,9 @@ interface NeighborView {
     lightAnchors?: PostcardLightAnchor[];
     /** Scene-grid position of the neighbour's town hall (their hearth). */
     hearth: { gx: number; gy: number } | null;
+    /** Cached hall-flag heraldry (explicit banner or identity default). */
+    flag?: FlagDesign | null;
+    flagKey?: string;
     /** Deterministic water/forest life anchors emitted by nature rendering. */
     natureLife: WildernessLifeAnchor[];
     /** Plot-local lake/brook geometry kept after the art bakes into the RT,
@@ -135,6 +201,12 @@ interface NeighborView {
      * without another request or any loss of detail. */
     sourceWorld: PostcardWorld | null;
     sourceRevision: number | string | null;
+    /** True while THIS view owns the shared per-key registries (villager sim
+     * + postcard night lights). Hidden pending-focus views render under the
+     * same absolute keys as the live ring; only the registered owner may
+     * clear those registries on release, or a battle prepared over a shared
+     * plot silently kills its living neighbours (and vice versa). */
+    residentsRegistered: boolean;
     /** Plot offset in the currently anchored map frame. */
     dx: number;
     dy: number;
@@ -166,10 +238,13 @@ interface MapHost extends Phaser.Scene {
     mode: string;
     mapSize: number;
     userId: string;
-    buildings: Array<{ type: string; level?: number; health: number }>;
+    buildings: Array<{ id?: string; type: string; level?: number; health: number }>;
     attackBotPlot(seed: number, username: string, plotX?: number, plotY?: number): void;
     attackPlayerPlotByRoad(ownerId: string, username: string, plotX: number, plotY: number): void;
-    villageLife?: { applyBattleScars(destructionPct: number): void };
+    villageLife?: {
+        applyBattleScars(destructionPct: number): void;
+        isPlacementUnderConstruction?(buildingId: string): boolean;
+    };
     villageBubbles?: {
         raise(spec: { key: string; text: string; kind?: 'info' | 'danger'; buildingType?: string; anchor?: { x: number; y: number }; ttlMs?: number; action?: { label: string; run: () => void }; closable?: boolean; icon?: string; animate?: boolean; progress?: () => number }): void;
         clear(key: string): void;
@@ -179,6 +254,7 @@ interface MapHost extends Phaser.Scene {
         addTransientLight(opts: { gx: number; gy: number; radius?: number; tint?: number; until: number }): number;
         removeTransientLight(id: number): void;
         moveTransientLight?(id: number, gx: number, gy: number): void;
+        setSightBound?(bound: { min: number; max: number } | null): void;
         setPostcardLights?(key: string, buildings: ReadonlyArray<{ type?: string; level?: number; gridX?: number; gridY?: number }>, offX: number, offY: number, cap?: number): void;
         clearPostcardLights?(key: string): void;
     };
@@ -204,10 +280,25 @@ export class WorldMapSystem {
      * cannot be split among independently rasterized textures without tiny
      * filter boundaries, so Great Lakes are visually authoritative here. */
     private worldHydrologyLayer: Phaser.GameObjects.Graphics | null = null;
+    /** Animated fish/frogs for water lying in the ROAD-GAP bands: plot
+     * postcards animate their own anchors, but a river crossing a reclaimed
+     * road lives between plots, so its life rides the overlay layer. */
+    private worldHydrologyLifeLayer: Phaser.GameObjects.Graphics | null = null;
+    private worldHydrologyGapLife: WildernessLifeAnchor[] = [];
+    /** Inverted-alpha mask over the hydrology overlay (and its life layer):
+     * every village postcard's roof-headroom band punches OUT of the water
+     * overlay, so roofs leaning over an adjacent water plot win the painter
+     * fight — the identical water baked in the postcard RTs shows instead. */
+    private worldHydrologyMaskGfx: Phaser.GameObjects.Graphics | null = null;
+    private worldHydrologyMask: Phaser.Display.Masks.GeometryMask | null = null;
     private wildernessTopology: WildernessTopology | null = null;
     /** Cache key for the painted links layer: topology PLUS every palette
      *  input (the owner id arrives from auth after the first paint). */
     private wildernessLinkSignature: string | null = null;
+    /** Plot kinds from the freshest window/focus response, consulted while
+     * postcards render BEFORE their sibling views exist — wilderness corner
+     * rounding needs its neighbours' kinds on the very first pass. */
+    private knownPlotKindHints = new Map<string, WorldMapPlot['kind']>();
     /** The unknown world: cloud cover past the watchtower's sight. */
     private fogStatic: Phaser.GameObjects.Graphics | null = null;
     private fogEdge: Phaser.GameObjects.Graphics | null = null;
@@ -282,6 +373,10 @@ export class WorldMapSystem {
         swapFired: boolean;
         /** The army on the move, one entry per figure (actual composition). */
         escorts: string[];
+        /** One sprite-carrier Graphics per escort index (baked caravan-soldier
+         * frames); created on demand, destroyed with the caravan. A null slot
+         * is a figure that slipped away in the yard. */
+        escortCarriers: Array<Phaser.GameObjects.Graphics | null>;
         /** The village's own heraldry, carried huge by the bearer. */
         flag: FlagDesign;
     } | null = null;
@@ -326,6 +421,7 @@ export class WorldMapSystem {
             natureLife: [],
             sourceWorld: null,
             sourceRevision: null,
+            residentsRegistered: false,
             dx,
             dy,
             lastTextureInterestAt: this.scene.time?.now ?? 0
@@ -437,6 +533,10 @@ export class WorldMapSystem {
             // partially painted ring.
             const received = new Map((window?.plots ?? []).map(plot => [`${plot.x},${plot.y}`, plot]));
             const plots = this.fallbackFocusPlots(target, focusRadius).map(fallback => received.get(`${fallback.x},${fallback.y}`) ?? fallback);
+            // The focus window's kinds join the corner-rounding hints so the
+            // hidden ring's wilderness postcards see their neighbours' kinds
+            // (merge, not replace: the home ring is still on screen).
+            for (const plot of plots) this.knownPlotKindHints.set(`${plot.x},${plot.y}`, plot.kind);
             const expectedViews = plots.length - 1; // target itself stays live
             for (const plot of plots) {
                 const dx = plot.x - target.x;
@@ -472,7 +572,10 @@ export class WorldMapSystem {
                         // for camera prefetch instead of doubling transition
                         // memory with sixteen hidden 5.7 MB allocations.
                         if (Math.max(Math.abs(dx), Math.abs(dy)) <= 1) {
-                            this.renderSnapshot(view, world, dx, dy);
+                            // Residents defer to commitFocus: this hidden view
+                            // shares its key with a live one whenever the
+                            // battle ring overlaps the home ring.
+                            this.renderSnapshot(view, world, dx, dy, { deferResidents: true });
                             view.renderedRevision = revision;
                         }
                     } else {
@@ -564,7 +667,15 @@ export class WorldMapSystem {
         this.pendingFocus = null;
         for (const view of this.views.values()) this.destroyView(view);
         this.views = pending.views;
-        for (const view of this.views.values()) view.rt?.setVisible(true);
+        for (const view of this.views.values()) {
+            view.rt?.setVisible(true);
+            // The prepared ring is the visible world NOW. It takes ownership
+            // of the shared per-key registries (villager sims + night
+            // lights) the old ring released above — including plots the two
+            // rings share, whose registrations the deferral kept alive on
+            // the old ring right until this frame.
+            if (!view.residentsRegistered) this.registerVillageResidents(view);
+        }
         // The whole frame re-anchors on the target plot — everyone WALKING
         // the roads must re-anchor with it, or the fading column and every
         // traveller would jump by exactly one plot at the swap. The current
@@ -580,7 +691,10 @@ export class WorldMapSystem {
             trav.y -= shiftY;
             trav.tx -= shiftX;
             trav.ty -= shiftY;
-            if (trav.lightId !== null) this.scene.dayNight?.moveTransientLight?.(trav.lightId, trav.x + 0.7, trav.y);
+            if (trav.lightId !== null) {
+                const fire = this.campfireGrid(trav);
+                this.scene.dayNight?.moveTransientLight?.(trav.lightId, fire.gx, fire.gy);
+            }
         }
         if (this.caravan) {
             this.caravan.x -= shiftX;
@@ -629,6 +743,17 @@ export class WorldMapSystem {
         if (!pending) return;
         this.pendingFocus = null;
         for (const view of pending.views.values()) this.destroyView(view);
+    }
+
+    /**
+     * MY war standard: the exact banner the town hall flies (the owner's
+     * explicit choice from the cached own-world payload, or the identity
+     * default). The village banner IS the war banner — one heraldry at home,
+     * on the march and planted at the enemy gate.
+     */
+    private myWarBanner(): FlagDesign {
+        const identity = this.scene.userId || 'village';
+        return bannerDesignFor(identity, Backend.getCachedWorld(identity)?.banner ?? null);
     }
 
     /**
@@ -683,10 +808,11 @@ export class WorldMapSystem {
             // A declaration of war travels light: ONE bearer under the huge
             // flag. The army musters at the gate once the standard is down.
             escorts: [],
+            escortCarriers: [],
             speed: 0.0075 * Math.max(1, totalLen / 55),
             clothDir: 0,
             clothClimb: 0,
-            flag: villageFlagFor(this.scene.userId || 'village')
+            flag: this.myWarBanner()
         };
         soundSystem.play('horn');
     }
@@ -777,11 +903,62 @@ export class WorldMapSystem {
             homecoming: true,
             swapFired: false,
             escorts: escorts.slice(0, 24),
+            escortCarriers: [],
             speed: 0.0075 * Math.max(1, totalLen / 55),
             clothDir: 0,
             clothClimb: 0,
-            flag: villageFlagFor(this.scene.userId || 'village')
+            flag: this.myWarBanner()
         };
+        soundSystem.play('horn');
+    }
+
+    /**
+     * The war camp WITHOUT the journey: the standard is already planted and
+     * the bearer already stands at their gate. Cloud-transition attacks call
+     * this right after `commitFocus`, in the same synchronous frame, so the
+     * very first visible frame shows him in his final place — no march, no
+     * movement, and no `onArrive` (the caller drives the battle itself).
+     * `homeOffset` is the target's plot offset from home (its sign picks the
+     * gate side and facing the column WOULD have arrived with).
+     */
+    plantWarCamp(homeOffset: { dx: number; dy: number } | null) {
+        this.cancelMarch(true); // a NEXT raid replants at the new gate
+        const dx = homeOffset?.dx ?? 1;
+        const dy = homeOffset?.dy ?? 0;
+        // The halt point of roadRouteToPlot, expressed in the battle frame
+        // (the fought plot is the local origin after commitFocus): the
+        // vertical road lane hugging the gate-side edge, at mid-height.
+        const haltX = dx > 0 ? -1 : PLOT_TILES + 1;
+        const haltY = PLOT_TILES / 2;
+        // The final leg the column would have walked decides his facing.
+        const legDir = dy > 0 ? 1 : -1;
+        const haltIso = IsoUtils.cartToIso(haltX, haltY);
+        this.caravan = {
+            points: [{ x: haltX, y: haltY - legDir }, { x: haltX, y: haltY }],
+            seg: 1,
+            x: haltX,
+            y: haltY,
+            gfx: this.scene.add.graphics(),
+            onArrive: () => undefined,
+            lastTime: 0,
+            arriving: true, // committed: mode changes must not cancel the camp
+            walked: 1,
+            totalLen: 1,
+            camStart: { x: haltIso.x, y: haltIso.y },
+            camTarget: { x: haltIso.x, y: haltIso.y },
+            state: 'camp',
+            lightId: null,
+            homecoming: false,
+            swapFired: false,
+            escorts: [],
+            escortCarriers: [],
+            speed: 0,
+            clothDir: 0,
+            clothClimb: 0,
+            flag: this.myWarBanner()
+        };
+        // The audio handover that used to fire when the planting finished.
+        soundSystem.setBattleMusic(true);
         soundSystem.play('horn');
     }
 
@@ -807,23 +984,25 @@ export class WorldMapSystem {
         const plotDy = Math.floor(gy / PLOT_PITCH);
         const localX = gx - plotDx * PLOT_PITCH;
         const localY = gy - plotDy * PLOT_PITCH;
-        // The border roads between plots shed water like the lawn does.
-        if (localX >= PLOT_TILES || localY >= PLOT_TILES) return 'grass';
+        const onRoadBand = localX >= PLOT_TILES || localY >= PLOT_TILES;
         const plotX = anchor.x + plotDx;
         const plotY = anchor.y + plotDy;
 
         const worldX = plotX * PLOT_PITCH + localX;
         const worldY = plotY * PLOT_PITCH + localY;
+        // World hydrology first — it also flows THROUGH the border-road
+        // bands (the road yields to water), so this runs before the road
+        // early-out. Classification mirrors the renderer: lake body, then
+        // everything drawFeature paints beyond it (variable-width ribbons
+        // with their mouth flares, spring pools, wetland sink lobes).
         for (const feature of hydrologyFeaturesForPlot(plotX, plotY, this.presentationSeedVersion)) {
             if (featureContainsWorldPoint(feature, worldX, worldY)) return 'water';
-            for (const reach of feature.network.reaches) {
-                if (reach.kind === 'lake-passage' || reach.width <= 0) continue;
-                const d = WorldMapSystem.distanceToPolyline(reach.points, worldX, worldY);
-                if (d <= reach.width * 0.5) return 'water';
-                if (d <= reach.width * 0.5 + 1.1) return 'bank';
-            }
-            if (featureContainsWorldPoint(feature, worldX, worldY, 'bank')) return 'bank';
+            const drawn = WorldHydrologyRenderer.classifyDrawnSurfaceAt(feature, worldX, worldY);
+            if (drawn === 'water') return 'water';
+            if (drawn === 'bank' || featureContainsWorldPoint(feature, worldX, worldY, 'bank')) return 'bank';
         }
+        // Off the water, the border roads shed rain like the lawn does.
+        if (onRoadBand) return 'grass';
 
         const view = this.views.get(`${plotX},${plotY}`);
         if (view?.contentKind !== 'nature' || !view.natureWaters) return 'grass';
@@ -867,6 +1046,8 @@ export class WorldMapSystem {
         if (!c.homecoming && c.state !== 'camp') soundSystem.setBattleMusic(false);
         this.caravan = null;
         c.gfx.destroy();
+        for (const carrier of c.escortCarriers) carrier?.destroy();
+        c.escortCarriers.length = 0;
         if (c.lightId !== null) this.scene.dayNight?.removeTransientLight(c.lightId);
         if (!c.arriving && !silent) c.onCancel?.();
     }
@@ -982,7 +1163,18 @@ export class WorldMapSystem {
         // was still crossing the middle of its own lawn.
         const dz = Math.round((x - PLOT_TILES / 2) / PLOT_PITCH)
             + Math.round((y - PLOT_TILES / 2) / PLOT_PITCH);
-        return dz < 0 ? 420.5 + dz : dz === 0 ? 785 : 26_000.5 + dz;
+        if (dz === 0) {
+            // Home band: sort WITH the live village by painter's order (the
+            // DepthSystem row formula) instead of a flat sub-1000 constant.
+            // A war camp planted at an east/south gate stands in FRONT of
+            // most buildings (larger x+y) and now paints over them, while a
+            // camp on the north/west side keeps a smaller row sum and stays
+            // correctly behind — the flat 785 hid every camp behind the
+            // whole village. Stays above the home postcard (780) and far
+            // below the SE band (26 000+).
+            return 1000 + (x + y) * 100 + (x - y);
+        }
+        return dz < 0 ? 420.5 + dz : 26_000.5 + dz;
     }
 
     private drawCaravan(
@@ -1001,6 +1193,7 @@ export class WorldMapSystem {
             clothClimb: number;
             homecoming: boolean;
             escorts: string[];
+            escortCarriers: Array<Phaser.GameObjects.Graphics | null>;
             flag: FlagDesign;
         },
         time: number
@@ -1009,30 +1202,16 @@ export class WorldMapSystem {
         g.clear();
         g.setDepth(this.roadDepthAt(c.x, c.y));
 
-        // One troop on foot: cloaked in its type colour, spear shouldered,
-        // heavier types drawn bigger — the column LOOKS like your army.
-        const soldier = (x: number, y: number, type: string, wobble: number) => {
-            const def = TROOP_DEFINITIONS[type as keyof typeof TROOP_DEFINITIONS];
-            const s = (def && def.space >= 5 ? 1.45 : def && def.space >= 3 ? 1.18 : 1) * 1.32;
-            g.fillStyle(0x000000, 0.15);
-            g.fillEllipse(x, y + 2.6 * s, 7.4 * s, 2.9 * s);
-            // Dark edge first so the cloak pops off any grass tone.
-            g.fillStyle(0x1c1a16, 0.85);
-            g.fillTriangle(x - 3.8 * s, y + 2.4 * s, x + 3.8 * s, y + 2.4 * s, x, y - (8.2 + wobble) * s);
-            g.fillStyle(def?.color ?? 0xb8bfca, 1);
-            g.fillTriangle(x - 3.1 * s, y + 2 * s, x + 3.1 * s, y + 2 * s, x, y - (7.5 + wobble) * s);
-            g.fillStyle(0xd9b38c, 1);
-            g.fillCircle(x, y - (8.6 + wobble) * s, 1.9 * s);
-            // Spear on the shoulder, steel tip catching the light.
-            g.lineStyle(1.4, 0x6e5136, 1);
-            g.lineBetween(x + 2.2 * s, y + 1.8 * s, x + 4.4 * s, y - (12 + wobble) * s);
-            g.fillStyle(0xd8d8e0, 1);
-            g.fillTriangle(
-                x + 4.4 * s - 1.2, y - (12 + wobble) * s,
-                x + 4.4 * s + 1.2, y - (12 + wobble) * s,
-                x + 4.4 * s, y - (14.4 + wobble) * s
-            );
-        };
+        if (c.state !== 'march') {
+            // The column only draws while marching (outbound escorts are
+            // empty; homecoming never leaves 'march') — never let a stale
+            // sprite carrier outlive the state the way a cleared vector
+            // graphics never could.
+            for (let i = 0; i < c.escortCarriers.length; i++) {
+                c.escortCarriers[i]?.destroy();
+                c.escortCarriers[i] = null;
+            }
+        }
 
         if (c.state === 'march') {
             // A small bearer under a HUGE flag leads; the actual troops
@@ -1050,7 +1229,12 @@ export class WorldMapSystem {
                 const back = 2.6 + Math.floor(e / 2) * 2.1;
                 const along = c.walked - back;
                 // Home: each figure slips away as it reaches the yard.
-                if (homebound && along >= c.totalLen - 0.05) return;
+                if (homebound && along >= c.totalLen - 0.05) {
+                    // Retire its sprite carrier for good — the walk is monotonic.
+                    c.escortCarriers[e]?.destroy();
+                    c.escortCarriers[e] = null;
+                    return;
+                }
                 const at = WorldMapSystem.routePoint(c.points, Math.max(0, along));
                 const side = (e % 2 === 0 ? 1 : -1) * 0.8;
                 let px = at.x - at.fy * side;
@@ -1061,8 +1245,25 @@ export class WorldMapSystem {
                     py -= at.fy * Math.min(4.5, -along * 0.4);
                 }
                 const pos = IsoUtils.cartToIso(px, py);
-                const wobble = Math.abs(Math.sin(time * 0.009 + e * 1.31)) * 1.3;
-                soldier(pos.x, pos.y, type, wobble);
+                // One troop on foot, cloaked in its type colour — the column
+                // LOOKS like your army (wobble seed staggers each rank).
+                // Baked-sprite path: each escort rides its own carrier so the
+                // whole rank shows caravan_soldier walk frames. The march
+                // wobble |sin(time*0.009 + e*1.31)| loops every π/0.009 ms
+                // (~349); the rank seed folds in as its exact time offset.
+                let carrier = c.escortCarriers[e];
+                if (!carrier) {
+                    carrier = this.scene.add.graphics();
+                    c.escortCarriers[e] = carrier;
+                }
+                carrier.setDepth(g.depth); // same painter band as the column's shared g
+                const phase = ((time + (e * 1.31) / 0.009) % (Math.PI / 0.009)) / (Math.PI / 0.009);
+                if (!SpriteBank.syncFigure(this.scene, carrier, 'caravan_soldier', type, 'walk', phase,
+                    false, { kind: 'figures', at: { x: pos.x, y: pos.y } })) {
+                    // No bake (or sprites off): the old inline vector column.
+                    SpriteBank.release(carrier);
+                    WorldFigureRenderer.drawCaravanSoldier(g, pos.x, pos.y, type, time, e * 1.31);
+                }
             });
             return;
         }
@@ -1082,26 +1283,23 @@ export class WorldMapSystem {
             const lift = Math.sin(hoist * Math.PI * 0.5) * 9 * (1 - thrust)
                 + (thrust >= 1 && settle < 0.15 ? -1.2 * (1 - settle / 0.15) : 0);
             drawVillageFlag(g, pos.x + facing * 1.3, groundY - lift, time, c.flag, facing, { marching: false });
-            // The strike kicks up a ring of dust.
+            // The strike kicks up a ring of dust — perimeter pixel cells.
             if (thrust > 0 && settle < 0.6) {
                 const dust = Math.min(1, thrust * 0.4 + settle);
-                g.lineStyle(2, 0xbfae8e, 0.5 * (1 - dust));
-                g.strokeEllipse(pos.x + facing * 1.3, groundY, 8 + dust * 22, (8 + dust * 22) * 0.42);
+                const ringW = 8 + dust * 22;
+                pixelRing(g, pos.x + facing * 1.3, groundY, ringW / 2, ringW * 0.42 / 2,
+                    0xbfae8e, 0.5 * (1 - dust));
             }
             // The bearer: gripping through the hoist, stepping back after.
             const bx = pos.x - facing * (2 + 6 * settle);
             const bob = thrust > 0 && thrust < 1 ? 1.4 : 0;
-            g.fillStyle(0x000000, 0.16);
-            g.fillEllipse(bx, groundY + 1, 9, 3.4);
-            g.fillStyle(c.flag.field, 1);
-            g.fillTriangle(bx - 3.6, groundY, bx + 3.6, groundY, bx, groundY - 10.5 + bob);
-            g.fillStyle(0xd9b38c, 1);
-            g.fillCircle(bx, groundY - 11.6 + bob, 2.1);
+            pixelEllipse(g, bx, groundY + 1, 4.5, 1.7, 0x000000, 0.16);
+            pixelTriangleRows(g, bx, groundY - 10.5 + bob, bx - 3.6, bx + 3.6, groundY, c.flag.field);
+            pixelEllipse(g, bx, groundY - 11.6 + bob, 2.1, 2.1, 0xd9b38c, 1);
             if (settle < 0.4) {
                 // Both fists still on the pole, high from the hoist.
-                g.fillStyle(0xd9b38c, 1);
-                g.fillCircle(pos.x + facing * 0.4, groundY - 12 - lift * 0.6, 1.1);
-                g.fillCircle(pos.x + facing * 0.1, groundY - 8.5 - lift * 0.6, 1.1);
+                pixelEllipse(g, pos.x + facing * 0.4, groundY - 12 - lift * 0.6, 1.1, 1.1, 0xd9b38c, 1);
+                pixelEllipse(g, pos.x + facing * 0.1, groundY - 8.5 - lift * 0.6, 1.1, 1.1, 0xd9b38c, 1);
             }
             return;
         }
@@ -1131,6 +1329,7 @@ export class WorldMapSystem {
         lightId: number | null;
         routeLength: number;
         campProgress: number;
+        lastDrawTick?: number;
     }> = [];
     private nextTravellerAt = 0;
     private lastTravellerUpdateAt = 0;
@@ -1149,6 +1348,25 @@ export class WorldMapSystem {
             return { x: forward ? LO : HI, y: lanePos, tx: forward ? HI : LO, ty: lanePos };
         }
         return { x: lanePos, y: forward ? LO : HI, tx: lanePos, ty: forward ? HI : LO };
+    }
+
+    /**
+     * Where a camped traveller's bonfire actually burns, in grid coords.
+     * The camp frame (WorldFigureRenderer's camp pose, baked or vector)
+     * draws the fire ~9.5 screen px from the figure toward the walking
+     * direction — the runtime flip-X mirrors it — sitting on the ground
+     * line. The firelight pool must project THERE; the old fixed +0.7gx
+     * offset parked the glow ~1.4 tiles ESE of the flames on empty road.
+     * Screen→grid inverse: dgx = dsx/64 + dsy/32, dgy = dsy/32 − dsx/64.
+     */
+    private campfireGrid(trav: { x: number; y: number; tx: number }): { gx: number; gy: number } {
+        const facing = trav.tx >= trav.x ? 1 : -1; // drawTraveller's flip rule
+        const dsx = 9.5 * facing; // flame centre in the camp frame
+        const dsy = 0.5;          // the fire sits on the figure's ground line
+        return {
+            gx: trav.x + dsx / TILE_WIDTH + dsy / TILE_HEIGHT,
+            gy: trav.y + dsy / TILE_HEIGHT - dsx / TILE_WIDTH
+        };
     }
 
     /**
@@ -1214,9 +1432,10 @@ export class WorldMapSystem {
                     trav.camped = true;
                     trav.state = 'camp';
                     trav.campUntil = time + 90_000 + Math.random() * 120_000;
+                    const fire = this.campfireGrid(trav);
                     trav.lightId = this.scene.dayNight?.addTransientLight({
-                        gx: trav.x + 0.7,
-                        gy: trav.y,
+                        gx: fire.gx,
+                        gy: fire.gy,
                         radius: 46,
                         tint: 0xffa14a,
                         until: Date.now() + 6 * 60_000
@@ -1240,170 +1459,56 @@ export class WorldMapSystem {
         this.travellers.splice(index, 1);
     }
 
-    private drawTraveller(trav: { kind: string; x: number; y: number; tx: number; ty: number; gfx: Phaser.GameObjects.Graphics; seed: number; state: string }, time: number) {
-        // Road walkers are per-frame vector figures: smooth until their
-        // sprite bake lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
+    /**
+     * Re-register the camped travellers' bonfire glows after
+     * DayNightSystem.clearLights() wiped every transient light (scene
+     * swap / home reload). The travellers survive those — their fires keep
+     * burning on screen — so the glow must come back with them, not stay a
+     * stale id pointing at a destroyed rig.
+     */
+    resyncTravellerLights() {
+        for (const trav of this.travellers) {
+            if (trav.state !== 'camp') continue;
+            const fire = this.campfireGrid(trav);
+            trav.lightId = this.scene.dayNight?.addTransientLight({
+                gx: fire.gx,
+                gy: fire.gy,
+                radius: 46,
+                tint: 0xffa14a,
+                until: Date.now() + 6 * 60_000
+            }) ?? null;
+        }
+    }
+
+    private drawTraveller(trav: { kind: string; x: number; y: number; tx: number; ty: number; gfx: Phaser.GameObjects.Graphics; seed: number; state: 'walk' | 'camp'; lastDrawTick?: number }, time: number) {
+        // Road walkers step on the shared figure clock, like every village.
+        const tk = figureTick(time);
+        if (trav.lastDrawTick === tk) return;
+        trav.lastDrawTick = tk;
         const pos = IsoUtils.cartToIso(trav.x, trav.y);
         const wv = this.scene.cameras.main.worldView;
         const g = trav.gfx;
         g.clear();
-        if (pos.x < wv.x - 60 || pos.x > wv.right + 60 || pos.y < wv.y - 60 || pos.y > wv.bottom + 60) return;
+        // The CARRIER owns position/depth even while culled: the baked shadow
+        // sprite follows it per frame (SpriteBank.update), so a traveller that
+        // walks on while off-view can't linger as a ghost at the cull edge.
+        g.setPosition(pos.x, pos.y);
         g.setDepth(this.roadDepthAt(trav.x, trav.y));
+        if (pos.x < wv.x - 60 || pos.x > wv.right + 60 || pos.y < wv.y - 60 || pos.y > wv.bottom + 60) return;
 
         const facing = trav.tx >= trav.x ? 1 : -1;
-        if (trav.state === 'camp') {
-            // Bedroll + bonfire: crossed logs and a flickering two-tongue flame.
-            g.fillStyle(0x000000, 0.16);
-            g.fillEllipse(pos.x, pos.y + 3, 22, 8);
-            g.lineStyle(2, 0x5c4326, 1);
-            g.lineBetween(pos.x + 6, pos.y + 2, pos.x + 13, pos.y - 1);
-            g.lineBetween(pos.x + 6, pos.y - 1, pos.x + 13, pos.y + 2);
-            const lick = Math.sin(time * 0.02 + trav.seed) * 1.6;
-            g.fillStyle(0xff7a2a, 0.95);
-            g.fillTriangle(pos.x + 7, pos.y, pos.x + 12, pos.y, pos.x + 9.5 + lick * 0.4, pos.y - 7 - Math.abs(lick));
-            g.fillStyle(0xffc36a, 0.95);
-            g.fillTriangle(pos.x + 8, pos.y, pos.x + 11, pos.y, pos.x + 9.5 + lick * 0.3, pos.y - 4.4 - Math.abs(lick) * 0.6);
-            // The traveller sits by it, hood up.
-            g.fillStyle(0x4a4258, 1);
-            g.fillEllipse(pos.x - 2, pos.y - 3, 7.5, 8);
-            g.fillStyle(0xd9b38c, 1);
-            g.fillCircle(pos.x - 2, pos.y - 8, 2.4);
-            g.fillStyle(0x3c3648, 1);
-            g.fillEllipse(pos.x - 2, pos.y - 9.4, 5.4, 3);
+        // Baked-sprite path — gait loop π/0.008 (the |sin| bob), camp fire
+        // loop 2π/0.02; the seed folds in as its exact time offset.
+        const loop = trav.state === 'camp' ? (Math.PI * 2) / 0.02 : Math.PI / 0.008;
+        const seedMs = trav.seed / (trav.state === 'camp' ? 0.02 : 0.008);
+        const phase = ((((time + seedMs) % loop) + loop) % loop) / loop;
+        if (SpriteBank.syncFigure(this.scene, g, `traveller_${trav.kind}`, 'c', trav.state, phase,
+            facing === -1, { kind: 'figures' })) {
             return;
         }
-
-        const bob = Math.abs(Math.sin(time * 0.008 + trav.seed)) * 1.4;
-
-        // A little walking figure, reused by several kinds.
-        const walker = (x: number, y: number, cloak: number, skin: number, hood: number | null, wobble: number) => {
-            g.fillStyle(0x000000, 0.15);
-            g.fillEllipse(x, y + 3, 9, 3.6);
-            g.fillStyle(cloak, 1);
-            g.fillTriangle(x - 4, y + 2, x + 4, y + 2, x, y - 9 - wobble);
-            g.fillStyle(skin, 1);
-            g.fillCircle(x, y - 10 - wobble, 2.3);
-            if (hood !== null) {
-                g.fillStyle(hood, 1);
-                g.fillEllipse(x, y - 11.4 - wobble, 5, 2.8);
-            }
-        };
-        switch (trav.kind) {
-            case 'courier': {
-                // A runner at full stride: satchel bouncing, dust at his heels.
-                const stride = Math.abs(Math.sin(time * 0.016 + trav.seed)) * 2.6;
-                walker(pos.x, pos.y, 0x2f5f8a, 0xd9b38c, null, stride);
-                g.fillStyle(0x8a6a42, 1);
-                g.fillEllipse(pos.x - 3.4 * facing, pos.y - 6 - stride * 0.4, 3.6, 2.8);
-                g.lineStyle(1, 0x6a5432, 1);
-                g.lineBetween(pos.x - 3.4 * facing, pos.y - 8 - stride * 0.4, pos.x + 1 * facing, pos.y - 11 - stride);
-                for (let d = 0; d < 2; d++) {
-                    const cycle = ((time * 0.003 + d * 0.5 + trav.seed) % 1);
-                    g.fillStyle(0xcbb894, 0.28 * (1 - cycle));
-                    g.fillCircle(pos.x - (7 + cycle * 7) * facing, pos.y + 2, 1.4 + cycle * 1.8);
-                }
-                break;
-            }
-            case 'monk': {
-                // A brown-robed brother, hands folded, unhurried.
-                walker(pos.x, pos.y, 0x6a4f30, 0xd9b38c, 0x59422a, bob * 0.6);
-                g.fillStyle(0x8a6a42, 1);
-                g.fillEllipse(pos.x, pos.y - 4 - bob * 0.6, 5.6, 1.6); // rope belt
-                g.fillStyle(0xd9b38c, 1);
-                g.fillEllipse(pos.x + 2.6 * facing, pos.y - 5.4 - bob * 0.6, 2.2, 1.6); // folded hands
-                break;
-            }
-            case 'hunter': {
-                // Green hood, bow across the back — a lean dog trots ahead.
-                walker(pos.x, pos.y, 0x3f5f38, 0xd9b38c, 0x33502e, bob);
-                g.lineStyle(1.3, 0x8a6a42, 1);
-                g.beginPath();
-                g.arc(pos.x - 2 * facing, pos.y - 6 - bob, 5.4, -1.2, 1.2);
-                g.strokePath();
-                g.lineStyle(0.8, 0xd8d2c4, 0.9);
-                g.lineBetween(pos.x - 2 * facing, pos.y - 11.2 - bob, pos.x - 2 * facing, pos.y - 0.8 - bob);
-                const dogX = pos.x + 11 * facing + Math.sin(time * 0.006 + trav.seed) * 2;
-                const trot = Math.abs(Math.sin(time * 0.014 + trav.seed)) * 1;
-                g.fillStyle(0x000000, 0.13);
-                g.fillEllipse(dogX, pos.y + 3, 7, 2.6);
-                g.fillStyle(0x5a4a36, 1);
-                g.fillEllipse(dogX, pos.y - 1 - trot, 7, 3.4);
-                g.fillCircle(dogX + 3.6 * facing, pos.y - 3 - trot, 1.9);
-                g.lineStyle(1.1, 0x5a4a36, 1);
-                g.lineBetween(dogX - 3.4 * facing, pos.y - 2 - trot, dogX - 5.4 * facing, pos.y - 4.6 - trot);
-                break;
-            }
-            case 'woodcutter': {
-                // Broad fellow under a shoulder-load of logs.
-                walker(pos.x, pos.y, 0x7a5638, 0xd9b38c, null, bob * 0.7);
-                g.fillStyle(0x8a6440, 1);
-                g.fillRect(pos.x - 7, pos.y - 12.5 - bob * 0.7, 14, 2.2);
-                g.fillStyle(0x6e4e30, 1);
-                g.fillRect(pos.x - 7, pos.y - 14.7 - bob * 0.7, 14, 2.2);
-                g.fillStyle(0xc9b593, 1);
-                g.fillEllipse(pos.x - 7, pos.y - 13.6 - bob * 0.7, 1.6, 2.8);
-                g.fillEllipse(pos.x + 7, pos.y - 13.6 - bob * 0.7, 1.6, 2.8);
-                break;
-            }
-            case 'marketgoer': {
-                // Off to the neighbours' stalls: bright dress, full basket.
-                walker(pos.x, pos.y, 0x8a4a62, 0xd9b38c, 0xc9a24a, bob);
-                g.fillStyle(0x8a6a42, 1);
-                g.fillEllipse(pos.x + 4.4 * facing, pos.y - 4.6 - bob, 4.2, 3);
-                g.lineStyle(1, 0x6a5432, 1);
-                g.beginPath();
-                g.arc(pos.x + 4.4 * facing, pos.y - 6.2 - bob, 2, Math.PI, 0);
-                g.strokePath();
-                g.fillStyle(0xd85a3c, 1);
-                g.fillCircle(pos.x + 3.4 * facing, pos.y - 6 - bob, 0.9);
-                g.fillStyle(0x6fae4a, 1);
-                g.fillCircle(pos.x + 5.4 * facing, pos.y - 6.2 - bob, 0.9);
-                break;
-            }
-            case 'shepherd': {
-                walker(pos.x, pos.y, 0x6a5a3c, 0xd9b38c, 0x8a744e, bob);
-                g.lineStyle(1.4, 0x8a6a42, 1);
-                g.lineBetween(pos.x + 4 * facing, pos.y + 3, pos.x + 5.5 * facing, pos.y - 9 - bob);
-                g.lineStyle(1.4, 0x8a6a42, 1);
-                const hookX = pos.x + 5.5 * facing;
-                g.lineBetween(hookX, pos.y - 9 - bob, hookX + 2 * facing, pos.y - 10.5 - bob);
-                // Two sheep amble behind, out of step with each other.
-                for (let s = 0; s < 2; s++) {
-                    const sx = pos.x - (9 + s * 8) * facing + Math.sin(time * 0.004 + s * 2 + trav.seed) * 1.6;
-                    const sy = pos.y + 1 + Math.cos(time * 0.005 + s * 3) * 0.8;
-                    const hop = Math.abs(Math.sin(time * 0.009 + s * 1.7 + trav.seed)) * 1;
-                    g.fillStyle(0x000000, 0.14);
-                    g.fillEllipse(sx, sy + 2.4, 7, 2.6);
-                    g.fillStyle(0xe8e2d4, 1);
-                    g.fillEllipse(sx, sy - 2 - hop, 7.5, 5);
-                    g.fillStyle(0x3c3226, 1);
-                    g.fillEllipse(sx + 3.6 * facing, sy - 3 - hop, 2.6, 2.2);
-                    g.lineStyle(1, 0x3c3226, 1);
-                    g.lineBetween(sx - 2, sy, sx - 2, sy + 2.2);
-                    g.lineBetween(sx + 2, sy, sx + 2, sy + 2.2);
-                }
-                break;
-            }
-            case 'patrol': {
-                // A guard walking the beat: mail, kite shield, tall spear.
-                walker(pos.x, pos.y, 0x5a6470, 0xd9b38c, null, bob);
-                g.fillStyle(0x8a9aae, 1);
-                g.fillEllipse(pos.x, pos.y - 11.6 - bob, 4.6, 3.4);
-                g.fillStyle(0x2f5f8a, 1);
-                g.fillTriangle(pos.x - 4.5 * facing, pos.y - 7 - bob, pos.x - 1.5 * facing, pos.y - 7 - bob, pos.x - 3 * facing, pos.y - 1 - bob);
-                g.lineStyle(1.3, 0x8a6a42, 1);
-                g.lineBetween(pos.x + 3.5 * facing, pos.y + 2, pos.x + 3.5 * facing, pos.y - 14 - bob);
-                g.fillStyle(0xc8d4e4, 1);
-                g.fillTriangle(pos.x + 3.5 * facing - 1.4, pos.y - 14 - bob, pos.x + 3.5 * facing + 1.4, pos.y - 14 - bob, pos.x + 3.5 * facing, pos.y - 17.5 - bob);
-                break;
-            }
-            default: {
-                // The hooded wanderer, staff in hand.
-                walker(pos.x, pos.y, 0x4a4258, 0xd9b38c, 0x3c3648, bob);
-                g.lineStyle(1.4, 0x8a6a42, 1);
-                g.lineBetween(pos.x + 4 * facing, pos.y + 3, pos.x + 5.5 * facing, pos.y - 8 - bob);
-            }
-        }
+        SpriteBank.release(g);
+        // Carrier is positioned now — the vector figure draws at local origin.
+        WorldFigureRenderer.drawTraveller(g, 0, 0, trav.kind, facing, time, trav.seed, trav.state);
     }
 
 
@@ -1416,7 +1521,16 @@ export class WorldMapSystem {
         // Only the HOME scene holds MY buildings; battles keep the last value.
         // ONE source of truth: the same shared sight function the server uses.
         if (this.scene.mode === 'HOME' && !this.focusPlot) {
-            const standing = (this.scene.buildings ?? []).filter(b => b.health > 0);
+            // Sight is EARNED AT COMPLETION: a freshly placed watchtower whose
+            // scaffold is still up contributes nothing yet, so the clouds
+            // retreat when the build finishes — together with the content the
+            // completion-triggered refresh fetches — instead of exposing bare
+            // meadow for the whole build. (Upgrades need no gate here: an
+            // upgrading tower keeps its old `level` until the clock matures.)
+            const underConstruction = (id: string | undefined) => Boolean(id
+                && this.scene.villageLife?.isPlacementUnderConstruction?.(id));
+            const standing = (this.scene.buildings ?? []).filter(b => b.health > 0
+                && !(b.type === 'watchtower' && underConstruction(b.id)));
             const next = watchtowerSightOf(standing as never);
             if (next !== this.viewRadiusValue) {
                 this.viewRadiusValue = next;
@@ -1425,7 +1539,11 @@ export class WorldMapSystem {
                 this.nextRefreshAt = 0;
             }
         }
-        return this.focusPlot ? Math.max(1, this.viewRadiusValue) : this.viewRadiusValue;
+        // A battle frame prepares EXACTLY the one-ring context (prepareFocus's
+        // focusRadius) — never the home exploration horizon. Sizing the fog
+        // to a level-2 watchtower's earned radius here uncovered a 16-plot
+        // ring of barren meadow no postcard was ever prepared for.
+        return this.focusPlot ? 1 : this.viewRadiusValue;
     }
 
     /** Re-anchor all plot-relative state when another device relocates home. */
@@ -1519,6 +1637,17 @@ export class WorldMapSystem {
         this.ensureFog(radius);
         if (radius <= 0) return;
 
+        // Kind hints first, postcards second: the fallback ring is all wilds,
+        // and its corner rounding must see that before the first plot paints
+        // (or every joined crossing bakes stray shoulder arcs for one pass).
+        this.knownPlotKindHints = new Map();
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                const x = this.myPlot.x + dx;
+                const y = this.myPlot.y + dy;
+                this.knownPlotKindHints.set(`${x},${y}`, dx === 0 && dy === 0 ? 'player' : 'empty');
+            }
+        }
         for (let dy = -radius; dy <= radius; dy++) {
             for (let dx = -radius; dx <= radius; dx++) {
                 if (dx === 0 && dy === 0) continue;
@@ -1602,6 +1731,10 @@ export class WorldMapSystem {
         DayNightSystem.serverOffsetMs = window.serverNow - Date.now();
         this.clearFallbackViews();
         this.ensureWilderness();
+        // Every plot kind of the window is known BEFORE any postcard paints:
+        // wilderness corner rounding consults the neighbours' kinds, and
+        // views alone would lag one whole refresh behind on first load.
+        this.knownPlotKindHints = new Map(window.plots.map(p => [`${p.x},${p.y}`, p.kind]));
 
         // Drop views that left the window (relocation, radius change).
         const present = new Set(window.plots.map(p => `${p.x},${p.y}`));
@@ -1758,7 +1891,12 @@ export class WorldMapSystem {
      * is a shared fact, not a client whim.
      */
     private wildernessRevisionAt(plotX: number, plotY: number): string {
-        const base = WildernessRenderer.renderRevision(plotX, plotY, this.presentationSeedVersion);
+        const raw = WildernessRenderer.renderRevision(plotX, plotY, this.presentationSeedVersion);
+        // Corner rounding is topology-dependent (joined corners stay square),
+        // so the cut flags join the cache key: a neighbour settling or
+        // leaving re-renders exactly the postcards whose corners changed.
+        const cuts = this.wildCornerCutFlags(plotX, plotY);
+        const base = `${raw}_r${Number(cuts.nw)}${Number(cuts.ne)}${Number(cuts.se)}${Number(cuts.sw)}`;
         const featureIds = classifyHydrologyPlot(plotX, plotY, this.presentationSeedVersion)
             .features.map(feature => feature.id).join('|');
         return featureIds
@@ -1766,12 +1904,47 @@ export class WorldMapSystem {
             : base;
     }
 
+    /** The freshest known kind for an absolute plot: response hints first
+     * (they arrive before sibling views exist), then the rendered views. */
+    private plotKindAt(x: number, y: number): WorldMapPlot['kind'] | null {
+        return this.knownPlotKindHints.get(`${x},${y}`)
+            ?? this.views.get(`${x},${y}`)?.plot.kind
+            ?? null;
+    }
+
+    /**
+     * Which corners of a plot's postcard get the rounded lawn cut. A corner
+     * stays SQUARE only where its junction is fully joined meadow (all four
+     * parcels known wilderness — the crossing there is reclaimed grass and
+     * the checker must run through unbroken). Unknown parcels fail closed
+     * to roads, exactly like buildWildernessTopology, so every corner that
+     * can face road earth is rounded like a village lawn's.
+     */
+    private wildCornerCutFlags(plotX: number, plotY: number): { nw: boolean; ne: boolean; se: boolean; sw: boolean } {
+        const wild = (x: number, y: number): boolean => this.plotKindAt(x, y) === 'empty';
+        const joined = (bx: number, by: number): boolean =>
+            wild(bx - 1, by - 1) && wild(bx, by - 1) && wild(bx - 1, by) && wild(bx, by);
+        return {
+            nw: !joined(plotX, plotY),
+            ne: !joined(plotX + 1, plotY),
+            se: !joined(plotX + 1, plotY + 1),
+            sw: !joined(plotX, plotY + 1)
+        };
+    }
+
     private fallbackNatureRevision(plot: WorldMapPlot, viewKey: string): string {
         return `fallback_${plot.ownerId ?? plot.seed ?? viewKey}_nature_s${this.presentationSeedVersion}`;
     }
 
     private renderNaturePostcard(view: NeighborView, dx: number, dy: number) {
-        this.neighborLifeSim?.removeVillage(view.key);
+        // A plot going nature-side drops its residents — but only if THIS
+        // view registered them (a hidden focus view must not silence the
+        // live ring's village rendered under the same key).
+        if (view.residentsRegistered) {
+            this.neighborLifeSim?.removeVillage(view.key);
+            this.scene.dayNight?.clearPostcardLights?.(view.key);
+            view.residentsRegistered = false;
+        }
         const offX = dx * PLOT_PITCH;
         const offY = dy * PLOT_PITCH;
         const ringDist = Math.max(Math.abs(dx), Math.abs(dy));
@@ -1783,9 +1956,21 @@ export class WorldMapSystem {
         // One world feature must rasterize at one resolution. A Great Lake can
         // straddle the ring-1/ring-2 LOD boundary; mixing full-size and 0.35x RTs
         // made their otherwise identical water meet in a faint diagonal X.
+        //
+        // Near wild parcels sample at the SHIPPED 1.35 world-px texel grid
+        // (PIXEL_LOD = 1/1.35): rasterize full size, then the SNAP<1 branch
+        // below point-samples one NEAREST texel per 1.35 px — exactly the
+        // bake pipeline's cell. At full resolution the 1.35-cell RT quantize
+        // is a near no-op (its cells collapse to 1-2 px), so the smooth AA
+        // trees/tufts WildernessRenderer authors stayed visibly smooth on a
+        // live-adjacent layer while everything around them was chunky — the
+        // pixel-contract violation. Hydrology plots keep SNAPSHOT_SCALE: all
+        // their details are PixelDraw cells already, and one shared feature
+        // must keep one resolution across every ring it spans.
+        const PIXEL_LOD = 1 / 1.35;
         const SNAP = hydrology.length > 0
             ? SNAPSHOT_SCALE
-            : ringDist >= 3 ? 0.25 : ringDist >= 2 ? 0.35 : SNAPSHOT_SCALE;
+            : ringDist >= 3 ? 0.25 : ringDist >= 2 ? 0.35 : SNAPSHOT_SCALE * PIXEL_LOD;
         const seed = wildernessPlotPresentationSeed(
             view.plot.x,
             view.plot.y,
@@ -1797,12 +1982,24 @@ export class WorldMapSystem {
         // absolute pattern coordinates lets two empty parcels meet without
         // exposing a square tint/checker seam when their road is reclaimed.
         const palette = wildernessGrassPalette(this.presentationSeedVersion);
+        // Wild plots round their corners exactly like village lawns wherever
+        // a road still runs past that corner; a corner whose whole junction
+        // is joined meadow stays square so the checker runs through
+        // uninterrupted. The junction's packed-earth bed (see
+        // drawRoundedRoadJunctions) shows through the cut.
+        const cuts = this.wildCornerCutFlags(view.plot.x, view.plot.y);
+        const lastTile = PLOT_TILES - 1;
         for (let ty = 0; ty < PLOT_TILES; ty++) {
             for (let tx = 0; tx < PLOT_TILES; tx++) {
                 const p = IsoUtils.cartToIso(offX + tx, offY + ty);
                 const worldTileX = view.plot.x * PLOT_PITCH + tx;
                 const worldTileY = view.plot.y * PLOT_PITCH + ty;
-                drawGrassTile(g, p.x, p.y, 64, 32, worldTileX, worldTileY, palette, false);
+                const cut = tx === 0 && ty === 0 && cuts.nw ? 'nw'
+                    : tx === lastTile && ty === 0 && cuts.ne ? 'ne'
+                        : tx === lastTile && ty === lastTile && cuts.se ? 'se'
+                            : tx === 0 && ty === lastTile && cuts.sw ? 'sw'
+                                : undefined;
+                drawGrassTile(g, p.x, p.y, 64, 32, worldTileX, worldTileY, palette, false, cut);
             }
         }
         if (hydrology.length > 0) {
@@ -1870,13 +2067,47 @@ export class WorldMapSystem {
         applyTextureSampling(rt.texture, TextureSampling.PIXEL_ART);
         rt.setOrigin(0, 0);
         rt.setScale(1 / SNAP);
-        g.setScale(SNAP);
-        rt.draw(g, -bx * SNAP, -by * SNAP);
+        if (SNAP < 1) {
+            // LOD parcels must stay pixel-art. Rasterizing the vector
+            // directly at the reduced scale bakes anti-aliased gradients into
+            // every texel, and the 1.35*SNAP quantize cell (<1 RT px) is a
+            // no-op — the magnification then read as a smooth blur. Instead:
+            // rasterize LARGE and write one PURE center sample per texel via
+            // SpriteBank.pointSampleRenderTexture (the bake harness's exact
+            // math). The renderer must not do the scaling itself — a NEAREST
+            // filter request is not honored by the Canvas renderer's
+            // RT-to-RT draw, which area-averages and hands the AA gradients
+            // straight through (the ring-1 "smooth trees on a chunky lawn"
+            // contract violation). Near parcels (the fine 1.35-px texel
+            // grid) supersample 2x first so the vector's AA rim shrinks to
+            // half a texel and most edge samples land on pure paint.
+            const SS = SNAP > 0.5 ? 2 : 1;
+            const full = this.scene.make.renderTexture(
+                { x: 0, y: 0, width: Math.ceil(bw * SS), height: Math.ceil(bh * SS) },
+                false
+            );
+            applyTextureSampling(full.texture, TextureSampling.PIXEL_ART);
+            g.setScale(SS);
+            full.draw(g, -bx * SS, -by * SS);
+            // Same-frame placeholder while the capture is in flight; the
+            // pure-sample write replaces it wholesale.
+            full.setOrigin(0, 0);
+            full.setScale(SNAP / SS);
+            rt.draw(full, 0, 0);
+            SpriteBank.pointSampleRenderTexture(this.scene, full, rt);
+        } else {
+            g.setScale(SNAP);
+            rt.draw(g, -bx * SNAP, -by * SNAP);
+        }
         g.destroy();
-        // World-layer pixel treatment: the postcard (lawn, lakes, roads,
-        // scenery) quantizes once into 1.35 world-px cells — same math as the
-        // baked sprites, world-anchored because the postcard is world-glued.
-        SpriteBank.quantizeRenderTexture(this.scene, rt, 1.35 * SNAP);
+        // World-layer pixel treatment (full-resolution parcels only — the
+        // hydrology plots pinned to SNAPSHOT_SCALE): quantize once into
+        // 1.35 world-px cells, same math as the baked sprites. Downsampled
+        // parcels own their texels via the point-sample above, which also
+        // alpha-snaps; running the quantizer after it would capture the
+        // in-flight placeholder and write the stale frame back over the
+        // pure samples.
+        if (SNAP >= 1) SpriteBank.quantizeRenderTexture(this.scene, rt, Math.max(1, 1.35 * SNAP));
         const dz = dx + dy;
         rt.setDepth(dz < 0 ? 420 + dz : dz === 0 ? 780 : 26_000 + dz);
         view.rt = rt;
@@ -1884,7 +2115,13 @@ export class WorldMapSystem {
     }
 
     /** One full-resolution cached postcard of a neighbour's exact base. */
-    private renderSnapshot(view: NeighborView, world: PostcardWorld, dx: number, dy: number) {
+    private renderSnapshot(
+        view: NeighborView,
+        world: PostcardWorld,
+        dx: number,
+        dy: number,
+        opts?: { deferResidents?: boolean }
+    ) {
         const offX = dx * PLOT_PITCH;
         const offY = dy * PLOT_PITCH;
         const SNAP = SNAPSHOT_SCALE;
@@ -1935,9 +2172,6 @@ export class WorldMapSystem {
         }
 
         const elevatedLayers = this.drawWorldStatic(g, world, offX, offY);
-        this.scene.dayNight?.setPostcardLights?.(view.key,
-            Array.isArray(world.buildings) ? world.buildings : [], offX, offY);
-
 
         // Capture bounds in world px: the plot diamond plus roof headroom.
         const top = IsoUtils.cartToIso(offX, offY);
@@ -1961,8 +2195,16 @@ export class WorldMapSystem {
         g.setScale(SNAP);
         rt.draw(g, -bx * SNAP, -by * SNAP);
         for (const layer of elevatedLayers) {
-            layer.setScale(SNAP);
-            rt.draw(layer, -bx * SNAP, -by * SNAP);
+            // Graphics carriers sit at (0,0) with world-space content: scale
+            // and draw at the capture offset. Baked-obstacle Images carry a
+            // real anchor position AND an intrinsic cellWorldPx scale, so
+            // they multiply (not overwrite) and draw at their own spot.
+            layer.setScale(layer.scaleX * SNAP, layer.scaleY * SNAP);
+            if (layer instanceof Phaser.GameObjects.Image) {
+                rt.draw(layer, (layer.x - bx) * SNAP, (layer.y - by) * SNAP);
+            } else {
+                rt.draw(layer, -bx * SNAP, -by * SNAP);
+            }
         }
         g.destroy();
         for (const layer of elevatedLayers) layer.destroy();
@@ -1980,13 +2222,35 @@ export class WorldMapSystem {
         view.hearth = hall
             ? { gx: dx * PLOT_PITCH + hall.gridX + 1.5, gy: dy * PLOT_PITCH + hall.gridY + 1.5 }
             : null;
+        // Hidden pending-focus postcards render under the SAME absolute keys
+        // as the live ring; registering their residents now would overwrite
+        // (and their later release destroy) the living neighbours currently
+        // on screen. commitFocus registers them in the frame they go live.
+        if (!opts?.deferResidents) this.registerVillageResidents(view, world);
+        view.natureLife = [];
+    }
+
+    /**
+     * Register the shared per-key living registries — the villager sim and
+     * the postcard night lights — for a rendered village postcard, and mark
+     * this view their owner. Only the registered owner clears them on
+     * release (see releaseViewVisuals), so a hidden battle ring prepared
+     * over plots shared with the home ring can never silence the live one.
+     */
+    private registerVillageResidents(view: NeighborView, world?: PostcardWorld) {
+        const source = world ?? view.sourceWorld;
+        if (!source || view.contentKind !== 'village' || !view.rt) return;
+        const offX = view.dx * PLOT_PITCH;
+        const offY = view.dy * PLOT_PITCH;
+        const buildings = Array.isArray(source.buildings) ? source.buildings : [];
+        this.scene.dayNight?.setPostcardLights?.(view.key, buildings, offX, offY);
         const fallbackLifeIdentity = view.plot.kind === 'bot'
             ? `bot:${view.plot.seed ?? view.key}`
-            : world.ownerId || view.plot.ownerId || view.key;
-        this.neighborLife.setVillage(view.key,
-            Array.isArray(world.buildings) ? world.buildings : [], offX, offY, fallbackLifeIdentity,
-            rt.depth + 1, (world as WorldPostcard).life);
-        view.natureLife = [];
+            : source.ownerId || view.plot.ownerId || view.key;
+        this.neighborLife.setVillage(view.key, buildings, offX, offY, fallbackLifeIdentity,
+            view.rt.depth + 1, (source as WorldPostcard).life,
+            Array.isArray(source.obstacles) ? source.obstacles : []);
+        view.residentsRegistered = true;
     }
 
     /**
@@ -1996,7 +2260,12 @@ export class WorldMapSystem {
      * a time inside a try/catch — a bad record falls back to a generic block
      * rather than killing the whole postcard.
      */
-    private drawWorldStatic(ground: Phaser.GameObjects.Graphics, world: PostcardWorld, offX: number, offY: number): Phaser.GameObjects.Graphics[] {
+    private drawWorldStatic(
+        ground: Phaser.GameObjects.Graphics,
+        world: PostcardWorld,
+        offX: number,
+        offY: number
+    ): Array<Phaser.GameObjects.Graphics | Phaser.GameObjects.Image> {
         const buildings = Array.isArray(world.buildings) ? world.buildings : [];
         const wallAt = new Set(buildings.filter(b => b.type === 'wall').map(b => `${b.gridX},${b.gridY}`));
 
@@ -2044,7 +2313,7 @@ export class WorldMapSystem {
         // Ground-plane contract: every base is painted before any raised item.
         for (const b of buildings) drawBuilding(ground, b, false, true);
 
-        const raised: Array<{ depth: number; g: Phaser.GameObjects.Graphics }> = [];
+        const raised: Array<{ depth: number; g: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image }> = [];
         for (const b of buildings) {
             if (!BUILDING_DEFINITIONS[b.type as BuildingType]) continue;
             const layer = this.scene.make.graphics({ x: 0, y: 0 }, false);
@@ -2054,14 +2323,33 @@ export class WorldMapSystem {
         for (const obstacle of world.obstacles ?? []) {
             const info = OBSTACLE_DEFINITIONS[obstacle.type];
             if (!info) continue;
+            const gx = offX + obstacle.gridX;
+            const gy = offY + obstacle.gridY;
+            const depth = depthForObstacle(gx, gy, info.width, info.height);
+            // Pixel contract: postcard obstacles come from the SAME baked
+            // atlases the live village stamps (SpriteBank), rasterized into
+            // the postcard RT as a positioned transient Image. The old direct
+            // ObstacleRenderer call painted smooth AA canopies/shadows into
+            // an RT whose 1.35-cell quantize cannot chunk full-res AA art —
+            // the one smooth thing on an otherwise chunky postcard.
+            const pick = SpriteBank.pickObstacleFrame(obstacle.type, obstacle.id, gx, gy, 0);
+            if (pick) {
+                const img = this.scene.make.image({ key: pick.atlasKey, frame: pick.meta.file }, false);
+                img.setOrigin(pick.meta.originX, pick.meta.originY);
+                img.setScale(pick.meta.cellWorldPx);
+                const iso = IsoUtils.cartToIso(gx + 0.5, gy + 0.5);
+                img.setPosition(iso.x, iso.y);
+                raised.push({ depth, g: img });
+                continue;
+            }
             const layer = this.scene.make.graphics({ x: 0, y: 0 }, false);
             ObstacleRenderer.drawObstacle(layer, {
                 ...obstacle,
-                gridX: offX + obstacle.gridX,
-                gridY: offY + obstacle.gridY,
+                gridX: gx,
+                gridY: gy,
                 animOffset: hashString(obstacle.id) % 10_000
             }, 0);
-            raised.push({ depth: depthForObstacle(offX + obstacle.gridX, offY + obstacle.gridY, info.width, info.height), g: layer });
+            raised.push({ depth, g: layer });
         }
         raised.sort((a, b) => a.depth - b.depth);
         return raised.map(item => item.g);
@@ -2122,33 +2410,48 @@ export class WorldMapSystem {
                     }
                 }
                 const ARC_STEPS = 12;
-                const arcPoint = (step: number, radius: number) => {
-                    const angle = step / ARC_STEPS * Math.PI * 0.5;
+                const arcAt = (t: number, radius: number) => {
+                    const angle = t * Math.PI * 0.5;
                     return {
                         x: pivot.x + pivotGeometry.sx * Math.cos(angle) * radius,
                         y: pivot.y + pivotGeometry.sy * Math.sin(angle) * radius
                     };
+                };
+                const arcPoint = (step: number, radius: number) => arcAt(step / ARC_STEPS, radius);
+                // A curved lane line as walked pixel cells: the arc sampled
+                // fine enough that consecutive cells join without stair gaps.
+                const pixelArc = (radius: number, thick: number, color: number) => {
+                    const STEPS = 24;
+                    let prev = toIsoVector(arcAt(0, radius));
+                    for (let step = 1; step <= STEPS; step++) {
+                        const next = toIsoVector(arcAt(step / STEPS, radius));
+                        pixelLine(g, prev.x, prev.y, next.x, next.y, thick, color);
+                        prev = next;
+                    }
                 };
                 const outerArc: Array<{ x: number; y: number }> = [];
                 for (let step = 0; step <= ARC_STEPS; step++) outerArc.push(arcPoint(step, PLOT_GAP));
                 g.fillStyle(ROAD_EARTH, 1);
                 g.fillPoints([toIsoVector(pivot), ...outerArc.map(toIsoVector)], true);
                 // Crown: a quarter-annulus joining the two straight crowns
-                // ([lane+0.45, lane+GAP-0.45]) edge-to-edge.
+                // ([lane+0.45, lane+GAP-0.45]) edge-to-edge. The flat fills
+                // stay (solid colors have nothing to quantize); their curved
+                // edges are owned by the pixel-cell arc passes below, exactly
+                // like the straight lanes' cell shoulders/ruts.
                 const crown: Array<{ x: number; y: number }> = [];
                 for (let step = 0; step <= ARC_STEPS; step++) crown.push(arcPoint(step, PLOT_GAP - 0.45));
                 for (let step = ARC_STEPS; step >= 0; step--) crown.push(arcPoint(step, 0.45));
                 g.fillStyle(ROAD_CROWN, 1);
                 g.fillPoints(crown.map(toIsoVector), true);
+                // Crown-to-earth arc edges re-drawn as crown cells so the
+                // curved boundary is cell-stepped, not a smooth fill edge.
+                pixelArc(0.45, 1, ROAD_CROWN);
+                pixelArc(PLOT_GAP - 0.45, 1, ROAD_CROWN);
                 // Ruts at the same offsets the straight lanes wear them.
-                g.lineStyle(2, ROAD_RUT, 1);
-                for (const radius of [0.55, PLOT_GAP - 0.55]) {
-                    const rut: Phaser.Math.Vector2[] = [];
-                    for (let step = 0; step <= ARC_STEPS; step++) rut.push(toIsoVector(arcPoint(step, radius)));
-                    g.strokePoints(rut, false);
-                }
-                g.lineStyle(1.4, ROAD_SHOULDER, 1);
-                g.strokePoints(outerArc.map(toIsoVector), false);
+                for (const radius of [0.55, PLOT_GAP - 0.55]) pixelArc(radius, 1, ROAD_RUT);
+                // The outer shoulder cell-line also owns the quarter-disc's
+                // earth-to-meadow silhouette.
+                pixelArc(PLOT_GAP, 1, ROAD_SHOULDER);
             } else if (junction.shape === 't' || junction.shape === 'straight' || junction.shape === 'dead') {
                 // Faces with no arm: the through-road's edge runs straight
                 // across the crossing mouth — restore the shoulder line the
@@ -2159,24 +2462,40 @@ export class WorldMapSystem {
                     { arm: 's', a: { x: x0, y: y0 + PLOT_GAP }, b: { x: x0 + PLOT_GAP, y: y0 + PLOT_GAP } },
                     { arm: 'w', a: { x: x0, y: y0 }, b: { x: x0, y: y0 + PLOT_GAP } }
                 ];
-                g.lineStyle(1.4, ROAD_SHOULDER, 1);
                 for (const face of faces) {
                     if (junction.arms[face.arm]) continue;
                     const a = toIsoVector(face.a);
                     const b = toIsoVector(face.b);
-                    g.lineBetween(a.x, a.y, b.x, b.y);
+                    pixelLine(g, a.x, a.y, b.x, b.y, 1, ROAD_SHOULDER);
                 }
             }
 
-            // Under every KNOWN-village lawn corner, a packed-earth bed the
-            // size of the lawn's rounded cut: the lawn above (drawn with its
-            // corner tile arc-cut, see drawGrassTile's cornerCut) reveals
-            // clean road earth through the cut, and the bed buries the static
-            // atlas's shoulder-line stubs that still run to the old sharp
-            // corner. The cut's own arc stroke is the shoulder around the
-            // bend — tangent to the straight shoulders where the bed ends.
+            // Under every KNOWN plot's lawn corner — village AND wilderness —
+            // a packed-earth bed the size of the lawn's rounded cut: the lawn
+            // above (drawn with its corner tile arc-cut, see drawGrassTile's
+            // cornerCut) reveals clean road earth through the cut, and the
+            // bed buries the static atlas's shoulder-line stubs that still
+            // run to the old sharp corner. The cut's own arc stroke is the
+            // shoulder around the bend — tangent to the straight shoulders
+            // where the bed ends. The bed stays a flat quad: every visible
+            // edge of it is either same-colour lane earth or the plot
+            // postcard's QUANTIZED arc cut above, so no smooth boundary of
+            // its own ever shows. Fully joined crossings (shape 'none',
+            // skipped at the top of this loop) bake NO cuts
+            // (wildCornerCutFlags) and need no bed; unknown corners have no
+            // postcard rendered above them at all.
             for (const quadrant of quadrants) {
-                if (junction.cornerStates[quadrant] !== 'occupied') continue;
+                if (junction.cornerStates[quadrant] === 'unknown') continue;
+                // A corner flanked by TWO joined grass bands (the outer
+                // corner of an L-bend wrapped in meadow) faces no road at
+                // all: its rounded cut is covered from above by the gap
+                // surface's corner cover, and an earth bed here would leak
+                // its lane-edge bleed onto open meadow as a floating earth
+                // diamond. Corners with at least one road face keep their
+                // bed — the bleed lands on road earth or under a joined
+                // band's own 27_400 cover.
+                const faces = QUADRANT_FACES[quadrant];
+                if (!junction.arms[faces[0]] && !junction.arms[faces[1]]) continue;
                 const geometry = cornerGeometry[quadrant];
                 const corner = geometry.corner(x0, y0);
                 const D = GRASS_CORNER_CUT_RADIUS + 0.04; // to the cut's tangents
@@ -2200,10 +2519,14 @@ export class WorldMapSystem {
     private rebuildWildernessLinks(center = this.focusPlot ?? this.myPlot) {
         const topology = buildWildernessTopology(
             center,
-            this.focusPlot ? Math.max(1, this.viewRadiusValue) : this.viewRadiusValue,
+            // Same clamp as computeViewRadius: a battle frame owns exactly
+            // the prepared one-ring context, whatever sight home has earned.
+            this.focusPlot ? 1 : this.viewRadiusValue,
             [...this.views.values()].map(view => view.plot)
         );
-        const linkSignature = `${topology.signature}|owner=${this.scene.userId || 'village'}|nature=${this.presentationSeedVersion}`;
+        // cornercover: bump when the joined-seam cover geometry changes so
+        // an already-built links/gap-surface graphic regenerates in place.
+        const linkSignature = `${topology.signature}|owner=${this.scene.userId || 'village'}|nature=${this.presentationSeedVersion}|cornercover=v1`;
         if (linkSignature === this.wildernessLinkSignature) return;
         this.wildernessLinkSignature = linkSignature;
         this.wildernessTopology = topology;
@@ -2213,6 +2536,13 @@ export class WorldMapSystem {
         g.clear();
         g.setDepth(-440); // above roads (-450), below every postcard/live lawn
         const palette = wildernessGrassPalette(this.presentationSeedVersion);
+        // Grass bridges reuse drawGrassTile — the SAME fn the ground-RT bake
+        // and the postcard RTs paint with (both quantized sinks). On this LIVE
+        // layer it is called with withDetail=false, so only the flat checker
+        // quads draw: the blade-detail lineBetween/fillCircle path never runs
+        // here, and every quad edge is grass-on-grass (absolute-tile checker)
+        // or owned by the junctions' pixel-cell shoulder lines. Nothing
+        // smooth escapes, so the shared fn needs no conversion.
         const tile = (gx: number, gy: number) => {
             const p = IsoUtils.cartToIso(gx, gy);
             const worldTileX = center.x * PLOT_PITCH + gx;
@@ -2366,6 +2696,12 @@ export class WorldMapSystem {
         this.wildernessGapSurface = gapSurface;
         gapSurface.clear();
         gapSurface.setDepth(27_400);
+        // Pixel-pass call: these per-tile quads stay flat fills with NO edge
+        // pass. Every edge is grass-on-grass — tile-vs-tile is the same
+        // low-contrast absolute checker the quantized postcards wear, and the
+        // 0.08 outer bleed lands on postcard tiles of the IDENTICAL checker
+        // colour (both sample grassTileColorAt on absolute world tiles), so
+        // no silhouette against a different colour ever exists here.
         const GAP_BLEED = 0.08;
         const fillWildRect = (x0: number, y0: number, x1: number, y1: number, sampleX: number, sampleY: number) => {
             const worldTileX = worldOriginX + sampleX;
@@ -2413,6 +2749,57 @@ export class WorldMapSystem {
             }
         }
 
+        // Rounded-corner covers. Every wild postcard rounds its lawn corner
+        // wherever the junction it faces still carries road
+        // (wildCornerCutFlags), and that cut bakes a quarter-arc shoulder
+        // stroke over the links layer's packed-earth bed. Where one of the
+        // corner's two junction faces is a JOINED grass band, the cut now
+        // bites a shoulder-and-earth beak into what must read as one
+        // continuous meadow. Cover exactly the plot's corner tile from
+        // above with its own absolute checker colour — the same flat fill
+        // the postcard painted, so the cover is invisible over lawn and
+        // only the cut wedge changes. The size derives from the cut
+        // geometry itself: GRASS_CORNER_CUT_RADIUS plus safety margin for
+        // the arc's stroke width and the postcard's texel snap, capped at
+        // one tile so the single-tile colour sample stays exact. Corners
+        // whose faces are BOTH roads keep their rounded lawn look, and an
+        // absent arm implies both adjoining plots are wild, so a village
+        // corner is never covered.
+        const CORNER_COVER = Math.min(1, GRASS_CORNER_CUT_RADIUS + 0.1);
+        const coverCorners: ReadonlyArray<{
+            quadrant: WildernessJunctionQuadrant;
+            dx: number; // into-plot direction from the junction-square corner
+            dy: number;
+        }> = [
+            { quadrant: 'nw', dx: -1, dy: -1 },
+            { quadrant: 'ne', dx: 1, dy: -1 },
+            { quadrant: 'se', dx: 1, dy: 1 },
+            { quadrant: 'sw', dx: -1, dy: 1 }
+        ];
+        for (const junction of topology.roadJunctions) {
+            // Fully joined crossings bake no cuts; full road crossings keep
+            // their rounded corners. Only cuts beside a joined face need cover.
+            if (junction.shape === 'none') continue;
+            const x0 = junction.boundaryX * PLOT_PITCH - PLOT_GAP;
+            const y0 = junction.boundaryY * PLOT_PITCH - PLOT_GAP;
+            for (const spec of coverCorners) {
+                const faces = QUADRANT_FACES[spec.quadrant];
+                if (junction.arms[faces[0]] && junction.arms[faces[1]]) continue;
+                const cornerX = spec.dx < 0 ? x0 : x0 + PLOT_GAP;
+                const cornerY = spec.dy < 0 ? y0 : y0 + PLOT_GAP;
+                const inX = cornerX + spec.dx * CORNER_COVER;
+                const inY = cornerY + spec.dy * CORNER_COVER;
+                fillWildRect(
+                    Math.min(cornerX, inX),
+                    Math.min(cornerY, inY),
+                    Math.max(cornerX, inX),
+                    Math.max(cornerY, inY),
+                    cornerX + Math.min(0, spec.dx), // the plot's corner tile
+                    cornerY + Math.min(0, spec.dy)
+                );
+            }
+        }
+
         // Plot postcards live in painter bands up to ~26_004; fog starts at
         // 28_500. Render each absolute feature once between them. This removes
         // every internal RT/gap boundary by construction while fog still clips
@@ -2422,10 +2809,11 @@ export class WorldMapSystem {
         this.worldHydrologyLayer = featureLayer;
         featureLayer.clear();
         featureLayer.setDepth(27_500);
+        this.worldHydrologyGapLife = [];
         if (hydrology.length > 0) {
             const localMin = -topology.radius * PLOT_PITCH;
             const localMax = topology.radius * PLOT_PITCH + PLOT_TILES;
-            WorldHydrologyRenderer.drawFeatures(featureLayer, hydrology, {
+            const results = WorldHydrologyRenderer.drawFeatures(featureLayer, hydrology, {
                 clip: {
                     minX: worldOriginX + localMin,
                     minY: worldOriginY + localMin,
@@ -2437,6 +2825,65 @@ export class WorldMapSystem {
                 includeDetails: true,
                 presentationSeedVersion: this.presentationSeedVersion
             });
+            // Water life inside PLOTS animates via each postcard's own
+            // anchors; life sitting in the ROAD-GAP bands belongs to no plot
+            // window, so the overlay pass adopts those anchors itself (the
+            // renderer no longer bakes frozen fish — see its drawFeature).
+            const inGapBand = (v: number) => ((v % PLOT_PITCH) + PLOT_PITCH) % PLOT_PITCH >= PLOT_TILES;
+            for (const result of results) {
+                for (const anchor of result.life) {
+                    if (anchor.kind !== 'fish' && anchor.kind !== 'frog') continue;
+                    if (!inGapBand(anchor.localGridX) && !inGapBand(anchor.localGridY)) continue;
+                    this.worldHydrologyGapLife.push({
+                        kind: anchor.kind,
+                        gx: anchor.localGridX,
+                        gy: anchor.localGridY,
+                        phase: anchor.phase,
+                        scale: anchor.scale
+                    });
+                }
+            }
+        }
+
+        // Roofs win over water: every village postcard carries 90 px of roof
+        // headroom above its plot diamond, and in screen space that band lies
+        // over its north neighbours — where this 27_500 overlay would slice
+        // the roofline whenever the adjacent plot holds water. An inverted
+        // geometry mask punches exactly those headroom bands out of the
+        // overlay (and its life layer): the postcards' own baked water — the
+        // same vectors at the same world anchors — shows through instead.
+        const maskGfx = this.worldHydrologyMaskGfx ?? this.scene.make.graphics({ x: 0, y: 0 }, false);
+        this.worldHydrologyMaskGfx = maskGfx;
+        maskGfx.clear();
+        let maskedBands = 0;
+        if (hydrology.length > 0) {
+            const HEADROOM = 90; // matches renderSnapshot's capture headroom
+            const bandFor = (dx: number, dy: number) => {
+                const offX = dx * PLOT_PITCH;
+                const offY = dy * PLOT_PITCH;
+                const topC = IsoUtils.cartToIso(offX, offY);
+                const rightC = IsoUtils.cartToIso(offX + PLOT_TILES, offY);
+                const leftC = IsoUtils.cartToIso(offX, offY + PLOT_TILES);
+                maskGfx.fillStyle(0xffffff, 1);
+                maskGfx.fillRect(leftC.x, topC.y - HEADROOM, rightC.x - leftC.x, HEADROOM);
+                maskedBands++;
+            };
+            for (const view of this.views.values()) {
+                if (view.plot.kind !== 'player' && view.plot.kind !== 'bot') continue;
+                bandFor(view.dx, view.dy);
+            }
+            // The live village on the local grid (home or battlefield) has
+            // real per-building depths below 27_500 — same headroom rule.
+            bandFor(0, 0);
+        }
+        if (maskedBands > 0) {
+            if (!this.worldHydrologyMask) {
+                this.worldHydrologyMask = maskGfx.createGeometryMask();
+                this.worldHydrologyMask.setInvertAlpha(true);
+            }
+            featureLayer.setMask(this.worldHydrologyMask);
+        } else {
+            featureLayer.clearMask();
         }
     }
 
@@ -2495,32 +2942,31 @@ export class WorldMapSystem {
             }
             if (t < max) draw(t, max);
         };
-        // Wheel ruts worn by the merchants' carts.
-        g.lineStyle(2, RUT, 1);
+        // Wheel ruts worn by the merchants' carts — walked cell-by-cell so
+        // the rut is pixel texels, not an AA line.
         for (const [a, b] of bands) {
             for (const off of [0.55, PLOT_GAP - 0.55]) {
                 segmented((t0, t1) => {
                     const v0 = P(a + off, t0);
                     const v1 = P(a + off, t1);
-                    g.lineBetween(v0.x, v0.y, v1.x, v1.y);
+                    pixelLine(g, v0.x, v0.y, v1.x, v1.y, 1, RUT);
                     const h0 = P(t0, a + off);
                     const h1 = P(t1, a + off);
-                    g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+                    pixelLine(g, h0.x, h0.y, h1.x, h1.y, 1, RUT);
                 });
                 void b;
             }
         }
         // Road shoulders where the lane meets the grass.
-        g.lineStyle(1.4, SHOULDER, 1);
         for (const [a, b] of bands) {
             for (const edge of [a, b]) {
                 segmented((t0, t1) => {
                     const v0 = P(edge, t0);
                     const v1 = P(edge, t1);
-                    g.lineBetween(v0.x, v0.y, v1.x, v1.y);
+                    pixelLine(g, v0.x, v0.y, v1.x, v1.y, 1, SHOULDER);
                     const h0 = P(t0, edge);
                     const h1 = P(t1, edge);
-                    g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+                    pixelLine(g, h0.x, h0.y, h1.x, h1.y, 1, SHOULDER);
                 });
             }
         }
@@ -2533,15 +2979,14 @@ export class WorldMapSystem {
         // Crossing floors stay clean packed earth: no cobbles, flagstones or
         // grass breaks land inside a junction square.
         const inCrossing = (t: number) => bands.some(([a2, b2]) => t >= a2 - 0.9 && t < b2 + 0.9);
-        g.fillStyle(COBBLE, 1);
         for (const [a] of bands) {
             for (let t = min + 1; t < max - 1; t += 1.1 + rand() * 1.4) {
                 const off = 0.35 + rand() * (PLOT_GAP - 0.7);
                 if (inCrossing(t)) continue;
                 const pv = P(a + off, t);
-                g.fillEllipse(pv.x, pv.y, 3.2 + rand() * 2.4, 1.7 + rand() * 1.2);
+                pixelEllipse(g, pv.x, pv.y, (3.2 + rand() * 2.4) / 2, (1.7 + rand() * 1.2) / 2, COBBLE);
                 const ph = P(t, a + off);
-                g.fillEllipse(ph.x, ph.y, 3.2 + rand() * 2.4, 1.7 + rand() * 1.2);
+                pixelEllipse(g, ph.x, ph.y, (3.2 + rand() * 2.4) / 2, (1.7 + rand() * 1.2) / 2, COBBLE);
             }
         }
 
@@ -2566,22 +3011,17 @@ export class WorldMapSystem {
                             const fx = c.x + (rand() - 0.5) * 22;
                             const fy = c.y + (rand() - 0.5) * 10;
                             const w = 7 + rand() * 5;
-                            g.fillStyle(FLAG_EDGE, 1);
-                            g.fillEllipse(fx, fy + 0.8, w, w * 0.5);
-                            g.fillStyle(FLAG, 1);
-                            g.fillEllipse(fx, fy, w - 1.6, (w - 1.6) * 0.5);
+                            pixelEllipse(g, fx, fy + 0.8, w / 2, w * 0.25, FLAG_EDGE);
+                            pixelEllipse(g, fx, fy, (w - 1.6) / 2, (w - 1.6) * 0.25, FLAG);
                         }
                     } else if (roll < 0.5) {
                         // Rocks shouldered off the lane.
-                        g.fillStyle(ROCK_DARK, 1);
-                        g.fillEllipse(c.x + 1, c.y + 1.4, 5.4, 2.8);
-                        g.fillStyle(ROCK, 1);
-                        g.fillEllipse(c.x, c.y, 5, 2.6);
-                        g.fillEllipse(c.x + 4 + rand() * 3, c.y + rand() * 2 - 1, 2.6, 1.4);
+                        pixelEllipse(g, c.x + 1, c.y + 1.4, 2.7, 1.4, ROCK_DARK);
+                        pixelEllipse(g, c.x, c.y, 2.5, 1.3, ROCK);
+                        pixelEllipse(g, c.x + 4 + rand() * 3, c.y + rand() * 2 - 1, 1.3, 0.7, ROCK);
                     } else if (roll < 0.68) {
                         // Grass reclaiming a worn stretch.
-                        g.fillStyle(GRASS_BREAK, 1);
-                        g.fillEllipse(c.x, c.y, 9 + rand() * 8, 4 + rand() * 3);
+                        pixelEllipse(g, c.x, c.y, (9 + rand() * 8) / 2, (4 + rand() * 3) / 2, GRASS_BREAK);
                     }
                 }
             }
@@ -2590,21 +3030,15 @@ export class WorldMapSystem {
         // the crossings (drawn with height, so they sit ON the shoulder).
         const post = (gx: number, gy: number, tall: boolean) => {
             const c = P(gx, gy);
-            g.fillStyle(0x2c2418, 0.35);
-            g.fillEllipse(c.x, c.y + 1, 5, 2.2);
+            pixelEllipse(g, c.x, c.y + 1, 2.5, 1.1, 0x2c2418, 0.35);
             const h = tall ? 15 : 9;
-            g.fillStyle(0x5c4a30, 1);
-            g.fillRect(c.x - 1.4, c.y - h, 2.8, h);
-            g.fillStyle(0x6e5a3c, 1);
-            g.fillRect(c.x - 1.4, c.y - h, 1.2, h);
+            pixelRect(g, c.x - 1.4, c.y - h, 2.8, h, 0x5c4a30);
+            pixelRect(g, c.x - 1.4, c.y - h, 1.2, h, 0x6e5a3c);
             if (tall) {
-                g.fillStyle(0x3c3222, 1);
-                g.fillRect(c.x - 2.6, c.y - h - 2.4, 5.2, 2.8);
-                g.fillStyle(0xffd76a, 1);
-                g.fillRect(c.x - 1.5, c.y - h + 1.4, 3, 2.6);
+                pixelRect(g, c.x - 2.6, c.y - h - 2.4, 5.2, 2.8, 0x3c3222);
+                pixelRect(g, c.x - 1.5, c.y - h + 1.4, 3, 2.6, 0xffd76a);
             } else {
-                g.fillStyle(0x4a3a26, 1);
-                g.fillRect(c.x - 2.2, c.y - h, 4.4, 1.6);
+                pixelRect(g, c.x - 2.2, c.y - h, 4.4, 1.6, 0x4a3a26);
             }
         };
         for (const [a, b] of bands) {
@@ -2624,8 +3058,14 @@ export class WorldMapSystem {
                 if (rand() < 0.55) post(a - 0.4, c0 - 0.4, true);
             }
         }
-        // Roads, gap grass and every roadside prop are vector. Built once,
-        // so a one-time RT quantize (as the postcards do) is the follow-up.
+        // Roads and props draw as hand-placed pixel cells (PixelDraw) on the
+        // world grid — pan-rigid pixel art with zero texture memory. The flat
+        // band/meadow fills stay plain quads: solid colors have nothing to
+        // quantize, and the shoulder cell-lines own the visible edges. The
+        // meadow's outer diamond never needs an edge pass either: the fog's
+        // opaque haze floor starts 0.4 tile INSIDE it (ensureFog's inner.min)
+        // and the cloud bank stacks over that, so the meadow-to-void
+        // silhouette is buried at every sight radius.
         this.wilderness = g;
     }
 
@@ -2646,17 +3086,28 @@ export class WorldMapSystem {
         if (view.battle) return;
         const top = IsoUtils.cartToIso(dx * PLOT_PITCH + PLOT_TILES / 2, dy * PLOT_PITCH + PLOT_TILES / 2);
         const marker = this.scene.add.graphics();
-        // Crossed blades over a dark pennon — drawn, never an emoji.
-        marker.fillStyle(0x2b0f0f, 0.85);
-        marker.fillRoundedRect(-16, -14, 32, 26, 5);
-        marker.lineStyle(2, 0xd82f2f, 1);
-        marker.strokeRoundedRect(-16, -14, 32, 26, 5);
-        marker.lineStyle(2.4, 0xffb0a0, 1);
-        marker.lineBetween(-8, -7, 8, 7);
-        marker.lineBetween(8, -7, -8, 7);
-        marker.lineStyle(2.2, 0xd8a24a, 1);
-        marker.lineBetween(-9.5, 5, -6, 8.5);
-        marker.lineBetween(9.5, 5, 6, 8.5);
+        // Crossed blades over a dark pennon — hand-authored pixel cells
+        // (PixelDraw bitmap, LOCAL anchoring: the icon scales with its pulse
+        // tween like a baked sprite would). Same palette as the old vector
+        // pin; fat 9x9 cells so it reads at map distance.
+        const PIN = [
+            'rrrrrrrrr',
+            'r.......r',
+            'r.b...b.r',
+            'r..b.b..r',
+            'r...b...r',
+            'r..b.b..r',
+            'r.b...b.r',
+            'rg.....gr',
+            'rrrrrrrrr'
+        ];
+        const PIN_CELL = 3.6; // 9 cells ≈ the old 32px pennon
+        // Dark pennon plate first (its 0.85 alpha kept), then the opaque
+        // border/blades/guards over it.
+        pixelBitmap(marker, -16.2, -16.2, PIN.map(row => row.replace(/./g, 'k')),
+            { k: 0x2b0f0f }, 0.85, PIN_CELL);
+        pixelBitmap(marker, -16.2, -16.2, PIN,
+            { r: 0xd82f2f, b: 0xffb0a0, g: 0xd8a24a }, 1, PIN_CELL);
         marker.setPosition(top.x, top.y - 190);
         marker.setDepth(29_400);
         view.battle = marker;
@@ -2967,17 +3418,7 @@ export class WorldMapSystem {
                 const gx = anchor.gx + Math.cos(swim) * 0.28 * anchor.scale;
                 const gy = anchor.gy + Math.sin(swim) * 0.16 * anchor.scale;
                 const p = IsoUtils.cartToIso(gx, gy);
-                const facing = Math.cos(swim) >= 0 ? 1 : -1;
-                g.fillStyle(0x163e49, 0.5);
-                g.fillEllipse(p.x, p.y, 8 * anchor.scale, 3.3 * anchor.scale);
-                g.fillTriangle(
-                    p.x - facing * 3.3 * anchor.scale, p.y,
-                    p.x - facing * 6.4 * anchor.scale, p.y - 2.2 * anchor.scale,
-                    p.x - facing * 6.4 * anchor.scale, p.y + 2.2 * anchor.scale
-                );
-                const ripple = (time * 0.00052 + anchor.phase / (Math.PI * 2)) % 1;
-                g.lineStyle(1, 0xc6e5e3, 0.34 * (1 - ripple));
-                g.strokeEllipse(p.x, p.y, 5 + ripple * 18 * anchor.scale, 2 + ripple * 7 * anchor.scale);
+                WorldFigureRenderer.drawFish(g, p.x, p.y, time, anchor.phase, anchor.scale);
                 continue;
             }
 
@@ -2985,16 +3426,17 @@ export class WorldMapSystem {
                 const beat = (time * 0.00038 + anchor.phase / (Math.PI * 2)) % 1;
                 const p = IsoUtils.cartToIso(anchor.gx, anchor.gy);
                 if (beat < 0.62) {
-                    g.lineStyle(1, 0xb7dcda, 0.34 * (1 - beat / 0.62));
-                    g.strokeEllipse(p.x, p.y, 5 + beat * 18, 2 + beat * 7);
+                    // The spreading ripple as perimeter pixel cells.
+                    pixelRing(g, p.x, p.y, (5 + beat * 18) / 2, (2 + beat * 7) / 2,
+                        0xb7dcda, 0.34 * (1 - beat / 0.62));
                 }
                 const blink = Math.sin(time * 0.004 + anchor.phase) > -0.78;
                 if (blink) {
-                    g.fillStyle(0x496f3d, 0.92);
-                    g.fillEllipse(p.x, p.y - 1, 6 * anchor.scale, 3.4 * anchor.scale);
-                    g.fillStyle(0xb8c96c, 0.9);
-                    g.fillCircle(p.x - 1.4 * anchor.scale, p.y - 2.2, 0.65 * anchor.scale);
-                    g.fillCircle(p.x + 1.4 * anchor.scale, p.y - 2.2, 0.65 * anchor.scale);
+                    pixelEllipse(g, p.x, p.y - 1, 3 * anchor.scale, 1.7 * anchor.scale, 0x496f3d, 0.92);
+                    pixelEllipse(g, p.x - 1.4 * anchor.scale, p.y - 2.2,
+                        0.65 * anchor.scale, 0.65 * anchor.scale, 0xb8c96c, 0.9);
+                    pixelEllipse(g, p.x + 1.4 * anchor.scale, p.y - 2.2,
+                        0.65 * anchor.scale, 0.65 * anchor.scale, 0xb8c96c, 0.9);
                 }
                 continue;
             }
@@ -3010,19 +3452,19 @@ export class WorldMapSystem {
                     const pulse = 0.45 + Math.sin(time * 0.004 + anchor.phase + i) * 0.35;
                     const x = p.x + Math.cos(phase) * (7 + i * 2) * anchor.scale;
                     const y = p.y - 8 - i * 4 + Math.sin(phase * 1.3) * 4;
-                    g.fillStyle(0xdff06f, pulse * nightFactor * 0.18);
-                    g.fillCircle(x, y, 3.2 * anchor.scale);
-                    g.fillStyle(0xf4f6a6, pulse * nightFactor);
-                    g.fillCircle(x, y, 0.9 * anchor.scale);
+                    pixelEllipse(g, x, y, 3.2 * anchor.scale, 3.2 * anchor.scale,
+                        0xdff06f, pulse * nightFactor * 0.18);
+                    pixelEllipse(g, x, y, 0.9 * anchor.scale, 0.9 * anchor.scale,
+                        0xf4f6a6, pulse * nightFactor);
                 }
             } else {
-                // A tiny butterfly/bird flickers between tree crowns by day.
+                // A tiny butterfly/bird flickers between tree crowns by day —
+                // each wing one cell-walked streak (the classic pixel bird V).
                 const flap = Math.sin(time * 0.012 + anchor.phase) * 2.2 * anchor.scale;
-                g.fillStyle(0xe6c25b, 0.82 * (1 - nightFactor));
-                g.fillTriangle(p.x, p.y, p.x - 4 * anchor.scale, p.y - flap, p.x - 1, p.y + 1.5);
-                g.fillTriangle(p.x, p.y, p.x + 4 * anchor.scale, p.y - flap, p.x + 1, p.y + 1.5);
-                g.fillStyle(0x4a3923, 0.9);
-                g.fillRect(p.x - 0.6, p.y - 1, 1.2, 4 * anchor.scale);
+                const wingAlpha = 0.82 * (1 - nightFactor);
+                pixelLine(g, p.x, p.y, p.x - 4 * anchor.scale, p.y - flap, 1, 0xe6c25b, wingAlpha);
+                pixelLine(g, p.x, p.y, p.x + 4 * anchor.scale, p.y - flap, 1, 0xe6c25b, wingAlpha);
+                pixelRect(g, p.x - 0.6, p.y - 1, 1.2, 4 * anchor.scale, 0x4a3923, 0.9);
             }
         }
     }
@@ -3032,10 +3474,32 @@ export class WorldMapSystem {
      * resident vectors. Static bases stay cached; only visible life redraws.
      */
     private updatePostcardLife(time: number) {
-        if (time < this.nextLifeDrawAt) return;
-        this.nextLifeDrawAt = time + 66; // 15Hz pass; per-village sims LOD below it
+        // Decorations (smoke, pennant, night windows) redraw on the coarse
+        // 15 Hz pass; the resident sims are OFFERED a tick every frame and
+        // self-gate to their LOD hz — a 66 ms outer gate on the tick calls
+        // capped the near ring's shared 24 Hz figure clock at ~12–15 Hz.
+        const decorate = time >= this.nextLifeDrawAt;
+        if (decorate) this.nextLifeDrawAt = time + 66; // 15Hz decoration pass
         const nf = this.scene.dayNight?.nightFactor() ?? 0;
         const serverWallTime = Date.now() + DayNightSystem.serverOffsetMs;
+        // Water life adopted from the road-gap bands (no plot postcard owns
+        // it) swims on the overlay's own band, under the same roof mask.
+        if (decorate) {
+            if (this.worldHydrologyGapLife.length > 0) {
+                if (!this.worldHydrologyLifeLayer) {
+                    this.worldHydrologyLifeLayer = this.scene.add.graphics();
+                    this.worldHydrologyLifeLayer.setDepth(27_501);
+                }
+                const layer = this.worldHydrologyLifeLayer;
+                if (this.worldHydrologyMask) layer.setMask(this.worldHydrologyMask);
+                else layer.clearMask();
+                layer.clear();
+                this.drawNaturePostcardLife(layer, this.worldHydrologyGapLife, time, nf);
+            } else if (this.worldHydrologyLifeLayer) {
+                this.worldHydrologyLifeLayer.destroy();
+                this.worldHydrologyLifeLayer = null;
+            }
+        }
         for (const view of this.views.values()) {
             if (!view.rt) {
                 view.life?.destroy();
@@ -3045,6 +3509,7 @@ export class WorldMapSystem {
                 continue;
             }
             if (view.contentKind === 'nature') {
+                if (!decorate) continue; // no resident sim — 15 Hz is its clock
                 if (view.natureLife.length === 0) {
                     view.life?.destroy();
                     view.life = null;
@@ -3057,6 +3522,10 @@ export class WorldMapSystem {
                 }
                 const hydrologyLife = String(view.renderedRevision).includes('_hydroart_');
                 view.life.setDepth(hydrologyLife ? 27_501 : view.rt.depth + 1);
+                // Above the seam-free water overlay, the fish still yield to
+                // village roof headroom: same inverted mask as the overlay.
+                if (hydrologyLife && this.worldHydrologyMask) view.life.setMask(this.worldHydrologyMask);
+                else view.life.clearMask();
                 view.life.clear();
                 this.drawNaturePostcardLife(view.life, view.natureLife, time, nf);
                 continue;
@@ -3066,41 +3535,51 @@ export class WorldMapSystem {
                 view.life = null;
                 continue;
             }
-            if (!view.life) {
-                view.life = this.scene.add.graphics();
-                view.life.setDepth(view.rt.depth + 1);
-            }
-            const g = view.life;
-            g.setDepth(view.rt.depth + 1);
-            g.clear();
-            const hearthPos = IsoUtils.cartToIso(view.hearth.gx, view.hearth.gy);
-            const seed = hashString(view.key);
-            const sway = windSway(view.hearth.gx, view.hearth.gy, time);
+            if (decorate) {
+                if (!view.life) {
+                    view.life = this.scene.add.graphics();
+                    view.life.setDepth(view.rt.depth + 1);
+                }
+                const g = view.life;
+                g.setDepth(view.rt.depth + 1);
+                g.clear();
+                const hearthPos = IsoUtils.cartToIso(view.hearth.gx, view.hearth.gy);
+                const seed = hashString(view.key);
+                const sway = windSway(view.hearth.gx, view.hearth.gy, time);
 
-            // Chimney smoke: three puffs cycling upward, leaning with the wind.
-            const chimneyX = hearthPos.x + 9;
-            const chimneyY = hearthPos.y - 34;
-            for (let i = 0; i < 3; i++) {
-                const cycle = ((time * 0.00016 + i / 3 + (seed % 97) / 97) % 1);
-                g.fillStyle(0xdfe3e8, 0.22 * (1 - cycle));
-                g.fillCircle(chimneyX + cycle * (7 + sway * 9), chimneyY - cycle * 20, 1.8 + cycle * 3);
-            }
+                // Chimney smoke: three puffs cycling upward, leaning with the wind.
+                const chimneyX = hearthPos.x + 9;
+                const chimneyY = hearthPos.y - 34;
+                for (let i = 0; i < 3; i++) {
+                    const cycle = ((time * 0.00016 + i / 3 + (seed % 97) / 97) % 1);
+                    const puffR = 1.8 + cycle * 3;
+                    pixelEllipse(g, chimneyX + cycle * (7 + sway * 9), chimneyY - cycle * 20,
+                        puffR, puffR, 0xdfe3e8, 0.22 * (1 - cycle));
+                }
 
-            // The clan pennant snapping on the hall roof.
-            const poleX = hearthPos.x - 8;
-            const poleY = hearthPos.y - 30;
-            g.lineStyle(1.2, 0x6e5335, 0.95);
-            g.lineBetween(poleX, poleY, poleX, poleY - 11);
-            const flagColor = view.plot.kind === 'bot' ? 0x8a3d2f : 0x2f5f8a;
-            g.fillStyle(flagColor, 0.95);
-            const tip = 8 + sway * 2.4;
-            g.fillTriangle(poleX, poleY - 11, poleX + tip, poleY - 9 + sway * 1.6, poleX, poleY - 6.6);
+                // The village standard on the hall roof — the neighbour's
+                // REAL heraldry (their explicit banner choice riding the
+                // postcard payload, or their identity default), miniature
+                // but exact: the same design their town hall flies up close.
+                const poleX = hearthPos.x - 8;
+                const poleY = hearthPos.y - 30;
+                const bannerSource = (view.sourceWorld as WorldPostcard | null)?.banner
+                    ?? view.plot.world?.banner ?? null;
+                const flagIdentity = view.plot.kind === 'bot'
+                    ? `bot_${view.plot.seed ?? 0}`
+                    : (view.plot.ownerId ?? view.key);
+                const flagKey = `${flagIdentity}|${bannerSource ? `${bannerSource.palette}.${bannerSource.emblem}.${bannerSource.pattern ?? 'd'}` : 'default'}`;
+                if (!view.flag || view.flagKey !== flagKey) {
+                    view.flag = bannerDesignFor(flagIdentity, bannerSource);
+                    view.flagKey = flagKey;
+                }
+                drawVillageFlag(g, poleX, poleY, time, view.flag, 1, { poleH: 14, clothW: 13, clothH: 8 });
 
-            // After dark: two warm windows glowing by the hall.
-            if (nf > 0.05) {
-                g.fillStyle(0xffc36a, 0.34 * nf);
-                g.fillEllipse(hearthPos.x - 14, hearthPos.y - 8, 7, 4.4);
-                g.fillEllipse(hearthPos.x + 12, hearthPos.y - 4, 6, 3.8);
+                // After dark: two warm windows glowing by the hall.
+                if (nf > 0.05) {
+                    pixelEllipse(g, hearthPos.x - 14, hearthPos.y - 8, 3.5, 2.2, 0xffc36a, 0.34 * nf);
+                    pixelEllipse(g, hearthPos.x + 12, hearthPos.y - 4, 3, 1.9, 0xffc36a, 0.34 * nf);
+                }
             }
 
             // The neighbours are HOME: real villagers walking real routes —
@@ -3117,7 +3596,10 @@ export class WorldMapSystem {
             const vy = cam.scrollY + (cam.height - vh) * 0.5;
             const onScreen = view.rt.x < vx + vw + 200 && view.rt.x + view.rt.width / (view.rt.scaleX || 1) > vx - 200
                 && view.rt.y < vy + vh + 200 && view.rt.y + view.rt.height / (view.rt.scaleY || 1) > vy - 200;
-            const hz = !onScreen ? 1.5 : ring <= 1 ? 12 : 5;
+            // Near neighbors animate on the SAME shared figure clock as the
+            // home village (2× the old LOD rate — the owner's sweet spot);
+            // far rings stay lean, off-screen stays a heartbeat.
+            const hz = !onScreen ? 1.5 : ring <= 1 ? FIGURE_ANIM_HZ : 10;
             this.neighborLife.tick(view.key, serverWallTime, hz, onScreen, nf);
         }
     }
@@ -3127,8 +3609,15 @@ export class WorldMapSystem {
     /** Drop only GPU/display resources; retained sourceWorld remains cheap and authoritative. */
     private releaseViewVisuals(view: NeighborView, countEviction: boolean) {
         const hadVillageTexture = view.contentKind === 'village' && view.rt !== null;
-        this.scene.dayNight?.clearPostcardLights?.(view.key);
-        this.neighborLifeSim?.removeVillage(view.key);
+        // Per-key registries are shared between the live ring and hidden
+        // pending-focus views under the same absolute keys: only the view
+        // that actually registered may clear them, or dropping an abandoned
+        // battle ring kills its live twin's villagers and night lights.
+        if (view.residentsRegistered) {
+            this.scene.dayNight?.clearPostcardLights?.(view.key);
+            this.neighborLifeSim?.removeVillage(view.key);
+            view.residentsRegistered = false;
+        }
         view.rt?.destroy();
         view.rt = null;
         view.glow?.destroy();
@@ -3173,7 +3662,21 @@ export class WorldMapSystem {
         this.wildernessGapSurface = null;
         this.worldHydrologyLayer?.destroy();
         this.worldHydrologyLayer = null;
+        this.worldHydrologyLifeLayer?.destroy();
+        this.worldHydrologyLifeLayer = null;
+        this.worldHydrologyGapLife = [];
+        this.worldHydrologyMask?.destroy();
+        this.worldHydrologyMask = null;
+        this.worldHydrologyMaskGfx?.destroy();
+        this.worldHydrologyMaskGfx = null;
         this.wildernessTopology = null;
+        // The layers above are gone; the cached paint signature MUST die with
+        // them, or the next rebuild (after a replay/scout/failed-attack round
+        // trip) early-returns into a world with no grass bridges, no junction
+        // bends, no gap surface and no hydrology overlay — and joined-gap
+        // taps dead because wildernessTopology stays null.
+        this.wildernessLinkSignature = null;
+        this.knownPlotKindHints.clear();
         this.fogStatic?.destroy();
         this.fogStatic = null;
         this.fogEdge?.destroy();
@@ -3218,18 +3721,21 @@ export class WorldMapSystem {
             const r = s * (0.30 - 0.105 * t * t + rj * 0.055);
             lobes.push([x + t * s * 0.36, y - r * 0.94, r]);
         }
+        // Lobes land as whole pixel cells (PixelDraw): the cloud wall — both
+        // the static bank and the living edge — is chunky pixel art with no
+        // AA rim. Clouds read from far away, so they use a 7.5× cell (owner
+        // calls: 5×, then "1.5× more pixelated"): fat storybook texels.
+        const CLOUD_CELL = 1.35 * 7.5;
         const pass = (color: number, dy: number) => {
-            g.fillStyle(color, alpha);
-            for (const [cx, cy, r] of lobes) g.fillCircle(cx, cy + dy, r);
-            g.fillRect(x - s * 0.42, y - s * 0.13 + dy, s * 0.84, s * 0.13);
+            for (const [cx, cy, r] of lobes) pixelEllipse(g, cx, cy + dy, r, r, color, alpha, CLOUD_CELL);
+            pixelRect(g, x - s * 0.42, y - s * 0.13 + dy, s * 0.84, s * 0.13, color, alpha, CLOUD_CELL);
         };
         pass(shadow, 0);
         pass(body, -lift);
-        g.fillStyle(crown, alpha);
         const tall = [...lobes].sort((a, b) => b[2] - a[2]);
         for (let i = 0; i < 2 && i < tall.length; i++) {
             const [cx, cy, r] = tall[i];
-            g.fillCircle(cx - r * 0.22, cy - r * 0.26 - lift, r * 0.52);
+            pixelEllipse(g, cx - r * 0.22, cy - r * 0.26 - lift, r * 0.52, r * 0.52, crown, alpha, CLOUD_CELL);
         }
     }
 
@@ -3240,6 +3746,10 @@ export class WorldMapSystem {
         const g = this.scene.add.graphics();
         g.setDepth(28_500); // above every postcard, below the day/night grade
         const inner = { min: -radius * PLOT_PITCH - PLOT_GAP - 0.4, max: (radius + 1) * PLOT_PITCH + 0.4 };
+        // Roaming lights (edge-camp bonfires, the caravan lantern) must never
+        // wash over the cloud bank: hand the discovered square to the light
+        // system so it hems pools in as they near this boundary.
+        this.scene.dayNight?.setSightBound?.({ min: inner.min, max: inner.max });
         const far = 7 * PLOT_PITCH;
         const P = (x: number, y: number) => IsoUtils.cartToIso(x, y);
         let seedState = 131;
@@ -3275,19 +3785,34 @@ export class WorldMapSystem {
         // visible bank. Row A shoulders right up against the front masses;
         // row B is bigger, paler, half a step deeper, dissolving into the
         // flat floor behind it.
+        // Shadow tones sit near the neighbour layer's body tone so overlap
+        // rims read as soft creases, not outlines; row B tucks close behind
+        // row A instead of drifting half-detached into the haze floor.
         const ROWS: Array<{ d: number; w: number; step: number; shadow: number; body: number; crown: number }> = [
-            { d: 3.4, w: 215, step: 3.4, shadow: 0xb6c6d8, body: 0xe2eaf1, crown: 0xf3f7fb },
-            { d: 8.6, w: 255, step: 4.8, shadow: 0xb0c0d3, body: 0xd8e2ec, crown: 0xe9eff5 }
+            { d: 3.4, w: 215, step: 3.4, shadow: 0xc3d1e0, body: 0xe5ecf3, crown: 0xf3f7fb },
+            { d: 6.4, w: 255, step: 4.2, shadow: 0xc0cddb, body: 0xd8e2ec, crown: 0xe9eff5 }
         ];
+        // A cumulus BODY always rises up-screen from its base. On the two
+        // SOUTH-facing sides (screen-bottom edges) that body climbs back over
+        // the boundary and buries the horizon road; on the NORTH-facing
+        // sides (screen-top edges: cart gy=min and gx=min) it climbs AWAY,
+        // leaving the same road bare to the haze floor. Tucking the north
+        // banks' bases ~half a body-height further in seats their flat
+        // bottoms over the horizon road — burying it with only a modest lap
+        // onto the outermost lawns, matching the south banks' billows. (The
+        // full body-height tuck of 6.0 crowded the lawns; owner-tuned back.)
+        const TOP_TUCK = 3.0;
         for (const row of ROWS) {
             for (let side = 0; side < 4; side++) {
-                for (let t = inner.min - row.d - 8; t <= inner.max + row.d + 8; t += row.step * (0.82 + rand() * 0.36)) {
+                // A 2-tile corner wrap only — the old ±(d+8) overshoot left
+                // stray puffs floating detached past the corners.
+                for (let t = inner.min - 2; t <= inner.max + 2; t += row.step * (0.82 + rand() * 0.36)) {
                     const d = row.d + (rand() - 0.5) * 2.6;
                     let gx: number;
                     let gy: number;
-                    if (side === 0) { gx = t; gy = inner.min - d; }
+                    if (side === 0) { gx = t; gy = inner.min - d + TOP_TUCK; }
                     else if (side === 1) { gx = t; gy = inner.max + d; }
-                    else if (side === 2) { gx = inner.min - d; gy = t; }
+                    else if (side === 2) { gx = inner.min - d + TOP_TUCK; gy = t; }
                     else { gx = inner.max + d; gy = t; }
                     const c = P(gx, gy);
                     const seed = (Math.imul((Math.round(t * 7) + side * 7919 + row.d * 131) | 0, 2654435761) >>> 0) % 100000;
@@ -3296,8 +3821,8 @@ export class WorldMapSystem {
                 }
             }
         }
-        // Deep cloud bank is built once — candidate for a one-time RT
-        // quantize as follow-up.
+        // Deep cloud bank: every puff already lands as pixel cells via
+        // WorldMapSystem.puff → PixelDraw.
         this.fogStatic = g;
     }
 
@@ -3325,10 +3850,12 @@ export class WorldMapSystem {
         const wv = this.scene.cameras.main.worldView;
         const CULL = 420;
 
-        const SHADOW = 0xbfcedd;
+        // Shadow rims near the bank rows' body tones — the front rampart
+        // blends into the rows behind instead of outlining against them.
+        const SHADOW = 0xc9d6e3;
         const BODY = 0xe9eff5;
         const CROWN = 0xf9fbfd;
-        const CREST_SHADOW = 0xb2c2d4;
+        const CREST_SHADOW = 0xc2cfdd;
         const CREST_BODY = 0xdbe4ee;
         const CREST_CROWN = 0xedf2f7;
 
@@ -3344,11 +3871,17 @@ export class WorldMapSystem {
                 const drift = Math.sin(T * 0.05 + h * 0.7) * 0.8;
                 const along = t + drift;
                 const out = 1.1 + ((h >> 3) % 20) / 24;
+                // North-facing sides tuck in (see ensureFog's TOP_TUCK): the
+                // rampart's flat bottoms must swallow the horizon road there,
+                // because their bodies billow away from the map instead of
+                // back over the boundary like the south sides' do. Scaled
+                // with TOP_TUCK (same half-step back from 3.9).
+                const EDGE_TUCK = 2.0;
                 let gx: number;
                 let gy: number;
-                if (side === 0) { gx = along; gy = inner.min - out; }
+                if (side === 0) { gx = along; gy = inner.min - out + EDGE_TUCK; }
                 else if (side === 1) { gx = along; gy = inner.max + out; }
-                else if (side === 2) { gx = inner.min - out; gy = along; }
+                else if (side === 2) { gx = inner.min - out + EDGE_TUCK; gy = along; }
                 else { gx = inner.max + out; gy = along; }
                 const c = IsoUtils.cartToIso(gx, gy);
                 if (c.x < wv.x - CULL || c.x > wv.right + CULL || c.y < wv.y - CULL || c.y > wv.bottom + CULL) continue;

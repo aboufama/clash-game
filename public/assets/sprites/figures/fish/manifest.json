@@ -1,0 +1,79 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "fish",
+  "variants": {
+    "c": {
+      "states": {
+        "swim": {
+          "loopMs": 5464,
+          "frames": [
+            {
+              "file": "fish_c_swim0.png",
+              "texelW": 7,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.603174603174603,
+              "originY": 0.604938271604938
+            },
+            {
+              "file": "fish_c_swim1.png",
+              "texelW": 7,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.603174603174603,
+              "originY": 0.604938271604938
+            },
+            {
+              "file": "fish_c_swim2.png",
+              "texelW": 11,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.29292929292929276,
+              "originY": 0.604938271604938
+            },
+            {
+              "file": "fish_c_swim3.png",
+              "texelW": 11,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.29292929292929276,
+              "originY": 0.604938271604938
+            },
+            {
+              "file": "fish_c_swim4.png",
+              "texelW": 11,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.29292929292929276,
+              "originY": 0.604938271604938
+            },
+            {
+              "file": "fish_c_swim5.png",
+              "texelW": 11,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.29292929292929276,
+              "originY": 0.604938271604938
+            },
+            {
+              "file": "fish_c_swim6.png",
+              "texelW": 7,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.603174603174603,
+              "originY": 0.604938271604938
+            },
+            {
+              "file": "fish_c_swim7.png",
+              "texelW": 7,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.603174603174603,
+              "originY": 0.604938271604938
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -67,7 +67,8 @@ import {
   villageArmy,
   villageBuildings,
   villageObstacles,
-  villagePopulation
+  villagePopulation,
+  type AdvertisedUpgradePolicy
 } from './village-state'
 import {
   ACTIVE_INCOMING_STATES,
@@ -100,7 +101,9 @@ interface RuntimeOptions {
   starterShieldMs?: number
   sessionTtlMs?: number
   allowDebugGrants?: boolean
+  infiniteResources?: boolean
   upgradeTimeScale?: number
+  fixedUpgradeDurationMs?: number
 }
 
 class NoCommitResponse extends Error {
@@ -138,6 +141,22 @@ function toInteger(value: unknown, fallback: number): number {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value))
+}
+
+/** Apply storage rules, preserving existing overflow only in debug mode. */
+function storedResourceAfterDelta(
+  current: number,
+  delta: number,
+  capacity: number,
+  allowOverflow = false,
+  preserveOverflow = false
+): number {
+  const stored = clamp(toInteger(current, 0), 0, MAX_PLAYER_GOLD)
+  if (allowOverflow) return clamp(stored + delta, 0, MAX_PLAYER_GOLD)
+  if (!preserveOverflow) return clamp(stored + delta, 0, capacity)
+  if (delta <= 0) return Math.max(0, stored + delta)
+  if (stored >= capacity) return stored
+  return Math.min(capacity, stored + delta)
 }
 
 function sanitizeId(value: unknown): string {
@@ -245,7 +264,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
   private readonly attacks: RuntimeAttackService
   private readonly clock: () => Date
   private readonly allowDebugGrants: boolean
+  private readonly infiniteResources: boolean
   private readonly upgradeTimeScale: number
+  private readonly fixedUpgradeDurationMs?: number
+  private readonly upgradePolicy: AdvertisedUpgradePolicy
   private readonly authority: VillageAuthority
   private readonly auth: AuthSessionService
 
@@ -254,13 +276,29 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
     this.attacks = options.attacks ?? NO_ATTACKS
     this.clock = options.now ?? (() => new Date())
     this.allowDebugGrants = options.allowDebugGrants ?? process.env.CLASH_ALLOW_DEBUG_GRANTS === '1'
+    this.infiniteResources = options.infiniteResources ?? process.env.CLASH_INFINITE_RESOURCES === '1'
     const configuredScale = options.upgradeTimeScale ?? Number(process.env.CLASH_UPGRADE_TIME_SCALE ?? 1)
     this.upgradeTimeScale = Number.isFinite(configuredScale) && configuredScale >= 0 ? configuredScale : 1
-    this.authority = new VillageAuthority()
+    const envDuration = process.env.CLASH_UPGRADE_DURATION_MS?.trim()
+    const configuredDuration = options.fixedUpgradeDurationMs
+      ?? (envDuration ? Number(envDuration) : undefined)
+    this.fixedUpgradeDurationMs = typeof configuredDuration === 'number'
+      && Number.isFinite(configuredDuration) && configuredDuration >= 0
+      ? Math.round(configuredDuration)
+      : undefined
+    // Advertised on every owned world payload so client-displayed durations
+    // always derive from the clock THIS server will actually bill.
+    this.upgradePolicy = {
+      ...(this.fixedUpgradeDurationMs !== undefined ? { fixedDurationMs: this.fixedUpgradeDurationMs } : {}),
+      timeScale: this.upgradeTimeScale
+    }
+    this.authority = new VillageAuthority(this.allowDebugGrants)
     this.auth = new AuthSessionService(persistence, this.authority, {
       clock: this.clock,
       starterShieldMs: options.starterShieldMs,
-      sessionTtlMs: options.sessionTtlMs
+      sessionTtlMs: options.sessionTtlMs,
+      infiniteResources: this.infiniteResources,
+      upgradePolicy: this.upgradePolicy
     })
   }
 
@@ -385,7 +423,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
         now,
         await this.authority.hasActiveIncoming(tx, principal.playerId)
       )
-      return serializedWorldOf(state.account, state.village, now, { stoneMaturity: true })
+      return serializedWorldOf(state.account, state.village, now, { stoneMaturity: true, upgradePolicy: this.upgradePolicy })
     })
   }
 
@@ -407,10 +445,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
       const expectedRevision = toInteger(world.revision, Number.NaN)
       if (!Number.isFinite(expectedRevision) || expectedRevision !== state.village.economyRevision) {
         const current = cloneJson(state.village)
-        materializeVillage(current, now)
+        materializeVillage(current, now, { preserveOverCapacity: this.allowDebugGrants })
         throw new ApiError(409, `Stale world revision (expected ${state.village.economyRevision})`, 'STALE_REVISION', {
           currentRevision: state.village.economyRevision,
-          world: serializedWorldOf(state.account, current, now)
+          world: serializedWorldOf(state.account, current, now, { upgradePolicy: this.upgradePolicy })
         })
       }
       const beforeSimulation = villageMaterialFingerprint(state.village)
@@ -441,21 +479,30 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
           proposedBuildings: proposal.buildings,
           proposedObstacles: proposal.obstacles,
           now: now.getTime(),
-          upgradeTimeScale: this.upgradeTimeScale
+          upgradeTimeScale: this.upgradeTimeScale,
+          fixedUpgradeDurationMs: this.fixedUpgradeDurationMs
         }))
-        if (pricing.bill.gold > 0 && Math.floor(state.village.gold) < pricing.bill.gold) {
+        if (!this.infiniteResources && pricing.bill.gold > 0 && Math.floor(state.village.gold) < pricing.bill.gold) {
           throw new ApiError(409, `Not enough gold for these changes (need ${pricing.bill.gold})`, 'INSUFFICIENT_RESOURCES', { resource: 'gold' })
         }
-        if (pricing.bill.ore > 0 && state.village.ore < pricing.bill.ore) {
+        if (!this.infiniteResources && pricing.bill.ore > 0 && state.village.ore < pricing.bill.ore) {
           throw new ApiError(409, `Not enough ore for these changes (need ${pricing.bill.ore})`, 'INSUFFICIENT_RESOURCES', { resource: 'ore' })
         }
-        state.village.gold = clamp(state.village.gold - pricing.bill.gold, 0, MAX_PLAYER_GOLD)
+        if (!this.infiniteResources) {
+          state.village.gold = clamp(state.village.gold - pricing.bill.gold, 0, MAX_PLAYER_GOLD)
+        }
         state.village.buildings = pricing.buildings as unknown as JsonValue[]
         state.village.obstacles = proposal.obstacles as unknown as JsonValue[]
         state.village.wallLevel = proposal.wallLevel
         const capacity = resourceCapacity(pricing.buildings)
-        state.village.ore = clamp(state.village.ore - pricing.bill.ore, 0, capacity.ore)
-        state.village.food = clamp(state.village.food, 0, capacity.food)
+        if (!this.infiniteResources) {
+          state.village.ore = storedResourceAfterDelta(
+            state.village.ore, -pricing.bill.ore, capacity.ore, false, this.allowDebugGrants
+          )
+          state.village.food = storedResourceAfterDelta(
+            state.village.food, 0, capacity.food, false, this.allowDebugGrants
+          )
+        }
         if (state.village.ore >= capacity.ore) state.village.productionRemainders.ore = 0
         if (state.village.food >= capacity.food) state.village.productionRemainders.food = 0
         const population = villagePopulation(state.village)
@@ -472,12 +519,12 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
         }
       }
       if (!proposal.changed && !simulationChanged) {
-        const response = serializedWorldOf(state.account, state.village, now)
+        const response = serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy })
         await this.completeRequest(tx, principal, 'world.save', id, response)
         return response
       }
       await this.authority.updateVillage(tx, state.village, expectedRevision)
-      const response = serializedWorldOf(state.account, state.village, now)
+      const response = serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy })
       await this.completeRequest(tx, principal, 'world.save', id, response)
       if (proposal.changed) {
         const auditId = id || randomId('world-save')
@@ -536,7 +583,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
           incoming
         )
         if (delta === 0) throw new NoCommitResponse({ applied: false, ...this.balances(state.village) })
-        if (delta > 0 && !(reason === 'debug_grant' && this.allowDebugGrants)) {
+        const isDebugGrant = delta > 0 && reason === 'debug_grant' && this.allowDebugGrants
+        if (delta > 0 && !isDebugGrant) {
           const rule = AMBIENT_GRANTS[reason]
           if (!rule || rule.resource !== resource) throw new ApiError(403, 'Resources are earned, not granted')
           if (delta > rule.perCall) throw new ApiError(403, 'Grant exceeds the ambient cap')
@@ -550,16 +598,21 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
             throw new NoCommitResponse({ applied: false, ...this.balances(state.village) })
           }
         }
+        const infiniteSpend = delta < 0 && this.infiniteResources
         const current = resource === 'gold' ? Math.floor(state.village.gold) : state.village[resource]
-        if (delta < 0 && current + delta < 0) {
+        if (!infiniteSpend && delta < 0 && current + delta < 0) {
           throw new NoCommitResponse({ applied: false, ...this.balances(state.village) })
         }
         const beforeApplied = state.village[resource]
-        if (resource === 'gold') state.village.gold = clamp(state.village.gold + delta, 0, MAX_PLAYER_GOLD)
-        else {
-          const capacity = resourceCapacity(villageBuildings(state.village))
-          state.village[resource] = clamp(state.village[resource] + delta, 0, capacity[resource])
-          if (state.village[resource] >= capacity[resource]) state.village.productionRemainders[resource] = 0
+        if (!infiniteSpend) {
+          if (resource === 'gold') state.village.gold = clamp(state.village.gold + delta, 0, MAX_PLAYER_GOLD)
+          else {
+            const capacity = resourceCapacity(villageBuildings(state.village))
+            state.village[resource] = storedResourceAfterDelta(
+              state.village[resource], delta, capacity[resource], isDebugGrant, this.allowDebugGrants
+            )
+            if (state.village[resource] >= capacity[resource]) state.village.productionRemainders[resource] = 0
+          }
         }
         state.village.lastMutationAt = now
         const expected = state.village.economyRevision
@@ -610,10 +663,13 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
       }
       const goldCost = definition.cost * count
       const foodCost = troopFoodCostOf(type) * count
-      if (Math.floor(state.village.gold) < goldCost) throw new ApiError(409, `Not enough gold (need ${goldCost})`)
-      if (state.village.food < foodCost) throw new ApiError(409, `Not enough food (need ${foodCost})`)
-      state.village.gold -= goldCost
-      state.village.food -= foodCost
+      if (!this.infiniteResources && Math.floor(state.village.gold) < goldCost) throw new ApiError(409, `Not enough gold (need ${goldCost})`)
+      if (!this.infiniteResources && state.village.food < foodCost) throw new ApiError(409, `Not enough food (need ${foodCost})`)
+      const beforeTraining = { gold: state.village.gold, food: state.village.food }
+      if (!this.infiniteResources) {
+        state.village.gold -= goldCost
+        state.village.food -= foodCost
+      }
       army[type] = (army[type] ?? 0) + count
       state.village.army = army as unknown as JsonObject
       state.village.lastMutationAt = now
@@ -624,12 +680,12 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
       const auditId = id || randomId('train')
       await tx.balanceLedger.append({
         playerId: principal.playerId, operation: 'army.train', requestId: auditId,
-        currency: 'gold', delta: -goldCost, balanceAfter: response.gold,
+        currency: 'gold', delta: state.village.gold - beforeTraining.gold, balanceAfter: response.gold,
         metadata: { troopType: type, count }, createdAt: now
       })
       await tx.balanceLedger.append({
         playerId: principal.playerId, operation: 'army.train', requestId: auditId,
-        currency: 'food', delta: -foodCost, balanceAfter: response.food,
+        currency: 'food', delta: state.village.food - beforeTraining.food, balanceAfter: response.food,
         metadata: { troopType: type, count }, createdAt: now
       })
       return response
@@ -659,10 +715,14 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
       const beforeRefund = { gold: state.village.gold, food: state.village.food }
       if ((army[type] ?? 0) === count) delete army[type]
       else army[type] -= count
-      state.village.gold = clamp(state.village.gold + definition.cost * count, 0, MAX_PLAYER_GOLD)
-      const capacity = resourceCapacity(villageBuildings(state.village))
-      state.village.food = clamp(state.village.food + troopFoodCostOf(type) * count, 0, capacity.food)
-      if (state.village.food >= capacity.food) state.village.productionRemainders.food = 0
+      if (!this.infiniteResources) {
+        state.village.gold = clamp(state.village.gold + definition.cost * count, 0, MAX_PLAYER_GOLD)
+        const capacity = resourceCapacity(villageBuildings(state.village))
+        state.village.food = storedResourceAfterDelta(
+          state.village.food, troopFoodCostOf(type) * count, capacity.food, false, this.allowDebugGrants
+        )
+        if (state.village.food >= capacity.food) state.village.productionRemainders.food = 0
+      }
       state.village.army = army as unknown as JsonObject
       state.village.lastMutationAt = now
       const expected = state.village.economyRevision
@@ -704,7 +764,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
         }
         await this.authority.materializeWithAudit(tx, state.village, now)
         const have = offer.give.kind === 'gold' ? Math.floor(state.village.gold) : state.village[offer.give.kind]
-        if (have < offer.give.amount) {
+        if (!this.infiniteResources && have < offer.give.amount) {
           throw new NoCommitResponse({ applied: false, offerId: offer.id, ...this.balances(state.village) })
         }
         const beforeTrade = {
@@ -712,13 +772,17 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
           ore: state.village.ore,
           food: state.village.food
         }
-        const capacity = resourceCapacity(villageBuildings(state.village))
-        const apply = (kind: 'gold' | 'ore' | 'food', delta: number) => {
-          if (kind === 'gold') state.village.gold = clamp(state.village.gold + delta, 0, MAX_PLAYER_GOLD)
-          else state.village[kind] = clamp(state.village[kind] + delta, 0, capacity[kind])
+        if (!this.infiniteResources) {
+          const capacity = resourceCapacity(villageBuildings(state.village))
+          const apply = (kind: 'gold' | 'ore' | 'food', delta: number) => {
+            if (kind === 'gold') state.village.gold = clamp(state.village.gold + delta, 0, MAX_PLAYER_GOLD)
+            else state.village[kind] = storedResourceAfterDelta(
+              state.village[kind], delta, capacity[kind], false, this.allowDebugGrants
+            )
+          }
+          apply(offer.give.kind, -offer.give.amount)
+          apply(offer.get.kind, offer.get.amount)
         }
-        apply(offer.give.kind, -offer.give.amount)
-        apply(offer.get.kind, offer.get.amount)
         state.village.lastMutationAt = now
         const expected = state.village.economyRevision
         await this.authority.updateVillage(tx, state.village, expected)
@@ -826,7 +890,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
           if (entry) {
             const account = accountForSummary(entry)
             const village = villageForPostcard(entry)
-            materializeVillage(village, now, { populationLocked: activeByDefender.has(account.id) })
+            materializeVillage(village, now, {
+              populationLocked: activeByDefender.has(account.id),
+              preserveOverCapacity: this.allowDebugGrants
+            })
             const attackId = activeByDefender.get(account.id)
             const withinSight = chebyshev(x, y, viewer.plot.x, viewer.plot.y) <= sight
             const plot: Record<string, unknown> = {
@@ -847,7 +914,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
           const seed = botSeedAt(x, y)
           plots.push(seed === null
             ? { x, y, kind: 'empty', settleable: !isWildernessPreserveAt(x, y) }
-            : { x, y, kind: 'bot', seed, username: botNameFor(seed), trophies: 100 + seed % 900 })
+            : { x, y, kind: 'bot', seed, username: botNameFor(seed, x, y), trophies: 100 + seed % 900 })
         }
       }
       return {

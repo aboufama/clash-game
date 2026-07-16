@@ -1,0 +1,23 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "musket_ball",
+  "variants": {
+    "l1": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "musket_ball_l1_idle0.png",
+              "texelW": 2,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.42592592592592277,
+              "originY": 0.42592592592592277
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "cellWorldPx": 1.35,
   "buckets": 16,
-  "loopMs": 3000,
+  "loopMs": 5000,
   "variants": [
     {
       "frames": [
@@ -31,10 +31,10 @@
         },
         {
           "file": "tree_oak_b00_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -47,18 +47,18 @@
         },
         {
           "file": "tree_oak_b00_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b00_6.png",
-          "texelW": 18,
+          "texelW": 17,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.5337690631808278,
           "originY": 0.48806584362139876
         },
         {
@@ -67,6 +67,102 @@
           "texelH": 45,
           "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_16.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b00_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         }
       ]
@@ -78,7 +174,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -86,7 +182,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -94,15 +190,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b01_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -110,15 +206,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b01_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -131,10 +227,106 @@
         },
         {
           "file": "tree_oak_b01_7.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5337690631808278,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_8.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_17.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b01_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         }
       ]
@@ -146,7 +338,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -154,7 +346,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -162,15 +354,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b02_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -178,15 +370,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b02_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -194,11 +386,107 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b02_7.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b02_19.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
@@ -214,7 +502,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -222,23 +510,23 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b03_2.png",
-          "texelW": 18,
+          "texelW": 17,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5337690631808278,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b03_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -251,10 +539,10 @@
         },
         {
           "file": "tree_oak_b03_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -262,11 +550,107 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b03_7.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_12.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b03_19.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
@@ -279,10 +663,10 @@
       "frames": [
         {
           "file": "tree_oak_b04_0.png",
-          "texelW": 18,
+          "texelW": 17,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.4749455337690621,
           "originY": 0.48806584362139876
         },
         {
@@ -303,10 +687,10 @@
         },
         {
           "file": "tree_oak_b04_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -314,15 +698,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b04_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -330,7 +714,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -338,7 +722,103 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_10.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5337690631808278,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b04_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         }
       ]
@@ -350,7 +830,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -358,23 +838,23 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b05_2.png",
-          "texelW": 18,
+          "texelW": 17,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5337690631808278,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b05_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -382,15 +862,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b05_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -407,6 +887,102 @@
           "texelH": 45,
           "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_9.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5337690631808278,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b05_19.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
           "originY": 0.48806584362139876
         }
       ]
@@ -434,15 +1010,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b06_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -476,6 +1052,102 @@
           "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_15.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b06_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
         }
       ]
     },
@@ -486,7 +1158,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -494,7 +1166,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -502,15 +1174,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b07_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -518,11 +1190,19 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b07_5.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_6.png",
           "texelW": 17,
           "texelH": 45,
           "cellWorldPx": 1.35,
@@ -530,19 +1210,107 @@
           "originY": 0.48806584362139876
         },
         {
-          "file": "tree_oak_b07_6.png",
-          "texelW": 18,
-          "texelH": 45,
-          "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
-          "originY": 0.48806584362139876
-        },
-        {
           "file": "tree_oak_b07_7.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_16.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b07_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         }
       ]
@@ -554,7 +1322,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -562,7 +1330,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -575,10 +1343,10 @@
         },
         {
           "file": "tree_oak_b08_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -586,15 +1354,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b08_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -602,7 +1370,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -610,7 +1378,103 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b08_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         }
       ]
@@ -622,7 +1486,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -630,7 +1494,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -638,15 +1502,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b09_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -659,10 +1523,10 @@
         },
         {
           "file": "tree_oak_b09_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -670,11 +1534,107 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b09_7.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_11.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b09_19.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
@@ -711,10 +1671,10 @@
         },
         {
           "file": "tree_oak_b10_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -722,15 +1682,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b10_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -738,7 +1698,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -746,7 +1706,103 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_9.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5337690631808278,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b10_19.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
           "originY": 0.48806584362139876
         }
       ]
@@ -758,7 +1814,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -766,7 +1822,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -774,15 +1830,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b11_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -790,7 +1846,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -798,7 +1854,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -815,6 +1871,102 @@
           "texelH": 45,
           "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_8.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5337690631808278,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_18.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b11_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         }
       ]
@@ -834,7 +1986,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -842,19 +1994,11 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b12_3.png",
-          "texelW": 17,
-          "texelH": 45,
-          "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
-          "originY": 0.48806584362139876
-        },
-        {
-          "file": "tree_oak_b12_4.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
@@ -862,11 +2006,19 @@
           "originY": 0.48806584362139876
         },
         {
-          "file": "tree_oak_b12_5.png",
-          "texelW": 17,
+          "file": "tree_oak_b12_4.png",
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_5.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -884,6 +2036,102 @@
           "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b12_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
         }
       ]
     },
@@ -894,7 +2142,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -902,7 +2150,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -910,15 +2158,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b13_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -926,7 +2174,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.5596707818930039,
           "originY": 0.48806584362139876
         },
         {
@@ -942,11 +2190,107 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b13_7.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_15.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b13_19.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
@@ -962,15 +2306,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b14_1.png",
-          "texelW": 18,
+          "texelW": 17,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.4749455337690621,
           "originY": 0.48806584362139876
         },
         {
@@ -983,10 +2327,10 @@
         },
         {
           "file": "tree_oak_b14_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -994,15 +2338,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b14_5.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5337690631808278,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -1010,7 +2354,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -1018,7 +2362,103 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_10.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
           "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b14_19.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         }
       ]
@@ -1027,10 +2467,10 @@
       "frames": [
         {
           "file": "tree_oak_b15_0.png",
-          "texelW": 18,
+          "texelW": 17,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5337690631808278,
           "originY": 0.48806584362139876
         },
         {
@@ -1038,7 +2478,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -1046,15 +2486,15 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4485596707818921,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b15_3.png",
-          "texelW": 17,
+          "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.4749455337690621,
+          "originX": 0.5041152263374485,
           "originY": 0.48806584362139876
         },
         {
@@ -1062,7 +2502,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -1070,7 +2510,7 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5041152263374485,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
@@ -1078,11 +2518,107 @@
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,
-          "originX": 0.5596707818930039,
+          "originX": 0.4485596707818921,
           "originY": 0.48806584362139876
         },
         {
           "file": "tree_oak_b15_7.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_8.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_9.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4485596707818921,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_10.png",
+          "texelW": 17,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.4749455337690621,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_11.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_12.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_13.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5041152263374485,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_14.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_15.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_16.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_17.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_18.png",
+          "texelW": 18,
+          "texelH": 45,
+          "cellWorldPx": 1.35,
+          "originX": 0.5596707818930039,
+          "originY": 0.48806584362139876
+        },
+        {
+          "file": "tree_oak_b15_19.png",
           "texelW": 18,
           "texelH": 45,
           "cellWorldPx": 1.35,

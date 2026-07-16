@@ -5,7 +5,7 @@ import { createGameConfig } from './game/GameConfig';
 import { installDisplayResolution } from './game/utils/DisplayResolution';
 import type { GameMode } from './game/types/GameMode';
 import { BUILDING_DEFINITIONS, PLAYER_TROOP_TYPES, TROOP_DEFINITIONS, type BuildingType, type PlayerTroopType, type TroopType, getBuildingStats, upgradeOreCostOf, troopFoodCostOf } from './game/config/GameDefinitions';
-import { armySpaceUsed, campCapacityOf, campHousingAtLevel, placementCharge, productionRatesPerSecond, resourceCapacity } from './game/config/Economy';
+import { armySpaceUsed, campCapacityOf, campHousingAtLevel, effectiveTroopLevel, labUpgradeInFlight, maxBarracksLevel, placementCharge, productionRatesPerSecond, resourceCapacity } from './game/config/Economy';
 import { Backend, type IncomingAttackSession } from './game/backend/GameBackend';
 import type { SerializedWorld } from './game/data/Models';
 import { Auth } from './game/backend/Auth';
@@ -14,16 +14,17 @@ import { PlotPanel } from './components/PlotPanel';
 import { MapAtlasModal } from './components/MapAtlasModal';
 import { ReplayTheatreModal } from './components/ReplayTheatreModal';
 import { MobileUtils } from './game/utils/MobileUtils';
-import { CloudOverlay } from './components/CloudOverlay';
+import { CloudOverlay, CLOUD_OPEN_TOTAL_MS } from './components/CloudOverlay';
 import { TrainingModal } from './components/TrainingModal';
 import { BuildingShopModal } from './components/BuildingShopModal';
-import { BattleResultsModal } from './components/BattleResultsModal';
+import { BattleResultsModal, type RaidReportStats } from './components/BattleResultsModal';
 import { Hud } from './components/Hud';
 import { DebugMenu } from './components/DebugMenu';
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { LeaderboardPanel } from './components/LeaderboardPanel';
 import { AccountModal } from './components/AccountModal';
 import { JukeboxModal } from './components/JukeboxModal';
+import { BannerPickerModal } from './components/BannerPickerModal';
 import { MerchantModal } from './components/MerchantModal';
 import { soundSystem } from './game/systems/SoundSystem';
 import type { MerchantOffer } from './game/systems/VillageLifeSystem';
@@ -65,7 +66,13 @@ const buildingList = Object.values(BUILDING_DEFINITIONS).sort((a, b) => {
   if (a.cost !== b.cost) return a.cost - b.cost;
   return a.name.localeCompare(b.name);
 });
-const troopList = Object.values(TROOP_DEFINITIONS).filter(t => t.id !== 'romanwarrior');
+// Canonical training order (scenario-only units excluded by construction).
+const troopList = PLAYER_TROOP_TYPES.map(id => TROOP_DEFINITIONS[id]);
+const INFINITE_SPENDABLE_RESOURCES = Object.freeze({
+  gold: Number.MAX_SAFE_INTEGER,
+  ore: Number.MAX_SAFE_INTEGER,
+  food: Number.MAX_SAFE_INTEGER
+});
 
 
 function App() {
@@ -83,10 +90,12 @@ function App() {
   }, [user]);
   const [authReady, setAuthReady] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const [infiniteResources, setInfiniteResources] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [worldReady, setWorldReady] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isJukeboxOpen, setIsJukeboxOpen] = useState(false);
+  const [isBannerPickerOpen, setIsBannerPickerOpen] = useState(false);
   const [merchantOffers, setMerchantOffers] = useState<MerchantOffer[] | null>(null);
   const [plotPanel, setPlotPanel] = useState<PlotPanelInfo | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -110,6 +119,17 @@ function App() {
   const [cloudLoadingProgress, setCloudLoadingProgress] = useState(4);
   const [cloudTransitionReward, setCloudTransitionReward] = useState<number | null>(null);
   const [lootAnimating, setLootAnimating] = useState<{ amount: number } | null>(null);
+  // Mirror for timer callbacks: reading the reward through a ref keeps the
+  // count-up side effect OUT of state updaters (StrictMode double-invokes
+  // updaters, which used to restart the animation).
+  const cloudTransitionRewardRef = useRef<number | null>(null);
+  useEffect(() => {
+    cloudTransitionRewardRef.current = cloudTransitionReward;
+  }, [cloudTransitionReward]);
+  // Raid report queued while the clouds carry us home; shown once they open.
+  const pendingBattleResultsRef = useRef<RaidReportStats | null>(null);
+  // Loot count-up held back while the raid report is up; released on dismiss.
+  const heldLootRef = useRef<number | null>(null);
   const cloudOpenTimerRef = useRef<number | null>(null);
   const cloudHideTimerRef = useRef<number | null>(null);
   const [resources, setResources] = useState({ gold: 0, ore: 0, food: 0 });
@@ -118,8 +138,13 @@ function App() {
   const resourcesRef = useRef(resources);
   // Ticking HUD values: base balances + predicted accrual (see the predictive block below).
   const [displayResources, setDisplayResources] = useState(resources);
-  const [army, setArmy] = useState({ warrior: 0, archer: 0, giant: 0, wallbreaker: 0, ward: 0, recursion: 0, ram: 0, stormmage: 0, golem: 0, sharpshooter: 0, mobilemortar: 0, davincitank: 0, phalanx: 0 });
-  const [isMobile] = useState(() => MobileUtils.isMobile());
+  const spendableResources = infiniteResources ? INFINITE_SPENDABLE_RESOURCES : displayResources;
+  const [army, setArmy] = useState({ warrior: 0, archer: 0, giant: 0, wallbreaker: 0, ward: 0, recursion: 0, ram: 0, stormmage: 0, golem: 0, icegolem: 0, sharpshooter: 0, mobilemortar: 0, davincitank: 0, phalanx: 0 });
+  const [isMobile, setIsMobile] = useState(() => MobileUtils.isMobile());
+  // MobileUtils re-evaluates the heuristic on resize/orientation and keeps
+  // the body class fresh; mirror those flips into React so `.hud.mobile`
+  // (and every isMobile prop) tracks reality instead of latching at mount.
+  useEffect(() => MobileUtils.onMobileChange(setIsMobile), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,6 +173,7 @@ function App() {
         } else {
           setUser(null);
         }
+        setInfiniteResources(online && Auth.getFeatures().infiniteResources);
         setIsOnline(online);
       })
       .catch(error => {
@@ -155,6 +181,7 @@ function App() {
         if (!cancelled) {
           setUser(null);
           setIsOnline(false);
+          setInfiniteResources(false);
         }
       })
       .finally(() => {
@@ -226,7 +253,25 @@ function App() {
   // optimistically: the returned authoritative snapshot is adopted by Backend,
   // so a dropped/failed response can never trigger an arithmetic resource mint.
   const handleMerchantTrade = useCallback(async (offer: MerchantOffer) => {
-    if (offer.done || merchantTradesInFlightRef.current.has(offer.id) || displayResources[offer.give.kind] < offer.give.amount) return;
+    if (offer.done || merchantTradesInFlightRef.current.has(offer.id) || spendableResources[offer.give.kind] < offer.give.amount) return;
+    // Storage-cap guard: the server silently CAPS an overflowing gain
+    // (storedResourceAfterDelta), so warn before anything vanishes. A deal
+    // whose entire yield would evaporate is blocked (friendlier than letting
+    // the player pay for nothing); a partial overflow proceeds with a toast.
+    if (!infiniteResources && (offer.get.kind === 'ore' || offer.get.kind === 'food')) {
+      const cap = storageCapsRef.current?.[offer.get.kind];
+      if (typeof cap === 'number' && cap > 0) {
+        const stored = Math.max(0, Math.floor(Number(resourcesRef.current[offer.get.kind] ?? 0)));
+        const headroom = Math.max(0, cap - stored);
+        if (headroom <= 0) {
+          showToast(`Storage full — the ${offer.get.amount} ${offer.get.kind.toUpperCase()} would be lost. Make room first.`);
+          return;
+        }
+        if (headroom < offer.get.amount) {
+          showToast(`Storage almost full — ${offer.get.amount - headroom} ${offer.get.kind.toUpperCase()} of this deal will be lost.`);
+        }
+      }
+    }
     merchantTradesInFlightRef.current.add(offer.id);
     offer.done = true;
     setMerchantOffers(prev => prev ? [...prev] : prev);
@@ -246,7 +291,7 @@ function App() {
     } finally {
       merchantTradesInFlightRef.current.delete(offer.id);
     }
-  }, [displayResources, showToast, userId]);
+  }, [spendableResources, showToast, userId, infiniteResources]);
 
 
   useEffect(() => {
@@ -299,7 +344,7 @@ function App() {
       cloudHideTimerRef.current = window.setTimeout(() => {
         setShowCloudOverlay(false);
         setCloudOpening(false);
-      }, 880); // OPEN_MS (800) + a beat — hiding early clips the part
+      }, CLOUD_OPEN_TOTAL_MS + 40); // slowest cloud layer finishes at OPEN_MS × 1.2; hiding earlier strands a haze band on wide windows
     }, 220);
   }, [clearCloudTimers]);
 
@@ -515,7 +560,7 @@ function App() {
   const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<{ id: string; type: BuildingType; level: number; gridX?: number; gridY?: number; upgradeEndsAt?: number } | null>(null);
   const [showAtlas, setShowAtlas] = useState(false);
   const [showTheatre, setShowTheatre] = useState(false);
-  const [battleStats, setBattleStats] = useState({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
+  const [battleStats, setBattleStats] = useState<RaidReportStats>({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
   const [battleStarted, setBattleStarted] = useState(false); // Track if first troop deployed
   const [isExiting, setIsExiting] = useState(false);
   const [showBattleResults, setShowBattleResults] = useState(false);
@@ -523,6 +568,12 @@ function App() {
   const [shopWallLevel, setShopWallLevel] = useState(1);
   const [troopLevel, setTroopLevel] = useState(1);
   const [barracksLevel, setBarracksLevel] = useState(1);
+  // True when barracks exist but none can train (all mid-upgrade) — the
+  // training grid shows the real reason instead of offering refused troops.
+  const [barracksUpgrading, setBarracksUpgrading] = useState(false);
+  // True while a lab upgrade is running: the server treats troops as level 1
+  // for the duration, so the UI must show that (with an upgrading hint).
+  const [troopLevelUpgrading, setTroopLevelUpgrading] = useState(false);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
   const [scoutTarget, setScoutTarget] = useState<{ userId: string; username: string } | null>(null);
   const [incomingAttack, setIncomingAttack] = useState<IncomingAttackSession | null>(null);
@@ -533,7 +584,12 @@ function App() {
   const selectedTroopTypeRef = useRef(selectedTroopType);
   const battleStatsRef = useRef(battleStats);
   const populationRef = useRef(population);
-  const armyTransactionInFlightRef = useRef(false);
+  // Army orders (train/untrain) queue instead of rejecting while one is in
+  // flight: rapid clicks each land optimistically and their server calls run
+  // strictly in click order. Chaining locally (on top of the Backend's own
+  // per-user mutation queue) also keeps a failed order's snapshot revert from
+  // racing the next order's request.
+  const armyOrderChainRef = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     populationRef.current = population;
   }, [population]);
@@ -610,7 +666,7 @@ function App() {
   // ---- predictive HUD counters ----
   // The displayed balances tick forward between authoritative syncs using the
   // SAME production math the server runs (shared Economy code): base value +
-  // staffed rate x elapsed, ore/food capped by storage. Every server response
+  // staffed rate x elapsed, ore/food production capped by storage. Every server response
   // re-anchors the base, so the counter is honest to the second.
   const resourcesSyncedAtRef = useRef(Date.now());
   useEffect(() => {
@@ -631,10 +687,13 @@ function App() {
       const staffing = Math.min(1, Math.max(0, populationRef.current.staffing ?? 1));
       const elapsed = Math.max(0, (Date.now() - resourcesSyncedAtRef.current) / 1000);
       const caps = storageCapsRef.current;
+      const predictStored = (stored: number, rate: number, capacity: number) => (
+        stored >= capacity ? stored : Math.min(capacity, Math.floor(stored + rate * staffing * elapsed))
+      );
       const next = {
         gold: Math.floor(base.gold + rates.gold * elapsed),
-        ore: Math.min(caps?.ore ?? Number.MAX_SAFE_INTEGER, Math.floor(base.ore + rates.ore * staffing * elapsed)),
-        food: Math.min(caps?.food ?? Number.MAX_SAFE_INTEGER, Math.floor(base.food + rates.food * staffing * elapsed))
+        ore: predictStored(base.ore, rates.ore, caps?.ore ?? Number.MAX_SAFE_INTEGER),
+        food: predictStored(base.food, rates.food, caps?.food ?? Number.MAX_SAFE_INTEGER)
       };
       setDisplayResources(prev => (
         prev.gold === next.gold && prev.ore === next.ore && prev.food === next.food ? prev : next
@@ -663,6 +722,19 @@ function App() {
       setPlotPanel(null);
       setIsTrainingOpen(false);
       setIsBuildingOpen(false);
+      // EVERY modal closes: an open surface would sit above (or keep polling
+      // under) the lockout — the atlas alone re-hits the dead session every 5s.
+      setShowAtlas(false);
+      setShowTheatre(false);
+      setIsAccountOpen(false);
+      setIsJukeboxOpen(false);
+      setIsBannerPickerOpen(false);
+      setMerchantOffers(null);
+      setIsDebugOpen(false);
+      setShowBattleResults(false);
+      setIncomingAttack(null);
+      setSelectedInMap(null);
+      setSelectedBuildingInfo(null);
       showToast('Session expired — reconnect before making more changes.');
       void Auth.logout().finally(() => {
         Backend.clearAllCaches();
@@ -870,14 +942,22 @@ function App() {
         cloudHideTimerRef.current = window.setTimeout(() => {
           setShowCloudOverlay(false);
           setCloudOpening(false);
-          // Trigger count-up animation if there was a reward
-          setCloudTransitionReward(prev => {
-            if (prev && prev > 0) {
-              setLootAnimating({ amount: prev });
-            }
-            return null;
-          });
-        }, 880); // OPEN_MS (800) + a beat — hiding early clips the part
+          // The clouds have parted on home. Show the raid report first when
+          // one is queued (its dismiss releases the loot count-up); plain
+          // transitions start the count-up straight away. Side effects live
+          // here, not inside a state updater (StrictMode double-fires those).
+          const reward = cloudTransitionRewardRef.current;
+          setCloudTransitionReward(null);
+          const results = pendingBattleResultsRef.current;
+          if (results) {
+            pendingBattleResultsRef.current = null;
+            heldLootRef.current = reward && reward > 0 ? reward : null;
+            setBattleStats(results);
+            setShowBattleResults(true);
+          } else if (reward && reward > 0) {
+            setLootAnimating({ amount: reward });
+          }
+        }, CLOUD_OPEN_TOTAL_MS + 40); // slowest cloud layer finishes at OPEN_MS × 1.2; hiding earlier strands a haze band on wide windows
       },
       setGameMode: (mode: GameMode) => {
         setView(mode);
@@ -960,7 +1040,7 @@ function App() {
         setSelectedInMap(null);
         setSelectedBuildingInfo(null);
       },
-      onRaidEnded: async (goldLooted: number) => {
+      onRaidEnded: async (goldLooted: number, applied?: { ore?: number; food?: number; settlementDelayed?: boolean }) => {
         const scene = gameRef.current?.scene.getScene('MainScene') as any;
         const enemyWorld = scene?.currentEnemyWorld;
         let lootWon = Math.max(0, goldLooted);
@@ -985,9 +1065,28 @@ function App() {
           lootWon = 0;
         }
 
-        // Auto-trigger "Return Home" flow on raid end
+        // Queue the raid report for when the clouds open on home, then
+        // auto-trigger the "Return Home" flow. Like gold, ore/food show the
+        // SERVER-applied amounts when the settlement provided them — the
+        // client battle counters over-count against the loot caps. The local
+        // counters remain the fallback (offline sandbox, bot raids). A
+        // transport-failed settlement is flagged, never shown as a false 0.
+        pendingBattleResultsRef.current = {
+          destruction: battleStatsRef.current.destruction,
+          goldLooted: lootWon,
+          oreLooted: Math.max(0, applied?.ore ?? battleStatsRef.current.oreLooted ?? 0),
+          foodLooted: Math.max(0, applied?.food ?? battleStatsRef.current.foodLooted ?? 0),
+          settlementDelayed: applied?.settlementDelayed
+        };
         setShowBattleResults(false);
-        transitionHome(lootWon);
+        transitionHome(applied?.settlementDelayed ? 0 : lootWon);
+      },
+      onRetreatEnded: (results: RaidReportStats) => {
+        // A mid-raid retreat settled inside goHome (already behind the
+        // clouds): queue the "Retreated" report for when they open. No
+        // transitionHome here — one is already running.
+        pendingBattleResultsRef.current = { ...results, retreated: true };
+        setShowBattleResults(false);
       },
       getArmy: () => armyRef.current,
       getResources: () => resourcesRef.current,
@@ -1013,7 +1112,14 @@ function App() {
         setSelectedBuildingInfo(null);
       },
       openJukebox: () => {
+        // One surface at a time: the track list replaces the building panel.
+        setSelectedBuildingInfo(null);
         setIsJukeboxOpen(true);
+      },
+      openBannerPicker: () => {
+        // Same discipline: the banner picker replaces the building panel.
+        setSelectedBuildingInfo(null);
+        setIsBannerPickerOpen(true);
       },
       openMerchant: (offers: MerchantOffer[]) => {
         setMerchantOffers(offers);
@@ -1065,10 +1171,7 @@ function App() {
       }
     });
 
-    const pressedKeys = new Set<string>();
-    let bonusComboTriggered = false;
-
-    // 'M' keybind for moving, 'D' for debug overlay, and 'B+M' debug bonus.
+    // 'M' moves the selected building; the other keys drive visual debug tools.
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
@@ -1076,65 +1179,37 @@ function App() {
       }
 
       const key = e.key.toLowerCase();
-      pressedKeys.add(key);
-      const bonusComboActive = pressedKeys.has('b') && pressedKeys.has('m');
-
-      if (bonusComboActive) {
-        if (!bonusComboTriggered) {
-          bonusComboTriggered = true;
-          // Server-gated: pays out only when the server runs with CLASH_ALLOW_DEBUG_GRANTS=1.
-          void applyGoldDeltaRef.current(10_000, 'debug_grant');
-          // Ore and food ride the same debug grant (the server clamps them at
-          // the storage caps); the revision-gated world sync refreshes the HUD.
-          const uid = userRef.current?.id || 'default_player';
-          void Backend.applyResourceDelta(uid, 10_000, 'debug_grant', undefined, undefined, 'ore').catch(() => undefined);
-          void Backend.applyResourceDelta(uid, 10_000, 'debug_grant', undefined, undefined, 'food').catch(() => undefined);
-        }
-        return;
-      }
-
       if (e.repeat) return;
 
-      if (key === 'd') {
-        // Summon the dragon's shadow for a flyover.
-        gameManager.summonDragon();
-        return;
+      // Debug tools are dev-only: players typing d/n/p must not summon
+      // dragons, jump the clock or open the debug menu in production.
+      if (import.meta.env.DEV) {
+        if (key === 'd') {
+          // Summon the dragon's shadow for a flyover.
+          gameManager.summonDragon();
+          return;
+        }
+        if (key === 'p') {
+          setIsDebugOpen(prev => !prev);
+          return;
+        }
+        if (key === 'n') {
+          // Debug: step the day/night cycle to its next phase.
+          gameManager.advanceDayNight();
+          return;
+        }
       }
-      if (key === 'p') {
-        setIsDebugOpen(prev => !prev);
-        return;
-      }
-      if (key === 'n') {
-        // Debug: step the day/night cycle to its next phase.
-        gameManager.advanceDayNight();
-        return;
-      }
+      // The ONE move-building hotkey path (MainScene no longer binds its own
+      // M handler with divergent side effects).
       if (key === 'm' && selectedInMapRef.current) {
         gameManager.moveSelectedBuilding();
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      pressedKeys.delete(key);
-      if (!(pressedKeys.has('b') && pressedKeys.has('m'))) {
-        bonusComboTriggered = false;
-      }
-    };
-
-    const clearPressedKeys = () => {
-      pressedKeys.clear();
-      bonusComboTriggered = false;
-    };
-
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', clearPressedKeys);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', clearPressedKeys);
       // Drop the UI handlers registered above so no stale closures survive
       // between this teardown and a potential re-register.
       gameManager.clearUI();
@@ -1172,13 +1247,18 @@ function App() {
       try {
         const world = await Backend.getWorld(user.id || 'default_player');
         if (!world || cancelled) return;
-        const barracks = world.buildings.filter((b: any) => b.type === 'barracks');
-        const maxBarracksLvl = barracks.length > 0 ? Math.max(...barracks.map((b: any) => b.level || 1)) : 1;
-        const labs = world.buildings.filter((b: any) => b.type === 'lab');
-        const maxLabLvl = labs.length > 0 ? Math.max(...labs.map((b: any) => b.level || 1)) : 0;
+        // Mirror the server's training gate exactly (shared Economy helper):
+        // a mid-upgrade barracks is a construction site and an absent
+        // barracks trains nothing — both come back as level 0.
+        const trainableBarracksLvl = maxBarracksLevel(world.buildings);
+        const hasAnyBarracks = world.buildings.some((b: any) => b.type === 'barracks');
         if (!cancelled) {
-          setBarracksLevel(maxBarracksLvl);
-          setTroopLevel(Math.max(1, Math.min(maxLabLvl, 3)));
+          setBarracksLevel(trainableBarracksLvl);
+          setBarracksUpgrading(trainableBarracksLvl === 0 && hasAnyBarracks);
+          // Server-effective level (shared rule): a lab mid-upgrade is offline
+          // and troops read as level 1 until the work lands.
+          setTroopLevel(effectiveTroopLevel(world.buildings));
+          setTroopLevelUpgrading(labUpgradeInFlight(world.buildings));
         }
       } catch { /* ignore */ }
     })();
@@ -1243,16 +1323,18 @@ function App() {
           // Optimistic display only: the debounced save is the actual purchase
           // (the server prices the layout diff), and a rejected save reverts
           // everything through clash:save-rejected.
-          setResources(prev => ({
-            ...prev,
-            gold: Math.max(0, prev.gold - charge.gold),
-            ore: Math.max(0, prev.ore - charge.ore)
-          }));
+          if (!infiniteResources) {
+            setResources(prev => ({
+              ...prev,
+              gold: Math.max(0, prev.gold - charge.gold),
+              ore: Math.max(0, prev.ore - charge.ore)
+            }));
+          }
         }
         refreshBuildingCounts();
       }
     });
-  }, [user, refreshBuildingCounts]);
+  }, [user, refreshBuildingCounts, infiniteResources]);
 
   const handleSelect = (type: string) => {
     gameManager.selectBuilding(type);
@@ -1260,135 +1342,127 @@ function App() {
     setIsBuildingOpen(false);
   };
 
-  const handleTrainTroop = async (type: string) => {
-    if (armyTransactionInFlightRef.current) {
-      showToast('Finish the current army order first.');
-      return;
-    }
+  const handleTrainTroop = (type: string) => {
     const def = TROOP_DEFINITIONS[type as keyof typeof TROOP_DEFINITIONS];
     if (!def) return;
     const cost = def.cost;
     const space = def.space;
 
     const foodCost = troopFoodCostOf(type as TroopType);
-    if (displayResources.gold < cost) {
-      alert("Not enough gold!");
+    // Pixel toasts, never alert(): a native dialog freezes the game loop and
+    // breaks the aesthetic.
+    if (spendableResources.gold < cost) {
+      showToast('Not enough gold!');
       return;
     }
-    if (displayResources.food < foodCost) {
-      alert("Not enough food! Harvest the farm, collect eggs or trade for more.");
+    if (spendableResources.food < foodCost) {
+      showToast('Not enough food! Harvest the farm, collect eggs or trade for more.');
       return;
     }
     if (capacity.current + space > capacity.max) {
-      alert("Not enough housing space! Build more Army Camps!");
+      showToast('Not enough housing space! Build more Army Camps!');
       return;
     }
 
-    armyTransactionInFlightRef.current = true;
-
     // Optimistic: the tile fills instantly; the server (which owns the army,
     // checks the barracks unlock, housing and the bill) reconciles right after.
-    setResources(prev => ({
-      ...prev,
-      gold: Math.max(0, prev.gold - cost),
-      food: Math.max(0, prev.food - foodCost)
-    }));
+    if (!infiniteResources) {
+      setResources(prev => ({
+        ...prev,
+        gold: Math.max(0, prev.gold - cost),
+        food: Math.max(0, prev.food - foodCost)
+      }));
+    }
     setArmy(prev => {
       const key = type as keyof typeof prev;
       return { ...prev, [key]: (prev[key] ?? 0) + 1 };
     });
     setCapacity(prev => ({ ...prev, current: prev.current + space }));
 
-    if (!isOnline) {
-      armyTransactionInFlightRef.current = false;
-      return;
-    }
-    try {
-      const result = await Backend.trainTroop(type, 1);
-      if (!result) throw new Error('Training did not reach the server');
-    } catch (error) {
-      console.warn('Training failed, reverting:', error);
-      const truth = await Backend.fetchWorldSnapshot();
-      if (truth) {
-        adoptWorld(truth);
-      } else {
-        setResources(prev => ({ ...prev, gold: prev.gold + cost, food: prev.food + foodCost }));
-        setArmy(prev => {
-          const key = type as keyof typeof prev;
-          return { ...prev, [key]: Math.max(0, (prev[key] ?? 0) - 1) };
-        });
-        setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - space) }));
+    if (!isOnline) return;
+    armyOrderChainRef.current = armyOrderChainRef.current.then(async () => {
+      try {
+        const result = await Backend.trainTroop(type, 1);
+        if (!result) throw new Error('Training did not reach the server');
+      } catch (error) {
+        console.warn('Training failed, reverting:', error);
+        const truth = await Backend.fetchWorldSnapshot();
+        if (truth) {
+          adoptWorld(truth);
+        } else {
+          if (!infiniteResources) {
+            setResources(prev => ({ ...prev, gold: prev.gold + cost, food: prev.food + foodCost }));
+          }
+          setArmy(prev => {
+            const key = type as keyof typeof prev;
+            return { ...prev, [key]: Math.max(0, (prev[key] ?? 0) - 1) };
+          });
+          setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - space) }));
+        }
+        gameManager.showToast(`${error instanceof Error ? error.message : 'Training failed'}`);
       }
-      gameManager.showToast(`${error instanceof Error ? error.message : 'Training failed'}`);
-    } finally {
-      armyTransactionInFlightRef.current = false;
-    }
+    });
   };
 
-  const handleUntrainTroop = async (type: string) => {
-    if (armyTransactionInFlightRef.current) {
-      showToast('Finish the current army order first.');
-      return;
-    }
+  const handleUntrainTroop = (type: string) => {
     if (army[type as keyof typeof army] <= 0) return;
     const def = TROOP_DEFINITIONS[type as keyof typeof TROOP_DEFINITIONS];
     if (!def) return;
     const cost = def.cost;
     const space = def.space;
 
-    armyTransactionInFlightRef.current = true;
-
     // Optimistic dismissal; the server refunds the full training bill.
+    // The food half of the refund is capped by storage server-side
+    // (storedResourceAfterDelta): mirror the cap here and SAY what was lost —
+    // dismissal itself is never blocked (stranding troops would be worse).
     const foodRefund = troopFoodCostOf(type as TroopType);
-    setResources(prev => ({ ...prev, gold: prev.gold + cost, food: prev.food + foodRefund }));
+    const foodCap = storageCapsRef.current?.food;
+    const foodLost = !infiniteResources && typeof foodCap === 'number' && foodCap > 0
+      ? Math.max(0, Math.min(foodRefund, Math.floor(Number(resourcesRef.current.food ?? 0)) + foodRefund - foodCap))
+      : 0;
+    const foodRefundApplied = foodRefund - foodLost;
+    if (!infiniteResources) {
+      if (foodLost > 0) showToast(`Storage full — ${foodLost} FOOD of the refund was lost.`);
+      setResources(prev => ({ ...prev, gold: prev.gold + cost, food: prev.food + foodRefundApplied }));
+    }
     setArmy(prev => {
       const key = type as keyof typeof prev;
       return { ...prev, [key]: (prev[key] ?? 0) - 1 };
     });
     setCapacity(prev => ({ ...prev, current: prev.current - space }));
 
-    if (!isOnline) {
-      armyTransactionInFlightRef.current = false;
-      return;
-    }
-    try {
-      const result = await Backend.untrainTroop(type, 1);
-      if (!result) throw new Error('Dismissal did not reach the server');
-    } catch (error) {
-      console.warn('Untrain failed, reverting:', error);
-      const truth = await Backend.fetchWorldSnapshot();
-      if (truth) {
-        adoptWorld(truth);
-      } else {
-        setResources(prev => ({
-          ...prev,
-          gold: Math.max(0, prev.gold - cost),
-          food: Math.max(0, prev.food - foodRefund)
-        }));
-        setArmy(prev => {
-          const key = type as keyof typeof prev;
-          return { ...prev, [key]: (prev[key] ?? 0) + 1 };
-        });
-        setCapacity(prev => ({ ...prev, current: prev.current + space }));
+    if (!isOnline) return;
+    armyOrderChainRef.current = armyOrderChainRef.current.then(async () => {
+      try {
+        const result = await Backend.untrainTroop(type, 1);
+        if (!result) throw new Error('Dismissal did not reach the server');
+      } catch (error) {
+        console.warn('Untrain failed, reverting:', error);
+        const truth = await Backend.fetchWorldSnapshot();
+        if (truth) {
+          adoptWorld(truth);
+        } else {
+          if (!infiniteResources) {
+            setResources(prev => ({
+              ...prev,
+              gold: Math.max(0, prev.gold - cost),
+              food: Math.max(0, prev.food - foodRefundApplied)
+            }));
+          }
+          setArmy(prev => {
+            const key = type as keyof typeof prev;
+            return { ...prev, [key]: (prev[key] ?? 0) + 1 };
+          });
+          setCapacity(prev => ({ ...prev, current: prev.current + space }));
+        }
       }
-    } finally {
-      armyTransactionInFlightRef.current = false;
-    }
+    });
   };
 
   const transitionHome = useCallback((rewardAmount: number = 0) => {
     const scene = gameRef.current?.scene.getScene('MainScene') as any;
-    if (scene?.battleInPlace) {
-      // A next-door raid: no clouds — the flag bearer leads the remaining
-      // troops home on screen and the world never cuts away.
-      setCloudTransitionReward(null);
-      void scene.goHome().then(() => {
-        setView('HOME');
-        setSelectedInMap(null);
-        setScoutTarget(null);
-      });
-      return;
-    }
+    // Every retreat — battles-in-place included — goes home behind the
+    // clouds: end battle, clouds close, clouds open on the home village.
     setCloudTransitionReward(rewardAmount > 0 ? Math.floor(rewardAmount) : null);
     if (scene) {
       scene.showCloudTransition(async () => {
@@ -1398,6 +1472,14 @@ function App() {
         setScoutTarget(null);
       });
     } else {
+      // No scene, no clouds: show any queued raid report immediately so it
+      // can't ambush a later, unrelated cloud transition.
+      const results = pendingBattleResultsRef.current;
+      if (results) {
+        pendingBattleResultsRef.current = null;
+        setBattleStats(results);
+        setShowBattleResults(true);
+      }
       setCloudTransitionReward(null);
       setView('HOME');
       setSelectedInMap(null);
@@ -1494,9 +1576,15 @@ function App() {
     gameManager.watchReplay(attackId);
   }, []);
 
-  const handleBattleResultsGoHome = () => {
+  // Dismissing the raid report (we are already home behind it) releases the
+  // loot count-up that was held back so the modal's backdrop couldn't bury it.
+  const handleBattleResultsClose = () => {
     setShowBattleResults(false);
-    transitionHome(Math.max(0, battleStatsRef.current.goldLooted));
+    const held = heldLootRef.current;
+    heldLootRef.current = null;
+    if (held && held > 0) {
+      setLootAnimating({ amount: held });
+    }
   };
 
 
@@ -1509,10 +1597,12 @@ function App() {
       }
       const deleted = gameManager.deleteSelectedBuilding();
       if (!deleted) return;
-      // Optimistic display — the save's layout diff carries the real refund.
-      const stats = getBuildingStats(selectedBuildingInfo.type, selectedBuildingInfo.level);
-      const refund = Math.floor(stats.cost * 0.8);
-      setResources(prev => ({ ...prev, gold: prev.gold + refund }));
+      if (!infiniteResources) {
+        // Optimistic display — the save's layout diff carries the real refund.
+        const stats = getBuildingStats(selectedBuildingInfo.type, selectedBuildingInfo.level);
+        const refund = Math.floor(stats.cost * 0.8);
+        setResources(prev => ({ ...prev, gold: prev.gold + refund }));
+      }
       setSelectedInMap(null);
       setSelectedBuildingInfo(null);
     }
@@ -1558,15 +1648,17 @@ function App() {
           }
 
           const upgradeOre = upgradeOreCostOf(upgradeCost);
-          if (displayResources.gold >= upgradeCost && displayResources.ore >= upgradeOre) {
+          if (spendableResources.gold >= upgradeCost && spendableResources.ore >= upgradeOre) {
             // Optimistic display only. The save that follows IS the purchase:
             // the server prices the level diff and charges it; a rejection
             // reverts everything (scene + balances) via clash:save-rejected.
-            setResources(prev => ({
-              ...prev,
-              gold: Math.max(0, prev.gold - upgradeCost),
-              ore: Math.max(0, prev.ore - upgradeOre)
-            }));
+            if (!infiniteResources) {
+              setResources(prev => ({
+                ...prev,
+                gold: Math.max(0, prev.gold - upgradeCost),
+                ore: Math.max(0, prev.ore - upgradeOre)
+              }));
+            }
 
             // Start the save immediately (returns a promise).
             // upgradeBuilding updates the cache synchronously, then fires
@@ -1640,6 +1732,8 @@ function App() {
       <Hud
         view={view}
         resources={displayResources}
+        spendableResources={spendableResources}
+        infiniteResources={infiniteResources}
         storageCaps={storageCapsRef.current}
         population={population}
         battleStats={battleStats}
@@ -1755,10 +1849,11 @@ function App() {
       <DebugMenu isOpen={isDebugOpen} />
 
       <JukeboxModal isOpen={isJukeboxOpen} onClose={() => setIsJukeboxOpen(false)} />
+      <BannerPickerModal isOpen={isBannerPickerOpen} userId={userId ?? 'default_player'} onClose={() => setIsBannerPickerOpen(false)} />
 
       <MerchantModal
         offers={merchantOffers}
-        resources={displayResources}
+        resources={spendableResources}
         onTrade={handleMerchantTrade}
         onClose={() => setMerchantOffers(null)}
       />
@@ -1786,7 +1881,10 @@ function App() {
             <p>{sessionExpired
               ? 'Your session was closed before any more local changes could be lost. Reconnect to continue.'
               : 'Your village lives on the game server. Start it (npm run dev) and try again.'}</p>
-            <button className="action-btn" onClick={handleRetryConnection}>
+            {/* Own class, NOT .action-btn: that styles the square HUD-bar
+                icon buttons (80×90px) and squashed this CTA into a tiny
+                left-aligned square. */}
+            <button className="auth-lock-btn" onClick={handleRetryConnection}>
               {sessionExpired ? 'RECONNECT' : 'RETRY'}
             </button>
           </div>
@@ -1797,11 +1895,13 @@ function App() {
         isOpen={isTrainingOpen}
         showCloudOverlay={showCloudOverlay}
         capacity={capacity}
-        resources={displayResources}
+        resources={spendableResources}
         army={army}
         troops={troopList}
         troopLevel={troopLevel}
+        troopLevelUpgrading={troopLevelUpgrading}
         barracksLevel={barracksLevel}
+        barracksUpgrading={barracksUpgrading}
         onClose={() => setIsTrainingOpen(false)}
         onStartPractice={handleStartPractice}
         onFindMatch={handleFindMatch}
@@ -1814,7 +1914,7 @@ function App() {
         showCloudOverlay={showCloudOverlay}
         buildingList={buildingList}
         buildingCounts={buildingCounts}
-        resources={displayResources}
+        resources={spendableResources}
         shopWallLevel={shopWallLevel}
         onClose={() => setIsBuildingOpen(false)}
         onSelect={handleSelect}
@@ -1830,7 +1930,7 @@ function App() {
       <BattleResultsModal
         isOpen={showBattleResults}
         stats={battleStats}
-        onGoHome={handleBattleResultsGoHome}
+        onClose={handleBattleResultsClose}
       />
     </div>
   );

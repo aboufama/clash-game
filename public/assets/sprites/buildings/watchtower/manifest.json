@@ -27,7 +27,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9302469135802468,
                 "ov": {
-                  "timeAt": 1063
+                  "timeAt": 1056
                 }
               },
               {
@@ -38,7 +38,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9302469135802468,
                 "ov": {
-                  "timeAt": 1125
+                  "timeAt": 1111
                 }
               },
               {
@@ -49,7 +49,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9302469135802468,
                 "ov": {
-                  "timeAt": 1188
+                  "timeAt": 1167
                 }
               },
               {
@@ -60,7 +60,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9302469135802468,
                 "ov": {
-                  "timeAt": 1250
+                  "timeAt": 1222
                 }
               },
               {
@@ -71,7 +71,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9302469135802468,
                 "ov": {
-                  "timeAt": 1313
+                  "timeAt": 1278
                 }
               },
               {
@@ -82,7 +82,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9302469135802468,
                 "ov": {
-                  "timeAt": 1375
+                  "timeAt": 1333
                 }
               },
               {
@@ -93,12 +93,320 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9302469135802468,
                 "ov": {
-                  "timeAt": 1438
+                  "timeAt": 1389
+                }
+              },
+              {
+                "file": "watchtower_L1_idle8.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1444
+                }
+              },
+              {
+                "file": "watchtower_L1_idle9.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "watchtower_L1_idle10.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1556
+                }
+              },
+              {
+                "file": "watchtower_L1_idle11.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1611
+                }
+              },
+              {
+                "file": "watchtower_L1_idle12.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1667
+                }
+              },
+              {
+                "file": "watchtower_L1_idle13.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1722
+                }
+              },
+              {
+                "file": "watchtower_L1_idle14.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1778
+                }
+              },
+              {
+                "file": "watchtower_L1_idle15.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1833
+                }
+              },
+              {
+                "file": "watchtower_L1_idle16.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1889
+                }
+              },
+              {
+                "file": "watchtower_L1_idle17.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 1944
+                }
+              },
+              {
+                "file": "watchtower_L1_idle18.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2000
+                }
+              },
+              {
+                "file": "watchtower_L1_idle19.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2056
+                }
+              },
+              {
+                "file": "watchtower_L1_idle20.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2111
+                }
+              },
+              {
+                "file": "watchtower_L1_idle21.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2167
+                }
+              },
+              {
+                "file": "watchtower_L1_idle22.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2222
+                }
+              },
+              {
+                "file": "watchtower_L1_idle23.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2278
+                }
+              },
+              {
+                "file": "watchtower_L1_idle24.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2333
+                }
+              },
+              {
+                "file": "watchtower_L1_idle25.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2389
+                }
+              },
+              {
+                "file": "watchtower_L1_idle26.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2444
+                }
+              },
+              {
+                "file": "watchtower_L1_idle27.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "watchtower_L1_idle28.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2556
+                }
+              },
+              {
+                "file": "watchtower_L1_idle29.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2611
+                }
+              },
+              {
+                "file": "watchtower_L1_idle30.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2667
+                }
+              },
+              {
+                "file": "watchtower_L1_idle31.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2722
+                }
+              },
+              {
+                "file": "watchtower_L1_idle32.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2778
+                }
+              },
+              {
+                "file": "watchtower_L1_idle33.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "watchtower_L1_idle34.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2889
+                }
+              },
+              {
+                "file": "watchtower_L1_idle35.png",
+                "texelW": 22,
+                "texelH": 60,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9302469135802468,
+                "ov": {
+                  "timeAt": 2944
                 }
               }
             ]
           ],
-          "loopMs": 500,
+          "loopMs": 2000,
           "loopExact": false
         }
       },
@@ -136,7 +444,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9418724279835389,
                 "ov": {
-                  "timeAt": 1063
+                  "timeAt": 1056
                 }
               },
               {
@@ -147,7 +455,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9418724279835389,
                 "ov": {
-                  "timeAt": 1125
+                  "timeAt": 1111
                 }
               },
               {
@@ -158,7 +466,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9418724279835389,
                 "ov": {
-                  "timeAt": 1188
+                  "timeAt": 1167
                 }
               },
               {
@@ -169,7 +477,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9418724279835389,
                 "ov": {
-                  "timeAt": 1250
+                  "timeAt": 1222
                 }
               },
               {
@@ -180,7 +488,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9418724279835389,
                 "ov": {
-                  "timeAt": 1313
+                  "timeAt": 1278
                 }
               },
               {
@@ -191,7 +499,7 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9418724279835389,
                 "ov": {
-                  "timeAt": 1375
+                  "timeAt": 1333
                 }
               },
               {
@@ -202,12 +510,320 @@
                 "originX": 0.5084175084175082,
                 "originY": 0.9418724279835389,
                 "ov": {
-                  "timeAt": 1438
+                  "timeAt": 1389
+                }
+              },
+              {
+                "file": "watchtower_L2_idle8.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1444
+                }
+              },
+              {
+                "file": "watchtower_L2_idle9.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1500
+                }
+              },
+              {
+                "file": "watchtower_L2_idle10.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1556
+                }
+              },
+              {
+                "file": "watchtower_L2_idle11.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1611
+                }
+              },
+              {
+                "file": "watchtower_L2_idle12.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1667
+                }
+              },
+              {
+                "file": "watchtower_L2_idle13.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1722
+                }
+              },
+              {
+                "file": "watchtower_L2_idle14.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1778
+                }
+              },
+              {
+                "file": "watchtower_L2_idle15.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1833
+                }
+              },
+              {
+                "file": "watchtower_L2_idle16.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1889
+                }
+              },
+              {
+                "file": "watchtower_L2_idle17.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 1944
+                }
+              },
+              {
+                "file": "watchtower_L2_idle18.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2000
+                }
+              },
+              {
+                "file": "watchtower_L2_idle19.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2056
+                }
+              },
+              {
+                "file": "watchtower_L2_idle20.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2111
+                }
+              },
+              {
+                "file": "watchtower_L2_idle21.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2167
+                }
+              },
+              {
+                "file": "watchtower_L2_idle22.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2222
+                }
+              },
+              {
+                "file": "watchtower_L2_idle23.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2278
+                }
+              },
+              {
+                "file": "watchtower_L2_idle24.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2333
+                }
+              },
+              {
+                "file": "watchtower_L2_idle25.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2389
+                }
+              },
+              {
+                "file": "watchtower_L2_idle26.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2444
+                }
+              },
+              {
+                "file": "watchtower_L2_idle27.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "watchtower_L2_idle28.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2556
+                }
+              },
+              {
+                "file": "watchtower_L2_idle29.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2611
+                }
+              },
+              {
+                "file": "watchtower_L2_idle30.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2667
+                }
+              },
+              {
+                "file": "watchtower_L2_idle31.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2722
+                }
+              },
+              {
+                "file": "watchtower_L2_idle32.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2778
+                }
+              },
+              {
+                "file": "watchtower_L2_idle33.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "watchtower_L2_idle34.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2889
+                }
+              },
+              {
+                "file": "watchtower_L2_idle35.png",
+                "texelW": 22,
+                "texelH": 72,
+                "cellWorldPx": 1.35,
+                "originX": 0.5084175084175082,
+                "originY": 0.9418724279835389,
+                "ov": {
+                  "timeAt": 2944
                 }
               }
             ]
           ],
-          "loopMs": 500,
+          "loopMs": 2000,
           "loopExact": false
         }
       },

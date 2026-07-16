@@ -27,7 +27,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1125
+                  "timeAt": 1056
                 }
               },
               {
@@ -38,7 +38,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1250
+                  "timeAt": 1111
                 }
               },
               {
@@ -49,7 +49,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1375
+                  "timeAt": 1167
                 }
               },
               {
@@ -60,7 +60,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1500
+                  "timeAt": 1222
                 }
               },
               {
@@ -71,7 +71,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1625
+                  "timeAt": 1278
                 }
               },
               {
@@ -82,7 +82,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1750
+                  "timeAt": 1333
                 }
               },
               {
@@ -93,7 +93,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1875
+                  "timeAt": 1389
                 }
               },
               {
@@ -104,7 +104,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2000
+                  "timeAt": 1444
                 }
               },
               {
@@ -115,7 +115,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2125
+                  "timeAt": 1500
                 }
               },
               {
@@ -126,7 +126,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2250
+                  "timeAt": 1556
                 }
               },
               {
@@ -137,7 +137,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2375
+                  "timeAt": 1611
                 }
               },
               {
@@ -148,7 +148,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2500
+                  "timeAt": 1667
                 }
               },
               {
@@ -159,7 +159,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2625
+                  "timeAt": 1722
                 }
               },
               {
@@ -170,7 +170,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2750
+                  "timeAt": 1778
                 }
               },
               {
@@ -181,7 +181,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2875
+                  "timeAt": 1833
                 }
               },
               {
@@ -192,7 +192,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3000
+                  "timeAt": 1889
                 }
               },
               {
@@ -203,7 +203,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3125
+                  "timeAt": 1944
                 }
               },
               {
@@ -214,7 +214,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3250
+                  "timeAt": 2000
                 }
               },
               {
@@ -225,7 +225,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3375
+                  "timeAt": 2056
                 }
               },
               {
@@ -236,7 +236,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3500
+                  "timeAt": 2111
                 }
               },
               {
@@ -247,7 +247,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3625
+                  "timeAt": 2167
                 }
               },
               {
@@ -258,7 +258,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3750
+                  "timeAt": 2222
                 }
               },
               {
@@ -269,12 +269,144 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3875
+                  "timeAt": 2278
+                }
+              },
+              {
+                "file": "frostfall_L1_idle24.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2333
+                }
+              },
+              {
+                "file": "frostfall_L1_idle25.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2389
+                }
+              },
+              {
+                "file": "frostfall_L1_idle26.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2444
+                }
+              },
+              {
+                "file": "frostfall_L1_idle27.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L1_idle28.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2556
+                }
+              },
+              {
+                "file": "frostfall_L1_idle29.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2611
+                }
+              },
+              {
+                "file": "frostfall_L1_idle30.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2667
+                }
+              },
+              {
+                "file": "frostfall_L1_idle31.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2722
+                }
+              },
+              {
+                "file": "frostfall_L1_idle32.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2778
+                }
+              },
+              {
+                "file": "frostfall_L1_idle33.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "frostfall_L1_idle34.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2889
+                }
+              },
+              {
+                "file": "frostfall_L1_idle35.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2944
                 }
               }
             ]
           ],
-          "loopMs": 3000,
+          "loopMs": 2000,
           "loopExact": false
         },
         "fire": {
@@ -316,6 +448,90 @@
                   "fireAge": 800,
                   "projectileActive": false
                 }
+              },
+              {
+                "file": "frostfall_L1_fire3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 1500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L1_fire4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L1_fire5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2900,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L1_fire6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L1_fire7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3850,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L1_fire8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L1_fire9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4700,
+                  "projectileActive": false
+                }
               }
             ]
           ]
@@ -355,7 +571,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1125
+                  "timeAt": 1056
                 }
               },
               {
@@ -366,7 +582,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1250
+                  "timeAt": 1111
                 }
               },
               {
@@ -377,7 +593,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1375
+                  "timeAt": 1167
                 }
               },
               {
@@ -388,7 +604,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1500
+                  "timeAt": 1222
                 }
               },
               {
@@ -399,7 +615,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1625
+                  "timeAt": 1278
                 }
               },
               {
@@ -410,7 +626,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1750
+                  "timeAt": 1333
                 }
               },
               {
@@ -421,7 +637,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1875
+                  "timeAt": 1389
                 }
               },
               {
@@ -432,7 +648,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2000
+                  "timeAt": 1444
                 }
               },
               {
@@ -443,7 +659,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2125
+                  "timeAt": 1500
                 }
               },
               {
@@ -454,7 +670,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2250
+                  "timeAt": 1556
                 }
               },
               {
@@ -465,7 +681,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2375
+                  "timeAt": 1611
                 }
               },
               {
@@ -476,7 +692,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2500
+                  "timeAt": 1667
                 }
               },
               {
@@ -487,7 +703,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2625
+                  "timeAt": 1722
                 }
               },
               {
@@ -498,7 +714,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2750
+                  "timeAt": 1778
                 }
               },
               {
@@ -509,7 +725,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2875
+                  "timeAt": 1833
                 }
               },
               {
@@ -520,7 +736,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3000
+                  "timeAt": 1889
                 }
               },
               {
@@ -531,7 +747,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3125
+                  "timeAt": 1944
                 }
               },
               {
@@ -542,7 +758,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3250
+                  "timeAt": 2000
                 }
               },
               {
@@ -553,7 +769,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3375
+                  "timeAt": 2056
                 }
               },
               {
@@ -564,7 +780,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3500
+                  "timeAt": 2111
                 }
               },
               {
@@ -575,7 +791,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3625
+                  "timeAt": 2167
                 }
               },
               {
@@ -586,7 +802,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3750
+                  "timeAt": 2222
                 }
               },
               {
@@ -597,12 +813,144 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3875
+                  "timeAt": 2278
+                }
+              },
+              {
+                "file": "frostfall_L2_idle24.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2333
+                }
+              },
+              {
+                "file": "frostfall_L2_idle25.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2389
+                }
+              },
+              {
+                "file": "frostfall_L2_idle26.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2444
+                }
+              },
+              {
+                "file": "frostfall_L2_idle27.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L2_idle28.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2556
+                }
+              },
+              {
+                "file": "frostfall_L2_idle29.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2611
+                }
+              },
+              {
+                "file": "frostfall_L2_idle30.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2667
+                }
+              },
+              {
+                "file": "frostfall_L2_idle31.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2722
+                }
+              },
+              {
+                "file": "frostfall_L2_idle32.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2778
+                }
+              },
+              {
+                "file": "frostfall_L2_idle33.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "frostfall_L2_idle34.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2889
+                }
+              },
+              {
+                "file": "frostfall_L2_idle35.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2944
                 }
               }
             ]
           ],
-          "loopMs": 3000,
+          "loopMs": 2000,
           "loopExact": false
         },
         "fire": {
@@ -644,6 +992,90 @@
                   "fireAge": 800,
                   "projectileActive": false
                 }
+              },
+              {
+                "file": "frostfall_L2_fire3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 1500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L2_fire4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L2_fire5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2900,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L2_fire6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L2_fire7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3850,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L2_fire8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L2_fire9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4700,
+                  "projectileActive": false
+                }
               }
             ]
           ]
@@ -683,7 +1115,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1125
+                  "timeAt": 1056
                 }
               },
               {
@@ -694,7 +1126,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1250
+                  "timeAt": 1111
                 }
               },
               {
@@ -705,7 +1137,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1375
+                  "timeAt": 1167
                 }
               },
               {
@@ -716,7 +1148,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1500
+                  "timeAt": 1222
                 }
               },
               {
@@ -727,7 +1159,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1625
+                  "timeAt": 1278
                 }
               },
               {
@@ -738,7 +1170,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1750
+                  "timeAt": 1333
                 }
               },
               {
@@ -749,7 +1181,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1875
+                  "timeAt": 1389
                 }
               },
               {
@@ -760,7 +1192,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2000
+                  "timeAt": 1444
                 }
               },
               {
@@ -771,7 +1203,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2125
+                  "timeAt": 1500
                 }
               },
               {
@@ -782,7 +1214,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2250
+                  "timeAt": 1556
                 }
               },
               {
@@ -793,7 +1225,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2375
+                  "timeAt": 1611
                 }
               },
               {
@@ -804,7 +1236,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2500
+                  "timeAt": 1667
                 }
               },
               {
@@ -815,7 +1247,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2625
+                  "timeAt": 1722
                 }
               },
               {
@@ -826,7 +1258,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2750
+                  "timeAt": 1778
                 }
               },
               {
@@ -837,7 +1269,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2875
+                  "timeAt": 1833
                 }
               },
               {
@@ -848,7 +1280,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3000
+                  "timeAt": 1889
                 }
               },
               {
@@ -859,7 +1291,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3125
+                  "timeAt": 1944
                 }
               },
               {
@@ -870,7 +1302,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3250
+                  "timeAt": 2000
                 }
               },
               {
@@ -881,7 +1313,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3375
+                  "timeAt": 2056
                 }
               },
               {
@@ -892,7 +1324,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3500
+                  "timeAt": 2111
                 }
               },
               {
@@ -903,7 +1335,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3625
+                  "timeAt": 2167
                 }
               },
               {
@@ -914,7 +1346,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3750
+                  "timeAt": 2222
                 }
               },
               {
@@ -925,12 +1357,144 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3875
+                  "timeAt": 2278
+                }
+              },
+              {
+                "file": "frostfall_L3_idle24.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2333
+                }
+              },
+              {
+                "file": "frostfall_L3_idle25.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2389
+                }
+              },
+              {
+                "file": "frostfall_L3_idle26.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2444
+                }
+              },
+              {
+                "file": "frostfall_L3_idle27.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L3_idle28.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2556
+                }
+              },
+              {
+                "file": "frostfall_L3_idle29.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2611
+                }
+              },
+              {
+                "file": "frostfall_L3_idle30.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2667
+                }
+              },
+              {
+                "file": "frostfall_L3_idle31.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2722
+                }
+              },
+              {
+                "file": "frostfall_L3_idle32.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2778
+                }
+              },
+              {
+                "file": "frostfall_L3_idle33.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "frostfall_L3_idle34.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2889
+                }
+              },
+              {
+                "file": "frostfall_L3_idle35.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2944
                 }
               }
             ]
           ],
-          "loopMs": 3000,
+          "loopMs": 2000,
           "loopExact": false
         },
         "fire": {
@@ -972,6 +1536,90 @@
                   "fireAge": 800,
                   "projectileActive": false
                 }
+              },
+              {
+                "file": "frostfall_L3_fire3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 1500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L3_fire4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L3_fire5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2900,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L3_fire6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L3_fire7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3850,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L3_fire8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L3_fire9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4700,
+                  "projectileActive": false
+                }
               }
             ]
           ]
@@ -1011,7 +1659,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1125
+                  "timeAt": 1056
                 }
               },
               {
@@ -1022,7 +1670,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1250
+                  "timeAt": 1111
                 }
               },
               {
@@ -1033,7 +1681,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1375
+                  "timeAt": 1167
                 }
               },
               {
@@ -1044,7 +1692,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1500
+                  "timeAt": 1222
                 }
               },
               {
@@ -1055,7 +1703,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1625
+                  "timeAt": 1278
                 }
               },
               {
@@ -1066,7 +1714,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1750
+                  "timeAt": 1333
                 }
               },
               {
@@ -1077,7 +1725,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 1875
+                  "timeAt": 1389
                 }
               },
               {
@@ -1088,7 +1736,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2000
+                  "timeAt": 1444
                 }
               },
               {
@@ -1099,7 +1747,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2125
+                  "timeAt": 1500
                 }
               },
               {
@@ -1110,7 +1758,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2250
+                  "timeAt": 1556
                 }
               },
               {
@@ -1121,7 +1769,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2375
+                  "timeAt": 1611
                 }
               },
               {
@@ -1132,7 +1780,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2500
+                  "timeAt": 1667
                 }
               },
               {
@@ -1143,7 +1791,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2625
+                  "timeAt": 1722
                 }
               },
               {
@@ -1154,7 +1802,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2750
+                  "timeAt": 1778
                 }
               },
               {
@@ -1165,7 +1813,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 2875
+                  "timeAt": 1833
                 }
               },
               {
@@ -1176,7 +1824,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3000
+                  "timeAt": 1889
                 }
               },
               {
@@ -1187,7 +1835,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3125
+                  "timeAt": 1944
                 }
               },
               {
@@ -1198,7 +1846,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3250
+                  "timeAt": 2000
                 }
               },
               {
@@ -1209,7 +1857,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3375
+                  "timeAt": 2056
                 }
               },
               {
@@ -1220,7 +1868,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3500
+                  "timeAt": 2111
                 }
               },
               {
@@ -1231,7 +1879,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3625
+                  "timeAt": 2167
                 }
               },
               {
@@ -1242,7 +1890,7 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3750
+                  "timeAt": 2222
                 }
               },
               {
@@ -1253,12 +1901,144 @@
                 "originX": 0.5956160241874524,
                 "originY": 0.8065843621399175,
                 "ov": {
-                  "timeAt": 3875
+                  "timeAt": 2278
+                }
+              },
+              {
+                "file": "frostfall_L4_idle24.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2333
+                }
+              },
+              {
+                "file": "frostfall_L4_idle25.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2389
+                }
+              },
+              {
+                "file": "frostfall_L4_idle26.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2444
+                }
+              },
+              {
+                "file": "frostfall_L4_idle27.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2500
+                }
+              },
+              {
+                "file": "frostfall_L4_idle28.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2556
+                }
+              },
+              {
+                "file": "frostfall_L4_idle29.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2611
+                }
+              },
+              {
+                "file": "frostfall_L4_idle30.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2667
+                }
+              },
+              {
+                "file": "frostfall_L4_idle31.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2722
+                }
+              },
+              {
+                "file": "frostfall_L4_idle32.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2778
+                }
+              },
+              {
+                "file": "frostfall_L4_idle33.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2833
+                }
+              },
+              {
+                "file": "frostfall_L4_idle34.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2889
+                }
+              },
+              {
+                "file": "frostfall_L4_idle35.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "timeAt": 2944
                 }
               }
             ]
           ],
-          "loopMs": 3000,
+          "loopMs": 2000,
           "loopExact": false
         },
         "fire": {
@@ -1298,6 +2078,90 @@
                 "originY": 0.8065843621399175,
                 "ov": {
                   "fireAge": 800,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L4_fire3.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 1500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L4_fire4.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L4_fire5.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 2900,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L4_fire6.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3500,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L4_fire7.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 3850,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L4_fire8.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4200,
+                  "projectileActive": false
+                }
+              },
+              {
+                "file": "frostfall_L4_fire9.png",
+                "texelW": 49,
+                "texelH": 63,
+                "cellWorldPx": 1.35,
+                "originX": 0.5956160241874524,
+                "originY": 0.8065843621399175,
+                "ov": {
+                  "fireAge": 4700,
                   "projectileActive": false
                 }
               }

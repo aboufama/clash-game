@@ -1,0 +1,23 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "mm_shell",
+  "variants": {
+    "l1": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "mm_shell_l1_idle0.png",
+              "texelW": 8,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    }
+  }
+}

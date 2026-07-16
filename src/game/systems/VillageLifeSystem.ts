@@ -20,6 +20,9 @@ import { gameManager } from '../GameManager';
 import { soundSystem } from './SoundSystem';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { SpriteBank } from '../render/SpriteBank';
+import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
+import { figureTick, pixelBitmap, pixelEllipse, pixelLine, pixelRect, PIXEL_CELL } from '../render/PixelDraw';
+import { PixelFx } from './PixelFx';
 
 /**
  * Ambient village life: villagers, dogs and chickens that wander the base
@@ -37,6 +40,8 @@ import { SpriteBank } from '../render/SpriteBank';
 interface LifeHost extends Phaser.Scene {
     buildings: PlacedBuilding[];
     obstacles: PlacedObstacle[];
+    /** Live battle actors — the panic self-heal keys off hostile presence. */
+    troops: Array<{ owner: string; health: number }>;
     mode: string;
     mapSize: number;
     battleInPlace?: boolean;
@@ -49,6 +54,33 @@ interface LifeHost extends Phaser.Scene {
     };
 }
 
+type UpgradeTimedBuilding = PlacedBuilding & { upgradeStartedAt?: number };
+
+interface ConstructionSite {
+    id: string;
+    buildingId: string;
+    kind: 'place' | 'upgrade';
+    /** Scene time for placement theatre; server epoch time for upgrades. */
+    startedAt: number;
+    /** Scene time for placement theatre; server epoch time for upgrades. */
+    until: number;
+    duration: number;
+    stage: number;
+    gfx: Phaser.GameObjects.Graphics;
+    builderAssigned: boolean;
+}
+
+/** "1h 05m" / "3m 24s" / "45s" — the work tag's live countdown. */
+function formatWorkRemaining(ms: number): string {
+    const total = Math.max(0, Math.ceil(ms / 1000));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+    if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`;
+    return `${s}s`;
+}
+
 type LifeKind = 'villager' | 'dog' | 'chicken' | 'bird';
 const DRAGON_SCALE = 3.4;
 
@@ -59,7 +91,10 @@ type LifeState = 'idle' | 'walk' | 'panic' | 'inside' | 'gone';
  * is reserved for a future economy role.)
  */
 export type LifeRole = 'peasant' | 'builder' | 'miner' | 'farmer';
-const FARMABLE = new Set<string>(['grass_patch', 'tree_oak', 'tree_pine']);
+/** Obstacle types a farmer will tend when the village has no farm — shared
+ * with NeighborLifeSim so resident #N holds the same role (and therefore the
+ * same appearance) in the live village, its postcard, and a scout view. */
+export const FARMABLE = new Set<string>(['grass_patch', 'tree_oak', 'tree_pine']);
 
 interface LifeEntity {
     id: number;
@@ -88,6 +123,9 @@ interface LifeEntity {
     /** Cute hover/click reactions: pose until, and per-entity cooldown. */
     reactUntil: number;
     reactCooldownUntil: number;
+    /** Shared figure clock (PixelDraw.FIGURE_ANIM_HZ): last tick position/art applied. */
+    lastPlaceTick?: number;
+    lastDrawTick?: number;
     /** Mid-chinwag with this entity id (both stand and trade bubbles). */
     chattingWith?: number;
     chatCooldownUntil?: number;
@@ -162,6 +200,8 @@ interface CampFigure {
     needsIdleDraw: boolean;
     marchThroughId?: string;
     hopTile?: { x: number; y: number };
+    lastPlaceTick?: number;
+    lastDrawTick?: number;
 }
 
 export const VILLAGER_PALETTES = [
@@ -220,7 +260,9 @@ interface MerchantState {
     x: number;
     y: number;
     path: Phaser.Math.Vector2[] | null;
-    state: 'arriving' | 'building' | 'trading' | 'leaving';
+    state: 'arriving' | 'building' | 'packing' | 'trading' | 'leaving';
+    lastPlaceTick?: number;
+    lastDrawTick?: number;
     leaveAt: number;
     offers: MerchantOffer[];
     facing: 1 | -1;
@@ -229,12 +271,18 @@ interface MerchantState {
     stallDrawn: boolean;
     /** When the stall raising finishes (state 'building' only). */
     buildUntil?: number;
+    /** When the stall teardown finishes (state 'packing' only). */
+    packUntil?: number;
+    /** Stall progress the teardown started from (1 = fully built). */
+    packFrom?: number;
     /** Next mallet knock, so the hammering keeps a beat. */
     nextKnockAt?: number;
 }
 
 /** How long the merchant spends raising his stall before opening shop. */
 const STALL_BUILD_MS = 5200;
+/** ...and striking it on the way out — quicker, but never a one-frame pop. */
+const STALL_PACK_MS = 2400;
 
 export class VillageLifeSystem {
     private readonly scene: LifeHost;
@@ -244,13 +292,14 @@ export class VillageLifeSystem {
     private panicking = false;
     private nightMode = false;
     private rainMode = false;
-    /** Scaffolded builds/upgrades currently being 'worked on' (visual only). */
-    private constructionSites: Array<{ id: string; buildingId: string; until: number; duration: number; stage: number; gfx: Phaser.GameObjects.Graphics; builderAssigned: boolean }> = [];
+    /** Scaffolded builds/upgrades currently being worked on. Upgrade sites
+     *  follow the server's epoch interval; placement theatre remains local. */
+    private constructionSites: ConstructionSite[] = [];
     /** Post-raid damage at home: smoke + rubble until the repair crew gets there. */
     private scars: Array<{ buildingId: string; gfx: Phaser.GameObjects.Graphics; repairAt: number; repairing: boolean; seed: number; rendered: boolean }> = [];
     /** Night events: the owl, the midnight forge, wolves at the treeline. */
     private nextOwlAt = 0;
-    private owl: { x: number; y: number; dirX: number; dirY: number; gfx: Phaser.GameObjects.Graphics; bornAt: number; hooted: boolean } | null = null;
+    private owl: { x: number; y: number; dirX: number; dirY: number; gfx: Phaser.GameObjects.Graphics; bornAt: number; hooted: boolean; lastTick?: number } | null = null;
     private nextForgeAt = 0;
     private forge: { buildingId: string; until: number; lightId: number; nextClinkAt: number } | null = null;
     private nextWolvesAt = 0;
@@ -275,6 +324,10 @@ export class VillageLifeSystem {
 
     // ---- stone paths: the village paves its important routes over time ----
     private stoneGfx: Phaser.GameObjects.Graphics | null = null;
+    /** Quantized presentation of the lanes (the gfx above is draw-source only). */
+    private stoneRT: Phaser.GameObjects.RenderTexture | null = null;
+    private stonePixelEpoch = 0;
+    private stoneQuantizeTimer: Phaser.Time.TimerEvent | null = null;
     /** Each lane ages on its own: untouched lanes keep their stones exactly
      *  as laid, while a re-routed lane grows back in at its crew's own pace —
      *  and its abandoned course lingers as `retiring`, pulled up stone by
@@ -303,7 +356,7 @@ export class VillageLifeSystem {
     // ---- Night stories: festival at the jukebox, a thief in the dark ----
     private festivalGfx: Phaser.GameObjects.Graphics | null = null;
     private festivalOn = false;
-    private thief: { gfx: Phaser.GameObjects.Graphics; x: number; y: number; path: Phaser.Math.Vector2[] | null; speed: number; facing: 1 | -1; state: 'sneak' | 'flee'; sack: boolean; animOffset: number } | null = null;
+    private thief: { gfx: Phaser.GameObjects.Graphics; x: number; y: number; path: Phaser.Math.Vector2[] | null; speed: number; facing: 1 | -1; state: 'sneak' | 'flee'; sack: boolean; animOffset: number; lastPlaceTick?: number; lastDrawTick?: number } | null = null;
     private nextThiefAt = 0;
     private nextChatScanAt = 0;
     private nextBrowseAt = 0;
@@ -409,6 +462,14 @@ export class VillageLifeSystem {
             }
             // Walking out of the hall after an attack: stream out one by one.
             e.stateUntil = now + (options.fromHall ? 300 + i * 450 : Math.random() * 2500);
+            if (options.fromHall) {
+                // They all spawn ON the door tile — invisible until their exit
+                // slot, then a short fade, so the hall doesn't pop a stack of
+                // villagers into view at once. (Sprite shadows follow carrier
+                // alpha, so the ramp reads on the baked figures too.)
+                e.gfx.setAlpha(0);
+                this.scene.tweens.add({ targets: e.gfx, alpha: 1, duration: 300, delay: 300 + i * 450, ease: 'Quad.easeOut' });
+            }
         }
         // The youngest villagers are CHILDREN until they come of age — real
         // days, across sessions, from the server's birth records. They take
@@ -491,6 +552,10 @@ export class VillageLifeSystem {
                 e.speed = e.baseSpeed;
                 e.animOffset = (seed >> 8) % 10000;
                 e.stateUntil = now + 400 + i * 600;
+                // Toddle out of the hall on the exit slot, not as an instant
+                // stack on the door tile (same fade as populate({fromHall})).
+                e.gfx.setAlpha(0);
+                this.scene.tweens.add({ targets: e.gfx, alpha: 1, duration: 300, delay: 400 + i * 600, ease: 'Quad.easeOut' });
                 if (hall) hall.doorOpenUntil = now + DOOR_PULSE_MS;
             }
             soundSystem.play('eggCollect');
@@ -512,23 +577,51 @@ export class VillageLifeSystem {
         this.populationCount = count;
     }
 
+    /** Hostile troops alive on this village's lawn (live attack or replay
+     *  watch) — the shared battle gate for panic stickiness AND every
+     *  ambient-critter spawn (birds, dragon flyover). */
+    private hostilesOnLawn(): boolean {
+        return (this.scene.mode === 'ATTACK' || this.scene.mode === 'REPLAY') &&
+            this.scene.troops.some(t => t.health > 0 && t.owner !== this.populatedFor);
+    }
+
     /**
      * Everyone sprints for shelter — the town hall door first, any other door
      * building second. Nobody ever evaporates: an entity with no reachable
      * door cowers in place until the danger passes. Idempotent.
      */
     panic() {
+        // A real threat takes scare ownership from a passing dragon shadow —
+        // the shadow's map-exit must never calm a live raid (cleared BEFORE
+        // the idempotence return so a raid starting mid-scare still claims it).
+        this.dragonScare = false;
         if (this.panicking) return;
         if (this.entities.length === 0) return;
         this.panicking = true;
+        // A pending post-calm release (scheduled in calm()) must not fire
+        // into this new panic and flip everyone back to idle mid-raid.
+        this.calmTimer?.remove();
+        this.calmTimer = null;
         this.endFestival();
         if (this.thief) this.scareThief(false);
         soundSystem.play('horn');
         const now = this.scene.time.now;
         for (const e of this.entities) {
-            if (e.state === 'gone' || e.kind === 'bird') continue;
+            if (e.state === 'gone') continue;
+            if (e.kind === 'bird') {
+                // Wild birds bolt from the commotion — their refuge is the
+                // sky, so they keep their heading at a burst of speed instead
+                // of a one-frame vanish. The dragon shadow (birdType 3) is
+                // the SOURCE of some panics and always finishes its pass.
+                if (e.birdType !== 3) {
+                    e.birdVX = (e.birdVX ?? 0) * 3.5;
+                    e.birdVY = (e.birdVY ?? 0) * 3.5;
+                }
+                continue;
+            }
             if (e.state === 'inside') continue; // already safe indoors
             this.interruptChore(e);
+            this.releaseBuildClaim(e); // panic clears workBuildingId — free the scaffold too
             e.workUntil = undefined;
             e.workBuildingId = undefined;
             e.workFaceAt = undefined;
@@ -550,15 +643,27 @@ export class VillageLifeSystem {
      */
     calm() {
         if (!this.panicking) return;
+        // The dragon owns this panic until its shadow leaves the map — the
+        // no-attack poll must not release the village while it's overhead.
+        if (this.dragonScare) return;
         this.panicking = false;
         this.calmTimer?.remove();
         this.calmTimer = this.scene.time.delayedCall(1500, () => {
             this.calmTimer = null;
+            // A new panic can begin inside this 1.5s window (panic() also
+            // cancels the timer — belt and braces): never un-hide a village
+            // that is scared again.
+            if (this.panicking) return;
             if (this.scene.mode !== 'HOME' || this.populatedFor !== 'PLAYER') return;
             const now = this.scene.time.now;
             let exitSlot = 0;
             for (const e of this.entities) {
                 if (e.state === 'inside') {
+                    // A raid ending at night (or in rain) leaves everyone in
+                    // bed/shelter — dawn (setNightMode) or the clearing sky
+                    // (setRain) does the releasing, exactly like L7's rule;
+                    // releasing here would file them out only to turn around.
+                    if (this.nightMode || this.rainMode) continue;
                     // Stagger the walk-outs so the village refills naturally.
                     e.hiddenUntil = now + 400 + exitSlot * 480 + Math.random() * 250;
                     exitSlot++;
@@ -610,6 +715,7 @@ export class VillageLifeSystem {
                     // Finish an already-reserved pickup/delivery before bed;
                     // changing its path would make it complete at a doorway.
                     if (this.hasActiveChore(e)) continue;
+                    this.releaseBuildClaim(e); // knocking off for the night frees the scaffold
                     e.workUntil = undefined;
                     e.workBuildingId = undefined;
                     e.workFaceAt = undefined;
@@ -637,12 +743,15 @@ export class VillageLifeSystem {
                     e.dancing = false;
                     e.stateUntil = now + 500 + Math.random() * 2000;
                 }
-                if (e.sleeping) {
+                // A rainy dawn keeps everyone under cover: waking/releasing
+                // them here would file the whole village out the doors only to
+                // dash straight back in. setRain(false) does the releasing.
+                if (e.sleeping && !this.rainMode) {
                     e.sleeping = false;
                     e.sitting = false;
                     e.stateUntil = now + 500 + Math.random() * 2500;
                 }
-                if (e.state === 'inside' && e.hiddenUntil === Number.POSITIVE_INFINITY && !this.panicking) {
+                if (e.state === 'inside' && e.hiddenUntil === Number.POSITIVE_INFINITY && !this.panicking && !this.rainMode) {
                     e.hiddenUntil = now + 600 + slot * 520 + Math.random() * 300;
                     slot++;
                 }
@@ -656,12 +765,16 @@ export class VillageLifeSystem {
     private layEgg(chicken: LifeEntity) {
         const gfx = this.scene.add.graphics();
         const pos = IsoUtils.cartToIso(chicken.x, chicken.y);
-        gfx.fillStyle(0x000000, 0.18);
-        gfx.fillEllipse(0, 2.6, 5.5, 2.2);
-        gfx.fillStyle(0xf7f2e6, 1);
-        gfx.fillEllipse(0, 0, 5, 6);
-        gfx.fillStyle(0xffffff, 0.85);
-        gfx.fillCircle(-1, -1.4, 1.1);
+        pixelEllipse(gfx, 0, 2.6, 2.75, 1.1, 0x000000, 0.18);
+        // Hand-drawn pixel egg (cells, not AA ellipses): cream shell with a
+        // rounded top/bottom and a single white highlight cell top-left.
+        pixelBitmap(gfx, -2 * PIXEL_CELL, -2.5 * PIXEL_CELL, [
+            '.ee.',
+            'ewee',
+            'eeee',
+            'eeee',
+            '.ee.'
+        ], { e: 0xf7f2e6, w: 0xffffff });
         gfx.setPosition(pos.x + (Math.random() - 0.5) * 6, pos.y + 3);
         gfx.setDepth(this.characterDepth(chicken.x, chicken.y) - 2);
         gfx.setScale(0);
@@ -698,14 +811,11 @@ export class VillageLifeSystem {
             onComplete: () => egg.gfx.destroy()
         });
         const pos = IsoUtils.cartToIso(egg.x, egg.y);
-        for (let i = 0; i < 3; i++) {
-            const p = this.scene.add.circle(pos.x + (Math.random() - 0.5) * 8, pos.y, 1.3, 0xf2d268, 0.9);
-            p.setDepth(egg.gfx.depth + 1);
-            this.scene.tweens.add({
-                targets: p, y: p.y - 8, alpha: 0, duration: 320,
-                onComplete: () => p.destroy()
-            });
-        }
+        PixelFx.burst(this.scene, pos.x, pos.y, {
+            count: 3, colors: [0xf2d268], alpha: 0.9, r: 1.3,
+            spread: 8, speed: 0, up: 8, life: 320,
+            depth: egg.gfx.depth + 1
+        });
         gameManager.collectResource('food', 5);
         soundSystem.play('eggCollect');
         return true;
@@ -726,7 +836,10 @@ export class VillageLifeSystem {
         for (const e of this.entities) {
             if (e.kind !== 'villager') continue;
             if (e.state !== 'idle' && e.state !== 'walk') continue;
-            if (e.child || e.sleeping || e.lantern || e.haulObstacleId || e.forageObstacleId || e.haulStage || e.carryingRock || e.carryingPack || e.pendingEnterId) continue;
+            // Children AND elders sit cargo chores out: a forage ends in a
+            // pack carry, and the baked elder roster has no carry cycles
+            // (rendering him empty-handed mid-haul is worse than passing).
+            if (e.child || e.elder || e.sleeping || e.lantern || e.buildSiteId || e.haulObstacleId || e.forageObstacleId || e.haulStage || e.carryingRock || e.carryingPack || e.pendingEnterId) continue;
             const d = Math.hypot(e.x - patch.gridX, e.y - patch.gridY);
             if (d < bestD) {
                 bestD = d;
@@ -798,15 +911,11 @@ export class VillageLifeSystem {
         this.scene.removeObstacle(patch.id); // persisted
         soundSystem.play(golden ? 'coin' : 'snip');
         const color = golden ? 0xffd84a : 0xe8875a;
-        for (let i = 0; i < (golden ? 7 : 4); i++) {
-            const p = this.scene.add.circle(pos.x + (Math.random() - 0.5) * 12, pos.y, 1.5, color, 0.95);
-            p.setDepth(depth);
-            this.scene.tweens.add({
-                targets: p, y: p.y - 10 - Math.random() * 6, alpha: 0,
-                duration: 380 + Math.random() * 180,
-                onComplete: () => p.destroy()
-            });
-        }
+        PixelFx.burst(this.scene, pos.x, pos.y, {
+            count: golden ? 7 : 4, colors: [color], alpha: 0.95, r: 1.5,
+            spread: 12, speed: 0, up: 10, upJitter: 6,
+            life: 380, lifeJitter: 180, depth
+        });
 
         const amount = golden ? 50 : 6;
         const depot = this.scene.buildings.find(b => b.type === 'storage' && b.health > 0)
@@ -848,7 +957,10 @@ export class VillageLifeSystem {
         for (const e of this.entities) {
             if (e.kind !== 'villager') continue;
             if (e.state !== 'idle' && e.state !== 'walk') continue;
-            if (e.child || e.sleeping || e.lantern || e.haulObstacleId || e.forageObstacleId || e.haulStage || e.carryingRock || e.carryingPack || e.pendingEnterId) continue;
+            // Same rule as forage: no rock ever rides on the elder — every
+            // pXsY_elder variant bakes without rock_*/pack_* walk cycles, so
+            // a shouldered rock would simply vanish for the whole trip.
+            if (e.child || e.elder || e.sleeping || e.lantern || e.buildSiteId || e.haulObstacleId || e.forageObstacleId || e.haulStage || e.carryingRock || e.carryingPack || e.pendingEnterId) continue;
             const d = Math.hypot(e.x - obstacle.gridX, e.y - obstacle.gridY);
             if (d < bestD) {
                 bestD = d;
@@ -998,11 +1110,11 @@ export class VillageLifeSystem {
         }
         const pos = IsoUtils.cartToIso(e.x, e.y);
         const color = kind === 'ore' ? 0xffd84a : 0xf2d268;
-        for (let i = 0; i < 3; i++) {
-            const p = this.scene.add.circle(pos.x + (Math.random() - 0.5) * 8, pos.y - 4, 1.3, color, 0.9);
-            p.setDepth(e.gfx.depth + 1);
-            this.scene.tweens.add({ targets: p, y: p.y - 8, alpha: 0, duration: 340, onComplete: () => p.destroy() });
-        }
+        PixelFx.burst(this.scene, pos.x, pos.y - 4, {
+            count: 3, colors: [color], alpha: 0.9, r: 1.3,
+            spread: 8, speed: 0, up: 8, life: 340,
+            depth: e.gfx.depth + 1
+        });
         e.state = 'idle';
         e.stateUntil = time + this.idleDuration(e);
         if (this.onScreen(e)) this.drawEntity(e, time, false);
@@ -1021,11 +1133,11 @@ export class VillageLifeSystem {
         unlockTrack('miners_vein', "Miner's Vein");
         // A couple of ore glints as it lands in the store.
         const pos = IsoUtils.cartToIso(e.x, e.y);
-        for (let i = 0; i < 3; i++) {
-            const p = this.scene.add.circle(pos.x + (Math.random() - 0.5) * 8, pos.y - 4, 1.3, 0xffd84a, 0.9);
-            p.setDepth(e.gfx.depth + 1);
-            this.scene.tweens.add({ targets: p, y: p.y - 8, alpha: 0, duration: 340, onComplete: () => p.destroy() });
-        }
+        PixelFx.burst(this.scene, pos.x, pos.y - 4, {
+            count: 3, colors: [0xffd84a], alpha: 0.9, r: 1.3,
+            spread: 8, speed: 0, up: 8, life: 340,
+            depth: e.gfx.depth + 1
+        });
         e.state = 'idle';
         e.stateUntil = time + this.idleDuration(e);
         if (this.onScreen(e)) this.drawEntity(e, time, false);
@@ -1053,11 +1165,14 @@ export class VillageLifeSystem {
             if (!path || path.length === 0) return;
             // He comes up the BORDER ROAD: spawn on the lane outside the plot,
             // walk along it, turn in at the village edge, then path to the stall.
+            // Waypoints use followPath's integer-tile convention (+0.5 is added
+            // there) — pushing centered coords would walk him a half-tile off
+            // the lane and turn him at the map's very edge.
             const laneX = fromLeft ? -1.4 : m2 + 0.4;
             const roadStartY = entryY + (Math.random() < 0.5 ? -8 : 8);
             path.unshift(
-                new Phaser.Math.Vector2(laneX, entryY + 0.5),
-                new Phaser.Math.Vector2(fromLeft ? 0.5 : m2 - 0.5, entryY + 0.5)
+                new Phaser.Math.Vector2(laneX - 0.5, entryY),
+                new Phaser.Math.Vector2(fromLeft ? 0 : m2 - 1, entryY)
             );
             this.merchant = {
                 gfx: this.scene.add.graphics(),
@@ -1085,11 +1200,17 @@ export class VillageLifeSystem {
         }
 
         // Trouble or nightfall sends him packing early.
-        if (m.state !== 'leaving' && (this.panicking || this.nightMode)) {
+        if (m.state !== 'leaving' && m.state !== 'packing' && (this.panicking || this.nightMode)) {
             this.merchantDepart(m);
         }
 
         if (m.state === 'arriving' || m.state === 'leaving') {
+            // The road legs outside the plot and the cloud-lapped outermost
+            // tiles pass at a brisk roll — the border banks bury that fringe
+            // when the fog sits close, and he must never crawl invisibly
+            // under them. He slows to his stroll on open lawn.
+            const fringeClear = Math.min(m.x, m.y, this.scene.mapSize - m.x, this.scene.mapSize - m.y);
+            m.speed = fringeClear < 3 ? 0.0034 : 0.0012;
             const arrived = this.followPath(m, delta);
             this.placeMerchant();
             if (this.onScreenAt(m.x, m.y)) this.drawMerchant(time, !arrived || m.state === 'leaving');
@@ -1139,6 +1260,28 @@ export class VillageLifeSystem {
             return;
         }
 
+        if (m.state === 'packing') {
+            // The stall comes DOWN the way it went up — wares packed, canopy
+            // rolled back, counter struck, posts pulled — while he works the
+            // mallet beside it. The baked 'build' stages simply play in
+            // reverse; interrupted builds tear down from wherever they got to.
+            const total = STALL_PACK_MS * Math.max(0.2, m.packFrom ?? 1);
+            const left = Math.max(0, (m.packUntil ?? time) - time);
+            const p = (m.packFrom ?? 1) * Math.max(0, Math.min(1, left / total));
+            if (this.onScreenAt(m.x, m.y)) {
+                this.drawStall(m, p);
+                this.drawMerchant(time, false, true);
+                if (time >= (m.nextKnockAt ?? 0)) {
+                    m.nextKnockAt = time + 500; // one knock per mallet swing
+                    soundSystem.play('tap');
+                }
+            }
+            if (time >= (m.packUntil ?? 0)) {
+                this.merchantWalkOff(m);
+            }
+            return;
+        }
+
         // Trading: stand at the stall until it's time to go.
         if (time >= m.leaveAt) {
             this.merchantDepart(m);
@@ -1146,21 +1289,45 @@ export class VillageLifeSystem {
     }
 
     private merchantDepart(m: MerchantState) {
-        if (m.state === 'leaving') return;
-        m.state = 'leaving';
-        m.stallGfx.clear();
-        m.stallDrawn = false;
+        if (m.state === 'leaving' || m.state === 'packing') return;
         (this.scene as unknown as { villageBubbles?: { clear(key: string): void } }).villageBubbles?.clear('merchant-open');
         gameManager.showToast('The merchant has moved on.');
+        if (m.state === 'arriving') {
+            // No stall raised yet: just turn the cart around.
+            this.merchantWalkOff(m);
+            return;
+        }
+        // Never a single-frame vanish — panic, nightfall and the natural
+        // leaveAt all strike the stall stage by stage before he rolls out.
+        const now = this.scene.time.now;
+        m.packFrom = m.state === 'building'
+            ? Math.max(0, Math.min(1, 1 - ((m.buildUntil ?? now) - now) / STALL_BUILD_MS))
+            : 1;
+        m.state = 'packing';
+        m.packUntil = now + STALL_PACK_MS * Math.max(0.2, m.packFrom);
+        m.nextKnockAt = now;
+        m.facing = 1; // face the stall while striking it
+    }
+
+    /** Stall struck (or never raised): out to the road and along it, the way he came. */
+    private merchantWalkOff(m: MerchantState) {
+        m.state = 'leaving';
+        m.stallGfx.clear();
+        // clear() empties only the vector art; the baked stall sprite follows
+        // carrier VISIBILITY (SpriteBank.update). Each visit builds a fresh
+        // stallGfx, so nothing needs to un-hide this one.
+        m.stallGfx.setVisible(false);
+        m.stallDrawn = false;
         const edgeX = m.x < this.scene.mapSize / 2 ? 0 : this.scene.mapSize - 1;
         const path = PathfindingSystem.findAmbientPath(m.x, m.y, { gridX: edgeX, gridY: Math.floor(m.y) }, this.scene.buildings);
         if (path && path.length > 0) {
             // ...and he leaves the way he came: out to the road, then along it.
+            // Integer-tile waypoint convention (followPath centers them itself).
             const laneX = edgeX === 0 ? -1.4 : this.scene.mapSize + 0.4;
             const exitY = path[path.length - 1].y;
             path.push(
-                new Phaser.Math.Vector2(laneX, exitY),
-                new Phaser.Math.Vector2(laneX, exitY + (Math.random() < 0.5 ? -9 : 9))
+                new Phaser.Math.Vector2(laneX - 0.5, exitY),
+                new Phaser.Math.Vector2(laneX - 0.5, exitY + (Math.random() < 0.5 ? -9 : 9))
             );
             m.path = path;
         } else {
@@ -1220,6 +1387,9 @@ export class VillageLifeSystem {
     private placeMerchant() {
         const m = this.merchant;
         if (!m) return;
+        const tk = figureTick(this.scene.time.now);
+        if (m.lastPlaceTick === tk) return;
+        m.lastPlaceTick = tk;
         const pos = IsoUtils.cartToIso(m.x, m.y);
         m.gfx.setPosition(pos.x, pos.y - this.hopOffsetOf(m));
         m.gfx.setDepth(this.characterDepth(m.x, m.y));
@@ -1229,10 +1399,25 @@ export class VillageLifeSystem {
     private drawMerchant(time: number, moving: boolean, building = false) {
         const m = this.merchant;
         if (!m) return;
+        const tk = figureTick(time);
+        if (m.lastDrawTick === tk) return;
+        m.lastDrawTick = tk;
         const g = m.gfx;
         g.clear();
         g.setScale(m.facing === -1 ? -0.85 : 0.85, 0.85);
-        const phase = ((time + 137) % 520) / 520;
+        const state = building ? 'build' : moving ? 'walk' : 'idle';
+        const p = building ? (time % 500) / 500 : ((time + 137) % 520) / 520;
+        if (SpriteBank.syncFigure(this.scene, g, 'merchant', 'c', state, p, m.facing === -1)) return;
+        SpriteBank.release(g);
+        VillageLifeSystem.drawMerchantFigure(g, ((time + 137) % 520) / 520, moving, building, (time % 500) / 500);
+    }
+
+    /**
+     * The hooded trader + cart, local coords, facing +x (flip via setScale).
+     * Static so the sprite bake can render it: `phase` is the 520 ms gait
+     * cycle, `buildPhase` the 500 ms mallet beat when `building`.
+     */
+    static drawMerchantFigure(g: Phaser.GameObjects.Graphics, phase: number, moving: boolean, building = false, buildPhase = 0) {
         const swing = moving ? Math.sin(phase * Math.PI * 2) * 2.2 : 0;
         const bob = moving ? Math.abs(Math.sin(phase * Math.PI * 2)) * 1.2 : 0;
 
@@ -1287,7 +1472,7 @@ export class VillageLifeSystem {
         if (building) {
             // Mallet arm working the stall beside him: a slow lift, then the
             // strike snaps down — same 500ms beat as the knock sound.
-            const ph = (time % 500) / 500;
+            const ph = buildPhase;
             const lift = ph < 0.6 ? ph / 0.6 : 1 - (ph - 0.6) / 0.4;
             const ang = -0.15 - lift * 1.5; // down-forward → raised overhead
             const sx = 3.5, sy = -3.5;
@@ -1323,7 +1508,20 @@ export class VillageLifeSystem {
         const pos = IsoUtils.cartToIso(m.x + 1.1, m.y - 0.4);
         g.setPosition(pos.x, pos.y);
         g.setDepth(this.characterDepth(m.x + 1.1, m.y - 0.4));
+        // Baked stall throughout: finished = the 'idle' frame; the raising
+        // plays the baked stepped 'build' stages (frame k covers progress
+        // [k/10,(k+1)/10) — deliberately chunky, owner prefers stepped baked
+        // stages over the smooth vector assembly). Honest-state check: an old
+        // manifest without 'build' falls to the vector assembly, never to a
+        // finished stall popping in at p=0.
+        const stallReady = p >= 1 || SpriteBank.hasFigureState('villagers', 'stall', 'c', 'build');
+        if (stallReady && SpriteBank.syncFigure(this.scene, g, 'stall', 'c', p >= 1 ? 'idle' : 'build', p >= 1 ? 0 : p, false)) return;
+        SpriteBank.release(g);
+        VillageLifeSystem.drawStallGeometry(g, p);
+    }
 
+    /** The stall structure at local (0,0); static so the sprite bake can render progress=1. */
+    static drawStallGeometry(g: Phaser.GameObjects.Graphics, p: number) {
         const quad = (pts: number[][], color: number, a: number) => {
             g.fillStyle(color, a);
             g.beginPath();
@@ -1525,10 +1723,14 @@ export class VillageLifeSystem {
         const count = 2;
         for (let i = 0; i < count; i++) {
             const heart = this.scene.add.graphics();
-            heart.fillStyle(0xe75a7c, 1);
-            heart.fillCircle(-1.3, 0, 1.6);
-            heart.fillCircle(1.3, 0, 1.6);
-            heart.fillTriangle(-2.8, 0.8, 2.8, 0.8, 0, 4);
+            // Hand-drawn pixel heart (cells, not AA circles).
+            pixelBitmap(heart, -2.5 * PIXEL_CELL, -2 * PIXEL_CELL, [
+                '.r.r.',
+                'rrrrr',
+                'rrrrr',
+                '.rrr.',
+                '..r..'
+            ], { r: 0xe75a7c });
             heart.setPosition(pos.x + (i === 0 ? -4 : 5), pos.y - 16);
             heart.setDepth(e.gfx.depth + 2);
             heart.setAlpha(0.95);
@@ -1549,8 +1751,8 @@ export class VillageLifeSystem {
         const pos = IsoUtils.cartToIso(e.x, e.y);
         for (let i = 0; i < 3; i++) {
             const feather = this.scene.add.graphics();
-            feather.fillStyle(0xf3ecdd, 0.95);
-            feather.fillEllipse(0, 0, 4, 1.6);
+            // A pixel-cell feather strip (the graphics still tumbles whole).
+            pixelBitmap(feather, -2 * PIXEL_CELL, -0.5 * PIXEL_CELL, ['fff'], { f: 0xf3ecdd }, 0.95);
             feather.setPosition(pos.x + (Math.random() - 0.5) * 8, pos.y - 8 - Math.random() * 4);
             feather.setDepth(e.gfx.depth + 2);
             feather.setAngle(Math.random() * 60 - 30);
@@ -1590,6 +1792,10 @@ export class VillageLifeSystem {
         this.saveStoneMaturity();
         this.stoneGfx?.destroy();
         this.stoneGfx = null;
+        this.stoneQuantizeTimer?.remove(false);
+        this.stoneQuantizeTimer = null;
+        this.stoneRT?.destroy();
+        this.stoneRT = null;
         // Keep the lane ages: a same-village repopulate restores them so an
         // in-flight re-lay doesn't snap to done. populate() clears twice in a
         // row (an external clear, then its own) — never let the second, empty
@@ -1631,6 +1837,18 @@ export class VillageLifeSystem {
         }
         this.staggerFrame = (this.staggerFrame + 1) % 3;
 
+        // BATTLE STICKINESS — the panic contract self-heals: while hostile
+        // troops are alive on this village's lawn (live attack or replay
+        // watch), the village must be panicking. Any path that drops the
+        // panic mid-fight (a mid-battle repopulate on a world re-sync, a
+        // deployment that never routed through the ATTACK deploy gate, a
+        // stray calm) re-arms it here — villagers never resume chores
+        // under fire.
+        if (!this.panicking && this.populatedFor !== null && this.entities.length > 0 &&
+            this.hostilesOnLawn()) {
+            this.panic();
+        }
+
         if (this.showCampFigures && !this.panicking && this.scene.mode === 'HOME' && time >= this.nextArmySyncAt) {
             this.nextArmySyncAt = time + ARMY_SYNC_MS;
             this.syncArmyFigures(time);
@@ -1638,9 +1856,13 @@ export class VillageLifeSystem {
 
         // The odd bird flying over makes even an empty stretch of map feel
         // alive — but birds roost at night; the sky belongs to the dark.
+        // BATTLE GATE (same contract as the villager panic stickiness above):
+        // wild birds and other ambient critters never wander a live
+        // battlefield — no new spawns while the village is panicking or
+        // hostile troops stand on the lawn.
         if (this.populatedFor !== null && time >= this.nextBirdAt) {
             this.nextBirdAt = time + 12000 + Math.random() * 22000;
-            if (!this.nightMode) this.spawnBird();
+            if (!this.nightMode && !this.panicking && !this.hostilesOnLawn()) this.spawnBird();
         }
         this.updateMerchant(time, delta);
 
@@ -1657,9 +1879,11 @@ export class VillageLifeSystem {
         }
 
         // ...and once in a very long while, something much bigger passes overhead.
+        // Same battle gate as the birds: the flyover sits out combat/panics
+        // (the D-key summon stays unrestricted for debugging).
         if (this.populatedFor !== null && this.nextDragonAt > 0 && time >= this.nextDragonAt) {
             this.nextDragonAt = time + 720_000 + Math.random() * 780_000; // 12-25 min until the next
-            this.spawnDragonShadow();
+            if (!this.panicking && !this.hostilesOnLawn()) this.spawnDragonShadow();
         }
 
         this.updateChats(time);
@@ -1718,8 +1942,11 @@ export class VillageLifeSystem {
 
         // Festival bounce: dancers bob on the beat and turn to the music.
         if (e.dancing && e.state === 'idle') {
-            this.placeGfx(e);
-            e.gfx.y -= Math.abs(Math.sin((time + e.animOffset) * 0.008)) * 3;
+            // The bob offset rides a FRESH placement only — placeGfx skips
+            // between world ticks and a relative offset would compound.
+            if (this.placeGfx(e)) {
+                e.gfx.y -= Math.abs(Math.sin((time + e.animOffset) * 0.008)) * 3;
+            }
             const turn = Math.sin((time + e.animOffset) * 0.0021);
             e.facing = turn >= 0 ? 1 : -1;
             if (this.onScreen(e)) this.drawEntity(e, time, true);
@@ -1802,6 +2029,22 @@ export class VillageLifeSystem {
                 } else if ((this.nightMode || this.rainMode) && e.kind === 'villager' && !e.lantern && !e.dancing) {
                     // Arrived in darkness or rain: pause, then seek shelter.
                     e.stateUntil = time + 300 + Math.random() * 500;
+                } else if (this.inSilhouetteShadow(e.x, e.y)) {
+                    // Never LINGER in a building's silhouette dead zone — a
+                    // stationary figure there reads as perched on the roof.
+                    // Slip out to the nearest clear tile (front-biased) and
+                    // settle there instead; if the pocket is sealed, hold
+                    // only a beat and retry.
+                    const out = this.openTileAt(e.x, e.y + 1);
+                    const escape = out
+                        ? PathfindingSystem.findAmbientPath(e.x, e.y, { gridX: out.x, gridY: out.y }, this.scene.buildings)
+                        : null;
+                    if (escape && escape.length > 0) {
+                        e.path = escape;
+                        e.state = 'walk';
+                    } else {
+                        e.stateUntil = time + 400;
+                    }
                 } else {
                     e.sitting = e.kind === 'dog' && Math.random() < 0.5;
                     e.stateUntil = time + this.idleDuration(e);
@@ -1892,14 +2135,11 @@ export class VillageLifeSystem {
             const seed = hashString(`${this.identityKey}:grown:${e.id}`);
             e.style = (seed >> 3) % 5 < 2 ? 1 : 0;
             const pos = IsoUtils.cartToIso(e.x, e.y);
-            for (let i = 0; i < 5; i++) {
-                const p = this.scene.add.circle(pos.x + (Math.random() - 0.5) * 12, pos.y - 6, 1.4, 0xffe9a8, 0.95);
-                p.setDepth(e.gfx.depth + 1);
-                this.scene.tweens.add({
-                    targets: p, y: p.y - 12, alpha: 0, duration: 500,
-                    onComplete: () => p.destroy()
-                });
-            }
+            PixelFx.burst(this.scene, pos.x, pos.y - 6, {
+                count: 5, colors: [0xffe9a8], alpha: 0.95, r: 1.4,
+                spread: 12, speed: 0, up: 12, life: 500,
+                depth: e.gfx.depth + 1
+            });
             if (this.onScreen(e)) this.drawEntity(e, time, false);
         }
 
@@ -2159,18 +2399,11 @@ export class VillageLifeSystem {
         const fxX = pos.x + e.facing * 8;
         const fxY = pos.y - 2;
         const color = e.role === 'builder' ? 0xffd76a : (e.role === 'farmer' || e.role === 'peasant') ? 0x6fbf5a : 0xa89a7c;
-        for (let i = 0; i < 2; i++) {
-            const p = this.scene.add.circle(fxX + (Math.random() - 0.5) * 4, fxY, 1.4, color, 0.9);
-            p.setDepth(e.gfx.depth + 1);
-            this.scene.tweens.add({
-                targets: p,
-                x: p.x + (Math.random() - 0.5) * 10,
-                y: p.y - 4 - Math.random() * 5,
-                alpha: 0,
-                duration: 260 + Math.random() * 120,
-                onComplete: () => p.destroy()
-            });
-        }
+        PixelFx.burst(this.scene, fxX, fxY, {
+            count: 2, colors: [color], alpha: 0.9, r: 1.4,
+            spread: 4, speed: 10, up: 4, upJitter: 5,
+            life: 260, lifeJitter: 120, depth: e.gfx.depth + 1
+        });
     }
 
     private updatePanic(e: LifeEntity, time: number, delta: number) {
@@ -2178,6 +2411,9 @@ export class VillageLifeSystem {
 
         if (e.cowering) {
             // Nowhere to run: crouch on the spot until it's over. Nobody vanishes.
+            // Re-place on the tick so a cleared wall-hop can't hold them ~10px
+            // above the wall for the whole raid (tick-gated: near-free).
+            this.placeGfx(e);
             if (this.onScreen(e) && (e.id + this.staggerFrame) % 3 === 0) {
                 this.drawEntity(e, time, false);
             }
@@ -2188,6 +2424,13 @@ export class VillageLifeSystem {
             const refuge = this.findRefuge(e);
             if (refuge) {
                 const door = this.doorOf(refuge);
+                // Route AROUND the refuge, never through it: with the old
+                // `throughId` shortcut a villager approaching from the north
+                // walked straight ACROSS the refuge footprint to its south
+                // door — seconds of "man on the roof/through the wall"
+                // (p8-night-hall). findAmbientPath already unblocks the
+                // START tile, so someone caught inside a footprint still
+                // gets out; the door target itself is outside the footprint.
                 const path = door
                     ? PathfindingSystem.findAmbientPath(e.x, e.y, { gridX: door.x, gridY: door.y }, this.scene.buildings)
                     : null;
@@ -2196,10 +2439,12 @@ export class VillageLifeSystem {
                     e.panicRefugeId = refuge.id;
                 } else {
                     e.cowering = true;
+                    e.hopTile = undefined; // never cower hovering mid-wall-hop
                     return;
                 }
             } else {
                 e.cowering = true;
+                e.hopTile = undefined;
                 return;
             }
         }
@@ -2214,6 +2459,7 @@ export class VillageLifeSystem {
             } else {
                 // Their shelter was destroyed mid-run: freeze and cower.
                 e.cowering = true;
+                e.hopTile = undefined;
             }
             return;
         }
@@ -2298,10 +2544,12 @@ export class VillageLifeSystem {
         e.facing = dir as 1 | -1;
         e.state = 'walk';
         // Something vast just blotted out the sun — everyone dives for cover
-        // until the shadow has passed.
-        if (this.scene.mode === 'HOME' && this.populatedFor === 'PLAYER') {
-            this.dragonScare = true;
+        // until the shadow has passed. A village already panicking has a REAL
+        // threat: the shadow never takes scare ownership mid-raid (its exit
+        // would calm a live attack). panic() runs first — it clears the flag.
+        if (this.scene.mode === 'HOME' && this.populatedFor === 'PLAYER' && !this.panicking) {
             this.panic();
+            this.dragonScare = true;
         }
     }
 
@@ -2374,12 +2622,14 @@ export class VillageLifeSystem {
 
     private spawnCampFigure(type: TroopType, stations: PlacedBuilding[], barracks: PlacedBuilding | undefined, time: number, instant = false) {
         const camp = stations[Math.floor(Math.random() * stations.length)];
-        const origin = (!instant && barracks) ? this.doorOf(barracks) : this.pointAround(camp);
+        const figureId = this.nextId++;
+        const spot = this.campStation(camp, figureId);
+        const origin = (!instant && barracks) ? this.doorOf(barracks) : spot;
         if (!origin) return;
         // Fresh recruit steps out through the barracks door.
         if (!instant && barracks) barracks.doorOpenUntil = time + DOOR_PULSE_MS;
         const f: CampFigure = {
-            id: this.nextId++,
+            id: figureId,
             type,
             gfx: this.scene.add.graphics(),
             x: origin.x,
@@ -2394,13 +2644,13 @@ export class VillageLifeSystem {
             needsIdleDraw: true,
             marchThroughId: camp.id
         };
-        const spot = this.pointAround(camp);
         f.path = (!instant && spot)
             ? PathfindingSystem.findAmbientPath(f.x, f.y, { gridX: spot.x, gridY: spot.y }, this.scene.buildings, camp.id)
             : null;
         if (!f.path || f.path.length === 0) {
-            // Standing army on load, or no walkable route (fully walled
-            // camp): appear at the camp directly.
+            // The standing army starts here on load. A fresh recruit reaches
+            // this recovery only after malformed edge placement; closed wall
+            // loops remain routable because the target is inside the camp.
             const at = spot ?? this.doorOf(camp);
             if (!at) {
                 f.gfx.destroy();
@@ -2482,7 +2732,7 @@ export class VillageLifeSystem {
             f.idleUntil = time + 4000 + Math.random() * 8000;
             if (Math.random() < 0.45) {
                 const camp = this.scene.buildings.find(b => b.id === f.campId && b.health > 0);
-                const spot = camp ? this.pointAround(camp) : null;
+                const spot = camp ? this.campStation(camp, f.id + Math.floor(time / 1000)) : null;
                 if (spot) {
                     const path = PathfindingSystem.findAmbientPath(f.x, f.y, { gridX: spot.x, gridY: spot.y }, this.scene.buildings, f.campId);
                     if (path && path.length > 0) {
@@ -2499,6 +2749,9 @@ export class VillageLifeSystem {
     }
 
     private placeCampGfx(f: CampFigure) {
+        const ptk = figureTick(this.scene.time.now);
+        if (f.lastPlaceTick === ptk) return;
+        f.lastPlaceTick = ptk;
         const pos = IsoUtils.cartToIso(f.x, f.y);
         f.gfx.setPosition(pos.x, pos.y - this.hopOffsetOf(f));
         const depth = this.characterDepth(f.x, f.y);
@@ -2509,6 +2762,9 @@ export class VillageLifeSystem {
     }
 
     private drawCampFigure(f: CampFigure, moving: boolean) {
+        const tk = figureTick(this.scene.time.now);
+        if (f.lastDrawTick === tk) return;
+        f.lastDrawTick = tk;
         f.gfx.clear();
         f.gfx.setScale(f.facing === -1 ? -0.92 : 0.92, 0.92);
         // Trained-troop figures use the SAME baked sprites as battle troops.
@@ -2517,7 +2773,7 @@ export class VillageLifeSystem {
             f.facing === -1 ? Math.PI : 0, moving, this.scene.time.now,
             f.facing === -1
         )) return;
-        TroopRenderer.drawTroopVisual(f.gfx, f.type as Parameters<typeof TroopRenderer.drawTroopVisual>[1], 'PLAYER', 0, moving, 0, 0, 0, false, 0, 1);
+        TroopRenderer.drawTroopVisual(f.gfx, f.type as Parameters<typeof TroopRenderer.drawTroopVisual>[1], 'PLAYER', 0, moving, 0, 0, 0, false, 0, 1, this.scene.time.now);
     }
 
     // ------------------------------------------------------------- helpers
@@ -2579,7 +2835,12 @@ export class VillageLifeSystem {
         return Math.cos((d / 0.55) * Math.PI / 2) * 10;
     }
 
-    private placeGfx(e: LifeEntity, yOffset = 0) {
+    private placeGfx(e: LifeEntity, yOffset = 0): boolean {
+        // Figures MOVE on the shared world tick, not the render frame — a
+        // touch jagged on purpose, in step with every village on the map.
+        const tk = figureTick(this.scene.time.now);
+        if (e.lastPlaceTick === tk) return false;
+        e.lastPlaceTick = tk;
         const pos = IsoUtils.cartToIso(e.x, e.y);
         e.gfx.setPosition(pos.x, pos.y + yOffset - this.hopOffsetOf(e));
         const depth = e.kind === 'bird'
@@ -2592,18 +2853,24 @@ export class VillageLifeSystem {
             e.lastDepth = depth;
             e.gfx.setDepth(depth);
         }
+        return true;
     }
 
     /**
-     * Depth for ground characters. Walls (and buildings) have visual height,
-     * so a character only counts as "in front" once their feet pass the
-     * occluder's CENTER line — one tile later than the raw troop formula,
-     * which flipped them in front while still walking behind a wall's top.
-     * Anchor shifted a full tile back, compensated with a larger layer bonus:
-     * the flip now happens at (occluder anchor + ~0.9 tiles).
+     * Depth for ground characters — the SAME anchor and convention as combat
+     * troops (depthForTroop at the feet position), so villagers and troops
+     * sort correctly against each other during raids. The old half-tile
+     * anchor shift (a wall-occlusion fix) made every villager depth-
+     * equivalent to a troop ~0.96 rows further north, so attackers
+     * overpainted defenders standing almost a full tile in FRONT of them.
+     * The wall relationship is now compensated where it belongs: walls (and
+     * every solid occluder) anchor at their footprint CENTER with an offset
+     * inside the character band, so a character approaching from the north
+     * stays occluded until its feet cross the wall's tile center (±0.03
+     * rows) — see the occluder-band derivation in DepthSystem.ts.
      */
     private characterDepth(x: number, y: number): number {
-        return Math.round(depthForTroop(x - 0.5, y - 0.5, 'warrior')) + 4;
+        return Math.round(depthForTroop(x, y, 'warrior'));
     }
 
     private onScreen(e: LifeEntity): boolean {
@@ -2631,14 +2898,44 @@ export class VillageLifeSystem {
         return false;
     }
 
+    /**
+     * The SILHOUETTE DEAD ZONE of a building: the ~0.75-tile band hugging its
+     * N/NW/NE faces (plus the footprint's own back half). The baked iso art
+     * rises only a few px above its rear footprint corner, so a figure
+     * STANDING here pokes its whole body above the drawn roofline and reads
+     * as perched ON the roof — even though the painter's order is exactly
+     * right (verified pixel-level: such a figure never covers an opaque art
+     * pixel; it shows against the transparent sky INSIDE the art's rect).
+     * No depth scalar can fix a read that happens entirely in the art's
+     * sky region, so the rule is behavioural: ambient figures may WALK
+     * through this band but never STOP in it — wander/door-step picks
+     * reject it and arrivals that end here immediately walk out.
+     * See docs/RENDERING_AND_DEPTH.md ("Silhouette dead zone").
+     */
+    private inSilhouetteShadow(x: number, y: number): boolean {
+        const PAD = 0.75;
+        for (const b of this.scene.buildings) {
+            if (b.type === 'wall' || b.health <= 0 || b.isDestroyed) continue;
+            const info = BUILDING_DEFINITIONS[b.type as BuildingType];
+            if (!info) continue;
+            if (x < b.gridX - PAD || x > b.gridX + info.width + PAD) continue;
+            if (y < b.gridY - PAD || y > b.gridY + info.height + PAD) continue;
+            const centerRow = b.gridX + info.width / 2 + b.gridY + info.height / 2;
+            if (x + y < centerRow - 0.4) return true;
+        }
+        return false;
+    }
+
     private openTileAt(x: number, y: number): { x: number; y: number } | null {
         const gx = Math.floor(x);
         const gy = Math.floor(y);
-        if (!this.isBlocked(gx, gy)) return { x: gx, y: gy };
+        const open = (tx: number, ty: number) =>
+            !this.isBlocked(tx, ty) && !this.inSilhouetteShadow(tx + 0.5, ty + 0.5);
+        if (open(gx, gy)) return { x: gx, y: gy };
         for (let r = 1; r <= 2; r++) {
             for (let dx = -r; dx <= r; dx++) {
                 for (let dy = -r; dy <= r; dy++) {
-                    if (!this.isBlocked(gx + dx, gy + dy)) return { x: gx + dx, y: gy + dy };
+                    if (open(gx + dx, gy + dy)) return { x: gx + dx, y: gy + dy };
                 }
             }
         }
@@ -2659,9 +2956,30 @@ export class VillageLifeSystem {
             else if (side === 1) { gx = b.gridX + Math.floor(along * info.width); gy = b.gridY + info.height + offset - 1; }
             else if (side === 2) { gx = b.gridX - offset; gy = b.gridY + Math.floor(along * info.height); }
             else { gx = b.gridX + info.width + offset - 1; gy = b.gridY + Math.floor(along * info.height); }
-            if (!this.isBlocked(gx, gy)) return { x: gx, y: gy };
+            if (!this.isBlocked(gx, gy) && !this.inSilhouetteShadow(gx + 0.5, gy + 0.5)) return { x: gx, y: gy };
         }
         return null;
+    }
+
+    /**
+     * Deterministic door-step tile for a STONE LANE endpoint. A pure function
+     * of village identity + the target's footprint + the current layout —
+     * the same inputs the postcard sim derives its routes from
+     * (NeighborLifeSim.openTileNear: viewer-facing south/east edge tiles,
+     * seeded pick). The Math.random-based openTileNear re-rolled the
+     * endpoint every session and every layout recompute, so live lanes
+     * diverged from postcard routes and wandered between visits.
+     */
+    private stoneDoorstep(b: PlacedBuilding): { x: number; y: number } | null {
+        const info = BUILDING_DEFINITIONS[b.type as BuildingType];
+        if (!info) return null;
+        const candidates: Array<{ x: number; y: number }> = [];
+        for (let k = 0; k < info.width; k++) candidates.push({ x: b.gridX + k, y: b.gridY + info.height });
+        for (let k = 0; k < info.height; k++) candidates.push({ x: b.gridX + info.width, y: b.gridY + k });
+        const open = candidates.filter(c => !this.isBlocked(c.x, c.y));
+        if (open.length === 0) return null;
+        const seed = hashString(`${this.identityKey}:stone:${b.type}@${b.gridX},${b.gridY}`);
+        return open[seed % open.length];
     }
 
     /** Front-center tile of a building (villagers "enter/exit" here). */
@@ -2673,8 +2991,29 @@ export class VillageLifeSystem {
         return this.openTileNear(b);
     }
 
-    private pointAround(b: PlacedBuilding): { x: number; y: number } | null {
-        return this.openTileNear(b, 2);
+    /**
+     * A station tile inside an army camp's footprint. Ambient pathfinding
+     * receives the camp id as `throughId`, so the open camp is walkable while
+     * a tight wall loop around it still forces the recruit to hop inward.
+     */
+    private campStation(b: PlacedBuilding, seed: number): { x: number; y: number } | null {
+        if (b.type !== 'army_camp') return this.openTileNear(b, 2);
+        const info = BUILDING_DEFINITIONS[b.type as BuildingType];
+        if (!info) return null;
+        const width = Math.max(1, Math.floor(info.width));
+        const height = Math.max(1, Math.floor(info.height));
+        const perimeter: Array<{ x: number; y: number }> = [];
+        const interior: Array<{ x: number; y: number }> = [];
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const target = (x === 0 || y === 0 || x === width - 1 || y === height - 1)
+                    ? perimeter
+                    : interior;
+                target.push({ x: b.gridX + x, y: b.gridY + y });
+            }
+        }
+        const stations = [...perimeter, ...interior];
+        return stations[Math.abs(Math.floor(seed)) % stations.length] ?? null;
     }
 
     // ------------------------------------------------- village stories
@@ -2704,6 +3043,10 @@ export class VillageLifeSystem {
         // it), and anything alive caught beneath the footprint bolts clear.
         this.invalidateStonePaths();
         this.scatterFromFootprint(b);
+        // Walkers OUTSIDE the footprint whose remaining route crosses it get
+        // a fresh path — followPath never revalidates, so without this they
+        // stroll straight through the new building.
+        this.repathAroundFootprint(b);
         const info = BUILDING_DEFINITIONS[b.type as BuildingType];
         const cx = b.gridX + (info?.width ?? 1) / 2;
         const cy = b.gridY + (info?.height ?? 1) / 2;
@@ -2757,6 +3100,7 @@ export class VillageLifeSystem {
             e.sleeping = false;
             e.sitting = false;
             e.pecking = false;
+            this.releaseBuildClaim(e);
             e.workUntil = undefined;
             e.workBuildingId = undefined;
             e.workFaceAt = undefined;
@@ -2764,13 +3108,96 @@ export class VillageLifeSystem {
             e.chattingWith = undefined;
             e.state = 'walk';
             e.stateUntil = time + 600 + Math.random() * 900;
-            e.path = [new Phaser.Math.Vector2(spot.x + 0.5, spot.y + 0.5)];
+            // openTileAt returns an INTEGER tile; followPath centers waypoints
+            // itself (+0.5) — pre-centering here landed escapees on the tile
+            // corner, i.e. right on the new building's footprint edge.
+            e.path = [new Phaser.Math.Vector2(spot.x, spot.y)];
             e.speed = e.baseSpeed * (e.kind === 'chicken' ? 2.6 : e.kind === 'dog' ? 2.0 : 1.6);
             this.scene.time.delayedCall(1500, () => {
                 if (e.state !== 'panic') e.speed = e.baseSpeed;
             });
             this.faceToward(e, spot.x + 0.5, spot.y + 0.5);
             this.scene.tweens.add({ targets: e.gfx, y: e.gfx.y - 6, duration: 90, yoyo: true, ease: 'Quad.easeOut' });
+        }
+    }
+
+    /**
+     * A building landed on somebody's ROUTE (not on them — scatter handles
+     * that): every walker whose remaining waypoints cross the new footprint
+     * re-paths to its original destination, or breaks off cleanly when the
+     * destination itself got buried. followPath never revalidates on its own.
+     */
+    private repathAroundFootprint(b: PlacedBuilding) {
+        const info = BUILDING_DEFINITIONS[b.type as BuildingType];
+        const w = info?.width ?? 1;
+        const h = info?.height ?? 1;
+        const pad = 0.2;
+        const inside = (x: number, y: number) =>
+            x > b.gridX - pad && x < b.gridX + w + pad && y > b.gridY - pad && y < b.gridY + h + pad;
+        const crosses = (from: { x: number; y: number }, path: Phaser.Math.Vector2[]): boolean => {
+            let px = from.x;
+            let py = from.y;
+            for (const wp of path) {
+                // followPath's integer-tile convention: the walk target is the
+                // waypoint's center.
+                const tx = wp.x + 0.5;
+                const ty = wp.y + 0.5;
+                const steps = Math.max(1, Math.ceil(Math.hypot(tx - px, ty - py) / 0.4));
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    if (inside(px + (tx - px) * t, py + (ty - py) * t)) return true;
+                }
+                px = tx;
+                py = ty;
+            }
+            return false;
+        };
+        const time = this.scene.time.now;
+        for (const e of this.entities) {
+            if (e.kind === 'bird' || !e.path || e.path.length === 0) continue;
+            if (e.state !== 'walk' && e.state !== 'panic') continue;
+            if (inside(e.x, e.y)) continue; // scatterFromFootprint owns anyone under the roof
+            if (!crosses(e, e.path)) continue;
+            if (e.state === 'panic') {
+                // Drop the stale route; updatePanic re-finds refuge + path.
+                e.path = null;
+                e.panicRefugeId = undefined;
+                continue;
+            }
+            const goal = e.path[e.path.length - 1];
+            const fresh = PathfindingSystem.findAmbientPath(
+                e.x, e.y, { gridX: goal.x, gridY: goal.y }, this.scene.buildings, e.pendingEnterId
+            );
+            if (fresh && fresh.length > 0 && !inside(goal.x + 0.5, goal.y + 0.5)) {
+                e.path = fresh;
+                continue;
+            }
+            // Destination buried or unreachable: break the trip off cleanly.
+            this.releaseBuildClaim(e);
+            this.cancelUnpickedChore(e);
+            e.pendingEnterId = undefined;
+            e.path = null;
+            e.state = 'idle';
+            e.stateUntil = time + 400 + Math.random() * 800;
+            // Earned cargo re-routes to another depot (or settles locally) —
+            // the same rule every other interruption follows.
+            this.resumeCarriedChore(e, time);
+        }
+        for (const f of this.campFigures) {
+            if (!f.path || f.path.length === 0 || !crosses(f, f.path)) continue;
+            const goal = f.path[f.path.length - 1];
+            const fresh = PathfindingSystem.findAmbientPath(
+                f.x, f.y, { gridX: goal.x, gridY: goal.y }, this.scene.buildings, f.marchThroughId
+            );
+            if (fresh && fresh.length > 0) {
+                f.path = fresh;
+            } else {
+                // Recover in place; the camp loop picks a new spot shortly.
+                f.path = null;
+                f.state = 'idle';
+                f.idleUntil = time + 1500 + Math.random() * 2000;
+                f.needsIdleDraw = true;
+            }
         }
     }
 
@@ -2791,7 +3218,7 @@ export class VillageLifeSystem {
         }
         if (this.nightMode || this.panicking) return;
         const free = this.entities.filter(e =>
-            e.kind === 'villager' && !e.child &&
+            e.kind === 'villager' && !e.child && !e.buildSiteId &&
             (e.state === 'idle' || e.state === 'walk') &&
             !e.sleeping && !e.dancing && e.workUntil === undefined &&
             !e.carryingRock && !e.carryingPack && !e.pendingEnterId &&
@@ -2830,17 +3257,28 @@ export class VillageLifeSystem {
     }
 
     /** A tiny speech bubble with progressive dots, above the speaker's head. */
-    private static drawChatBubble(g: Phaser.GameObjects.Graphics, phase: number) {
-        const bx = 6;
-        const by = -21;
-        g.fillStyle(0xf5f1e6, 0.95);
-        g.fillRoundedRect(bx - 5.5, by - 4, 11, 8, 2.5);
-        g.fillTriangle(bx - 3, by + 3.4, bx, by + 6.4, bx + 1.5, by + 3.4);
-        g.fillStyle(0x6b5138, 0.9);
-        const dots = 1 + Math.floor(phase * 3);
-        for (let i = 0; i < dots; i++) {
-            g.fillCircle(bx - 2.6 + i * 2.6, by, 0.9);
+    private static drawChatBubble(g: Phaser.GameObjects.Graphics, phase: number, mirrored = false) {
+        // Hand-authored pixel art on the bake grid — the bubble is cells, not
+        // an AA rounded rect, so it matches the baked sprites at any zoom.
+        if (mirrored) {
+            // The carrier is x-mirrored to face the figure west; counter it in
+            // the command stream so the bubble (offset AND tail) never draws
+            // mirror-imaged. Applies only to commands recorded after this.
+            g.save();
+            g.scaleCanvas(-1, 1);
         }
+        const dots = 1 + Math.floor(phase * 3);
+        const dotRow = `oo${dots > 0 ? 'd' : 'o'}o${dots > 1 ? 'd' : 'o'}o${dots > 2 ? 'd' : 'o'}oo`;
+        pixelBitmap(g, 6 - 4.5 * PIXEL_CELL, -21 - 3 * PIXEL_CELL, [
+            '.ooooooo.',
+            'ooooooooo',
+            dotRow,
+            'ooooooooo',
+            '.ooooooo.',
+            '...oo....',
+            '...o.....'
+        ], { o: 0xf5f1e6, d: 0x6b5138 }, 0.95);
+        if (mirrored) g.restore();
     }
 
     /** While the merchant trades, window-shoppers drift over for a look. */
@@ -2960,11 +3398,12 @@ export class VillageLifeSystem {
             const gfx = this.scene.add.graphics();
             gfx.setDepth(4);
             const c = IsoUtils.cartToIso(plan.spot.x, plan.spot.y);
-            gfx.fillStyle(0xe8d49a, 0.9);
             let sx = 17;
             for (let i = 0; i < 9; i++) {
                 sx = (sx * 73 + 31) % 97;
-                gfx.fillCircle(c.x + (sx / 97 - 0.5) * 34, c.y + (((sx * 7) % 53) / 53 - 0.5) * 16, 1.1);
+                const gx = c.x + (sx / 97 - 0.5) * 34;
+                const gy = c.y + (((sx * 7) % 53) / 53 - 0.5) * 16;
+                pixelRect(gfx, gx - PIXEL_CELL / 2, gy - PIXEL_CELL / 2, PIXEL_CELL, PIXEL_CELL, 0xe8d49a, 0.9);
             }
             this.feedSpot = { x: plan.spot.x, y: plan.spot.y, until: time + 17_000, gfx };
             soundSystem.play('snip');
@@ -3007,6 +3446,7 @@ export class VillageLifeSystem {
             const ty = center.y + Math.sin(a) * 1.1;
             const path = PathfindingSystem.findAmbientPath(e.x, e.y, { gridX: Math.floor(tx), gridY: Math.floor(ty) }, this.scene.buildings);
             e.dancing = true;
+            this.releaseBuildClaim(e); // dancing the night away frees the scaffold
             e.workUntil = undefined;
             e.workBuildingId = undefined;
             e.workFaceAt = undefined;
@@ -3026,30 +3466,27 @@ export class VillageLifeSystem {
         const poleL = { x: c.x - 46, y: c.y - 8 };
         const poleR = { x: c.x + 46, y: c.y + 8 };
         for (const pole of [poleL, poleR]) {
-            g.fillStyle(0x5d4037, 1);
-            g.fillRect(pole.x - 1.5, pole.y - 34, 3, 34);
-            g.fillStyle(0x795548, 1);
-            g.fillEllipse(pole.x, pole.y, 8, 4);
+            pixelRect(g, pole.x - 1.5, pole.y - 34, 3, 34, 0x5d4037, 1);
+            pixelEllipse(g, pole.x, pole.y, 4, 2, 0x795548, 1);
         }
-        g.lineStyle(1.2, 0x3a2a1a, 0.9);
         const segs = 10;
         for (let i = 0; i < segs; i++) {
             const t0 = i / segs;
             const t1 = (i + 1) / segs;
             const sag = (t: number) => Math.sin(t * Math.PI) * 9;
-            g.lineBetween(
+            pixelLine(g,
                 poleL.x + (poleR.x - poleL.x) * t0, poleL.y - 34 + (poleR.y - poleL.y) * t0 + sag(t0),
-                poleL.x + (poleR.x - poleL.x) * t1, poleL.y - 34 + (poleR.y - poleL.y) * t1 + sag(t1)
+                poleL.x + (poleR.x - poleL.x) * t1, poleL.y - 34 + (poleR.y - poleL.y) * t1 + sag(t1),
+                1, 0x3a2a1a, 0.9
             );
         }
         for (let i = 1; i < 6; i++) {
             const t = i / 6;
             const bx = poleL.x + (poleR.x - poleL.x) * t;
             const by = poleL.y - 34 + (poleR.y - poleL.y) * t + Math.sin(t * Math.PI) * 9 + 3;
-            g.fillStyle(0x8a3b2e, 1);
-            g.fillRect(bx - 1.6, by - 2.4, 3.2, 2);
-            g.fillStyle(0xffc36a, 1);
-            g.fillCircle(bx, by, 1.8);
+            // Lantern: dark cap block over a 2x2-cell amber body.
+            pixelRect(g, bx - PIXEL_CELL, by - 2.4, PIXEL_CELL * 2, PIXEL_CELL * 2, 0x8a3b2e, 1);
+            pixelRect(g, bx - PIXEL_CELL, by - PIXEL_CELL, PIXEL_CELL * 2, PIXEL_CELL * 2, 0xffc36a, 1);
         }
         this.festivalGfx = g;
         this.scene.dayNight.setFestivalGlow(center);
@@ -3115,9 +3552,17 @@ export class VillageLifeSystem {
             return;
         }
 
-        // Creep-freeze-creep while sneaking; flat out when fleeing.
-        const skulk = t.state === 'sneak' ? Math.max(0, 0.35 + 0.8 * Math.sin(time * 0.0035 + t.animOffset)) : 1;
-        t.speed = (t.state === 'flee' ? 0.0034 : 0.0011) * Math.max(0.001, skulk);
+        // Creep-freeze-creep while sneaking; flat out when fleeing. The
+        // outermost ~3 tiles sit under the border clouds' lap onto the lawn:
+        // no theatre there — he crosses that fringe briskly and freeze-free,
+        // so he is never invisible for seconds while on playable tiles. The
+        // skulk act starts once he reaches visibly clear ground.
+        const mapM = this.scene.mapSize;
+        const underCloudFringe = Math.min(t.x, t.y, mapM - t.x, mapM - t.y) < 3;
+        const skulk = t.state === 'sneak' && !underCloudFringe
+            ? Math.max(0, 0.35 + 0.8 * Math.sin(time * 0.0035 + t.animOffset))
+            : 1;
+        t.speed = (t.state === 'flee' ? 0.0034 : underCloudFringe ? 0.0026 : 0.0011) * Math.max(0.001, skulk);
         const arrived = this.followPath(t as unknown as LifeEntity, delta);
 
         if (arrived) {
@@ -3141,11 +3586,21 @@ export class VillageLifeSystem {
             }
         }
 
+        const ttk = figureTick(time);
+        if (t.lastPlaceTick === ttk) return;
+        t.lastPlaceTick = ttk;
         const pos = IsoUtils.cartToIso(t.x, t.y);
-        t.gfx.setPosition(pos.x, pos.y);
+        // followPath tracks the thief's wall crossings in hopTile like every
+        // other walker — without the arc he slides flat THROUGH the wall.
+        t.gfx.setPosition(pos.x, pos.y - this.hopOffsetOf(t));
         t.gfx.setDepth(this.characterDepth(t.x, t.y));
         if (this.onScreenAt(t.x, t.y)) {
-            VillageLifeSystem.drawThief(t.gfx, ((time + t.animOffset) % 520) / 520, t.facing, t.state === 'sneak' ? skulk : 1, t.sack);
+            const thiefPhase = ((time + t.animOffset) % 520) / 520;
+            if (!SpriteBank.syncFigure(this.scene, t.gfx, 'thief', t.sack ? 'sack' : 'plain',
+                t.state === 'sneak' ? 'sneak' : 'flee', thiefPhase, t.facing === -1)) {
+                SpriteBank.release(t.gfx);
+                VillageLifeSystem.drawThief(t.gfx, thiefPhase, t.facing, t.state === 'sneak' ? skulk : 1, t.sack);
+            }
         }
     }
 
@@ -3228,10 +3683,12 @@ export class VillageLifeSystem {
     // ------------------------------------------------------------ rendering
 
     private drawEntity(e: LifeEntity, time: number, moving: boolean) {
+        // Animation advances on the shared figure clock — the same rate every
+        // village on the map animates at.
+        const tk = figureTick(time);
+        if (e.lastDrawTick === tk) return;
+        e.lastDrawTick = tk;
         const g = e.gfx;
-        // Villagers, dogs, chickens, children stay per-frame vector figures
-        // until their own sprite bake lands.
-        g.clear();
         const scale =
             e.kind === 'villager' ? (e.child ? 0.55 : 0.8) :
             e.kind === 'dog' ? 0.85 :
@@ -3241,6 +3698,33 @@ export class VillageLifeSystem {
         const reacting = time < e.reactUntil && e.state !== 'panic';
         const working = e.workUntil !== undefined && time < e.workUntil && !moving;
         const workPhase = ((time + e.animOffset) % 640) / 640;
+
+        // Baked-sprite path: same state/phase math as the vector calls below;
+        // the carrier keeps only dynamic overlays (chat bubble) on top.
+        if (this.syncEntitySprite(e, time, moving, phase, reacting, working, workPhase)) {
+            g.clear();
+            g.setScale(e.facing === -1 ? -scale : scale, scale);
+            // A stationary panicker maps to the baked 'idle' frames (the baked
+            // 'panic' state is a run cycle), so without an overlay a cowering
+            // villager or dog reads as a perfectly calm idler mid-raid. The
+            // carrier keeps the red mark on top of the baked frame, exactly
+            // like the vector pose does (pixel cells, deterministic in time).
+            if ((e.kind === 'villager' || e.kind === 'dog') &&
+                e.state === 'panic' && time >= e.panicAt && !moving) {
+                VillageLifeSystem.drawCowerMark(g, e.kind === 'villager' ? -17 : -12, time);
+            }
+            if (e.kind === 'villager' && e.chattingWith !== undefined && e.state === 'idle' && !e.sleeping) {
+                const slot = e.id < e.chattingWith ? 0 : 1;
+                if (Math.floor(time / 1400) % 2 === slot) {
+                    VillageLifeSystem.drawChatBubble(g, (time % 1400) / 1400, e.facing === -1);
+                }
+            }
+            return;
+        }
+        SpriteBank.release(g);
+        g.setAlpha(1); // sprite path may have set silhouette alpha (dragon)
+
+        g.clear();
         g.setScale(e.facing === -1 ? -scale : scale, scale);
         switch (e.kind) {
             case 'villager':
@@ -3255,7 +3739,7 @@ export class VillageLifeSystem {
                     // Partners trade the bubble back and forth.
                     const slot = e.id < e.chattingWith ? 0 : 1;
                     if (Math.floor(time / 1400) % 2 === slot) {
-                        VillageLifeSystem.drawChatBubble(g, (time % 1400) / 1400);
+                        VillageLifeSystem.drawChatBubble(g, (time % 1400) / 1400, e.facing === -1);
                     }
                 }
                 break;
@@ -3291,10 +3775,93 @@ export class VillageLifeSystem {
         }
     }
 
+    /**
+     * Baked-sprite mapping for a life entity — the state/variant/phase mirror
+     * of the vector dispatch in drawEntity. Returns false → vector fallback.
+     */
+    private syncEntitySprite(
+        e: LifeEntity, time: number, moving: boolean, phase: number,
+        reacting: boolean, working: boolean, workPhase: number
+    ): boolean {
+        const flip = e.facing === -1;
+        const panicked = e.state === 'panic' && time >= e.panicAt;
+        const sleeping = Boolean(e.sleeping) && !moving;
+        switch (e.kind) {
+            case 'villager': {
+                const variant = `p${e.palette}s${e.style}_${e.child ? 'child' : e.elder ? 'elder' : (e.role ?? 'peasant')}`;
+                // Not every variant bakes every state (carry cycles exist only
+                // for the matching role, elders lack 'work', children lack
+                // 'sleep'): pick the honest nearest state so a hauling peasant
+                // never glides across the map frozen in the idle pose.
+                const has = (s: string) => SpriteBank.hasFigureState('villagers', 'villager', variant, s);
+                let state = 'idle';
+                let p = phase;
+                // The baked 'panic' is a 6-frame run cycle — a stationary
+                // (cowering) panicker holds the idle stance instead of jogging
+                // in place.
+                if (sleeping) state = has('sleep') ? 'sleep' : 'idle';
+                else if (panicked) state = moving ? 'panic' : 'idle';
+                else if (working && has('work')) { state = 'work'; p = workPhase; }
+                else if (working) state = 'idle';
+                else if (moving && e.carryingRock) state = has(`rock_${e.carryingRock}_walk`) ? `rock_${e.carryingRock}_walk` : 'walk';
+                else if (moving && e.carryingPack) state = has(`pack_${e.carryingPack}_walk`) ? `pack_${e.carryingPack}_walk` : 'walk';
+                else if (e.lantern) state = moving ? 'lantern_walk' : 'lantern_idle';
+                else if (reacting) state = 'cheer';
+                else if (moving) state = 'walk';
+                return SpriteBank.syncFigure(this.scene, e.gfx, 'villager', variant, state, p, flip, { depthBias: 0.25 });
+            }
+            case 'dog': {
+                const sitting = Boolean(e.sitting) && !moving && !reacting;
+                // Same cower rule as villagers: the baked 'panic' runs.
+                const state = sleeping ? 'sleep' : panicked ? (moving ? 'panic' : 'idle') : sitting ? 'sit'
+                    : reacting ? 'excited' : moving ? 'walk' : 'idle';
+                return SpriteBank.syncFigure(this.scene, e.gfx, 'dog', `p${e.palette}`, state, phase, flip);
+            }
+            case 'chicken': {
+                const state = sleeping ? 'sleep' : (Boolean(e.pecking) && !moving) ? 'peck' : moving ? 'walk' : 'idle';
+                return SpriteBank.syncFigure(this.scene, e.gfx, 'chicken', 'c', state, phase, flip);
+            }
+            case 'bird': {
+                if (e.birdType === 3) {
+                    const TAU = Math.PI * 2;
+                    const heading = Math.atan2(e.birdVY ?? 0, (e.birdVX ?? 0) || 1);
+                    const h = Math.round((((heading % TAU) + TAU) % TAU) / (TAU / 16)) % 16;
+                    const ok = SpriteBank.syncFigure(
+                        this.scene, e.gfx, 'dragon', `h${String(h).padStart(2, '0')}`, 'fly',
+                        ((time + e.animOffset) % 1400) / 1400, false
+                    );
+                    if (ok) e.gfx.setAlpha(0.27); // silhouette bakes opaque; alpha lives on the carrier
+                    return ok;
+                }
+                const unit = e.birdType === 1 ? 'bird_sparrow' : e.birdType === 2 ? 'bird_heron' : 'bird_dove';
+                const period = e.birdType === 1 ? 200 : e.birdType === 2 ? 700 : 320;
+                return SpriteBank.syncFigure(this.scene, e.gfx, unit, 'c', 'fly', ((time + e.animOffset) % period) / period, flip);
+            }
+        }
+        return false;
+    }
+
     private static drawPanicMark(g: Phaser.GameObjects.Graphics, topY: number) {
         g.fillStyle(0xd82f2f, 1);
         g.fillRect(-1, topY - 7, 2, 5);
         g.fillCircle(0, topY, 1.2);
+    }
+
+    /**
+     * Red pixel "!" over a cowering (stationary) panicker on the BAKED
+     * figure path — those frames are the plain idle pose and carry no
+     * panic tell of their own. One-cell tremble on a fixed 230 ms beat,
+     * purely f(time); pixel cells only (no AA on a live layer).
+     */
+    private static drawCowerMark(g: Phaser.GameObjects.Graphics, topY: number, time: number) {
+        const jit = (Math.floor(time / 230) % 2) * PIXEL_CELL * 0.5;
+        pixelBitmap(g, -PIXEL_CELL / 2, topY - 6 * PIXEL_CELL + jit, [
+            'r',
+            'r',
+            'r',
+            '.',
+            'r'
+        ], { r: 0xd82f2f });
     }
 
     /** Two drowsy Zs drifting up from a sleeper. */
@@ -3822,14 +4389,17 @@ export class VillageLifeSystem {
         ];
     }
 
-    private static drawDragonShadow(g: Phaser.GameObjects.Graphics, phase: number, heading: number) {
+    // Alpha is a parameter so the sprite bake can render the silhouette
+    // opaque (the 50% alpha snap would erase a 0.27-alpha shape); runtime
+    // restores translucency on the sprite/carrier.
+    private static drawDragonShadow(g: Phaser.GameObjects.Graphics, phase: number, heading: number, alpha = 0.27) {
         const pts = VillageLifeSystem.dragonSilhouette(phase);
         // Grid axes sit 45 degrees from screen axes; rotate in ground space,
         // then the isometric 2:1 squash flattens the shadow onto the lawn.
         const psi = heading + Math.PI / 4;
         const cos = Math.cos(psi);
         const sin = Math.sin(psi);
-        g.fillStyle(0x05070c, 0.27);
+        g.fillStyle(0x05070c, alpha);
         g.beginPath();
         for (let i = 0; i < pts.length; i++) {
             const sx = pts[i][0] * cos - pts[i][1] * sin;
@@ -3870,6 +4440,7 @@ export class VillageLifeSystem {
                 if (e.state === 'inside' || e.state === 'gone' || e.state === 'panic') continue;
                 if (e.kind === 'villager') {
                     this.interruptChore(e);
+                    this.releaseBuildClaim(e); // rain sends the builder in — free the scaffold
                     e.workUntil = undefined;
                     e.workBuildingId = undefined;
                     e.workFaceAt = undefined;
@@ -3915,32 +4486,119 @@ export class VillageLifeSystem {
         if (b.type === 'wall') return; // wall drags would carpet the map in scaffolds
         const info = BUILDING_DEFINITIONS[b.type as BuildingType];
         if (!info) return;
+        const timing = b as UpgradeTimedBuilding;
+        const now = kind === 'upgrade' ? this.serverEpochNow() : this.scene.time.now;
+        const authoritativeEnd = Number(timing.upgradeEndsAt);
+        if (kind === 'upgrade' && (!timing.upgradingTo || !Number.isFinite(authoritativeEnd) || authoritativeEnd <= now)) return;
+        const authoritativeStart = Number(timing.upgradeStartedAt);
+        const startedAt = kind === 'upgrade'
+            ? (Number.isFinite(authoritativeStart) && authoritativeStart <= authoritativeEnd
+                ? authoritativeStart
+                : Math.min(now, authoritativeEnd))
+            : now;
+        const until = kind === 'upgrade' ? authoritativeEnd : startedAt + 30_000;
+        const duration = Math.max(1, until - startedAt);
+        // Dev upgrades can be started again before the prior 3s topping-out
+        // tag expires; the new authoritative work tag owns this roof now.
+        this.bubbles()?.clear(`built_${b.id}`);
         this.clearConstructionFor(b.id);
         const gfx = this.scene.add.graphics();
-        gfx.setDepth(depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 45);
-        this.drawScaffold(gfx, b, info.width, info.height, 0);
-        const started = this.scene.time.now;
-        const duration = kind === 'place' ? 30_000 : 20_000;
-        this.constructionSites.push({
+        // +37..39 overlays: above the building carrier and any same-row
+        // character (occluder 18.5..20 + 37 = 55.5..57), still below the
+        // projectile band (60) so battle shots clear the scaffolding.
+        gfx.setDepth(depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 37);
+        const site: ConstructionSite = {
             id: `site_${b.id}`,
             buildingId: b.id,
-            until: started + duration,
+            kind,
+            startedAt,
+            until,
             duration,
-            stage: 0,
+            stage: -1,
             gfx,
             builderAssigned: false
-        });
-        // The site raises its own tag: hammer at work, live progress bar.
+        };
+        this.constructionSites.push(site);
+        this.redrawConstructionStage(site, b, this.constructionProgress(site));
+        // The site raises its own tag (owner spec): building name + live time
+        // remaining stacked on the LEFT, the small hammer at work on the
+        // RIGHT, live progress bar underneath.
         const centre = IsoUtils.cartToIso(b.gridX + info.width / 2, b.gridY + info.height / 2);
         this.bubbles()?.raise({
             key: `construct_${b.id}`,
             anchor: { x: centre.x, y: centre.y - 52 - info.height * 13 },
-            text: kind === 'place' ? 'BUILDING' : 'UPGRADING',
+            text: info.name.toUpperCase(),
+            subtext: () => formatWorkRemaining(site.until - this.constructionNow(site)),
             icon: 'build-icon',
+            iconSide: 'right',
             animate: true,
             ttlMs: 0,
-            progress: () => (this.scene.time.now - started) / duration
+            progress: () => this.constructionProgress(site)
         });
+    }
+
+    /** Rebase an existing scaffold on the server's acknowledged clock without
+     *  resetting its builder/path, or recreate it after a late authoritative sync. */
+    syncUpgradeConstruction(b: PlacedBuilding) {
+        const timing = b as UpgradeTimedBuilding;
+        const existing = this.constructionSites.find(site => site.kind === 'upgrade' && site.buildingId === b.id);
+        if (!timing.upgradingTo) {
+            if (existing) this.removeConstructionSite(existing);
+            return;
+        }
+        const until = Number(timing.upgradeEndsAt);
+        if (!Number.isFinite(until) || until <= this.serverEpochNow()) return;
+        const rawStart = Number(timing.upgradeStartedAt);
+        const startedAt = Number.isFinite(rawStart) && rawStart <= until
+            ? rawStart
+            : Math.min(this.serverEpochNow(), until);
+        if (!existing) {
+            this.onConstruction(b, 'upgrade');
+            return;
+        }
+        existing.startedAt = startedAt;
+        existing.until = until;
+        existing.duration = Math.max(1, until - startedAt);
+        this.redrawConstructionStage(existing, b, this.constructionProgress(existing));
+    }
+
+    /** Remove a rejected/cancelled upgrade site without a false completion. */
+    cancelConstruction(buildingId: string) {
+        this.clearConstructionFor(buildingId);
+    }
+
+    /** True while a NEWLY PLACED building's scaffold is still working — the
+     *  watchtower fog gate (WorldMapSystem.computeViewRadius) keys sight to
+     *  build completion, so clouds retreat together with the revealed
+     *  content, not the moment the placement save lands. Upgrade sites are
+     *  deliberately excluded: an upgrading building keeps its OLD level in
+     *  `level` (server contract), so its earned sight is already correct. */
+    isPlacementUnderConstruction(buildingId: string): boolean {
+        return this.constructionSites.some(site => site.kind === 'place'
+            && site.buildingId === buildingId
+            && this.constructionNow(site) < site.until);
+    }
+
+    /** Complete one authoritative upgrade. Returns true when the construction
+     *  site owned the celebration; callers can use a fallback effect otherwise. */
+    completeConstruction(b: PlacedBuilding): boolean {
+        const site = this.constructionSites.find(candidate => candidate.kind === 'upgrade' && candidate.buildingId === b.id);
+        if (!site) return false;
+        this.celebrateConstruction(site, b);
+        this.removeConstructionSite(site);
+        return true;
+    }
+
+    private serverEpochNow(): number {
+        return Date.now() + DayNightSystem.serverOffsetMs;
+    }
+
+    private constructionNow(site: ConstructionSite): number {
+        return site.kind === 'upgrade' ? this.serverEpochNow() : this.scene.time.now;
+    }
+
+    private constructionProgress(site: ConstructionSite): number {
+        return Phaser.Math.Clamp((this.constructionNow(site) - site.startedAt) / site.duration, 0, 1);
     }
 
     /** The scene's bubble layer (typed loosely: villageLife must not import scene internals). */
@@ -3949,14 +4607,17 @@ export class VillageLifeSystem {
     }
 
     private clearConstructionFor(buildingId: string) {
-        this.bubbles()?.clear(`construct_${buildingId}`);
-        for (let i = this.constructionSites.length - 1; i >= 0; i--) {
-            const site = this.constructionSites[i];
-            if (site.buildingId !== buildingId) continue;
-            this.releaseConstructionWorker(site.id);
-            site.gfx.destroy();
-            this.constructionSites.splice(i, 1);
+        for (const site of [...this.constructionSites]) {
+            if (site.buildingId === buildingId) this.removeConstructionSite(site);
         }
+    }
+
+    private removeConstructionSite(site: ConstructionSite) {
+        this.bubbles()?.clear(`construct_${site.buildingId}`);
+        this.releaseConstructionWorker(site.id);
+        site.gfx.destroy();
+        const index = this.constructionSites.indexOf(site);
+        if (index >= 0) this.constructionSites.splice(index, 1);
     }
 
     private releaseConstructionWorker(siteId: string) {
@@ -3966,7 +4627,27 @@ export class VillageLifeSystem {
             worker.workUntil = undefined;
             worker.workBuildingId = undefined;
             worker.workFaceAt = undefined;
+            // buildSiteId proves this route/pose belonged to the scaffold;
+            // stop it atomically so a 1s dev upgrade cannot leave a builder
+            // walking toward (or hammering at) work that has already landed.
+            worker.path = null;
+            if (worker.state !== 'inside' && worker.state !== 'gone' && worker.state !== 'panic') {
+                worker.state = 'idle';
+                worker.stateUntil = this.scene.time.now;
+            }
         }
+    }
+
+    /**
+     * The summoned builder is off the job (panic, rain, nightfall, scatter,
+     * festival): free the scaffold's claim so the site can summon a new crew
+     * — otherwise `builderAssigned` sticks true and its theatre never resumes.
+     */
+    private releaseBuildClaim(e: LifeEntity) {
+        if (!e.buildSiteId) return;
+        const site = this.constructionSites.find(s => s.id === e.buildSiteId);
+        if (site) site.builderAssigned = false;
+        e.buildSiteId = undefined;
     }
 
     /**
@@ -3987,78 +4668,175 @@ export class VillageLifeSystem {
             IsoUtils.cartToIso(b.gridX + w, b.gridY + h),     // S corner (bottom)
             IsoUtils.cartToIso(b.gridX + w, b.gridY)          // E corner (right)
         ];
+        // NEVER scaffold INTO a neighbour: a pole planted on a corner point
+        // shared with another building's footprint, or a rail run along a
+        // face whose door-step tiles that building occupies, rides the
+        // sky-gap just above the neighbour's drawn roofline and reads as
+        // "fence planted in the roof face" (its painter depth is correctly
+        // BELOW the neighbour — the visible sliver is the transparent sky
+        // inside the neighbour's art rect, which no depth can clip). Those
+        // elements are simply omitted; carpenters keep to the open sides.
+        const foreignAt = (cx: number, cy: number) => this.scene.buildings.some(nb => {
+            if (nb.id === b.id || nb.type === 'wall' || nb.health <= 0 || nb.isDestroyed) return false;
+            const ni = BUILDING_DEFINITIONS[nb.type as BuildingType];
+            if (!ni) return false;
+            return cx >= nb.gridX && cx <= nb.gridX + ni.width && cy >= nb.gridY && cy <= nb.gridY + ni.height;
+        });
+        const foreignTile = (tx: number, ty: number) => this.scene.buildings.some(nb => {
+            if (nb.id === b.id || nb.type === 'wall' || nb.health <= 0 || nb.isDestroyed) return false;
+            const ni = BUILDING_DEFINITIONS[nb.type as BuildingType];
+            if (!ni) return false;
+            return tx >= nb.gridX && tx < nb.gridX + ni.width && ty >= nb.gridY && ty < nb.gridY + ni.height;
+        });
+        const poleOk = [
+            !foreignAt(b.gridX, b.gridY + h),     // W corner point
+            !foreignAt(b.gridX + w, b.gridY + h), // S corner point
+            !foreignAt(b.gridX + w, b.gridY)      // E corner point
+        ];
+        let southOpen = true;
+        for (let k = 0; k < w; k++) if (foreignTile(b.gridX + k, b.gridY + h)) southOpen = false;
+        let eastOpen = true;
+        for (let k = 0; k < h; k++) if (foreignTile(b.gridX + w, b.gridY + k)) eastOpen = false;
+        const runOk = [
+            poleOk[0] && poleOk[1] && southOpen,  // SW face (W -> S)
+            poleOk[1] && poleOk[2] && eastOpen    // SE face (S -> E)
+        ];
         // A board run along both camera-facing faces at a given lift: a dark
         // underside with a lit top edge, so it reads as a plank, not a wire.
         const run = (lift: number) => {
             for (let side = 0; side < 2; side++) {
+                if (!runOk[side]) continue;
                 const a = corners[side];
                 const c = corners[side + 1];
-                g.lineStyle(2.6, POLE_DARK, 0.9);
-                g.lineBetween(a.x, a.y - lift + 1.2, c.x, c.y - lift + 1.2);
-                g.lineStyle(1.6, side === 0 ? PLANK_LIT : PLANK, 0.95);
-                g.lineBetween(a.x, a.y - lift, c.x, c.y - lift);
+                pixelLine(g, a.x, a.y - lift + 1.2, c.x, c.y - lift + 1.2, 2, POLE_DARK, 0.9);
+                pixelLine(g, a.x, a.y - lift, c.x, c.y - lift, 1, side === 0 ? PLANK_LIT : PLANK, 0.95);
             }
             // Lashings: a dark cross where the run is tied to each pole.
-            g.lineStyle(1.1, POLE_DARK, 0.9);
-            for (const c of corners) {
-                g.lineBetween(c.x - 2.1, c.y - lift - 2.1, c.x + 2.1, c.y - lift + 2.1);
-                g.lineBetween(c.x + 2.1, c.y - lift - 2.1, c.x - 2.1, c.y - lift + 2.1);
-            }
+            corners.forEach((c, i) => {
+                if (!poleOk[i] || !(i === 0 ? runOk[0] : i === 2 ? runOk[1] : runOk[0] || runOk[1])) return;
+                pixelLine(g, c.x - 2.1, c.y - lift - 2.1, c.x + 2.1, c.y - lift + 2.1, 1, POLE_DARK, 0.9);
+                pixelLine(g, c.x + 2.1, c.y - lift - 2.1, c.x - 2.1, c.y - lift + 2.1, 1, POLE_DARK, 0.9);
+            });
         };
 
         // Footing: stakes at each pole and a pile of spare boards by the
         // W corner — the site reads as a working yard from the first frame.
-        g.fillStyle(POLE_DARK, 0.85);
-        for (const c of corners) g.fillRect(c.x - 2.6, c.y - 1, 5.2, 2.4);
-        const pile = corners[0];
-        g.fillStyle(PLANK, 0.95);
-        g.fillRect(pile.x + 4, pile.y - 2.2, 10, 2);
-        g.fillStyle(PLANK_LIT, 0.95);
-        g.fillRect(pile.x + 5.5, pile.y - 4, 10, 2);
+        corners.forEach((c, i) => {
+            if (poleOk[i]) pixelRect(g, c.x - 2.6, c.y - 1, 5.2, 2.4, POLE_DARK, 0.85);
+        });
+        if (poleOk[0]) {
+            const pile = corners[0];
+            pixelRect(g, pile.x + 4, pile.y - 2.2, 10, 2, PLANK, 0.95);
+            pixelRect(g, pile.x + 5.5, pile.y - 4, 10, 2, PLANK_LIT, 0.95);
+        }
 
         // Corner poles: a dark core with a lit western edge and a top cap.
-        for (const c of corners) {
-            g.lineStyle(2.4, POLE, 0.95);
-            g.lineBetween(c.x, c.y + 1, c.x, c.y - rise);
-            g.lineStyle(1, POLE_LIT, 0.9);
-            g.lineBetween(c.x - 1, c.y, c.x - 1, c.y - rise + 2);
-            g.fillStyle(POLE_DARK, 0.95);
-            g.fillRect(c.x - 1.8, c.y - rise - 1.6, 3.6, 1.8);
-        }
+        corners.forEach((c, i) => {
+            if (!poleOk[i]) return;
+            pixelLine(g, c.x, c.y + 1, c.x, c.y - rise, 2, POLE, 0.95);
+            pixelLine(g, c.x - 1, c.y, c.x - 1, c.y - rise + 2, 1, POLE_LIT, 0.9);
+            pixelRect(g, c.x - 1.8, c.y - rise - 1.6, 3.6, 1.8, POLE_DARK, 0.95);
+        });
 
         run(rise * 0.3);
         if (stage >= 1) {
             run(rise * 0.62);
             // Diagonal brace on the lit SW face sells the carpentry.
-            g.lineStyle(1.6, POLE, 0.85);
-            g.lineBetween(corners[0].x, corners[0].y - rise * 0.62, corners[1].x, corners[1].y - rise * 0.3);
+            if (runOk[0]) pixelLine(g, corners[0].x, corners[0].y - rise * 0.62, corners[1].x, corners[1].y - rise * 0.3, 1, POLE, 0.85);
         }
         if (stage >= 2) {
             run(rise * 0.92);
             // Counter-brace on the shaded face, walk boards along the top.
-            g.lineStyle(1.6, POLE_DARK, 0.85);
-            g.lineBetween(corners[1].x, corners[1].y - rise * 0.92, corners[2].x, corners[2].y - rise * 0.62);
-            g.fillStyle(PLANK_LIT, 0.95);
-            for (const c of corners) g.fillRect(c.x - 3.2, c.y - rise * 0.92 - 1.1, 6.4, 2.2);
+            if (runOk[1]) pixelLine(g, corners[1].x, corners[1].y - rise * 0.92, corners[2].x, corners[2].y - rise * 0.62, 1, POLE_DARK, 0.85);
+            corners.forEach((c, i) => {
+                if (poleOk[i]) pixelRect(g, c.x - 3.2, c.y - rise * 0.92 - 1.1, 6.4, 2.2, PLANK_LIT, 0.95);
+            });
         }
     }
 
+    private redrawConstructionStage(site: ConstructionSite, b: PlacedBuilding, progress: number) {
+        const stage = progress < 0.4 ? 0 : progress < 0.75 ? 1 : 2;
+        if (stage === site.stage) return;
+        site.stage = stage;
+        const def = BUILDING_DEFINITIONS[b.type as BuildingType];
+        site.gfx.clear();
+        this.drawScaffold(site.gfx, b, def?.width ?? 1, def?.height ?? 1, stage);
+    }
+
+    private celebrateConstruction(site: ConstructionSite, b: PlacedBuilding) {
+        // Topping-out: dust and a brief confetti toss, then the scaffold
+        // comes down. No flagpole — the celebration is the animation.
+        const info = BUILDING_DEFINITIONS[b.type as BuildingType];
+        const c = IsoUtils.cartToIso(b.gridX + (info?.width ?? 1) / 2, b.gridY + (info?.height ?? 1) / 2);
+        PixelFx.burst(this.scene, c.x, c.y, {
+            count: 6, colors: [0xc9b593], alpha: 0.5, r: 2.5, rJitter: 2,
+            spread: 18, spreadY: 8, speed: 0, up: 8, upJitter: 6,
+            scaleTo: 1.7, life: 420, lifeJitter: 200,
+            depth: site.gfx.depth + 1
+        });
+        const roof = c.y - 14 - (info ? Math.max(info.width, info.height) * 8 : 14);
+        // Square confetti tossed off the roofline: full colour on the toss,
+        // fading only through the second half of the fall.
+        PixelFx.burst(this.scene, c.x, roof - 4, {
+            count: 16, colors: [0xffd700, 0xd8563c, 0x9fd0ff, 0xa7e39f, 0xefe3bb],
+            cycle: true, square: true, r: 1.5, squash: 2 / 3,
+            spread: 16, spreadY: 8, speed: 38, up: -30, upJitter: -22,
+            rot0: Math.PI, spin: 6, ease: 'Cubic.easeIn',
+            life: 850, lifeJitter: 500, fadeDelay: 0.5,
+            depth: site.gfx.depth + 2
+        });
+        soundSystem.play('deposit');
+        this.bubbles()?.clear(`construct_${site.buildingId}`);
+        this.bubbles()?.raise({
+            key: `built_${site.buildingId}`,
+            anchor: { x: c.x, y: c.y - 52 - (info ? info.height * 13 : 13) },
+            text: b.level && b.level > 1 ? `LEVEL ${b.level}!` : 'WORK COMPLETE!',
+            icon: 'sym sym-castle',
+            ttlMs: 3000
+        });
+    }
+
     private updateConstruction(time: number) {
-        for (let i = this.constructionSites.length - 1; i >= 0; i--) {
-            const site = this.constructionSites[i];
+        for (const site of [...this.constructionSites]) {
             const b = this.scene.buildings.find(x => x.id === site.buildingId && x.health > 0);
             if (!b) {
-                this.bubbles()?.clear(`construct_${site.buildingId}`);
-                this.releaseConstructionWorker(site.id);
-                site.gfx.destroy();
-                this.constructionSites.splice(i, 1);
+                this.removeConstructionSite(site);
+                continue;
+            }
+            if (site.kind === 'upgrade') {
+                const timing = b as UpgradeTimedBuilding;
+                if (!timing.upgradingTo) {
+                    this.removeConstructionSite(site);
+                    continue;
+                }
+                const authoritativeEnd = Number(timing.upgradeEndsAt);
+                const authoritativeStart = Number(timing.upgradeStartedAt);
+                if (Number.isFinite(authoritativeEnd) && authoritativeEnd !== site.until) {
+                    site.until = authoritativeEnd;
+                    site.startedAt = Number.isFinite(authoritativeStart) && authoritativeStart <= authoritativeEnd
+                        ? authoritativeStart
+                        : Math.min(this.serverEpochNow(), authoritativeEnd);
+                    site.duration = Math.max(1, site.until - site.startedAt);
+                }
+            }
+            const now = this.constructionNow(site);
+            if (now >= site.until) {
+                // Server-owned upgrades are completed by MainScene from the
+                // same deadline. Leaving the site in place for that call keeps
+                // teardown, level reveal and celebration atomic and singular.
+                if (site.kind === 'upgrade') continue;
+                this.celebrateConstruction(site, b);
+                this.removeConstructionSite(site);
                 continue;
             }
             // Summon the nearest free villager: the existing work loop makes
             // them walk over and hammer (sparks, taps, the lot).
             if (!site.builderAssigned && !this.panicking && !this.nightMode && !this.rainMode) {
+                // !workBuildingId is the claim: a crew walking to a site/scar
+                // sets it at assignment, so two same-tick jobs can never grab
+                // the same villager (the second grab left the first stranded).
                 const worker = this.entities.find(e =>
-                    e.kind === 'villager' && !e.child && !e.lantern && !e.buildSiteId &&
+                    e.kind === 'villager' && !e.child && !e.lantern && !e.buildSiteId && !e.workBuildingId &&
                     (e.state === 'idle' || e.state === 'walk') && !e.workUntil && !e.carryingPack && !e.carryingRock &&
                     !e.haulStage && !e.haulObstacleId && !e.forageObstacleId);
                 if (worker) {
@@ -4076,69 +4854,15 @@ export class VillageLifeSystem {
                     }
                 }
             }
-            if (time < site.until) {
-                // The scaffold climbs with the work: redraw at stage changes.
-                const progress = 1 - Math.max(0, (site.until - time) / site.duration);
-                const stage = progress < 0.4 ? 0 : progress < 0.75 ? 1 : 2;
-                if (stage !== site.stage) {
-                    site.stage = stage;
-                    const def = BUILDING_DEFINITIONS[b.type as BuildingType];
-                    site.gfx.clear();
-                    this.drawScaffold(site.gfx, b, def?.width ?? 1, def?.height ?? 1, stage);
-                }
-                continue;
-            }
-            // Topping-out: dust and a brief confetti toss, then the scaffold
-            // comes down. No flagpole — the celebration is the animation.
-            const info = BUILDING_DEFINITIONS[b.type as BuildingType];
-            const c = IsoUtils.cartToIso(b.gridX + (info?.width ?? 1) / 2, b.gridY + (info?.height ?? 1) / 2);
-            for (let d = 0; d < 6; d++) {
-                const puff = this.scene.add.circle(c.x + (Math.random() - 0.5) * 18, c.y + (Math.random() - 0.5) * 8, 2.5 + Math.random() * 2, 0xc9b593, 0.5);
-                puff.setDepth(site.gfx.depth + 1);
-                this.scene.tweens.add({ targets: puff, y: puff.y - 8 - Math.random() * 6, alpha: 0, scale: 1.7, duration: 420 + Math.random() * 200, onComplete: () => puff.destroy() });
-            }
-            const CONFETTI = [0xffd700, 0xd8563c, 0x9fd0ff, 0xa7e39f, 0xefe3bb];
-            const roof = c.y - 14 - (info ? Math.max(info.width, info.height) * 8 : 14);
-            for (let d = 0; d < 16; d++) {
-                const piece = this.scene.add.rectangle(
-                    c.x + (Math.random() - 0.5) * 16,
-                    roof - Math.random() * 8,
-                    3, 2,
-                    CONFETTI[d % CONFETTI.length], 1
-                );
-                piece.setDepth(site.gfx.depth + 2);
-                piece.rotation = Math.random() * Math.PI;
-                const fall = 850 + Math.random() * 500;
-                this.scene.tweens.add({
-                    targets: piece,
-                    x: piece.x + (Math.random() - 0.5) * 38,
-                    y: piece.y + 30 + Math.random() * 22,
-                    rotation: piece.rotation + (Math.random() - 0.5) * 6,
-                    duration: fall,
-                    ease: 'Cubic.easeIn',
-                    onComplete: () => piece.destroy()
-                });
-                // Full colour on the toss; fade only through the second half.
-                this.scene.tweens.add({ targets: piece, alpha: 0, delay: fall * 0.5, duration: fall * 0.5 });
-            }
-            soundSystem.play('deposit');
-            this.bubbles()?.clear(`construct_${site.buildingId}`);
-            this.bubbles()?.raise({
-                key: `built_${site.buildingId}`,
-                anchor: { x: c.x, y: c.y - 52 - (info ? info.height * 13 : 13) },
-                text: b.level && b.level > 1 ? `LEVEL ${b.level}!` : 'WORK COMPLETE!',
-                icon: 'sym sym-castle',
-                ttlMs: 3000
-            });
-            this.releaseConstructionWorker(site.id);
-            site.gfx.destroy();
-            this.constructionSites.splice(i, 1);
+            // The scaffold climbs with the work: redraw at stage changes.
+            this.redrawConstructionStage(site, b, this.constructionProgress(site));
         }
         // Keep the summoned builder hammering for the site's whole life.
         for (const site of this.constructionSites) {
             const worker = this.entities.find(e => e.buildSiteId === site.id);
             if (worker && worker.state === 'idle' && worker.workBuildingId === site.buildingId) {
-                worker.workUntil = Math.max(worker.workUntil ?? 0, Math.min(site.until, time + 4000));
+                const remaining = Math.max(0, site.until - this.constructionNow(site));
+                worker.workUntil = Math.max(worker.workUntil ?? 0, time + Math.min(remaining, 4000));
                 worker.stateUntil = worker.workUntil;
             }
         }
@@ -4162,7 +4886,7 @@ export class VillageLifeSystem {
         const now = this.scene.time.now;
         shuffled.forEach((b, i) => {
             const gfx = this.scene.add.graphics();
-            gfx.setDepth(depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 46);
+            gfx.setDepth(depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 38);
             this.scars.push({ buildingId: b.id, gfx, repairAt: now + 9000 + i * 22_000, repairing: false, seed: Math.floor(Math.random() * 1e6), rendered: false });
         });
     }
@@ -4184,24 +4908,22 @@ export class VillageLifeSystem {
             // to rebuild off-screen graphics every frame. Smoke resumes from
             // the deterministic current-time phase when the camera returns.
             if (this.onScreenAt(b.gridX + w / 2, b.gridY + h / 2)) {
-                const depth = depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 46;
+                const depth = depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 38;
                 if (scar.gfx.depth !== depth) scar.gfx.setDepth(depth);
                 scar.gfx.setVisible(true);
                 scar.gfx.clear();
                 const rng = (n: number) => ((scar.seed * 73 + n * 971) % 997) / 997;
-                scar.gfx.fillStyle(0x2b241c, 0.34);
-                scar.gfx.fillEllipse(c.x + (rng(1) - 0.5) * w * 18, c.y + 4 + (rng(2) - 0.5) * 6, 16 + w * 4, 7 + h * 1.4);
-                scar.gfx.fillStyle(0x4a4038, 0.8);
+                pixelEllipse(scar.gfx, c.x + (rng(1) - 0.5) * w * 18, c.y + 4 + (rng(2) - 0.5) * 6, 8 + w * 2, 3.5 + h * 0.7, 0x2b241c, 0.34);
                 for (let r = 0; r < 3; r++) {
-                    scar.gfx.fillRect(c.x + (rng(3 + r) - 0.5) * w * 22, c.y + 2 + (rng(6 + r) - 0.5) * 8, 3.4, 2.4);
+                    pixelRect(scar.gfx, c.x + (rng(3 + r) - 0.5) * w * 22, c.y + 2 + (rng(6 + r) - 0.5) * 8, 3.4, 2.4, 0x4a4038, 0.8);
                 }
                 const wind = windAt(b.gridX, b.gridY, time);
                 for (let s = 0; s < 3; s++) {
                     const cycle = ((time * 0.00023 + s * 0.33 + rng(9 + s)) % 1);
                     const px = c.x + (rng(12 + s) - 0.5) * w * 10 + cycle * (8 + wind * 14);
                     const py = c.y - 6 - cycle * 26;
-                    scar.gfx.fillStyle(0x565656, 0.30 * (1 - cycle));
-                    scar.gfx.fillCircle(px, py, 2 + cycle * 3.4);
+                    const pr = 2 + cycle * 3.4;
+                    pixelEllipse(scar.gfx, px, py, pr, pr, 0x565656, 0.30 * (1 - cycle));
                 }
                 scar.rendered = true;
             } else if (scar.rendered) {
@@ -4213,8 +4935,11 @@ export class VillageLifeSystem {
             }
             // Send the repair crew when it is time (and the village is calm).
             if (!scar.repairing && time >= scar.repairAt && !this.panicking && !this.nightMode && !this.rainMode) {
+                // !workBuildingId is the claim: a crew walking to a site/scar
+                // sets it at assignment, so two same-tick jobs can never grab
+                // the same villager (the second grab left the first stranded).
                 const worker = this.entities.find(e =>
-                    e.kind === 'villager' && !e.child && !e.lantern && !e.buildSiteId &&
+                    e.kind === 'villager' && !e.child && !e.lantern && !e.buildSiteId && !e.workBuildingId &&
                     (e.state === 'idle' || e.state === 'walk') && !e.workUntil && !e.carryingPack && !e.carryingRock &&
                     !e.haulStage && !e.haulObstacleId && !e.forageObstacleId);
                 const spot = worker ? this.openTileNear(b, 2) : null;
@@ -4233,11 +4958,11 @@ export class VillageLifeSystem {
                 }
             } else if (scar.repairing && time >= scar.repairAt) {
                 // Patched up: a few bright motes and the soot is gone.
-                for (let d = 0; d < 4; d++) {
-                    const p = this.scene.add.circle(c.x + (Math.random() - 0.5) * 14, c.y, 1.5, 0xffe9a8, 0.9);
-                    p.setDepth(scar.gfx.depth + 1);
-                    this.scene.tweens.add({ targets: p, y: p.y - 9, alpha: 0, duration: 420, onComplete: () => p.destroy() });
-                }
+                PixelFx.burst(this.scene, c.x, c.y, {
+                    count: 4, colors: [0xffe9a8], alpha: 0.9, r: 1.5,
+                    spread: 14, speed: 0, up: 9, life: 420,
+                    depth: scar.gfx.depth + 1
+                });
                 soundSystem.play('deposit');
                 scar.gfx.destroy();
                 this.scars.splice(i, 1);
@@ -4365,21 +5090,42 @@ export class VillageLifeSystem {
             const spatial = this.panGainFor(pos.x, pos.y);
             soundSystem.owlHoot(spatial.pan, spatial.gain * 0.8);
         }
+        // Placement + art ride the shared 24 Hz figure clock like every other
+        // figure (motion above still integrates per frame).
+        const tk = figureTick(time);
+        if (owl.lastTick === tk) return;
+        owl.lastTick = tk;
         const pos = IsoUtils.cartToIso(owl.x, owl.y);
         const g = owl.gfx;
         g.clear();
-        const flap = Math.sin(time * 0.02) * 3;
+        g.setPosition(pos.x, pos.y);
+        const OWL_PERIOD = (Math.PI * 2) / 0.02; // flap = sin(time·0.02)
+        if (SpriteBank.syncFigure(this.scene, g, 'owl', 'c', 'fly', (time % OWL_PERIOD) / OWL_PERIOD, false)) {
+            g.setAlpha(0.30); // silhouette bakes opaque; alpha lives on the carrier
+            return;
+        }
+        SpriteBank.release(g);
+        g.setAlpha(1);
+        VillageLifeSystem.drawOwlSilhouette(g, Math.sin(time * 0.02) * 3, 0.30);
+    }
+
+    /**
+     * The owl's iso-squashed night silhouette at local (0,0). Static + alpha
+     * parameterized so the bake renders it opaque (the 50% alpha snap would
+     * erase a 0.30-alpha shape) and the runtime restores alpha on the sprite.
+     */
+    static drawOwlSilhouette(g: Phaser.GameObjects.Graphics, flap: number, alpha: number) {
         // One closed outline, iso-squashed: a moving patch of deeper night.
-        g.fillStyle(0x0a0c12, 0.30);
+        g.fillStyle(0x0a0c12, alpha);
         g.beginPath();
-        g.moveTo(pos.x - 11, pos.y - flap * 0.5);
-        g.lineTo(pos.x - 3.5, pos.y - 2.2);
-        g.lineTo(pos.x, pos.y - 3.2);
-        g.lineTo(pos.x + 3.5, pos.y - 2.2);
-        g.lineTo(pos.x + 11, pos.y - flap * 0.5);
-        g.lineTo(pos.x + 3.2, pos.y + 1.6);
-        g.lineTo(pos.x, pos.y + 3.6);
-        g.lineTo(pos.x - 3.2, pos.y + 1.6);
+        g.moveTo(-11, -flap * 0.5);
+        g.lineTo(-3.5, -2.2);
+        g.lineTo(0, -3.2);
+        g.lineTo(3.5, -2.2);
+        g.lineTo(11, -flap * 0.5);
+        g.lineTo(3.2, 1.6);
+        g.lineTo(0, 3.6);
+        g.lineTo(-3.2, 1.6);
         g.closePath();
         g.fillPath();
     }
@@ -4416,18 +5162,12 @@ export class VillageLifeSystem {
             const spatial = this.panGainFor(c.x, c.y);
             soundSystem.hammerTap(spatial.pan, spatial.gain);
             // A spray of forge sparks out the doorway.
-            for (let s = 0; s < 3; s++) {
-                const p = this.scene.add.circle(c.x + (Math.random() - 0.5) * 6, c.y + 4, 1.2, 0xffc36a, 0.95);
-                p.setDepth(depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 47);
-                this.scene.tweens.add({
-                    targets: p,
-                    x: p.x + (Math.random() - 0.5) * 16,
-                    y: p.y - 3 - Math.random() * 8,
-                    alpha: 0,
-                    duration: 300 + Math.random() * 180,
-                    onComplete: () => p.destroy()
-                });
-            }
+            PixelFx.burst(this.scene, c.x, c.y + 4, {
+                count: 3, colors: [0xffc36a], alpha: 0.95, r: 1.2,
+                spread: 6, speed: 16, up: 3, upJitter: 8,
+                life: 300, lifeJitter: 180,
+                depth: depthForBuilding(b.gridX, b.gridY, b.type as BuildingType) + 39
+            });
         }
     }
 
@@ -4488,9 +5228,8 @@ export class VillageLifeSystem {
             const ox = wolfIx * 9 - 4.5;
             const oy = wolfIx * 3 - 1.5;
             const fade = Math.min(1, (wolves.until - time) / 2500);
-            g.fillStyle(0xffb636, 0.75 * fade);
-            g.fillCircle(pos.x + ox - 1.9, pos.y + oy, 1.05);
-            g.fillCircle(pos.x + ox + 1.9, pos.y + oy, 1.05);
+            pixelRect(g, pos.x + ox - 1.9 - PIXEL_CELL / 2, pos.y + oy - PIXEL_CELL / 2, PIXEL_CELL, PIXEL_CELL, 0xffb636, 0.75 * fade);
+            pixelRect(g, pos.x + ox + 1.9 - PIXEL_CELL / 2, pos.y + oy - PIXEL_CELL / 2, PIXEL_CELL, PIXEL_CELL, 0xffb636, 0.75 * fade);
         }
     }
 
@@ -4649,7 +5388,10 @@ export class VillageLifeSystem {
                     ? { points: old.points, maturityAtRetire: this.routeMaturity(old), ageSeconds: 0 }
                     : old?.retiring;
                 const info = BUILDING_DEFINITIONS[target.type as BuildingType];
-                const spot = this.openTileNear(target, 1);
+                // Endpoint must be deterministic (identity + layout), never
+                // Math.random — lanes hold their course across sessions and
+                // agree with the postcard sim's routing.
+                const spot = this.stoneDoorstep(target);
                 const path = spot ? PathfindingSystem.findAmbientPath(from.x, from.y, { gridX: spot.x, gridY: spot.y }, this.scene.buildings) : null;
                 if (!path || path.length < 2) {
                     // No way through right now: the lane has no live course,
@@ -4688,9 +5430,18 @@ export class VillageLifeSystem {
             }
         }
 
-        // Only redraw when a stone actually landed or got pulled up.
+        // Only redraw when a meaningful BATCH of stones landed or got pulled
+        // up. Every redraw ends in presentStonePaths — a full-RT snapshot +
+        // PNG decode + per-pixel quantize on the MAIN THREAD — so maturity is
+        // bucketed COARSE before comparing: per-stone granularity (×60) re-ran
+        // that multi-ms pass every couple of seconds for the whole ~9-minute
+        // maturation. 12 buckets per lane keeps the gradual grow-in/drain
+        // read (the crew lays a small batch at a time) at a fraction of the
+        // re-quantize rate; geometry changes still force a redraw through
+        // invalidateStonePaths clearing the signature.
+        const STONE_BANDS = 12;
         const signature = this.stoneRoutes
-            .map(route => `${Math.floor(this.routeMaturity(route) * 60)}:${route.retiring ? Math.floor(this.retireMaturity(route.retiring) * 60) : ''}`)
+            .map(route => `${route.anchor}|${Math.floor(this.routeMaturity(route) * STONE_BANDS)}:${route.retiring ? Math.floor(this.retireMaturity(route.retiring) * STONE_BANDS) : ''}`)
             .join(',');
         if (signature === this.stoneBandSignature) return;
         this.stoneBandSignature = signature;
@@ -4699,15 +5450,15 @@ export class VillageLifeSystem {
 
     private drawStonePaths() {
         if (!this.stoneGfx) {
+            // The vector draw is the SOURCE only — the displayed layer is the
+            // quantized RT below (the ground-bake model). Lanes mature live,
+            // so the RT re-presents on every stone laid.
             this.stoneGfx = this.scene.add.graphics();
-            this.stoneGfx.setDepth(2.5); // above the baked ground, under everything alive
-            // Cobbled lanes live outside the ground RT (they mature live) —
-            // a candidate for a one-time RT quantize follow-up, matching the
-            // ground bake model.
+            this.stoneGfx.setVisible(false);
         }
         const g = this.stoneGfx;
         g.clear();
-        if (this.stoneRoutes.length === 0) return;
+        if (this.stoneRoutes.length === 0) { this.presentStonePaths(); return; }
 
         const m = this.scene.mapSize;
 
@@ -4735,6 +5486,35 @@ export class VillageLifeSystem {
             if (route.retiring) lane(route.retiring.points, this.retireMaturity(route.retiring));
             lane(route.points, this.routeMaturity(route));
         }
+        this.presentStonePaths();
+    }
+
+    /**
+     * Present the lanes as a pixel-quantized RenderTexture (the ground-bake
+     * model): the vector lanes draw into an RT on the SAME world grid as
+     * MainScene's ground RT (offset 1000/500, 2000×1500 — keep in sync), so
+     * lane texels land on the ground's texel lattice. Quantize is debounced
+     * a beat, exactly like markGroundPixelDirty.
+     */
+    private presentStonePaths() {
+        const g = this.stoneGfx;
+        if (!g) return;
+        if (!this.stoneRT) {
+            this.stoneRT = this.scene.add.renderTexture(-1000, -500, 2000, 1500);
+            this.stoneRT.setOrigin(0, 0);
+            this.stoneRT.setDepth(2.5); // above the baked ground, under everything alive
+            registerPixelSurface(this.stoneRT.texture);
+        }
+        const rt = this.stoneRT;
+        rt.clear();
+        rt.draw(g, 1000, 500);
+        this.stoneQuantizeTimer?.remove(false);
+        this.stoneQuantizeTimer = this.scene.time.delayedCall(250, () => {
+            this.stoneQuantizeTimer = null;
+            if (this.stoneRT?.scene) {
+                SpriteBank.quantizeRenderTexture(this.scene, this.stoneRT, 1.35, ++this.stonePixelEpoch);
+            }
+        });
     }
 
 }

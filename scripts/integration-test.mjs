@@ -33,6 +33,7 @@ function startServer(extraEnv = {}) {
       CLASH_DATA_DIR: dataDir,
       CLASH_STARTER_SHIELD_MS: '0',
       CLASH_ALLOW_DEBUG_GRANTS: '1',
+      CLASH_INFINITE_RESOURCES: '0',
       CLASH_ALLOW_WORLD_RESEED: '0',
       CLASH_TRUST_PROXY: '1',
       CLASH_AUTH_MUTATIONS_PER_10S: '10000',
@@ -42,9 +43,10 @@ function startServer(extraEnv = {}) {
       // frames. Production leaves this off; command-domain regressions and
       // the browser client exercise /attacks/commands directly.
       CLASH_ALLOW_LEGACY_FRAME_COMMANDS: '1',
-      // Upgrade clocks at 1/1000 speed: cheap works mature inside a round
-      // trip; pricey ones stay visibly pending for the timer tests.
+      // Exercise the fixed-duration seam used by local development. The
+      // package dev scripts set 1000ms; this suite uses 300ms to stay quick.
       CLASH_UPGRADE_TIME_SCALE: '0.001',
+      CLASH_UPGRADE_DURATION_MS: '300',
       ...extraEnv,
       // This suite edits its temporary JSON records directly. Never let an
       // inherited production DATABASE_URL select the PostgreSQL authority.
@@ -481,6 +483,27 @@ async function main() {
   const badName = await api('POST', '/player/rename', { token: b.token, body: { name: 'x' } })
   ok(badName.status === 400, 'too-short name rejected')
 
+  // Village banner: bounded heraldry choice, public in scout snapshots.
+  const bannerBefore = (await api('GET', `/players/${b.player.id}/world`, { token: b.token })).json
+  ok(bannerBefore.world?.banner === undefined, 'a fresh village has no explicit banner (identity default)')
+  const bannerSet = (await api('POST', '/player/banner', { token: b.token, body: { banner: { palette: 3, emblem: 4, pattern: 2 } } })).json
+  ok(bannerSet.banner?.palette === 3 && bannerSet.banner?.emblem === 4 && bannerSet.banner?.pattern === 2, 'banner choice is accepted and echoed')
+  const bannerBad = await api('POST', '/player/banner', { token: b.token, body: { banner: { palette: 99, emblem: 0 } } })
+  ok(bannerBad.status === 400, 'out-of-range banner axes are rejected')
+  const bannerMissing = await api('POST', '/player/banner', { token: b.token, body: {} })
+  ok(bannerMissing.status === 400, 'a banner call without a payload never silently resets')
+  const bannerScout = (await api('GET', `/players/${b.player.id}/world`, { token: b.token })).json
+  ok(bannerScout.world?.banner?.palette === 3 && bannerScout.world?.banner?.emblem === 4,
+    'the chosen banner is public in scout snapshots')
+  ok(Number(bannerScout.world?.revision) > Number(bannerBefore.world?.revision),
+    'banner changes bump the public appearance revision (postcards refresh)')
+  const bannerOwn = (await api('GET', '/world', { token: b.token })).json
+  ok(bannerOwn.world?.banner?.palette === 3, 'the owner world payload carries the banner')
+  const bannerReset = (await api('POST', '/player/banner', { token: b.token, body: { banner: null } })).json
+  ok(bannerReset.banner === null, 'explicit null returns the village to its identity default')
+  const bannerAfterReset = (await api('GET', `/players/${b.player.id}/world`, { token: b.token })).json
+  ok(bannerAfterReset.world?.banner === undefined, 'a reset banner disappears from public snapshots')
+
   const lb = (await api('GET', '/leaderboard', { token: a.token })).json
   ok(lb.players?.[0]?.username === 'TestRaider', 'leaderboard is sorted by trophies')
   const leaderboardTarget = lb.players.find(player => player.id === a.player.id)
@@ -567,9 +590,17 @@ async function main() {
     'mine and farm pass validation and persist')
   ok(econSaved.world.storage.ore === capsBefore.ore + 250 && econSaved.world.storage.food === capsBefore.food + 250,
     'a storehouse raises both the ore and food caps')
-  const oreCap = econSaved.world.storage.ore
-  const overfill = (await api('POST', '/resources/apply', { token: a.token, body: { delta: 999999, resource: 'ore', reason: 'debug_grant', requestId: 'ore-fill-1' } })).json
-  ok(overfill.applied === true && overfill.ore === oreCap, `ore grants clamp at the storage cap (${overfill.ore}/${oreCap})`)
+  const debugStock = (await api('POST', '/auth/session', { body: {} })).json
+  const debugBefore = (await api('GET', '/world', { token: debugStock.token })).json.world
+  const debugOre = (await api('POST', '/resources/apply', { token: debugStock.token, body: { delta: 10_000, resource: 'ore', reason: 'debug_grant', requestId: 'debug-stock-ore' } })).json
+  const debugFood = (await api('POST', '/resources/apply', { token: debugStock.token, body: { delta: 10_000, resource: 'food', reason: 'debug_grant', requestId: 'debug-stock-food' } })).json
+  const debugPersisted = (await api('GET', '/world', { token: debugStock.token })).json.world
+  ok(debugOre.ore === debugBefore.resources.ore + 10_000 && debugOre.ore > debugBefore.storage.ore,
+    'debug ore grants exceed storage capacity on the backend')
+  ok(debugFood.food === debugBefore.resources.food + 10_000 && debugFood.food > debugBefore.storage.food,
+    'debug food grants exceed storage capacity on the backend')
+  ok(debugPersisted.resources.ore === debugOre.ore && debugPersisted.resources.food === debugFood.food,
+    'over-cap debug resources survive the following request and world materialization')
 
   // --- Population (economy-sim groundwork) ---
   console.log('\nPopulation:')
@@ -1006,7 +1037,7 @@ async function main() {
     'private combat authority fields are stripped from replay responses')
 
   // ---- Upgrade timers: the save charges, the TIMER earns the level ----
-  // (CLASH_UPGRADE_TIME_SCALE=0.001: storage L2 ≈ 215ms, L3 ≈ 415ms pending.)
+  // (CLASH_UPGRADE_DURATION_MS=300: every timed building takes exactly 300ms.)
   const clockUser = (await api('POST', '/auth/session', { body: {} })).json
   await api('POST', '/resources/apply', { token: clockUser.token, body: { delta: 30_000, reason: 'debug_grant', requestId: 'clock-gold' } })
   await api('POST', '/resources/apply', { token: clockUser.token, body: { delta: 125, resource: 'ore', reason: 'debug_grant', requestId: 'clock-ore-seed' } })
@@ -1018,21 +1049,35 @@ async function main() {
   clockWorld = (await api('GET', '/world', { token: clockUser.token })).json.world
   const clockGoldBefore = clockWorld.resources.gold
   clockWorld.buildings.find(b => b.id === 'clock-store').level = 2
+  const clockUpgradeRequestedAt = Date.now()
   const clockPendingWorld = (await api('POST', '/world/save', { token: clockUser.token, body: { world: clockWorld, requestId: 'clock-up-2' } })).json.world
+  const clockUpgradeRespondedAt = Date.now()
   const clockPendingStore = clockPendingWorld.buildings.find(b => b.id === 'clock-store')
   ok(clockPendingStore.level === 1 && clockPendingStore.upgradingTo === 2
+    && clockPendingStore.upgradeStartedAt > 0
     && clockPendingStore.upgradeEndsAt > 0 && clockPendingWorld.resources.gold < clockGoldBefore,
     'an upgrade save charges immediately but holds the level behind a visible clock')
+  const fixedClockStartedAt = clockPendingStore.upgradeStartedAt
+  ok(clockPendingStore.upgradeEndsAt === fixedClockStartedAt + 300,
+    'the legacy backend persists one exact server-authored upgrade interval')
+  ok(fixedClockStartedAt >= clockUpgradeRequestedAt && fixedClockStartedAt <= clockUpgradeRespondedAt,
+    'the legacy backend assigns the configured fixed upgrade duration exactly')
   // An echo save (client mirroring the pending world back) is a read: the
   // clock survives and nothing is re-charged.
   const clockEcho = (await api('POST', '/world/save', { token: clockUser.token, body: { world: clockPendingWorld, requestId: 'clock-echo' } })).json.world
   const clockEchoStore = clockEcho.buildings.find(b => b.id === 'clock-store')
-  ok(clockEchoStore.upgradingTo === 2 && clockEcho.resources.gold === clockPendingWorld.resources.gold,
+  ok(clockEchoStore.upgradingTo === 2
+    && clockEchoStore.upgradeStartedAt === fixedClockStartedAt
+    && clockEchoStore.upgradeEndsAt === clockPendingStore.upgradeEndsAt
+    && clockEcho.resources.gold === clockPendingWorld.resources.gold,
     'echoing the pending world back neither clears the clock nor re-charges')
   await new Promise(resolve => setTimeout(resolve, 400))
   clockWorld = (await api('GET', '/world', { token: clockUser.token })).json.world
   const clockLanded = clockWorld.buildings.find(b => b.id === 'clock-store')
-  ok(clockLanded.level === 2 && clockLanded.upgradingTo === undefined,
+  ok(clockLanded.level === 2
+    && clockLanded.upgradingTo === undefined
+    && clockLanded.upgradeStartedAt === undefined
+    && clockLanded.upgradeEndsAt === undefined,
     'the new level lands only when the clock matures')
   await api('POST', '/resources/apply', { token: clockUser.token, body: { delta: 500, resource: 'ore', reason: 'debug_grant', requestId: 'clock-ore-2' } })
   clockWorld = (await api('GET', '/world', { token: clockUser.token })).json.world
@@ -1370,6 +1415,43 @@ async function main() {
   ok(untrained.army.warrior === 1 && untrained.gold === trained.gold + 25 && untrained.food === trained.food + 2,
     'untraining refunds the full bill')
 
+  // NEW TROOP ACCEPTANCE — icegolem: locked below its barracks unlock (13,
+  // right after golem), then trains as a server transaction and deploys
+  // through the authoritative command machine. Isolated on fresh sessions so
+  // the eco/battle flows above and below stay undisturbed.
+  const ig = (await api('POST', '/auth/session')).json
+  const igLocked = await api('POST', '/army/train', { token: ig.token, body: { type: 'icegolem', count: 1, requestId: 'ig-locked' } })
+  ok(igLocked.status === 403, `icegolem stays locked behind the barracks unlock (${igLocked.status})`)
+  // Levels only step one at a time on an EXISTING building, but a fresh id is
+  // a charged placement at any level (the mechanics-lab pattern) — swap the
+  // starter barracks for a new level-13 one on the same plot, funded upfront.
+  await api('POST', '/resources/apply', { token: ig.token, body: { delta: 40000, reason: 'debug_grant', requestId: 'ig-gold' } })
+  await api('POST', '/resources/apply', { token: ig.token, body: { delta: 5000, resource: 'ore', reason: 'debug_grant', requestId: 'ig-ore' } })
+  await api('POST', '/resources/apply', { token: ig.token, body: { delta: 2000, resource: 'food', reason: 'debug_grant', requestId: 'ig-food' } })
+  const igWorld = (await api('GET', '/world', { token: ig.token })).json.world
+  igWorld.buildings = igWorld.buildings.map(bl => bl.type === 'barracks' ? { ...bl, id: 'ig-barracks-13', level: 13 } : bl)
+  // A watchtower opens the map sight the bot raid below needs (the eco flow's pattern).
+  igWorld.buildings.push({ id: 'ig_watch', type: 'watchtower', gridX: 2, gridY: 18, level: 1 })
+  const igSaved = await api('POST', '/world/save', { token: ig.token, body: { world: igWorld, requestId: 'ig-barracks-13' } })
+  ok(igSaved.status === 200 && igSaved.json.world.buildings.some(bl => bl.id === 'ig-barracks-13' && bl.level === 13),
+    `a funded level-13 barracks placement is accepted (${igSaved.status})`)
+  const igTrained = await api('POST', '/army/train', { token: ig.token, body: { type: 'icegolem', count: 1, requestId: 'ig-train' } })
+  ok(igTrained.status === 200 && igTrained.json.army?.icegolem === 1,
+    `an icegolem trains once the barracks reaches level 13 (${igTrained.status})`)
+  // Deploy through a bot raid: same authoritative command machine, no real
+  // victim to perturb (targeted PvP is range-gated; matchmake picks live accounts).
+  const igMap = (await api('GET', `/map?x=${ig.player.plotX}&y=${ig.player.plotY}&r=1`, { token: ig.token })).json
+  const igCamp = igMap.plots.find(plot => plot.kind === 'bot')
+  ok(Boolean(igCamp), 'a nearby camp is visible for the icegolem deployment raid')
+  const igRaid = (await api('POST', '/attacks/bot-start', { token: ig.token, body: { x: igCamp.x, y: igCamp.y, requestId: 'ig-bot-start' } })).json
+  const igDeploy = await api('POST', '/attacks/commands', { token: ig.token, body: {
+    attackId: igRaid.raidId,
+    commands: [{ type: 'DEPLOY', commandId: 'ig-deploy-1', sequence: 1, troopInstanceId: 'ig_g1', troopType: 'icegolem', gridX: 0, gridY: 0 }]
+  } })
+  ok(igDeploy.status === 200 && igDeploy.json.phase === 'ACTIVE',
+    `a reserved icegolem deploys through /attacks/commands (${igDeploy.status})`)
+  await api('POST', '/attacks/bot-settle', { token: ig.token, body: { raidId: igRaid.raidId, x: igCamp.x, y: igCamp.y, destruction: 0, deployed: { icegolem: 1 }, requestId: 'ig-bot-settle' } })
+
   // Frequent reads must not floor away each short production slice. A level-2
   // farm makes 1+ food over this interval, while every individual poll sees
   // much less than one unit.
@@ -1699,6 +1781,156 @@ async function main() {
     'the pinned unregistered caller keeps its exact plot and village through a topology restart')
   ok((await api('POST', '/debug/reseed-world', { token: reseedCaller.token })).status === 404,
     'the destructive reseed route is absent when the development flag is disabled')
+
+  console.log('\nDevelopment infinite resources:')
+  await stopServer()
+  await startServer({
+    CLASH_ALLOW_DEBUG_GRANTS: '0',
+    CLASH_INFINITE_RESOURCES: '1',
+    CLASH_GUEST_LIMIT_PER_HOUR: '10000'
+  })
+  const infinite = (await api('POST', '/auth/session', { body: {} })).json
+  const infiniteInitial = { ...infinite.world.resources }
+  ok(infinite.features?.infiniteResources === true,
+    'the authenticated session advertises server-authorized infinite resources')
+  ok(infiniteInitial.gold === 1000 && infiniteInitial.ore === 25 && infiniteInitial.food === 50,
+    'infinite mode keeps ordinary finite balances instead of persisting a sentinel')
+  ok((await api('POST', '/resources/apply', {
+    token: infinite.token,
+    body: { delta: 100, reason: 'debug_grant', requestId: 'infinite-debug-grant' }
+  })).status === 403,
+  'infinite spending is independent from the disabled debug-grant faucet')
+
+  const infiniteSpend = (await api('POST', '/resources/apply', {
+    token: infinite.token,
+    body: { delta: -999999, reason: 'client_spend', requestId: 'infinite-negative' }
+  })).json
+  const infiniteSpendReplay = (await api('POST', '/resources/apply', {
+    token: infinite.token,
+    body: { delta: -999999, reason: 'client_spend', requestId: 'infinite-negative' }
+  })).json
+  ok(infiniteSpend.gold === infiniteInitial.gold
+    && infiniteSpend.ore === infiniteInitial.ore
+    && infiniteSpend.food === infiniteInitial.food,
+  'an otherwise-impossible direct spend is accepted without a debit')
+  ok(JSON.stringify(infiniteSpendReplay) === JSON.stringify(infiniteSpend),
+    'the waived direct spend remains idempotent')
+
+  const infiniteBeforePlacement = (await api('GET', '/world', { token: infinite.token })).json.world
+  const infinitePlacement = await api('POST', '/world/save', {
+    token: infinite.token,
+    body: {
+      world: {
+        ...infiniteBeforePlacement,
+        buildings: [
+          ...infiniteBeforePlacement.buildings,
+          { id: 'infinite_storage', type: 'storage', gridX: 2, gridY: 18, level: 1 }
+        ]
+      },
+      requestId: 'infinite-place-storage'
+    }
+  })
+  const infinitePlaced = infinitePlacement.json?.world
+  ok(infinitePlacement.status === 200
+    && infinitePlaced.buildings.some(building => building.id === 'infinite_storage')
+    && infinitePlaced.resources.gold === infiniteInitial.gold
+    && infinitePlaced.resources.ore === infiniteInitial.ore,
+  'a 40-ore storehouse can be placed from the starter 25 ore without charging')
+
+  const infiniteUpgrade = await api('POST', '/world/save', {
+    token: infinite.token,
+    body: {
+      world: {
+        ...infinitePlaced,
+        buildings: infinitePlaced.buildings.map(building => (
+          building.id === 'infinite_storage' ? { ...building, level: 2 } : building
+        ))
+      },
+      requestId: 'infinite-upgrade-storage'
+    }
+  })
+  const infiniteUpgraded = infiniteUpgrade.json?.world
+  const infinitePendingStorage = infiniteUpgraded?.buildings.find(building => building.id === 'infinite_storage')
+  ok(infiniteUpgrade.status === 200
+    && infinitePendingStorage?.level === 1
+    && infinitePendingStorage?.upgradingTo === 2
+    && infiniteUpgraded.resources.gold === infiniteInitial.gold
+    && infiniteUpgraded.resources.ore === infiniteInitial.ore,
+  'an otherwise-unaffordable storehouse upgrade starts without a debit')
+
+  const infiniteArmy = await api('POST', '/army/train', {
+    token: infinite.token,
+    body: { type: 'warrior', count: 50, requestId: 'infinite-train-capacity' }
+  })
+  ok(infiniteArmy.status === 200
+    && infiniteArmy.json.army.warrior === 50
+    && infiniteArmy.json.gold === infiniteInitial.gold
+    && infiniteArmy.json.food === infiniteInitial.food,
+  'training beyond starter gold and food succeeds without charging')
+  const infiniteOverHousing = await api('POST', '/army/train', {
+    token: infinite.token,
+    body: { type: 'warrior', count: 1, requestId: 'infinite-over-housing' }
+  })
+  ok(infiniteOverHousing.status === 409,
+    'infinite resources do not grant infinite army housing')
+
+  const infiniteTrade = (await api('POST', '/merchant/trade', {
+    token: infinite.token,
+    body: { offerId: 1, requestId: 'infinite-merchant' }
+  })).json
+  const infiniteTradeReplay = (await api('POST', '/merchant/trade', {
+    token: infinite.token,
+    body: { offerId: 1, requestId: 'infinite-merchant' }
+  })).json
+  ok(infiniteTrade.applied === true
+    && infiniteTrade.gold === infiniteInitial.gold
+    && infiniteTrade.ore === infiniteInitial.ore
+    && infiniteTrade.food === infiniteInitial.food,
+  'a merchant redemption records its state without moving infinite resources')
+  ok(JSON.stringify(infiniteTradeReplay) === JSON.stringify(infiniteTrade),
+    'the infinite merchant redemption replays idempotently')
+  ok((await api('POST', '/merchant/trade', {
+    token: infinite.token,
+    body: { offerId: 1, requestId: 'infinite-merchant-second-key' }
+  })).status === 409,
+  'the once-per-day merchant rule still applies in infinite mode')
+
+  await stopServer()
+  await startServer({
+    CLASH_ALLOW_DEBUG_GRANTS: '0',
+    CLASH_INFINITE_RESOURCES: '0',
+    CLASH_GUEST_LIMIT_PER_HOUR: '10000'
+  })
+  const finiteResume = (await api('POST', '/auth/session', {
+    body: { token: infinite.token }
+  })).json
+  ok(finiteResume.features?.infiniteResources === false
+    && finiteResume.world.resources.gold === infiniteInitial.gold
+    && finiteResume.world.resources.ore === infiniteInitial.ore
+    && finiteResume.world.resources.food === infiniteInitial.food,
+  'disabling the flag reveals the unchanged finite stored balances')
+  const finiteSpend = (await api('POST', '/resources/apply', {
+    token: infinite.token,
+    body: { delta: -10, reason: 'client_spend', requestId: 'finite-negative-control' }
+  })).json
+  ok(finiteSpend.gold === infiniteInitial.gold - 10,
+    'the same direct spend debits normally after infinite mode is disabled')
+  const finiteWorld = (await api('GET', '/world', { token: infinite.token })).json.world
+  const finiteMine = await api('POST', '/world/save', {
+    token: infinite.token,
+    body: {
+      world: {
+        ...finiteWorld,
+        buildings: [
+          ...finiteWorld.buildings,
+          { id: 'finite_mine_control', type: 'mine', gridX: 6, gridY: 18, level: 1 }
+        ]
+      },
+      requestId: 'finite-place-mine-control'
+    }
+  })
+  ok(finiteMine.status === 409 && finiteMine.json?.code === 'INSUFFICIENT_RESOURCES',
+    'finite mode again rejects a 35-ore mine at the stored 25 ore balance')
 
   console.log(`\n${checks - failures}/${checks} checks passed`)
   process.exitCode = failures === 0 ? 0 : 1

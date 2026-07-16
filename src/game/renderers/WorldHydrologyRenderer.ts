@@ -4,6 +4,7 @@ import type {
     RiverNode,
     RiverReach
 } from '../config/WorldHydrology';
+import { pixelEllipse, pixelLine, pixelRect } from '../render/PixelDraw';
 import { IsoUtils } from '../utils/IsoUtils';
 import { contourContains } from './WildernessTerrain';
 import type { TerrainBounds, TerrainPoint } from './WildernessTerrain';
@@ -95,6 +96,41 @@ interface RiverBandGeometry {
 
 const EPSILON = 1e-7;
 const TAU = Math.PI * 2;
+/** Stroke width in screen px → PixelDraw cell thickness (min one cell). */
+const strokeCells = (width: number): number => Math.max(1, Math.round(width / 1.35));
+/**
+ * A filled triangle approximated as a few stacked pixel-cell rows (the pixel
+ * kit deliberately has no triangle). Rows interpolate from the base corners
+ * to the apex, so point-up and point-down both read as chunky wedges.
+ */
+function pixelTriangleRows(
+    graphics: Phaser.GameObjects.Graphics,
+    apexX: number,
+    apexY: number,
+    baseLeftX: number,
+    baseRightX: number,
+    baseY: number,
+    color: number,
+    alpha: number,
+    rows = 3
+): void {
+    for (let row = 0; row < rows; row++) {
+        const mid = (row + 0.5) / rows;
+        const y0 = baseY + (apexY - baseY) * (row / rows);
+        const y1 = baseY + (apexY - baseY) * ((row + 1) / rows);
+        const x0 = baseLeftX + (apexX - baseLeftX) * mid;
+        const x1 = baseRightX + (apexX - baseRightX) * mid;
+        pixelRect(
+            graphics,
+            Math.min(x0, x1),
+            Math.min(y0, y1),
+            Math.max(0.5, Math.abs(x1 - x0)),
+            Math.max(0.5, Math.abs(y1 - y0)),
+            color,
+            alpha
+        );
+    }
+}
 const LAKE_BANK_COLOR = 0x5e6b51;
 const LAKE_SHALLOW_COLOR = 0x42939b;
 const LAKE_MID_COLOR = 0x2c778d;
@@ -741,8 +777,10 @@ function drawClippedSegment(
     if (!clipped || samePoint(clipped[0], clipped[1])) return false;
     const a = project(clipped[0]);
     const b = project(clipped[1]);
-    graphics.lineStyle(width, color, alpha);
-    graphics.lineBetween(a.x, a.y, b.x, b.y);
+    // Cell-walked, not stroked: this renderer paints BOTH into quantized
+    // postcard RTs (where pre-snapped cells quantize to themselves) and onto
+    // the raw always-on world hydrology layer, which gets no post pass.
+    pixelLine(graphics, a.x, a.y, b.x, b.y, strokeCells(width), color, alpha);
     return true;
 }
 
@@ -818,8 +856,7 @@ function drawRock(
 ): void {
     const p = project(point);
     const scale = point.scale;
-    graphics.fillStyle(0x1b271e, alpha * 0.18);
-    graphics.fillEllipse(p.x + 2 * scale, p.y + 2 * scale, 14 * scale, 5 * scale);
+    pixelEllipse(graphics, p.x + 2 * scale, p.y + 2 * scale, 7 * scale, 2.5 * scale, 0x1b271e, alpha * 0.18);
     drawScreenPolygon(graphics, [
         { x: p.x - 6 * scale, y: p.y + scale },
         { x: p.x - 3.5 * scale, y: p.y - 7 * scale },
@@ -846,39 +883,23 @@ function drawReeds(
         const offset = (index - 1.5) * 2.2 * point.scale;
         const height = (8 + ((index * 7 + Math.floor(point.phase * 13)) % 6)) * point.scale;
         const lean = Math.sin(point.phase + index * 1.6) * 2.4;
-        graphics.lineStyle(Math.max(1, 1.35 * point.scale), index % 2 ? 0x5c8248 : 0x466f42, alpha);
-        graphics.lineBetween(p.x + offset, p.y + 1, p.x + offset + lean, p.y - height);
+        pixelLine(
+            graphics,
+            p.x + offset, p.y + 1,
+            p.x + offset + lean, p.y - height,
+            strokeCells(Math.max(1, 1.35 * point.scale)),
+            index % 2 ? 0x5c8248 : 0x466f42,
+            alpha
+        );
         if (index % 2 === 0) {
-            graphics.fillStyle(0x76563b, alpha * 0.95);
-            graphics.fillEllipse(p.x + offset + lean, p.y - height + 1.4, 2.3, 5.3);
+            pixelEllipse(graphics, p.x + offset + lean, p.y - height + 1.4, 1.15, 2.65, 0x76563b, alpha * 0.95);
         }
     }
 }
 
-function drawFish(
-    graphics: Phaser.GameObjects.Graphics,
-    point: PointDecoration,
-    project: ProjectPoint,
-    alpha: number
-): void {
-    const p = project(point);
-    const length = 4.5 * point.scale;
-    const vx = Math.cos(point.phase) * length;
-    const vy = Math.sin(point.phase) * length * 0.48;
-    const nx = -Math.sin(point.phase) * 1.55 * point.scale;
-    const ny = Math.cos(point.phase) * 0.78 * point.scale;
-    drawScreenPolygon(graphics, [
-        { x: p.x + vx, y: p.y + vy },
-        { x: p.x + nx, y: p.y + ny },
-        { x: p.x - vx * 0.72, y: p.y - vy * 0.72 },
-        { x: p.x - nx, y: p.y - ny }
-    ], 0x123c49, alpha * 0.5);
-    drawScreenPolygon(graphics, [
-        { x: p.x - vx * 0.68, y: p.y - vy * 0.68 },
-        { x: p.x - vx - nx * 1.4, y: p.y - vy - ny * 1.4 },
-        { x: p.x - vx + nx * 1.4, y: p.y - vy + ny * 1.4 }
-    ], 0x1b4b58, alpha * 0.48);
-}
+// (The static baked fish is gone on purpose: fish are LIFE anchors animated
+// by WorldMapSystem's life layers — WorldFigureRenderer.drawFish — and the
+// baked copy showed as a frozen ghost under every swimming one.)
 
 function drawLily(
     graphics: Phaser.GameObjects.Graphics,
@@ -888,10 +909,11 @@ function drawLily(
 ): void {
     const p = project(point);
     const size = 3.4 * point.scale;
-    graphics.fillStyle(hashCoordinate(Math.floor(point.phase * 1000), 1, 2) % 2 ? 0x5a844d : 0x6a9657, alpha * 0.92);
-    graphics.fillEllipse(p.x, p.y, size * 2, size);
-    graphics.lineStyle(0.9, 0x315d3a, alpha * 0.8);
-    graphics.lineBetween(p.x, p.y, p.x + Math.cos(point.phase) * size, p.y + Math.sin(point.phase) * size * 0.42);
+    pixelEllipse(graphics, p.x, p.y, size, size / 2,
+        hashCoordinate(Math.floor(point.phase * 1000), 1, 2) % 2 ? 0x5a844d : 0x6a9657, alpha * 0.92);
+    pixelLine(graphics, p.x, p.y,
+        p.x + Math.cos(point.phase) * size, p.y + Math.sin(point.phase) * size * 0.42,
+        1, 0x315d3a, alpha * 0.8);
 }
 
 function drawDuck(
@@ -902,19 +924,19 @@ function drawDuck(
 ): void {
     const p = project(point);
     const facing = Math.cos(point.phase) < 0 ? -1 : 1;
-    graphics.lineStyle(1, 0xc1dfe0, alpha * 0.34);
-    graphics.lineBetween(p.x - facing * 12, p.y - 1, p.x - facing * 5, p.y);
-    graphics.lineBetween(p.x - facing * 11, p.y + 2, p.x - facing * 4, p.y + 1);
-    graphics.fillStyle(0x72533a, alpha);
-    graphics.fillEllipse(p.x, p.y, 10 * point.scale, 5.5 * point.scale);
-    graphics.fillStyle(0x2d5b43, alpha);
-    graphics.fillCircle(p.x + facing * 4 * point.scale, p.y - 3.4 * point.scale, 2.55 * point.scale);
-    graphics.fillStyle(0xd99c3e, alpha);
-    graphics.fillTriangle(
-        p.x + facing * 5.8 * point.scale, p.y - 3.5 * point.scale,
-        p.x + facing * 9 * point.scale, p.y - 2.4 * point.scale,
-        p.x + facing * 5.8 * point.scale, p.y - 1.9 * point.scale
-    );
+    const s = point.scale;
+    pixelLine(graphics, p.x - facing * 12, p.y - 1, p.x - facing * 5, p.y, 1, 0xc1dfe0, alpha * 0.34);
+    pixelLine(graphics, p.x - facing * 11, p.y + 2, p.x - facing * 4, p.y + 1, 1, 0xc1dfe0, alpha * 0.34);
+    pixelEllipse(graphics, p.x, p.y, 5 * s, 2.75 * s, 0x72533a, alpha);
+    pixelEllipse(graphics, p.x + facing * 4 * s, p.y - 3.4 * s, 2.55 * s, 2.55 * s, 0x2d5b43, alpha);
+    // The bill: a tiny sideways wedge as two shrinking cell rects.
+    const billBase = p.x + facing * 5.8 * s;
+    const billMid = p.x + facing * 7.4 * s;
+    const billTip = p.x + facing * 9 * s;
+    pixelRect(graphics, Math.min(billBase, billMid), p.y - 3.5 * s,
+        Math.abs(billMid - billBase), 1.6 * s, 0xd99c3e, alpha);
+    pixelRect(graphics, Math.min(billMid, billTip), p.y - 3.1 * s,
+        Math.abs(billTip - billMid), 0.8 * s, 0xd99c3e, alpha);
 }
 
 function drawHeron(
@@ -925,17 +947,14 @@ function drawHeron(
 ): void {
     const p = project(point);
     const facing = Math.cos(point.phase) < 0 ? -1 : 1;
-    graphics.lineStyle(1.15, 0x9aa8a2, alpha);
-    graphics.lineBetween(p.x - 1.3, p.y, p.x - 0.5, p.y - 10 * point.scale);
-    graphics.lineBetween(p.x + 1.3, p.y, p.x + 0.5, p.y - 10 * point.scale);
-    graphics.fillStyle(0xc3cbc4, alpha);
-    graphics.fillEllipse(p.x, p.y - 15 * point.scale, 6 * point.scale, 12 * point.scale);
-    graphics.lineStyle(2, 0xc3cbc4, alpha);
-    graphics.lineBetween(p.x + facing * 1.5, p.y - 19 * point.scale, p.x + facing * 4, p.y - 25 * point.scale);
-    graphics.fillStyle(0xd1d6cf, alpha);
-    graphics.fillCircle(p.x + facing * 4, p.y - 26 * point.scale, 2.2 * point.scale);
-    graphics.lineStyle(1.2, 0xc49a4b, alpha);
-    graphics.lineBetween(p.x + facing * 6, p.y - 26 * point.scale, p.x + facing * 12, p.y - 25 * point.scale);
+    const s = point.scale;
+    pixelLine(graphics, p.x - 1.3, p.y, p.x - 0.5, p.y - 10 * s, 1, 0x9aa8a2, alpha);
+    pixelLine(graphics, p.x + 1.3, p.y, p.x + 0.5, p.y - 10 * s, 1, 0x9aa8a2, alpha);
+    pixelEllipse(graphics, p.x, p.y - 15 * s, 3 * s, 6 * s, 0xc3cbc4, alpha);
+    pixelLine(graphics, p.x + facing * 1.5, p.y - 19 * s, p.x + facing * 4, p.y - 25 * s,
+        strokeCells(2), 0xc3cbc4, alpha);
+    pixelEllipse(graphics, p.x + facing * 4, p.y - 26 * s, 2.2 * s, 2.2 * s, 0xd1d6cf, alpha);
+    pixelLine(graphics, p.x + facing * 6, p.y - 26 * s, p.x + facing * 12, p.y - 25 * s, 1, 0xc49a4b, alpha);
 }
 
 function drawShorelineTree(
@@ -946,8 +965,8 @@ function drawShorelineTree(
 ): void {
     const p = project(tree);
     const scale = tree.scale;
-    graphics.fillStyle(0x172215, alpha * 0.21);
-    graphics.fillEllipse(p.x + 5 * scale, p.y + 4 * scale, (tree.kind === 'conifer' ? 31 : 39) * scale, 11 * scale);
+    pixelEllipse(graphics, p.x + 5 * scale, p.y + 4 * scale,
+        (tree.kind === 'conifer' ? 15.5 : 19.5) * scale, 5.5 * scale, 0x172215, alpha * 0.21);
     if (tree.kind === 'conifer') {
         // The trunk remains visible below the lowest bough, with two roots
         // pinning the tree to the continuous mainland lawn.
@@ -957,9 +976,10 @@ function drawShorelineTree(
             { x: p.x + 2 * scale, y: p.y - 29 * scale },
             { x: p.x + 4 * scale, y: p.y + 1.5 * scale }
         ], 0x583a24, alpha);
-        graphics.lineStyle(1.5 * scale, 0x6f4929, alpha * 0.85);
-        graphics.lineBetween(p.x - 1, p.y, p.x - 8 * scale, p.y + 3 * scale);
-        graphics.lineBetween(p.x + 1, p.y, p.x + 8 * scale, p.y + 2 * scale);
+        pixelLine(graphics, p.x - 1, p.y, p.x - 8 * scale, p.y + 3 * scale,
+            strokeCells(1.5 * scale), 0x6f4929, alpha * 0.85);
+        pixelLine(graphics, p.x + 1, p.y, p.x + 8 * scale, p.y + 2 * scale,
+            strokeCells(1.5 * scale), 0x6f4929, alpha * 0.85);
         const palette = hashCoordinate(Math.floor(tree.phase * 1000), 7, 19) % 2 === 0
             ? [0x173f2d, 0x23573c, 0x35714b, 0x4a855b]
             : [0x1d4229, 0x2b5933, 0x3c7040, 0x56864e];
@@ -988,9 +1008,10 @@ function drawShorelineTree(
         { x: p.x + 2.7 * scale, y: p.y - 26 * scale },
         { x: p.x + 6 * scale, y: p.y + 2 * scale }
     ], 0x634229, alpha);
-    graphics.lineStyle(2.1 * scale, 0x634229, alpha);
-    graphics.lineBetween(p.x - 1.5 * scale, p.y - 19 * scale, p.x - 11 * scale, p.y - 33 * scale);
-    graphics.lineBetween(p.x + 1.5 * scale, p.y - 18 * scale, p.x + 12 * scale, p.y - 31 * scale);
+    pixelLine(graphics, p.x - 1.5 * scale, p.y - 19 * scale, p.x - 11 * scale, p.y - 33 * scale,
+        strokeCells(2.1 * scale), 0x634229, alpha);
+    pixelLine(graphics, p.x + 1.5 * scale, p.y - 18 * scale, p.x + 12 * scale, p.y - 31 * scale,
+        strokeCells(2.1 * scale), 0x634229, alpha);
     const palettes = [
         [0x28552f, 0x3b703c, 0x4f864b, 0x6a995d],
         [0x31502a, 0x486937, 0x607f43, 0x7c9855]
@@ -1001,17 +1022,18 @@ function drawShorelineTree(
         [17, -27, 17, 12], [4, -24, 23, 15], [-12, -18, 16, 10]
     ];
     lobes.forEach(([ox, oy, width, height], index) => {
-        graphics.fillStyle(tones[index % 3], alpha * 0.98);
-        graphics.fillEllipse(
+        pixelEllipse(
+            graphics,
             p.x + (ox + Math.sin(tree.phase + index * 1.9) * 1.4) * scale,
             p.y + oy * scale,
-            width * scale,
-            height * scale
+            width * scale / 2,
+            height * scale / 2,
+            tones[index % 3],
+            alpha * 0.98
         );
     });
-    graphics.fillStyle(tones[3], alpha * 0.72);
-    graphics.fillEllipse(p.x - 10 * scale, p.y - 42 * scale, 10 * scale, 6 * scale);
-    graphics.fillEllipse(p.x + 3 * scale, p.y - 46 * scale, 9 * scale, 5.5 * scale);
+    pixelEllipse(graphics, p.x - 10 * scale, p.y - 42 * scale, 5 * scale, 3 * scale, tones[3], alpha * 0.72);
+    pixelEllipse(graphics, p.x + 3 * scale, p.y - 46 * scale, 4.5 * scale, 2.75 * scale, tones[3], alpha * 0.72);
 }
 
 function drawFallenLog(
@@ -1024,16 +1046,14 @@ function drawFallenLog(
     const screenAngle = Math.atan2(Math.sin(log.phase) * 0.5, Math.cos(log.phase));
     const dx = Math.cos(screenAngle) * 17 * log.scale;
     const dy = Math.sin(screenAngle) * 17 * log.scale;
-    graphics.fillStyle(0x172215, alpha * 0.17);
-    graphics.fillEllipse(p.x + 4, p.y + 4, 40 * log.scale, 9 * log.scale);
-    graphics.lineStyle(8 * log.scale, 0x573820, alpha);
-    graphics.lineBetween(p.x - dx, p.y - dy, p.x + dx, p.y + dy);
-    graphics.lineStyle(2.1 * log.scale, 0x93623a, alpha * 0.86);
-    graphics.lineBetween(p.x - dx * 0.9, p.y - dy * 0.9 - 1.5, p.x + dx * 0.82, p.y + dy * 0.82 - 1.5);
-    graphics.fillStyle(0xa57d50, alpha);
-    graphics.fillEllipse(p.x + dx, p.y + dy, 7 * log.scale, 5 * log.scale);
-    graphics.lineStyle(2.2 * log.scale, 0x573820, alpha);
-    graphics.lineBetween(p.x - dx * 0.2, p.y - dy * 0.2, p.x - dx * 0.15 - 8, p.y - dy * 0.15 - 8);
+    pixelEllipse(graphics, p.x + 4, p.y + 4, 20 * log.scale, 4.5 * log.scale, 0x172215, alpha * 0.17);
+    pixelLine(graphics, p.x - dx, p.y - dy, p.x + dx, p.y + dy,
+        strokeCells(8 * log.scale), 0x573820, alpha);
+    pixelLine(graphics, p.x - dx * 0.9, p.y - dy * 0.9 - 1.5, p.x + dx * 0.82, p.y + dy * 0.82 - 1.5,
+        strokeCells(2.1 * log.scale), 0x93623a, alpha * 0.86);
+    pixelEllipse(graphics, p.x + dx, p.y + dy, 3.5 * log.scale, 2.5 * log.scale, 0xa57d50, alpha);
+    pixelLine(graphics, p.x - dx * 0.2, p.y - dy * 0.2, p.x - dx * 0.15 - 8, p.y - dy * 0.15 - 8,
+        strokeCells(2.2 * log.scale), 0x573820, alpha);
 }
 
 function drawIslandTree(
@@ -1044,10 +1064,8 @@ function drawIslandTree(
 ): void {
     const p = project(island);
     const scale = clamp((island.radiusX + island.radiusY) * 0.16, 0.65, 1.05);
-    graphics.fillStyle(0x1a2519, alpha * 0.18);
-    graphics.fillEllipse(p.x + 4 * scale, p.y + 4 * scale, 29 * scale, 9 * scale);
-    graphics.fillStyle(0x5c3e27, alpha);
-    graphics.fillRect(p.x - 2.3 * scale, p.y - 24 * scale, 4.8 * scale, 26 * scale);
+    pixelEllipse(graphics, p.x + 4 * scale, p.y + 4 * scale, 14.5 * scale, 4.5 * scale, 0x1a2519, alpha * 0.18);
+    pixelRect(graphics, p.x - 2.3 * scale, p.y - 24 * scale, 4.8 * scale, 26 * scale, 0x5c3e27, alpha);
     const tiers = [
         { y: -8, width: 29, height: 18, color: 0x1c4b35 },
         { y: -19, width: 25, height: 18, color: 0x296143 },
@@ -1055,11 +1073,14 @@ function drawIslandTree(
         { y: -40, width: 12, height: 15, color: 0x4a8460 }
     ];
     for (const tier of tiers) {
-        graphics.fillStyle(tier.color, alpha);
-        graphics.fillTriangle(
-            p.x - tier.width * 0.55 * scale, p.y + tier.y * scale,
-            p.x + tier.width * 0.5 * scale, p.y + tier.y * scale,
-            p.x - 1.5 * scale, p.y + (tier.y - tier.height) * scale
+        // Each bough is a chunky wedge of stacked cell rows, not an AA triangle.
+        pixelTriangleRows(
+            graphics,
+            p.x - 1.5 * scale, p.y + (tier.y - tier.height) * scale,
+            p.x - tier.width * 0.55 * scale, p.x + tier.width * 0.5 * scale,
+            p.y + tier.y * scale,
+            tier.color,
+            alpha
         );
     }
 }
@@ -1111,6 +1132,24 @@ function nodeByKind(feature: GreatLakeFeature, kind: RiverNode['kind']): RiverNo
     return feature.network.nodes.find(node => node.kind === kind);
 }
 
+// Spring pool + wetland sink geometry: ONE set of loops shared by the draw
+// functions below AND the surface classifier (classifyDrawnSurfaceAt), so
+// rain can never disagree with what these pools actually paint.
+const SPRING_BANK_LOOP = { rx: 2.25, ry: 1.65 };
+const SPRING_WATER_LOOP = { rx: 1.48, ry: 1.08 };
+const WETLAND_BANK_LOBES = [
+    { x: 0, y: 0, rx: 5.2, ry: 3.6, salt: 0x85a308d3 },
+    { x: 3.5, y: -1.8, rx: 3.2, ry: 2.15, salt: 0x13198a2e },
+    { x: -3.1, y: 2.1, rx: 2.9, ry: 1.95, salt: 0x03707344 },
+    { x: 1.2, y: 3.1, rx: 2.5, ry: 1.7, salt: 0xa458fea3 }
+] as const;
+const WETLAND_WATER_LOBES = [
+    { x: 0, y: 0, rx: 4.25, ry: 2.75, salt: 0x082efa98 },
+    { x: 3.25, y: -1.65, rx: 2.45, ry: 1.55, salt: 0xec4e6c89 },
+    { x: -2.85, y: 1.9, rx: 2.15, ry: 1.3, salt: 0x452821e6 },
+    { x: 1.05, y: 2.85, rx: 1.8, ry: 1.08, salt: 0x38d01377 }
+] as const;
+
 function drawSpringAndWetlandBanks(
     graphics: Phaser.GameObjects.Graphics,
     feature: GreatLakeFeature,
@@ -1122,18 +1161,12 @@ function drawSpringAndWetlandBanks(
     const source = nodeByKind(feature, 'source');
     if (source) {
         if (drawClippedPolygon(graphics,
-            irregularLoop(source.point, 2.25, 1.65, feature.seed ^ 0x243f6a88, 18),
+            irregularLoop(source.point, SPRING_BANK_LOOP.rx, SPRING_BANK_LOOP.ry, feature.seed ^ 0x243f6a88, 18),
             rect, project, 0x666b50, alpha)) count++;
     }
     const sink = nodeByKind(feature, 'sink');
     if (sink) {
-        const wetlandLobes = [
-            { x: 0, y: 0, rx: 5.2, ry: 3.6, salt: 0x85a308d3 },
-            { x: 3.5, y: -1.8, rx: 3.2, ry: 2.15, salt: 0x13198a2e },
-            { x: -3.1, y: 2.1, rx: 2.9, ry: 1.95, salt: 0x03707344 },
-            { x: 1.2, y: 3.1, rx: 2.5, ry: 1.7, salt: 0xa458fea3 }
-        ];
-        for (const lobe of wetlandLobes) {
+        for (const lobe of WETLAND_BANK_LOBES) {
             if (drawClippedPolygon(graphics, irregularLoop(
                 { x: sink.point.x + lobe.x, y: sink.point.y + lobe.y },
                 lobe.rx, lobe.ry, feature.seed ^ lobe.salt, 18
@@ -1154,7 +1187,7 @@ function drawSpringAndWetlandWater(
     const source = nodeByKind(feature, 'source');
     if (source) {
         if (drawClippedPolygon(graphics,
-            irregularLoop(source.point, 1.48, 1.08, feature.seed ^ 0xa4093822, 17),
+            irregularLoop(source.point, SPRING_WATER_LOOP.rx, SPRING_WATER_LOOP.ry, feature.seed ^ 0xa4093822, 17),
             rect, project, 0x46969c, alpha)) count++;
         if (drawClippedPolygon(graphics,
             irregularLoop(source.point, 0.68, 0.49, feature.seed ^ 0x299f31d0, 13),
@@ -1162,13 +1195,7 @@ function drawSpringAndWetlandWater(
     }
     const sink = nodeByKind(feature, 'sink');
     if (sink) {
-        const waterLobes = [
-            { x: 0, y: 0, rx: 4.25, ry: 2.75, salt: 0x082efa98 },
-            { x: 3.25, y: -1.65, rx: 2.45, ry: 1.55, salt: 0xec4e6c89 },
-            { x: -2.85, y: 1.9, rx: 2.15, ry: 1.3, salt: 0x452821e6 },
-            { x: 1.05, y: 2.85, rx: 1.8, ry: 1.08, salt: 0x38d01377 }
-        ];
-        for (const lobe of waterLobes) {
+        for (const lobe of WETLAND_WATER_LOBES) {
             if (drawClippedPolygon(graphics, irregularLoop(
                 { x: sink.point.x + lobe.x, y: sink.point.y + lobe.y },
                 lobe.rx, lobe.ry, feature.seed ^ lobe.salt, 17
@@ -1263,8 +1290,7 @@ function drawWhitewater(
                     );
                     if (!pointInsideRect(spot, rect, 0.4)) continue;
                     const screenSpot = project(spot);
-                    graphics.fillStyle(0xf2fbf9, alpha * 0.7);
-                    graphics.fillCircle(screenSpot.x, screenSpot.y, 1.15);
+                    pixelEllipse(graphics, screenSpot.x, screenSpot.y, 1.15, 1.15, 0xf2fbf9, alpha * 0.7);
                 }
             }
         }
@@ -1284,8 +1310,14 @@ function drawGrassTuft(
         const offset = (index - 1.5) * 2.2 * point.scale;
         const height = (5.5 + ((index * 5 + Math.floor(point.phase * 11)) % 5)) * point.scale;
         const lean = Math.sin(point.phase + index * 1.9) * 2.4;
-        graphics.lineStyle(Math.max(1.6, 2.3 * point.scale), index % 2 ? 0x46603c : 0x53724a, alpha * 0.95);
-        graphics.lineBetween(p.x + offset, p.y + 0.5, p.x + offset + lean, p.y - height);
+        pixelLine(
+            graphics,
+            p.x + offset, p.y + 0.5,
+            p.x + offset + lean, p.y - height,
+            strokeCells(Math.max(1.6, 2.3 * point.scale)),
+            index % 2 ? 0x46603c : 0x53724a,
+            alpha * 0.95
+        );
     }
 }
 
@@ -1348,13 +1380,13 @@ function drawReflections(
             const p = project(point);
             const width = 15 + hashUnit(decorationSeed, cellX, cellY, 56) * 30;
             const bold = hashCoordinate(decorationSeed, cellX, cellY, 57) % 4 === 0;
-            graphics.lineStyle(bold ? 4 : 2.45,
+            pixelLine(graphics, p.x - width * 0.62, p.y, p.x + width * 0.38, p.y,
+                strokeCells(bold ? 4 : 2.45),
                 bold ? 0xd7edeb : 0xa9d5d3,
                 alpha * (0.3 + hashUnit(decorationSeed, cellX, cellY, 58) * 0.25));
-            graphics.lineBetween(p.x - width * 0.62, p.y, p.x + width * 0.38, p.y);
             if (bold) {
-                graphics.lineStyle(1.45, 0x8fc5c8, alpha * 0.3);
-                graphics.lineBetween(p.x - width * 0.42, p.y + 4, p.x + width * 0.27, p.y + 4);
+                pixelLine(graphics, p.x - width * 0.42, p.y + 4, p.x + width * 0.27, p.y + 4,
+                    1, 0x8fc5c8, alpha * 0.3);
             }
         }
     }
@@ -1423,8 +1455,10 @@ function localLifeAnchor(
  * absolute lattice coordinates, while motion is returned as life anchors.
  */
 export class WorldHydrologyRenderer {
-    /** Include in postcard cache keys whenever hydrology vector art changes. */
-    static readonly RENDER_VERSION = 8;
+    /** Include in postcard cache keys whenever hydrology vector art changes.
+     * v10: static fish no longer bake — the animated life-layer fish is the
+     * only one (the baked copy showed frozen under it). */
+    static readonly RENDER_VERSION = 10;
 
     static drawFeature(
         graphics: Phaser.GameObjects.Graphics,
@@ -1519,8 +1553,12 @@ export class WorldHydrologyRenderer {
             }
             for (const fish of decorations.fish) {
                 if (!pointInsideRect(fish, rect, 0.45)) continue;
-                drawFish(graphics, fish, project, alpha);
-                if (life.length < 14) life.push(localLifeAnchor(feature, 'fish', fish, rect, window));
+                // Fish are LIFE, not decoration: the anchor drives the one
+                // animated fish (WorldMapSystem's life layers). Baking a
+                // frozen copy here doubled every fish — a static ghost under
+                // its swimming twin. The cap matches buildDecorations' 30 so
+                // no anchor is lost even on a whole-ring overlay window.
+                if (life.length < 30) life.push(localLifeAnchor(feature, 'fish', fish, rect, window));
             }
             const mainlandDetails: Array<
                 { point: PointDecoration; draw: () => void }
@@ -1564,5 +1602,81 @@ export class WorldHydrologyRenderer {
         window: WorldHydrologyRenderWindow
     ): readonly WorldHydrologyRenderResult[] {
         return Object.freeze(features.map(feature => this.drawFeature(graphics, feature, window)));
+    }
+
+    /**
+     * Surface classification for everything drawFeature paints BEYOND the
+     * lake-body polygon (which callers already test via
+     * featureContainsWorldPoint): the river ribbons at their DRAWN variable
+     * widths (the shared per-point halfWidths model, mouth flares included),
+     * the mouth merge patches, the spring pool and the wetland sink lobes.
+     * Rain splashes and puddles consult this so no drawn water is invisible
+     * to weather. Returns null when the point misses this feature entirely.
+     */
+    static classifyDrawnSurfaceAt(
+        feature: GreatLakeFeature,
+        worldX: number,
+        worldY: number
+    ): 'water' | 'bank' | null {
+        // Damp-shore margin: matches the classifier margin rainSurfaceAt has
+        // always used around river water.
+        const BANK_PAD = 1.1;
+        let bank = false;
+
+        for (const reach of feature.network.reaches) {
+            if (reach.kind === 'lake-passage' || reach.width <= 0) continue;
+            const points = reach.points;
+            for (let i = 1; i < points.length; i++) {
+                const a = points[i - 1];
+                const b = points[i];
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const t = Math.max(0, Math.min(1,
+                    ((worldX - a.x) * dx + (worldY - a.y) * dy) / (dx * dx + dy * dy || 1)));
+                const d = Math.hypot(worldX - (a.x + dx * t), worldY - (a.y + dy * t));
+                const hw0 = reach.halfWidths[i - 1] ?? reach.width * 0.5;
+                const hw1 = reach.halfWidths[i] ?? reach.width * 0.5;
+                const hw = hw0 + (hw1 - hw0) * t;
+                if (d <= hw) return 'water';
+                if (d <= hw + BANK_PAD) bank = true;
+            }
+        }
+
+        // The trumpet patches where a river merges into the lake.
+        for (const mouth of riverMouths(feature)) {
+            const d = Math.hypot(worldX - mouth.point.x, worldY - mouth.point.y);
+            if (d <= mouth.radius + 0.55) return 'water';
+            if (d <= mouth.radius + 1.7) bank = true;
+        }
+
+        const inLobe = (
+            cx: number,
+            cy: number,
+            rx: number,
+            ry: number
+        ): boolean => {
+            const ex = (worldX - cx) / rx;
+            const ey = (worldY - cy) / ry;
+            return ex * ex + ey * ey <= 1;
+        };
+        const source = nodeByKind(feature, 'source');
+        if (source) {
+            if (inLobe(source.point.x, source.point.y, SPRING_WATER_LOOP.rx, SPRING_WATER_LOOP.ry)) return 'water';
+            if (inLobe(source.point.x, source.point.y, SPRING_BANK_LOOP.rx, SPRING_BANK_LOOP.ry)) bank = true;
+        }
+        const sink = nodeByKind(feature, 'sink');
+        if (sink) {
+            for (const lobe of WETLAND_WATER_LOBES) {
+                if (inLobe(sink.point.x + lobe.x, sink.point.y + lobe.y, lobe.rx, lobe.ry)) return 'water';
+            }
+            for (const lobe of WETLAND_BANK_LOBES) {
+                if (inLobe(sink.point.x + lobe.x, sink.point.y + lobe.y, lobe.rx, lobe.ry)) {
+                    bank = true;
+                    break;
+                }
+            }
+        }
+
+        return bank ? 'bank' : null;
     }
 }

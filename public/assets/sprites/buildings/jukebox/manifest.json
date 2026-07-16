@@ -27,7 +27,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 1229
+                  "timeAt": 1146
                 }
               },
               {
@@ -38,7 +38,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 1458
+                  "timeAt": 1292
                 }
               },
               {
@@ -49,7 +49,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 1688
+                  "timeAt": 1438
                 }
               },
               {
@@ -60,7 +60,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 1917
+                  "timeAt": 1583
                 }
               },
               {
@@ -71,7 +71,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 2146
+                  "timeAt": 1729
                 }
               },
               {
@@ -82,7 +82,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 2375
+                  "timeAt": 1875
                 }
               },
               {
@@ -93,7 +93,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 2604
+                  "timeAt": 2021
                 }
               },
               {
@@ -104,7 +104,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 2833
+                  "timeAt": 2167
                 }
               },
               {
@@ -115,7 +115,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 3063
+                  "timeAt": 2313
                 }
               },
               {
@@ -126,7 +126,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 3292
+                  "timeAt": 2458
                 }
               },
               {
@@ -137,7 +137,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 3521
+                  "timeAt": 2604
                 }
               },
               {
@@ -148,7 +148,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 3750
+                  "timeAt": 2750
                 }
               },
               {
@@ -159,7 +159,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 3979
+                  "timeAt": 2896
                 }
               },
               {
@@ -170,7 +170,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 4208
+                  "timeAt": 3042
                 }
               },
               {
@@ -181,7 +181,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 4438
+                  "timeAt": 3188
                 }
               },
               {
@@ -192,7 +192,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 4667
+                  "timeAt": 3333
                 }
               },
               {
@@ -203,7 +203,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 4896
+                  "timeAt": 3479
                 }
               },
               {
@@ -214,7 +214,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 5125
+                  "timeAt": 3625
                 }
               },
               {
@@ -225,7 +225,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 5354
+                  "timeAt": 3771
                 }
               },
               {
@@ -236,7 +236,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 5583
+                  "timeAt": 3917
                 }
               },
               {
@@ -247,7 +247,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 5813
+                  "timeAt": 4063
                 }
               },
               {
@@ -258,7 +258,7 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 6042
+                  "timeAt": 4208
                 }
               },
               {
@@ -269,12 +269,144 @@
                 "originX": 0.5079365079365076,
                 "originY": 0.7854406130268198,
                 "ov": {
-                  "timeAt": 6271
+                  "timeAt": 4354
+                }
+              },
+              {
+                "file": "jukebox_L1_idle24.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4500
+                }
+              },
+              {
+                "file": "jukebox_L1_idle25.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4646
+                }
+              },
+              {
+                "file": "jukebox_L1_idle26.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4792
+                }
+              },
+              {
+                "file": "jukebox_L1_idle27.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 4938
+                }
+              },
+              {
+                "file": "jukebox_L1_idle28.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5083
+                }
+              },
+              {
+                "file": "jukebox_L1_idle29.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5229
+                }
+              },
+              {
+                "file": "jukebox_L1_idle30.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5375
+                }
+              },
+              {
+                "file": "jukebox_L1_idle31.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5521
+                }
+              },
+              {
+                "file": "jukebox_L1_idle32.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5667
+                }
+              },
+              {
+                "file": "jukebox_L1_idle33.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5813
+                }
+              },
+              {
+                "file": "jukebox_L1_idle34.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 5958
+                }
+              },
+              {
+                "file": "jukebox_L1_idle35.png",
+                "texelW": 28,
+                "texelH": 29,
+                "cellWorldPx": 1.35,
+                "originX": 0.5079365079365076,
+                "originY": 0.7854406130268198,
+                "ov": {
+                  "timeAt": 6104
                 }
               }
             ]
           ],
-          "loopMs": 5500,
+          "loopMs": 5250,
           "loopExact": false
         },
         "playing": {
@@ -283,11 +415,11 @@
             [
               {
                 "file": "jukebox_L1_playing0.png",
-                "texelW": 36,
-                "texelH": 45,
+                "texelW": 31,
+                "texelH": 40,
                 "cellWorldPx": 1.35,
-                "originX": 0.3950617283950615,
-                "originY": 0.8617283950617282,
+                "originX": 0.4587813620071682,
+                "originY": 0.8444444444444443,
                 "ov": {
                   "jukeboxPlaying": true,
                   "timeAt": 1000
@@ -295,10 +427,10 @@
               },
               {
                 "file": "jukebox_L1_playing1.png",
-                "texelW": 30,
+                "texelW": 31,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4740740740740738,
+                "originX": 0.4587813620071682,
                 "originY": 0.8552971576227386,
                 "ov": {
                   "jukeboxPlaying": true,
@@ -307,11 +439,11 @@
               },
               {
                 "file": "jukebox_L1_playing2.png",
-                "texelW": 31,
-                "texelH": 35,
+                "texelW": 33,
+                "texelH": 42,
                 "cellWorldPx": 1.35,
-                "originX": 0.4587813620071682,
-                "originY": 0.8222222222222221,
+                "originX": 0.4309764309764307,
+                "originY": 0.8518518518518515,
                 "ov": {
                   "jukeboxPlaying": true,
                   "timeAt": 1800

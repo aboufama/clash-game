@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { BuildingType, TroopType } from '../game/config/GameDefinitions';
 import { TROOP_DEFINITIONS } from '../game/config/GameDefinitions';
 import type { GameMode } from '../game/types/GameMode';
 import { formatGold } from '../game/economy/Currency';
 import { soundSystem } from '../game/systems/SoundSystem';
 import { InfoPanel } from './InfoPanel';
+
+const INFINITE_RESOURCE_DISPLAY = '999,999';
 
 interface BattleStats {
   destruction: number;
@@ -16,6 +19,9 @@ interface BattleStats {
 interface HudProps {
   view: GameMode;
   resources: { gold: number; ore: number; food: number };
+  /** Funds used only by affordability checks; authoritative balances stay finite. */
+  spendableResources: { gold: number; ore: number; food: number };
+  infiniteResources: boolean;
   storageCaps: { ore: number; food: number } | null;
   population: { count: number; capacity: number; workersNeeded: number; staffing: number };
   battleStats: BattleStats;
@@ -50,6 +56,8 @@ interface HudProps {
 export function Hud({
   view,
   resources,
+  spendableResources,
+  infiniteResources,
   storageCaps,
   population,
   battleStats,
@@ -89,6 +97,14 @@ export function Hud({
   const showAttackTroopBar = isAttackView && !(isScouting && visibleTroops.length === 0);
 
   const [isMuted, setIsMuted] = useState(soundSystem.muted);
+
+  // The settings modal has the same mute switch; it announces changes via
+  // 'clash:muted' so this speaker button never goes stale.
+  useEffect(() => {
+    const sync = () => setIsMuted(soundSystem.muted);
+    window.addEventListener('clash:muted', sync);
+    return () => window.removeEventListener('clash:muted', sync);
+  }, []);
 
   // Auto-dismiss hotkey hint
   const [showHotkeyHint, setShowHotkeyHint] = useState(true);
@@ -139,6 +155,14 @@ export function Hud({
     }
   }, [resources.gold, lootAnimating]);
 
+  // The count-up base is frozen at animation start (read through a ref):
+  // a world sync landing mid-animation must not restart the tally, and a
+  // server reconciling DOWN must never start it below zero.
+  const goldRef = useRef(resources.gold);
+  useEffect(() => {
+    goldRef.current = resources.gold;
+  }, [resources.gold]);
+
   // Count-up effect when loot animation triggers (clouds finished opening)
   useEffect(() => {
     if (!lootAnimating) {
@@ -146,8 +170,8 @@ export function Hud({
       return;
     }
 
-    const startSol = resources.gold - lootAnimating.amount;
-    const endSol = resources.gold;
+    const endSol = Math.max(0, goldRef.current);
+    const startSol = Math.max(0, endSol - lootAnimating.amount);
     const duration = 800;
     let startTime: number | null = null;
 
@@ -179,50 +203,66 @@ export function Hud({
       if (lootDoneTimerRef.current) window.clearTimeout(lootDoneTimerRef.current);
       setIsBouncing(false);
     };
-  }, [lootAnimating, resources.gold]);
+  }, [lootAnimating]);
+
+  // The resources column. While loot is showing it is PORTALED to <body>:
+  // .hud's z-index traps children in its stacking context, so no child
+  // z-index can ever climb above the cloud overlay from inside it. The
+  // portal wrapper re-applies the .hud classes so the mobile descendant
+  // rules keep styling the chips.
+  const resourcesColumn = (
+    <div className={`resources ${showingLoot ? 'over-clouds' : ''}`}>
+      <div className="res-row">
+        <div className={`res-item gold ${isBouncing ? 'bounce' : ''}`}>
+          <span className="icon gold-icon" />
+          <span>{infiniteResources ? INFINITE_RESOURCE_DISPLAY : formatGold(displaySol, isMobile, false)}</span>
+        </div>
+        {showingLoot && lootAmount > 0 && (
+          <span className={`loot-badge ${isFadingLoot ? 'fading' : ''}`}>
+            +{formatGold(lootAmount, false, false)}
+          </span>
+        )}
+      </div>
+      <div className="res-row">
+        <div className="res-item ore">
+          <span className="icon ore-icon" />
+          <span>{infiniteResources ? INFINITE_RESOURCE_DISPLAY : formatGold(resources.ore, isMobile, false)}</span>
+        </div>
+      </div>
+      <div className="res-row">
+        <div className="res-item food">
+          <span className="icon food-icon" />
+          <span>{infiniteResources ? INFINITE_RESOURCE_DISPLAY : formatGold(resources.food, isMobile, false)}</span>
+        </div>
+      </div>
+      <div className="res-row">
+        <div
+          className={`res-item pop ${population.staffing < 1 ? 'understaffed' : ''}`}
+          title={population.staffing < 1
+            ? `Understaffed: ${population.count}/${population.workersNeeded} workers — mines and farms run at ${Math.round(population.staffing * 100)}%`
+            : 'Population'}
+        >
+          <span className="icon pop-icon" />
+          <span>{population.count}/{population.capacity}</span>
+          {population.staffing < 1 && <span className="pop-warn">!</span>}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className={`hud ${isMobile ? 'mobile' : ''}`}>
       <div className="hud-top">
         {view === 'HOME' ? (
           <>
-            <div className={`resources ${showingLoot ? 'over-clouds' : ''}`}>
-              <div className="res-row">
-                <div className={`res-item gold ${isBouncing ? 'bounce' : ''}`}>
-                  <span className="icon gold-icon" />
-                  <span>{formatGold(displaySol, isMobile, false)}</span>
-                </div>
-                {showingLoot && lootAmount > 0 && (
-                  <span className={`loot-badge ${isFadingLoot ? 'fading' : ''}`}>
-                    +{formatGold(lootAmount, false, false)}
-                  </span>
-                )}
-              </div>
-              <div className="res-row">
-                <div className="res-item ore">
-                  <span className="icon ore-icon" />
-                  <span>{formatGold(resources.ore, isMobile, false)}</span>
-                </div>
-              </div>
-              <div className="res-row">
-                <div className="res-item food">
-                  <span className="icon food-icon" />
-                  <span>{formatGold(resources.food, isMobile, false)}</span>
-                </div>
-              </div>
-              <div className="res-row">
-                <div
-                  className={`res-item pop ${population.staffing < 1 ? 'understaffed' : ''}`}
-                  title={population.staffing < 1
-                    ? `Understaffed: ${population.count}/${population.workersNeeded} workers — mines and farms run at ${Math.round(population.staffing * 100)}%`
-                    : 'Population'}
-                >
-                  <span className="icon pop-icon" />
-                  <span>{population.count}/{population.capacity}</span>
-                  {population.staffing < 1 && <span className="pop-warn">!</span>}
-                </div>
-              </div>
-            </div>
+            {showingLoot
+              ? createPortal(
+                <div className={`hud ${isMobile ? 'mobile' : ''} hud-loot-layer`}>
+                  {resourcesColumn}
+                </div>,
+                document.body
+              )
+              : resourcesColumn}
             <div className="top-btn-stack">
               <button className="settings-btn" onClick={() => { soundSystem.play('click'); onOpenSettings(); }}>
                 <div className="btn-icon icon settings-icon"></div>
@@ -284,6 +324,7 @@ export function Hud({
           gridY={selectedBuildingInfo.gridY}
           upgradeEndsAt={selectedBuildingInfo.upgradeEndsAt}
           resources={resources}
+          spendableResources={spendableResources}
           storageCaps={storageCaps}
           armyCapacity={armyCapacity}
           isExiting={isExiting}

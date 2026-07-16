@@ -1,0 +1,159 @@
+import type Phaser from 'phaser';
+
+/**
+ * CLEAN-ROOM DESIGN REGISTRY — the frostfall redesign round (in progress).
+ * (The cannon round is FINISHED: design B was promoted to canonical and left
+ * the registry — see CannonB.ts. The golem round is FINISHED too: design C
+ * won and is called directly by TroopRenderer.drawGolem — see GolemC.ts;
+ * design B is the authoring base for the NEW 'icegolem' troop. The mortar
+ * round ENDED WITH NO WINNER: all three designs were rejected and the
+ * original vector art was restored as canonical — mortar no longer routes
+ * through this registry.)
+ *
+ * Three isolated artist agents fill one slot each per unit (A/B/C). Rules:
+ *  - Each artist inserts EXACTLY ONE import on their pre-seeded
+ *    `// IMPORT <unit> <slot>` anchor line below, and replaces EXACTLY ONE
+ *    `null` on their `// SLOT <unit> <slot>` anchor line with the imported fn.
+ *  - Author designs as `export function` declarations (hoisted — safe if a
+ *    design module ends up in an import cycle with a renderer) and keep the
+ *    design module free of module-level side effects.
+ *  - Do NOT touch any other slot, the types, or `activeDesign`.
+ *
+ * Slot selection is LIVE: `localStorage['clash.design.<unit>'] = 'A'|'B'|'C'`
+ * is re-read on every draw call, so switching designs needs no reload beyond
+ * the next redraw. With no (or an empty) selection the first non-null slot
+ * wins; with all slots null the caller falls back to its neutral placeholder.
+ */
+
+// ===== IMPORT ANCHORS — one import per artist, on your line only =====
+// (cannon was PROMOTED: design B won the tournament and is now the canonical
+//  implementation, called directly by BuildingRenderer.drawCannon* — see
+//  ./CannonB.ts. It no longer routes through this registry.)
+import { drawFrostfallA } from './FrostfallA'; // IMPORT frostfall A
+import { drawFrostfallB } from './FrostfallB'; // IMPORT frostfall B
+import { drawFrostfallC } from './FrostfallC'; // IMPORT frostfall C
+
+/**
+ * Building design draw fn — the canonical dedicated-building shape (identical
+ * to `BuildingRenderer.drawCannon*` and `drawFrostfall`).
+ * c1..c4 = iso footprint corners (N/E/S/W), center = footprint center.
+ * Honor the base/elevated split: ground paint goes to `baseGraphics || graphics`
+ * when `!skipBase`; return after ground paint when `onlyBase`.
+ */
+export type BuildingDesignFn = (
+    graphics: Phaser.GameObjects.Graphics,
+    c1: Phaser.Math.Vector2,
+    c2: Phaser.Math.Vector2,
+    c3: Phaser.Math.Vector2,
+    c4: Phaser.Math.Vector2,
+    center: Phaser.Math.Vector2,
+    alpha: number,
+    tint: number | null,
+    building: any,
+    baseGraphics: Phaser.GameObjects.Graphics | undefined,
+    skipBase: boolean,
+    onlyBase: boolean,
+    time: number
+) => void;
+
+export type DesignUnit = 'frostfall';
+export type DesignSlotId = 'A' | 'B' | 'C';
+
+export interface DesignSlots {
+    frostfall: Record<DesignSlotId, BuildingDesignFn | null>;
+}
+
+export const DESIGN_SLOTS: DesignSlots = {
+    frostfall: {
+        A: drawFrostfallA, // SLOT frostfall A
+        B: drawFrostfallB, // SLOT frostfall B
+        C: drawFrostfallC, // SLOT frostfall C
+    },
+};
+
+/**
+ * Resolve the live design for a unit. Reads `localStorage['clash.design.<unit>']`
+ * on EVERY call ('A'|'B'|'C'); an unset/invalid/empty selection falls back to
+ * the first non-null slot in A→B→C order. Returns null when no slot is filled.
+ * SSR/test safe: any environment without a usable `window.localStorage` just
+ * uses the fallback order.
+ */
+export function activeDesign(unit: DesignUnit): BuildingDesignFn | null {
+    const slots: Record<DesignSlotId, BuildingDesignFn | null> = DESIGN_SLOTS[unit];
+    const picked = readStoredSlot(unit);
+    if (picked !== null && slots[picked]) return slots[picked];
+    return slots.A ?? slots.B ?? slots.C ?? null;
+}
+
+// ===================== variant-switching service =====================
+// The runtime half of the design-tournament infrastructure: the Design Lab
+// (Settings), the SpriteBank variant resolver and the vector delegators all
+// key off the SAME localStorage key, so baked sprites and the vector fallback
+// can never disagree about which design is live.
+
+export const DESIGN_SLOT_IDS: readonly DesignSlotId[] = ['A', 'B', 'C'];
+
+/** The window event dispatched by setActiveSlot. detail: `{ unit }`.
+ *  MainScene listens and busts the affected buildings' draw caches (and
+ *  re-stamps their ground decals); troops re-pick frames on their next
+ *  per-frame draw, so switching is visually instant with no reload. */
+export const DESIGN_CHANGED_EVENT = 'clash:design-changed';
+
+export interface VariantUnitInfo {
+    unit: DesignUnit;
+    /** The filled (registered, non-null) slots for this unit, in A→B→C order. */
+    slots: DesignSlotId[];
+}
+
+/** Every unit with at least one registered design variant — the Design Lab
+ *  renders purely from this list, so a future tournament's units appear the
+ *  moment their draw fns are registered in DESIGN_SLOTS. */
+export function listVariantUnits(): VariantUnitInfo[] {
+    return (Object.keys(DESIGN_SLOTS) as DesignUnit[])
+        .map(unit => ({
+            unit,
+            slots: DESIGN_SLOT_IDS.filter(slot => DESIGN_SLOTS[unit][slot] !== null)
+        }))
+        .filter(info => info.slots.length > 0);
+}
+
+/** The raw stored selection ('A'|'B'|'C') or null — no fallback applied. */
+function readStoredSlot(unit: DesignUnit): DesignSlotId | null {
+    try {
+        if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+            const v = window.localStorage.getItem(`clash.design.${unit}`);
+            if (v === 'A' || v === 'B' || v === 'C') return v;
+        }
+    } catch {
+        // Storage unavailable (SSR, sandboxed iframe, tests) — fall through.
+    }
+    return null;
+}
+
+/** The slot currently live for a unit — the stored selection when it names a
+ *  filled slot, else the first filled slot in A→B→C order (mirroring
+ *  activeDesign's fallback), else 'A'. */
+export function activeSlot(unit: DesignUnit): DesignSlotId {
+    const slots = DESIGN_SLOTS[unit];
+    const picked = readStoredSlot(unit);
+    if (picked !== null && slots[picked]) return picked;
+    return DESIGN_SLOT_IDS.find(slot => slots[slot] !== null) ?? 'A';
+}
+
+/** Select a design slot LIVE: persists the choice and announces it via the
+ *  DESIGN_CHANGED_EVENT window event so the scene repaints affected units on
+ *  the next frame. Safe to call in any environment (storage failures are
+ *  swallowed; the event still fires so listeners stay honest). */
+export function setActiveSlot(unit: DesignUnit, slot: DesignSlotId): void {
+    try {
+        window.localStorage.setItem(`clash.design.${unit}`, slot);
+    } catch {
+        // Storage unavailable — the selection won't persist, but the live
+        // switch below still happens for this session.
+    }
+    try {
+        window.dispatchEvent(new CustomEvent(DESIGN_CHANGED_EVENT, { detail: { unit } }));
+    } catch {
+        // No window (tests) — nothing to notify.
+    }
+}

@@ -8,9 +8,18 @@ Files
 - `src/icons/index.css`: import hub used by `src/App.css`.
 
 How to add an icon
-- Add a class in `src/icons/accurate-icons.css` or `src/icons/ui-icons.css`.
+- All icons are baked data-URI PNGs (image-rendering: pixelated) — never
+  box-shadow pixel grids, which AA-bleed hairline gaps between cells.
+- Troop/building/obstacle icons: add the pixel list in
+  `tools/art-preview/game-icon-data.mjs`, run
+  `node tools/art-preview/gen-game-icons.mjs`, check
+  `shots/game-icon-preview.png`, splice `shots/game-icon-css.txt` into
+  `src/icons/accurate-icons.css`.
+- Resource / UI / symbol icons: same flow via `gen-icons.mjs`,
+  `gen-ui-icons.mjs`, `gen-sym-icons.mjs`.
 - Use the naming convention `<id>-icon::before` (for example, `archer-icon::before`).
-- Render it with `<div class="icon <id>-icon"></div>`.
+- Render it with `<div class="icon <id>-icon"></div>` (the ::before is
+  position: absolute — the holder needs a positioned ancestor).
 
 Sizing
 - Base sizes live in `src/App.css` under the `.icon` rules.

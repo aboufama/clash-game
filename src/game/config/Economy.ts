@@ -121,6 +121,26 @@ export function maxBarracksLevel(buildings: SerializedBuilding[]): number {
     return max;
 }
 
+/**
+ * Troop level granted by the lab, mirroring the server rule (troopLevelOf in
+ * server/domain/village/simulation.ts): a lab that is mid-upgrade is offline
+ * and grants NOTHING, so troops drop to level 1 until the work lands.
+ * Clamped to the 3 defined troop-level multipliers.
+ */
+export function effectiveTroopLevel(buildings: SerializedBuilding[]): number {
+    let level = 1;
+    for (const building of buildings) {
+        if (building.type !== 'lab' || building.upgradingTo) continue;
+        level = Math.max(level, Math.floor(Number(building.level) || 1));
+    }
+    return Math.max(1, Math.min(level, 3));
+}
+
+/** True when a lab upgrade is in flight — the moment troops read as level 1 server-side. */
+export function labUpgradeInFlight(buildings: SerializedBuilding[]): boolean {
+    return buildings.some(building => building.type === 'lab' && Boolean(building.upgradingTo));
+}
+
 // ---- building charges (what a save transaction owes) ----
 
 function levelGoldCost(type: BuildingType, level: number): number {
@@ -341,9 +361,25 @@ export function botSeedAt(x: number, y: number, rawSeedVersion: unknown = 0): nu
 
 const BOT_CLANS = ['Ash', 'Briar', 'Crag', 'Dun', 'Elder', 'Fen', 'Gorse', 'Heath', 'Iron', 'Juniper', 'Kettle', 'Larch', 'Moss', 'Nettle', 'Oaken', 'Pyre'];
 const BOT_SUFFIX = ['hollow', 'stead', 'wick', 'moor', 'shaw', 'garth', 'thorpe', 'field', 'crest', 'watch'];
+// Plot-parity partition of the suffixes: the four (x&1, y&1) classes own
+// DISJOINT suffix sets, and every plot in a plot's 8-neighbourhood lies in a
+// different class than the plot itself — so two touching bot villages can
+// never share a full name (seeds 1470536271/702915199 both hashed to
+// 'Pyremoor' on side-by-side plots and read as one village spanning both).
+const BOT_SUFFIX_BY_PARITY: ReadonlyArray<ReadonlyArray<number>> = [
+    [0, 4, 8],
+    [1, 5, 9],
+    [2, 6],
+    [3, 7]
+];
 
-export function botNameFor(seed: number): string {
-    return `${BOT_CLANS[seed % BOT_CLANS.length]}${BOT_SUFFIX[Math.floor(seed / 31) % BOT_SUFFIX.length]}`;
+export function botNameFor(seed: number, plotX?: number, plotY?: number): string {
+    const clan = BOT_CLANS[seed % BOT_CLANS.length];
+    if (plotX === undefined || plotY === undefined) {
+        return `${clan}${BOT_SUFFIX[Math.floor(seed / 31) % BOT_SUFFIX.length]}`;
+    }
+    const set = BOT_SUFFIX_BY_PARITY[((plotX & 1) << 1) | (plotY & 1)];
+    return `${clan}${BOT_SUFFIX[set[Math.floor(seed / 31) % set.length]]}`;
 }
 
 /** How long a raided bot camp rebuilds before it pays loot again. */

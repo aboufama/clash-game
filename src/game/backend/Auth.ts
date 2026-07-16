@@ -8,12 +8,18 @@ export interface AuthUser {
   registered: boolean;
 }
 
+export interface SessionFeatures {
+  /** The authoritative game server will accept purchases without consuming resources. */
+  infiniteResources: boolean;
+}
+
 interface SessionResponse {
   token: string;
   player: AuthUser;
   world: SerializedWorld | null;
   created: boolean;
   unread: number;
+  features?: Partial<SessionFeatures>;
 }
 
 export interface DevWorldReseedResult {
@@ -115,6 +121,7 @@ export class Auth {
   private static current: AuthUser | null = null;
   private static online = false;
   private static token: string | null = null;
+  private static features: SessionFeatures = { infiniteResources: false };
   private static ensureInFlight: Promise<{ user: AuthUser | null; online: boolean; world: SerializedWorld | null }> | null = null;
 
   static getCurrentUser() {
@@ -123,6 +130,10 @@ export class Auth {
 
   static isOnlineMode() {
     return Auth.online;
+  }
+
+  static getFeatures(): Readonly<SessionFeatures> {
+    return Auth.features;
   }
 
   static getToken(): string | null {
@@ -135,6 +146,9 @@ export class Auth {
     Auth.token = session.token;
     Auth.current = session.player;
     Auth.online = true;
+    Auth.features = {
+      infiniteResources: session.features?.infiniteResources === true
+    };
     writeStorage(TOKEN_KEY, session.token);
     writeStorage(USER_KEY, JSON.stringify(session.player));
   }
@@ -175,6 +189,7 @@ export class Auth {
     } catch (error) {
       console.warn('Game server unreachable, entering offline mode:', error);
       Auth.online = false;
+      Auth.features = { infiniteResources: false };
       return { user: Auth.current, online: false, world: null };
     }
   }
@@ -245,6 +260,7 @@ export class Auth {
     Auth.token = null;
     Auth.current = null;
     Auth.online = false;
+    Auth.features = { infiniteResources: false };
     removeStorage(TOKEN_KEY);
     removeStorage(USER_KEY);
   }

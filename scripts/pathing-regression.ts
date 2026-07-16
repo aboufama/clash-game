@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { getBuildingStats, getTroopStats, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions';
 import { CombatNavigationSystem } from '../src/game/systems/CombatNavigationSystem';
+import { PathfindingSystem } from '../src/game/systems/PathfindingSystem';
 import type { PlacedBuilding, Troop } from '../src/game/types/GameTypes';
 
 const building = (
@@ -77,6 +78,48 @@ assert.equal(closedPlan.activeTargetId, closedPlan.blockerId);
 for (const waypoint of closedPlan.waypoints) {
     assert(!closed.some(item => contains(item, waypoint.x, waypoint.y)), 'physical waypoint entered live structure');
 }
+
+// Home-village figures are not combatants: a fresh recruit walks from the
+// barracks door to a station tile INSIDE its army camp. Even the tightest wall
+// ring around the 3x3 camp must be routable, while a real opening still wins.
+const ambientCamp = building('ambient-camp', 'army_camp', 10, 10);
+const ambientBarracks = building('ambient-barracks', 'barracks', 3, 10);
+const ambientLoop = wallLoop(9, 13);
+const ambientStart = { x: 4, y: 12 }; // front-center door of the 2x2 barracks
+const ambientTarget = { gridX: 10, gridY: 11 }; // camp footprint, behind the ring
+const ambientWallCells = new Set(ambientLoop.map(item => `${item.gridX},${item.gridY}`));
+const ambientClosedPath = PathfindingSystem.findAmbientPath(
+    ambientStart.x,
+    ambientStart.y,
+    ambientTarget,
+    [ambientBarracks, ambientCamp, ...ambientLoop],
+    ambientCamp.id
+);
+assert(ambientClosedPath?.length, 'friendly camp figure could not cross a closed wall loop');
+assert(
+    ambientClosedPath.some(point => ambientWallCells.has(`${point.x},${point.y}`)),
+    'friendly camp path reached a closed enclosure without a wall-hop waypoint'
+);
+assert.deepEqual(
+    { x: ambientClosedPath.at(-1)?.x, y: ambientClosedPath.at(-1)?.y },
+    { x: ambientTarget.gridX, y: ambientTarget.gridY },
+    'friendly camp path did not finish on the selected interior station tile'
+);
+
+const ambientLoopWithGap = ambientLoop.filter(item => item.id !== 'wall-w-11');
+const ambientLiveWallCells = new Set(ambientLoopWithGap.map(item => `${item.gridX},${item.gridY}`));
+const ambientGapPath = PathfindingSystem.findAmbientPath(
+    ambientStart.x,
+    ambientStart.y,
+    ambientTarget,
+    [ambientBarracks, ambientCamp, ...ambientLoopWithGap],
+    ambientCamp.id
+);
+assert(ambientGapPath?.length, 'friendly camp figure could not use an open wall gap');
+assert(
+    ambientGapPath.every(point => !ambientLiveWallCells.has(`${point.x},${point.y}`)),
+    'friendly camp path hopped a live wall despite a direct opening'
+);
 
 const startCellTarget = building('start-cell-target', 'wall', 10, 10);
 const betweenCenterAndRange = troop('between-center', 'warrior', 9.2, 10.5);

@@ -1,0 +1,662 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "dragon",
+  "variants": {
+    "h00": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h00_fly0.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h00_fly1.png",
+              "texelW": 128,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.5306712962962962,
+              "originY": 0.5396011396011395
+            },
+            {
+              "file": "dragon_h00_fly2.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h00_fly3.png",
+              "texelW": 128,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.5306712962962962,
+              "originY": 0.5396011396011395
+            }
+          ]
+        }
+      }
+    },
+    "h01": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h01_fly0.png",
+              "texelW": 99,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.5851103628881406,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h01_fly1.png",
+              "texelW": 138,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.5646806226516371,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h01_fly2.png",
+              "texelW": 99,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.5851103628881406,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h01_fly3.png",
+              "texelW": 138,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.5646806226516371,
+              "originY": 0.5009496676163342
+            }
+          ]
+        }
+      }
+    },
+    "h02": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h02_fly0.png",
+              "texelW": 108,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49931412894375854,
+              "originY": 0.5008818342151675
+            },
+            {
+              "file": "dragon_h02_fly1.png",
+              "texelW": 150,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49950617283950616,
+              "originY": 0.5008818342151675
+            },
+            {
+              "file": "dragon_h02_fly2.png",
+              "texelW": 108,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49931412894375854,
+              "originY": 0.5008818342151675
+            },
+            {
+              "file": "dragon_h02_fly3.png",
+              "texelW": 150,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49950617283950616,
+              "originY": 0.5008818342151675
+            }
+          ]
+        }
+      }
+    },
+    "h03": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h03_fly0.png",
+              "texelW": 100,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4192592592592592,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h03_fly1.png",
+              "texelW": 138,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4342458400429414,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h03_fly2.png",
+              "texelW": 100,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4192592592592592,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h03_fly3.png",
+              "texelW": 138,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4342458400429414,
+              "originY": 0.5009496676163342
+            }
+          ]
+        }
+      }
+    },
+    "h04": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h04_fly0.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h04_fly1.png",
+              "texelW": 128,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.4681712962962962,
+              "originY": 0.5396011396011395
+            },
+            {
+              "file": "dragon_h04_fly2.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h04_fly3.png",
+              "texelW": 128,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.4681712962962962,
+              "originY": 0.5396011396011395
+            }
+          ]
+        }
+      }
+    },
+    "h05": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h05_fly0.png",
+              "texelW": 155,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.5896877269426287
+            },
+            {
+              "file": "dragon_h05_fly1.png",
+              "texelW": 155,
+              "texelH": 68,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.559912854030501
+            },
+            {
+              "file": "dragon_h05_fly2.png",
+              "texelW": 155,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.5896877269426287
+            },
+            {
+              "file": "dragon_h05_fly3.png",
+              "texelW": 155,
+              "texelH": 68,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.559912854030501
+            }
+          ]
+        }
+      }
+    },
+    "h06": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h06_fly0.png",
+              "texelW": 168,
+              "texelH": 54,
+              "cellWorldPx": 1.35,
+              "originX": 0.4995590828924162,
+              "originY": 0.5013717421124828
+            },
+            {
+              "file": "dragon_h06_fly1.png",
+              "texelW": 168,
+              "texelH": 76,
+              "cellWorldPx": 1.35,
+              "originX": 0.4995590828924162,
+              "originY": 0.5009746588693956
+            },
+            {
+              "file": "dragon_h06_fly2.png",
+              "texelW": 168,
+              "texelH": 54,
+              "cellWorldPx": 1.35,
+              "originX": 0.4995590828924162,
+              "originY": 0.5013717421124828
+            },
+            {
+              "file": "dragon_h06_fly3.png",
+              "texelW": 168,
+              "texelH": 76,
+              "cellWorldPx": 1.35,
+              "originX": 0.4995590828924162,
+              "originY": 0.5009746588693956
+            }
+          ]
+        }
+      }
+    },
+    "h07": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h07_fly0.png",
+              "texelW": 156,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.41321713870733456
+            },
+            {
+              "file": "dragon_h07_fly1.png",
+              "texelW": 156,
+              "texelH": 69,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.4358561460010735
+            },
+            {
+              "file": "dragon_h07_fly2.png",
+              "texelW": 156,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.41321713870733456
+            },
+            {
+              "file": "dragon_h07_fly3.png",
+              "texelW": 156,
+              "texelH": 69,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.4358561460010735
+            }
+          ]
+        }
+      }
+    },
+    "h08": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h08_fly0.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h08_fly1.png",
+              "texelW": 126,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.4756025867136977,
+              "originY": 0.4626780626780626
+            },
+            {
+              "file": "dragon_h08_fly2.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h08_fly3.png",
+              "texelW": 126,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.4756025867136977,
+              "originY": 0.4626780626780626
+            }
+          ]
+        }
+      }
+    },
+    "h09": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h09_fly0.png",
+              "texelW": 100,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4192592592592592,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h09_fly1.png",
+              "texelW": 135,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4513031550068587,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h09_fly2.png",
+              "texelW": 100,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4192592592592592,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h09_fly3.png",
+              "texelW": 135,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.4513031550068587,
+              "originY": 0.5009496676163342
+            }
+          ]
+        }
+      }
+    },
+    "h10": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h10_fly0.png",
+              "texelW": 108,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49931412894375854,
+              "originY": 0.5008818342151675
+            },
+            {
+              "file": "dragon_h10_fly1.png",
+              "texelW": 150,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49950617283950616,
+              "originY": 0.5008818342151675
+            },
+            {
+              "file": "dragon_h10_fly2.png",
+              "texelW": 108,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49931412894375854,
+              "originY": 0.5008818342151675
+            },
+            {
+              "file": "dragon_h10_fly3.png",
+              "texelW": 150,
+              "texelH": 84,
+              "cellWorldPx": 1.35,
+              "originX": 0.49950617283950616,
+              "originY": 0.5008818342151675
+            }
+          ]
+        }
+      }
+    },
+    "h11": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h11_fly0.png",
+              "texelW": 99,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.5851103628881406,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h11_fly1.png",
+              "texelW": 135,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.547599451303155,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h11_fly2.png",
+              "texelW": 99,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.5851103628881406,
+              "originY": 0.5009496676163342
+            },
+            {
+              "file": "dragon_h11_fly3.png",
+              "texelW": 135,
+              "texelH": 78,
+              "cellWorldPx": 1.35,
+              "originX": 0.547599451303155,
+              "originY": 0.5009496676163342
+            }
+          ]
+        }
+      }
+    },
+    "h12": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h12_fly0.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h12_fly1.png",
+              "texelW": 126,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.5232216343327454,
+              "originY": 0.4626780626780626
+            },
+            {
+              "file": "dragon_h12_fly2.png",
+              "texelW": 120,
+              "texelH": 60,
+              "cellWorldPx": 1.35,
+              "originX": 0.49938271604938267,
+              "originY": 0.5012345679012346
+            },
+            {
+              "file": "dragon_h12_fly3.png",
+              "texelW": 126,
+              "texelH": 65,
+              "cellWorldPx": 1.35,
+              "originX": 0.5232216343327454,
+              "originY": 0.4626780626780626
+            }
+          ]
+        }
+      }
+    },
+    "h13": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h13_fly0.png",
+              "texelW": 155,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.41321713870733456
+            },
+            {
+              "file": "dragon_h13_fly1.png",
+              "texelW": 155,
+              "texelH": 69,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.4358561460010735
+            },
+            {
+              "file": "dragon_h13_fly2.png",
+              "texelW": 155,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.41321713870733456
+            },
+            {
+              "file": "dragon_h13_fly3.png",
+              "texelW": 155,
+              "texelH": 69,
+              "cellWorldPx": 1.35,
+              "originX": 0.4962962962962963,
+              "originY": 0.4358561460010735
+            }
+          ]
+        }
+      }
+    },
+    "h14": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h14_fly0.png",
+              "texelW": 169,
+              "texelH": 54,
+              "cellWorldPx": 1.35,
+              "originX": 0.502520271751041,
+              "originY": 0.5013717421124828
+            },
+            {
+              "file": "dragon_h14_fly1.png",
+              "texelW": 169,
+              "texelH": 74,
+              "cellWorldPx": 1.35,
+              "originX": 0.502520271751041,
+              "originY": 0.501001001001001
+            },
+            {
+              "file": "dragon_h14_fly2.png",
+              "texelW": 169,
+              "texelH": 54,
+              "cellWorldPx": 1.35,
+              "originX": 0.502520271751041,
+              "originY": 0.5013717421124828
+            },
+            {
+              "file": "dragon_h14_fly3.png",
+              "texelW": 169,
+              "texelH": 74,
+              "cellWorldPx": 1.35,
+              "originX": 0.502520271751041,
+              "originY": 0.501001001001001
+            }
+          ]
+        }
+      }
+    },
+    "h15": {
+      "states": {
+        "fly": {
+          "loopMs": 1400,
+          "frames": [
+            {
+              "file": "dragon_h15_fly0.png",
+              "texelW": 156,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.5896877269426287
+            },
+            {
+              "file": "dragon_h15_fly1.png",
+              "texelW": 156,
+              "texelH": 68,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.559912854030501
+            },
+            {
+              "file": "dragon_h15_fly2.png",
+              "texelW": 156,
+              "texelH": 51,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.5896877269426287
+            },
+            {
+              "file": "dragon_h15_fly3.png",
+              "texelW": 156,
+              "texelH": 68,
+              "cellWorldPx": 1.35,
+              "originX": 0.5059354226020892,
+              "originY": 0.559912854030501
+            }
+          ]
+        }
+      }
+    }
+  }
+}

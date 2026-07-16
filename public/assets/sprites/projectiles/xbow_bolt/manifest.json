@@ -1,0 +1,822 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "xbow_bolt",
+  "variants": {
+    "l1_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a00_idle0.png",
+              "texelW": 9,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    },
+    "l1_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a01_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l1_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a02_idle0.png",
+              "texelW": 7,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4074074074074068,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l1_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a03_idle0.png",
+              "texelW": 4,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l1_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a04_idle0.png",
+              "texelW": 3,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l1_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a05_idle0.png",
+              "texelW": 4,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l1_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a06_idle0.png",
+              "texelW": 8,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.4074074074074068
+            }
+          ]
+        }
+      }
+    },
+    "l1_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a07_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l1_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a08_idle0.png",
+              "texelW": 9,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    },
+    "l1_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a09_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l1_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a10_idle0.png",
+              "texelW": 7,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.550264550264549,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l1_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a11_idle0.png",
+              "texelW": 4,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l1_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a12_idle0.png",
+              "texelW": 3,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l1_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a13_idle0.png",
+              "texelW": 4,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l1_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a14_idle0.png",
+              "texelW": 8,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.550264550264549
+            }
+          ]
+        }
+      }
+    },
+    "l1_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l1_a15_idle0.png",
+              "texelW": 8,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l2_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a00_idle0.png",
+              "texelW": 9,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    },
+    "l2_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a01_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l2_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a02_idle0.png",
+              "texelW": 7,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4074074074074068,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l2_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a03_idle0.png",
+              "texelW": 4,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l2_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a04_idle0.png",
+              "texelW": 3,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l2_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a05_idle0.png",
+              "texelW": 4,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l2_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a06_idle0.png",
+              "texelW": 8,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.4074074074074068
+            }
+          ]
+        }
+      }
+    },
+    "l2_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a07_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l2_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a08_idle0.png",
+              "texelW": 9,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    },
+    "l2_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a09_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l2_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a10_idle0.png",
+              "texelW": 7,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.550264550264549,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l2_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a11_idle0.png",
+              "texelW": 4,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l2_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a12_idle0.png",
+              "texelW": 3,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l2_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a13_idle0.png",
+              "texelW": 4,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l2_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a14_idle0.png",
+              "texelW": 8,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.550264550264549
+            }
+          ]
+        }
+      }
+    },
+    "l2_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l2_a15_idle0.png",
+              "texelW": 8,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l3_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a00_idle0.png",
+              "texelW": 9,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    },
+    "l3_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a01_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l3_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a02_idle0.png",
+              "texelW": 7,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4074074074074068,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l3_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a03_idle0.png",
+              "texelW": 4,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l3_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a04_idle0.png",
+              "texelW": 3,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l3_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a05_idle0.png",
+              "texelW": 4,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l3_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a06_idle0.png",
+              "texelW": 8,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.4074074074074068
+            }
+          ]
+        }
+      }
+    },
+    "l3_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a07_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l3_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a08_idle0.png",
+              "texelW": 9,
+              "texelH": 3,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.6172839506172838
+            }
+          ]
+        }
+      }
+    },
+    "l3_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a09_idle0.png",
+              "texelW": 9,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.5390946502057611,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    },
+    "l3_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a10_idle0.png",
+              "texelW": 7,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.550264550264549,
+              "originY": 0.4814814814814804
+            }
+          ]
+        }
+      }
+    },
+    "l3_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a11_idle0.png",
+              "texelW": 4,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l3_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a12_idle0.png",
+              "texelW": 3,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.6172839506172838,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l3_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a13_idle0.png",
+              "texelW": 4,
+              "texelH": 9,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.5390946502057611
+            }
+          ]
+        }
+      }
+    },
+    "l3_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a14_idle0.png",
+              "texelW": 8,
+              "texelH": 7,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.550264550264549
+            }
+          ]
+        }
+      }
+    },
+    "l3_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "xbow_bolt_l3_a15_idle0.png",
+              "texelW": 8,
+              "texelH": 4,
+              "cellWorldPx": 1.35,
+              "originX": 0.4814814814814804,
+              "originY": 0.4629629629629629
+            }
+          ]
+        }
+      }
+    }
+  }
+}

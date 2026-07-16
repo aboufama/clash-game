@@ -34,7 +34,11 @@ import type {
   WorldAttackTarget
 } from './types'
 
-export const ATTACK_SIMULATION_VERSION = 2
+// v3 (2026-07): deterministic troop attrition — each deployed troop's damage
+// credit is capped by its expected survival time against the snapshot's
+// defense DPS. Attacks pin the rules version at preparation, so replays and
+// settlements recorded under v1/v2 keep reproducing their original results.
+export const ATTACK_SIMULATION_VERSION = 3
 
 export const DEFAULT_ATTACK_RULES: Readonly<AttackRulesSnapshot> = Object.freeze({
   simulationVersion: ATTACK_SIMULATION_VERSION,

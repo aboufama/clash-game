@@ -50,13 +50,20 @@ default path is code → bake.
 ## Stage B — the bake (`tools/art-preview/bake-sprites.mjs`)
 
 ```
-# server must be running (npm start on 8788, or npm run dev on 5173)
+# server must be running (npm start on 8788, or npm run dev on 5173 —
+# the bake auto-falls back to 5173 when 8788 is down)
 cd tools/art-preview
 UNITS=all TROOPS=all node bake-sprites.mjs        # the whole roster (~4 min)
 UNITS=cannon LEVELS=1,2 node bake-sprites.mjs     # one unit, chosen levels
 TROOPS=archer TROOP_LEVELS=1 node bake-sprites.mjs
 VERIFY=1 UNITS=cannon node bake-sprites.mjs       # + in-game A/B + fidelity metrics
 ```
+
+Both the bake and the screenshot harnesses resume ONE shared identity from
+`tools/art-preview/.shared-device-token.json` (auto-created, gitignored).
+Never mint sessions via `/api/auth/session` per run: guest creation is
+rate-limited (30/hour/address) and every extra guest permanently junks the
+world map with an abandoned village.
 
 `UNITS=all` discovers the roster from `BUILDING_DEFINITIONS` + the visual
 catalog (generic-routed types are skipped; levels come from `maxLevel`), bakes
@@ -212,15 +219,23 @@ The tool discovers coverage instead of trusting a hand-written table:
   barracks doors nobody declared); truly novel fields print
   `COVERAGE WARNING` (this caught mortar + spike launcher consuming
   `ballistaAngle` — both are now in the 16-angle `ROTATING` set).
-- **Ambient-motion discovery**: static buildings are probed over 8 s; changed-
-  texel autocorrelation measures the true idle period, and the idle bakes as a
-  loop at exactly that period (town hall banner ≈ 5.25 s, watchman 750 ms,
-  jukebox found a perfect 5.5 s loop with 0.00% residual; storage correctly
-  ruled static). The period pick prefers the FIRST strong minimum so fast
-  spinners (prism ring) keep their true short period instead of a long
-  harmonic, and the frame count scales with the period
-  (`clamp(period/85ms, 8, 24)`) — fast loops get ~12 fps. Multi-rate motion
-  (farm crops in wind) gets the best approximate period, `loopExact: false`.
+- **Ambient-motion discovery**: every non-wall building is probed over 8 s
+  — per type+LEVEL, and since 2026-07-12 this includes the 16-angle
+  `ROTATING` turrets (probed once at the default aim; the discovered loop
+  then bakes at every aim angle). Changed-texel autocorrelation measures
+  the true idle period, and the idle bakes as a loop at exactly that period
+  (town hall banner ≈ 5.25 s, watchman 750 ms, jukebox found a perfect
+  5.5 s loop with 0.00% residual; storage correctly ruled static). The
+  period pick prefers the FIRST strong minimum so fast spinners (prism
+  ring) keep their true short period instead of a long harmonic, and the
+  frame count scales with the period — 1-angle ambients at ~18 fps capped
+  at 36 frames, turrets leaner (~12 fps, cap 20) because their idle frames
+  multiply by all 16 angles. Multi-rate motion (farm crops in wind) gets
+  the best approximate period, `loopExact: false`. EVERY defense now ships
+  an idle loop; authored idle terms must be exact harmonics of a declared
+  250 ms-multiple period and survive quantization (displace ≥1.5 world px
+  or swing ≥16/255 RGB over ≥1% of silhouette texels), or the probe rules
+  the building static and the sprite freezes.
 - **Fire/charge sequences** are baked per angle for rotating defenses
   (recoil/tension/reload/charge drivers matched to what MainScene tweens),
   and pure `f(time − lastFireTime)` types get age sweeps automatically.
@@ -307,21 +322,32 @@ contract — never a global renderer setting:
 1. ✅ Pipeline + cannon pilot (quantizer, 16-angle sweep, fidelity metrics).
 2. ✅ Full roster baked.
 3. ✅ **v3 completeness**: per-angle fire sequences, tesla charge, frostfall
-   reload, fill stages, doors, gates, jukebox, ambient-loop discovery,
+   reload, fill stages, doors, jukebox, ambient-loop discovery,
    state-read audit, vapor off, troop breath loops, golem/phalanx driver
    attacks, tank deactivated pose, wrecks, obstacles (16 hash-bucket
-   variants + sway loops), alpha snap. 9,684 frames across 57 manifests
+   variants + sway loops), alpha snap. 9,676 frames across 57 manifests
    (19 buildings, 14 troops, 19 wrecks, 5 obstacles) — enforced by
    `scripts/render-quality-regression.mjs`.
 4. ✅ **Runtime conversion live**: SpriteBank + shadow-sprite integration for
-   buildings (incl. walls/gates via topology tags), troops, wrecks,
+   buildings (including walls via topology tags), troops, wrecks,
    obstacles; ground-RT + postcard-RT quantize passes. Verified headful in
    the village and a practice raid, zero page errors.
-5. Remaining surfaces (documented, pattern established): villagers/animals/
-   travellers (VillageLifeSystem — same bake pattern as troops), the
-   between-plot road/wilderness gap layer (chunked RT quantize), cloud puffs
-   as sprites, projectiles/impacts/patina/burning-wreck FX as the runtime
-   effects layer (the "smoke bucket"), battle-preview figures. This step
+5. ✅ **Figures + projectiles baked (2026-07-12).** Three new kinds:
+   `villagers/` (villager 60 identity variants × full state set, dog,
+   chicken, birds, dragon 16-heading silhouette, merchant, stall, thief,
+   owl — 2,124 frames), `figures/` (8 traveller kinds walk+camp, caravan
+   soldier × 14 troop palettes, postcard fish — 144 frames), `projectiles/`
+   (10 rigid projectiles × 16 rotation variants × material levels — 326
+   frames; runtime picks the nearest baked angle instead of rotating).
+   Bake plan lives in `bake-sprites.mjs` `FIGURE_UNITS` (`FIGURES=1`);
+   figures bake at final world scale, anchor (0,0), flip-X at runtime;
+   translucent silhouettes bake opaque (alpha restored on the carrier).
+   Runtime: `SpriteBank.syncFigure` at every single-figure call site.
+   Still open in this bucket: per-figure carriers for the caravan column +
+   postcard life (their frames are baked; both draw into one shared
+   Graphics today), the between-plot gap layer (chunked RT quantize),
+   cloud puffs as sprites, impact/patina/burning FX (the "smoke bucket"),
+   battle-preview figures, flag cloth (procedural heraldry stays vector). This step
    covers most — not all — of the layers that render smooth since the snap
    pass was removed: rain/splashes stay runtime FX per the coverage matrix,
    night glows and the interaction overlays stay smooth by design.
@@ -334,3 +360,51 @@ contract — never a global renderer setting:
 `getBuildingStats`/`getTroopStats` · `DefenseSystem`/`DefenseBehaviorCatalog`
 seam · `TargetingSystem`/`CombatNavigationSystem` · the server · the RT-bake +
 LOD/residency world-map architecture.
+
+## Design variants (tournament infrastructure)
+
+Clean-room design tournaments (multiple competing redesigns of one unit) are
+first-class in both halves of the pipeline. Everything keys off ONE
+localStorage key per unit — `clash.design.<unit>` — so the baked sprites, the
+vector fallback, and the Settings dev tool can never disagree.
+
+**The `@slot` asset convention.** A design variant is a FULL standalone unit
+bake living in a sibling dir named `<unit>@<slot>`:
+`public/assets/sprites/buildings/cannon@A/`, `troops/golem@C/`, … — each with
+its own frames, `manifest.json`, and packed atlas. `pack-atlases.mjs` and the
+render-quality regression walk them as ordinary units (nothing special about
+`@` in a dir name). At runtime `SpriteBank.resolveVariantUnit(kind, unit)` is
+the single resolution point: when variant atlases exist for a unit, the plain
+name (`'cannon'`) transparently resolves to the active slot
+(`'cannon@B'`) — the stored slot when baked, else `A`, else the first baked
+slot. Every bank lookup routes through it (`unitOf`/`backed` are the only
+doors), so no call site knows variants exist. Units with no `@` dirs resolve
+to themselves; once a tournament's variants are baked, the un-tagged unit dir
+is deleted.
+
+**Adding a future variant (the whole checklist):**
+
+1. **Register the vector draw** in
+   `src/game/renderers/redesign/DesignRegistry.ts` (import anchor + slot
+   anchor; extend `DesignUnit`/`DESIGN_SLOTS` for a brand-new unit and give
+   the unit's renderer the standard `activeDesign(...)` stub delegator).
+2. **Bake the slot**: `DESIGN=<slot> UNITS=<unit> node bake-sprites.mjs`
+   (buildings) or `DESIGN=<slot> TROOPS=<unit> node bake-sprites.mjs`
+   (troops), then `node pack-atlases.mjs`. `DESIGN` seeds
+   `clash.design.<unit>=<slot>` (and `clash.sprites.off`) before game boot so
+   every pass — state audit, ambient probe, capture — bakes that design, and
+   writes output to `<unit>@<slot>`. Explicit unit lists only, never `all`.
+3. **It appears in the Design Lab automatically**: the dev-only DESIGN LAB
+   section of the Settings modal renders purely from
+   `DesignRegistry.listVariantUnits()` — zero hardcoded names.
+
+**The switch event contract.** `setActiveSlot(unit, slot)` writes
+`localStorage['clash.design.<unit>']` and dispatches the window event
+`'clash:design-changed'` with `detail: { unit }` (`DESIGN_CHANGED_EVENT`).
+MainScene listens: it busts the draw cache of every placed building of that
+unit and re-stamps its ground decal (unbake → rebake, since designs ship
+their own pads); troops and camp figures re-pick frames on their own
+per-frame draws. `SpriteBank.resolveVariantUnit` and the vector
+`activeDesign` both re-read the key per call, so the switch is visually
+instant — no reload, no ghosts. Anything that caches drawn unit art and
+doesn't already repaint per frame must listen for the same event.

@@ -11,22 +11,38 @@ export type DefenseScheduler =
     | { kind: 'standard' }
     | { kind: 'charged'; chargeMs: number; chargedVisualMs: number };
 
+/**
+ * How the declared `damage` stat maps onto time — the ONE derivation the
+ * combat code and the UI share (see `defenseDps`):
+ *  - `perShot`: `damage` lands once per `fireRate` ms, × `salvoSize` shots
+ *    per volley (salvo batteries fire every pod at the same volley cadence).
+ *  - `dps`: `damage` IS damage-per-second; `fireRate` is only the tick
+ *    granularity a continuous beam applies it at
+ *    (see MainScene.shootPrismContinuousLaser).
+ */
+export type DefenseFireModel =
+    | { kind: 'perShot'; salvoSize?: number }
+    | { kind: 'dps' };
+
 export interface DefenseBehavior {
     fireEffect: ActiveDefenseType;
     targeting: DefenseTargetingPolicy;
     start: DefenseStartPolicy;
     scheduler: DefenseScheduler;
+    fireModel: DefenseFireModel;
     idleEffect?: DefenseIdleEffect;
 }
 
 const LOCKED_STANDARD = {
     targeting: 'locked',
-    scheduler: { kind: 'standard' }
+    scheduler: { kind: 'standard' },
+    fireModel: { kind: 'perShot' }
 } as const;
 
 const NEAREST_STANDARD = {
     targeting: 'nearest',
-    scheduler: { kind: 'standard' }
+    scheduler: { kind: 'standard' },
+    fireModel: { kind: 'perShot' }
 } as const;
 
 /**
@@ -43,15 +59,25 @@ export const DEFENSE_BEHAVIOR_CATALOG = {
         fireEffect: 'tesla',
         targeting: 'locked',
         start: 'cooldown',
-        scheduler: { kind: 'charged', chargeMs: 800, chargedVisualMs: 400 }
+        scheduler: { kind: 'charged', chargeMs: 800, chargedVisualMs: 400 },
+        fireModel: { kind: 'perShot' }
     },
     prism: {
         ...LOCKED_STANDARD,
         fireEffect: 'prism',
         start: 'ready',
+        // The beam is continuous: its damage stat is already per-second.
+        fireModel: { kind: 'dps' },
         idleEffect: 'cleanupPrismLaser'
     },
-    dragons_breath: { ...NEAREST_STANDARD, fireEffect: 'dragons_breath', start: 'cooldown' },
+    dragons_breath: {
+        ...NEAREST_STANDARD,
+        fireEffect: 'dragons_breath',
+        start: 'cooldown',
+        // One rocket per silo of the 4×4 battery — the renderer draws the
+        // matching grid, and MainScene fires exactly this many per volley.
+        fireModel: { kind: 'perShot', salvoSize: 16 }
+    },
     spike_launcher: { ...NEAREST_STANDARD, fireEffect: 'spike_launcher', start: 'cooldown' },
     frostfall: { ...NEAREST_STANDARD, fireEffect: 'frostfall', start: 'ready' }
 } as const satisfies Record<ActiveDefenseType, DefenseBehavior>;
@@ -59,4 +85,19 @@ export const DEFENSE_BEHAVIOR_CATALOG = {
 export function getDefenseBehavior(type: string): DefenseBehavior | undefined {
     if (!Object.prototype.hasOwnProperty.call(DEFENSE_BEHAVIOR_CATALOG, type)) return undefined;
     return DEFENSE_BEHAVIOR_CATALOG[type as ActiveDefenseType];
+}
+
+/**
+ * Sustained damage per second implied by a defense's level stats, derived
+ * from its fire model. This is the ONE place that math lives: tick beams
+ * (prism) already declare per-second damage, salvo batteries
+ * (dragons_breath) land every pod per volley. Returns null when the type
+ * isn't an active defense or the stats can't support the derivation.
+ */
+export function defenseDps(type: string, stats: { damage?: number; fireRate?: number }): number | null {
+    const behavior = getDefenseBehavior(type);
+    if (!behavior || !stats.damage) return null;
+    if (behavior.fireModel.kind === 'dps') return stats.damage;
+    if (!stats.fireRate) return null;
+    return stats.damage * (behavior.fireModel.salvoSize ?? 1) * (1000 / stats.fireRate);
 }

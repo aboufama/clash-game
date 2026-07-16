@@ -1,6 +1,7 @@
 import { BUILDING_DEFINITIONS, MAP_SIZE, type BuildingType, type ObstacleType } from '../config/GameDefinitions';
-import type { SerializedBuilding, SerializedObstacle, SerializedWorld, VillageLifeManifest } from '../data/Models';
-export type { VillageLifeManifest } from '../data/Models';
+import { adoptUpgradePolicy } from '../config/UpgradePolicy';
+import type { SerializedBuilding, SerializedObstacle, SerializedWorld, VillageBanner, VillageLifeManifest } from '../data/Models';
+export type { VillageBanner, VillageLifeManifest } from '../data/Models';
 import { Auth } from './Auth';
 
 const CACHE_PREFIX = 'clash.base.';
@@ -42,6 +43,8 @@ export interface WorldPostcard {
   revision?: number | string;
   /** Optional only for compatibility with bots and pre-manifest servers. */
   life?: VillageLifeManifest;
+  /** Owner-chosen heraldry; omitted = deterministic identity default. */
+  banner?: VillageBanner;
 }
 
 export interface WorldMapWindow {
@@ -889,7 +892,23 @@ export class Backend {
     }
     Backend.markAuthorityAdopted(userId, serverWorld.revision, requestSeq);
     Backend.setCachedWorld(userId, next);
+    Backend.adoptWorldAdvertisements(serverWorld);
     return next;
+  }
+
+  /**
+   * Server-advertised facts riding on every own-world payload. Trophies flow
+   * through the same event the settlement path uses, so a defense loss
+   * reaches the HUD on the ordinary world poll; the upgrade-clock policy
+   * keeps every advertised duration honest to THIS server's billing.
+   */
+  private static adoptWorldAdvertisements(world: SerializedWorld) {
+    adoptUpgradePolicy(world.upgradePolicy);
+    if (typeof world.trophies === 'number' && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('clash:trophies-synced', {
+        detail: { trophies: Math.max(0, Math.floor(world.trophies)) }
+      }));
+    }
   }
 
   private static captureLayoutBase(userId: string, world: SerializedWorld) {
@@ -1339,7 +1358,46 @@ export class Backend {
   } | null> {
     if (!Auth.isOnlineMode()) return null;
     try {
-      return await Backend.apiGet('/api/map/atlas');
+      const raw = await Backend.apiGet<{
+        me?: { x?: unknown; y?: unknown };
+        players?: unknown;
+        battles?: unknown;
+        window?: { minX?: unknown; maxX?: unknown; minY?: unknown; maxY?: unknown };
+        truncated?: unknown;
+      }>('/api/map/atlas');
+      // The transport boundary owns shape trust. The dev server hot-reloads
+      // the client while the mounted game-server process keeps running old
+      // code, so protocol drift can hand this method ANY 200 JSON body. The
+      // atlas modal dereferences `me.x` on arrival — an unchecked malformed
+      // payload used to throw in render and unmount the whole app. Malformed
+      // charts degrade to null: the modal keeps its retry note instead.
+      const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+      const me = raw?.me;
+      if (!me || !finite(me.x) || !finite(me.y) || !Array.isArray(raw.players)) {
+        console.warn('Atlas payload malformed (server/client version drift?) — chart postponed:', raw);
+        return null;
+      }
+      const players = (raw.players as Array<Record<string, unknown> | null>)
+        .filter((p): p is Record<string, unknown> => Boolean(p) && finite((p as Record<string, unknown>).x) && finite((p as Record<string, unknown>).y))
+        .map(p => ({
+          x: p.x as number,
+          y: p.y as number,
+          username: typeof p.username === 'string' ? p.username : 'Unknown chief',
+          trophies: finite(p.trophies) ? p.trophies : 0,
+          shielded: p.shielded === true,
+          underAttack: p.underAttack === true,
+          me: p.me === true,
+          online: p.online === true
+        }));
+      const battles = (Array.isArray(raw.battles) ? raw.battles as Array<Record<string, unknown> | null> : [])
+        .filter((b): b is Record<string, unknown> => Boolean(b))
+        .filter(b => finite(b.ax) && finite(b.ay) && finite(b.vx) && finite(b.vy))
+        .map(b => ({ ax: b.ax as number, ay: b.ay as number, vx: b.vx as number, vy: b.vy as number }));
+      const window = raw.window && finite(raw.window.minX) && finite(raw.window.maxX)
+        && finite(raw.window.minY) && finite(raw.window.maxY)
+        ? { minX: raw.window.minX, maxX: raw.window.maxX, minY: raw.window.minY, maxY: raw.window.maxY }
+        : { minX: me.x, maxX: me.x, minY: me.y, maxY: me.y };
+      return { me: { x: me.x, y: me.y }, players, battles, window, truncated: raw.truncated === true };
     } catch (error) {
       console.warn('Atlas fetch failed:', error);
       return null;
@@ -1422,6 +1480,31 @@ export class Backend {
       console.warn('Offline production sync skipped:', error);
       return { gold: 0 };
     }
+  }
+
+  /**
+   * Persist the owner's banner choice (null = back to the identity-derived
+   * default) and mirror it into the cached world so the town-hall flag, the
+   * war camp and the picker all redraw immediately. Announces the change via
+   * a window event; the server refreshes neighbour postcards through its
+   * appearance revision.
+   */
+  static async setVillageBanner(userId: string, banner: VillageBanner | null): Promise<VillageBanner | null> {
+    const response = await Backend.apiPost<{ banner?: VillageBanner | null }>('/api/player/banner', { banner });
+    const applied = response.banner ?? null;
+    const cached = Backend.getCachedWorld(userId);
+    if (cached) {
+      const next: SerializedWorld = { ...cached };
+      if (applied) next.banner = { ...applied };
+      else delete next.banner;
+      Backend.setCachedWorld(userId, next);
+    }
+    try {
+      window.dispatchEvent(new CustomEvent('clash:banner-changed', { detail: { userId, banner: applied } }));
+    } catch {
+      // Non-browser context (tests) — nothing to announce to.
+    }
+    return applied;
   }
 
   static async applyResourceDelta(userId: string, delta: number, reason: string, refId?: string, requestId?: string, resource: 'gold' | 'ore' | 'food' = 'gold'): Promise<ResourceDeltaResult> {

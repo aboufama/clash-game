@@ -1,0 +1,100 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "traveller_monk",
+  "variants": {
+    "c": {
+      "states": {
+        "walk": {
+          "loopMs": 393,
+          "frames": [
+            {
+              "file": "traveller_monk_c_walk0.png",
+              "texelW": 6,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.4320987654320987,
+              "originY": 0.8653198653198648
+            },
+            {
+              "file": "traveller_monk_c_walk1.png",
+              "texelW": 6,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.4320987654320987,
+              "originY": 0.8653198653198648
+            },
+            {
+              "file": "traveller_monk_c_walk2.png",
+              "texelW": 6,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4320987654320987,
+              "originY": 0.8765432098765428
+            },
+            {
+              "file": "traveller_monk_c_walk3.png",
+              "texelW": 6,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4320987654320987,
+              "originY": 0.8765432098765428
+            },
+            {
+              "file": "traveller_monk_c_walk4.png",
+              "texelW": 6,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4320987654320987,
+              "originY": 0.8765432098765428
+            },
+            {
+              "file": "traveller_monk_c_walk5.png",
+              "texelW": 6,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.4320987654320987,
+              "originY": 0.8653198653198648
+            }
+          ]
+        },
+        "camp": {
+          "loopMs": 314,
+          "frames": [
+            {
+              "file": "traveller_monk_c_camp0.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_monk_c_camp1.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_monk_c_camp2.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            },
+            {
+              "file": "traveller_monk_c_camp3.png",
+              "texelW": 14,
+              "texelH": 11,
+              "cellWorldPx": 1.35,
+              "originX": 0.3280423280423278,
+              "originY": 0.7744107744107743
+            }
+          ]
+        }
+      }
+    }
+  }
+}

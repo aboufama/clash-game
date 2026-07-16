@@ -1,0 +1,822 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "ballista_bolt",
+  "variants": {
+    "l1_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a00_idle0.png",
+              "texelW": 43,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4151593453919034,
+              "originY": 0.48765432098765416
+            }
+          ]
+        }
+      }
+    },
+    "l1_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a01_idle0.png",
+              "texelW": 41,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4110207768744354,
+              "originY": 0.44781144781144766
+            }
+          ]
+        }
+      }
+    },
+    "l1_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a02_idle0.png",
+              "texelW": 31,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.41457586618876924,
+              "originY": 0.43287037037037024
+            }
+          ]
+        }
+      }
+    },
+    "l1_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a03_idle0.png",
+              "texelW": 22,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.44781144781144766,
+              "originY": 0.4110207768744354
+            }
+          ]
+        }
+      }
+    },
+    "l1_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a04_idle0.png",
+              "texelW": 12,
+              "texelH": 43,
+              "cellWorldPx": 1.35,
+              "originX": 0.48765432098765416,
+              "originY": 0.4151593453919034
+            }
+          ]
+        }
+      }
+    },
+    "l1_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a05_idle0.png",
+              "texelW": 21,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.564373897707231,
+              "originY": 0.4110207768744354
+            }
+          ]
+        }
+      }
+    },
+    "l1_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a06_idle0.png",
+              "texelW": 33,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.5712682379349044,
+              "originY": 0.43287037037037024
+            }
+          ]
+        }
+      }
+    },
+    "l1_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a07_idle0.png",
+              "texelW": 41,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5817524841915085,
+              "originY": 0.44781144781144766
+            }
+          ]
+        }
+      }
+    },
+    "l1_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a08_idle0.png",
+              "texelW": 43,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.577950043066322,
+              "originY": 0.48765432098765416
+            }
+          ]
+        }
+      }
+    },
+    "l1_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a09_idle0.png",
+              "texelW": 41,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.5817524841915085,
+              "originY": 0.564373897707231
+            }
+          ]
+        }
+      }
+    },
+    "l1_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a10_idle0.png",
+              "texelW": 32,
+              "texelH": 33,
+              "cellWorldPx": 1.35,
+              "originX": 0.5891203703703702,
+              "originY": 0.5712682379349044
+            }
+          ]
+        }
+      }
+    },
+    "l1_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a11_idle0.png",
+              "texelW": 21,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.564373897707231,
+              "originY": 0.5817524841915085
+            }
+          ]
+        }
+      }
+    },
+    "l1_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a12_idle0.png",
+              "texelW": 12,
+              "texelH": 43,
+              "cellWorldPx": 1.35,
+              "originX": 0.48765432098765416,
+              "originY": 0.577950043066322
+            }
+          ]
+        }
+      }
+    },
+    "l1_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a13_idle0.png",
+              "texelW": 22,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.44781144781144766,
+              "originY": 0.5817524841915085
+            }
+          ]
+        }
+      }
+    },
+    "l1_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a14_idle0.png",
+              "texelW": 32,
+              "texelH": 33,
+              "cellWorldPx": 1.35,
+              "originX": 0.43287037037037024,
+              "originY": 0.5712682379349044
+            }
+          ]
+        }
+      }
+    },
+    "l1_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l1_a15_idle0.png",
+              "texelW": 41,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.4110207768744354,
+              "originY": 0.564373897707231
+            }
+          ]
+        }
+      }
+    },
+    "l2_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a00_idle0.png",
+              "texelW": 43,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4151593453919034,
+              "originY": 0.48765432098765416
+            }
+          ]
+        }
+      }
+    },
+    "l2_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a01_idle0.png",
+              "texelW": 41,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4110207768744354,
+              "originY": 0.44781144781144766
+            }
+          ]
+        }
+      }
+    },
+    "l2_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a02_idle0.png",
+              "texelW": 31,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.41457586618876924,
+              "originY": 0.43287037037037024
+            }
+          ]
+        }
+      }
+    },
+    "l2_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a03_idle0.png",
+              "texelW": 22,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.44781144781144766,
+              "originY": 0.4110207768744354
+            }
+          ]
+        }
+      }
+    },
+    "l2_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a04_idle0.png",
+              "texelW": 12,
+              "texelH": 43,
+              "cellWorldPx": 1.35,
+              "originX": 0.48765432098765416,
+              "originY": 0.4151593453919034
+            }
+          ]
+        }
+      }
+    },
+    "l2_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a05_idle0.png",
+              "texelW": 21,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.564373897707231,
+              "originY": 0.4110207768744354
+            }
+          ]
+        }
+      }
+    },
+    "l2_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a06_idle0.png",
+              "texelW": 33,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.5712682379349044,
+              "originY": 0.43287037037037024
+            }
+          ]
+        }
+      }
+    },
+    "l2_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a07_idle0.png",
+              "texelW": 41,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5817524841915085,
+              "originY": 0.44781144781144766
+            }
+          ]
+        }
+      }
+    },
+    "l2_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a08_idle0.png",
+              "texelW": 43,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.577950043066322,
+              "originY": 0.48765432098765416
+            }
+          ]
+        }
+      }
+    },
+    "l2_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a09_idle0.png",
+              "texelW": 41,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.5817524841915085,
+              "originY": 0.564373897707231
+            }
+          ]
+        }
+      }
+    },
+    "l2_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a10_idle0.png",
+              "texelW": 32,
+              "texelH": 33,
+              "cellWorldPx": 1.35,
+              "originX": 0.5891203703703702,
+              "originY": 0.5712682379349044
+            }
+          ]
+        }
+      }
+    },
+    "l2_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a11_idle0.png",
+              "texelW": 21,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.564373897707231,
+              "originY": 0.5817524841915085
+            }
+          ]
+        }
+      }
+    },
+    "l2_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a12_idle0.png",
+              "texelW": 12,
+              "texelH": 43,
+              "cellWorldPx": 1.35,
+              "originX": 0.48765432098765416,
+              "originY": 0.577950043066322
+            }
+          ]
+        }
+      }
+    },
+    "l2_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a13_idle0.png",
+              "texelW": 22,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.44781144781144766,
+              "originY": 0.5817524841915085
+            }
+          ]
+        }
+      }
+    },
+    "l2_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a14_idle0.png",
+              "texelW": 32,
+              "texelH": 33,
+              "cellWorldPx": 1.35,
+              "originX": 0.43287037037037024,
+              "originY": 0.5712682379349044
+            }
+          ]
+        }
+      }
+    },
+    "l2_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l2_a15_idle0.png",
+              "texelW": 41,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.4110207768744354,
+              "originY": 0.564373897707231
+            }
+          ]
+        }
+      }
+    },
+    "l3_a00": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a00_idle0.png",
+              "texelW": 43,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4151593453919034,
+              "originY": 0.48765432098765416
+            }
+          ]
+        }
+      }
+    },
+    "l3_a01": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a01_idle0.png",
+              "texelW": 41,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4110207768744354,
+              "originY": 0.44781144781144766
+            }
+          ]
+        }
+      }
+    },
+    "l3_a02": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a02_idle0.png",
+              "texelW": 31,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.41457586618876924,
+              "originY": 0.43287037037037024
+            }
+          ]
+        }
+      }
+    },
+    "l3_a03": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a03_idle0.png",
+              "texelW": 22,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.44781144781144766,
+              "originY": 0.4110207768744354
+            }
+          ]
+        }
+      }
+    },
+    "l3_a04": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a04_idle0.png",
+              "texelW": 12,
+              "texelH": 43,
+              "cellWorldPx": 1.35,
+              "originX": 0.48765432098765416,
+              "originY": 0.4151593453919034
+            }
+          ]
+        }
+      }
+    },
+    "l3_a05": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a05_idle0.png",
+              "texelW": 21,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.564373897707231,
+              "originY": 0.4110207768744354
+            }
+          ]
+        }
+      }
+    },
+    "l3_a06": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a06_idle0.png",
+              "texelW": 33,
+              "texelH": 32,
+              "cellWorldPx": 1.35,
+              "originX": 0.5712682379349044,
+              "originY": 0.43287037037037024
+            }
+          ]
+        }
+      }
+    },
+    "l3_a07": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a07_idle0.png",
+              "texelW": 41,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5817524841915085,
+              "originY": 0.44781144781144766
+            }
+          ]
+        }
+      }
+    },
+    "l3_a08": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a08_idle0.png",
+              "texelW": 43,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.577950043066322,
+              "originY": 0.48765432098765416
+            }
+          ]
+        }
+      }
+    },
+    "l3_a09": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a09_idle0.png",
+              "texelW": 41,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.5817524841915085,
+              "originY": 0.564373897707231
+            }
+          ]
+        }
+      }
+    },
+    "l3_a10": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a10_idle0.png",
+              "texelW": 32,
+              "texelH": 33,
+              "cellWorldPx": 1.35,
+              "originX": 0.5891203703703702,
+              "originY": 0.5712682379349044
+            }
+          ]
+        }
+      }
+    },
+    "l3_a11": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a11_idle0.png",
+              "texelW": 21,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.564373897707231,
+              "originY": 0.5817524841915085
+            }
+          ]
+        }
+      }
+    },
+    "l3_a12": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a12_idle0.png",
+              "texelW": 12,
+              "texelH": 43,
+              "cellWorldPx": 1.35,
+              "originX": 0.48765432098765416,
+              "originY": 0.577950043066322
+            }
+          ]
+        }
+      }
+    },
+    "l3_a13": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a13_idle0.png",
+              "texelW": 22,
+              "texelH": 41,
+              "cellWorldPx": 1.35,
+              "originX": 0.44781144781144766,
+              "originY": 0.5817524841915085
+            }
+          ]
+        }
+      }
+    },
+    "l3_a14": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a14_idle0.png",
+              "texelW": 32,
+              "texelH": 33,
+              "cellWorldPx": 1.35,
+              "originX": 0.43287037037037024,
+              "originY": 0.5712682379349044
+            }
+          ]
+        }
+      }
+    },
+    "l3_a15": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "ballista_bolt_l3_a15_idle0.png",
+              "texelW": 41,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.4110207768744354,
+              "originY": 0.564373897707231
+            }
+          ]
+        }
+      }
+    }
+  }
+}

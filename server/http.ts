@@ -73,6 +73,12 @@ export function createApiHandler<Principal>(game: ApiService<Principal>) {
       if (method === 'POST' && path === '/player/rename') {
         return { status: 200, body: { player: await game.rename(player, body.name) } }
       }
+      if (method === 'POST' && path === '/player/banner') {
+        if (!game.setBanner) {
+          return { status: 404, body: { error: `Unknown route: ${method} /api${path}` } }
+        }
+        return { status: 200, body: await game.setBanner(player, body.banner) }
+      }
       if (method === 'GET' && path === '/world') {
         return { status: 200, body: { world: await game.getWorld(player) } }
       }

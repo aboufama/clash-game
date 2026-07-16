@@ -5,6 +5,45 @@
 export class MobileUtils {
     private static _isMobile: boolean | null = null;
     private static _isTouchDevice: boolean | null = null;
+    private static _resizeWatcherInstalled = false;
+    private static _changeListeners = new Set<(isMobile: boolean) => void>();
+
+    /**
+     * Subscribe to changes of the mobile heuristic (fired by the resize
+     * watcher, only when the answer actually flips). Returns the
+     * unsubscribe, so React effects can return it directly.
+     */
+    static onMobileChange(listener: (isMobile: boolean) => void): () => void {
+        this._changeListeners.add(listener);
+        return () => this._changeListeners.delete(listener);
+    }
+
+    /**
+     * The mobile heuristic includes window size, so the cached answer must
+     * not latch forever: a desktop window opened small would stay "mobile"
+     * until a full reload. Re-evaluate (debounced) on resize/orientation
+     * change, keep the body class in sync for CSS consumers and notify
+     * subscribers (React mirrors) when the answer flips.
+     */
+    private static installResizeWatcher(): void {
+        if (this._resizeWatcherInstalled || typeof window === 'undefined') return;
+        this._resizeWatcherInstalled = true;
+        let timer: number | undefined;
+        const reevaluate = () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => {
+                const was = this._isMobile;
+                this._isMobile = null;
+                const now = this.isMobile();
+                document.body.classList.toggle('is-mobile', now);
+                if (was !== now) {
+                    for (const listener of this._changeListeners) listener(now);
+                }
+            }, 200);
+        };
+        window.addEventListener('resize', reevaluate);
+        window.addEventListener('orientationchange', reevaluate);
+    }
 
     /**
      * Detect if the device is mobile based on screen size and user agent
@@ -155,5 +194,6 @@ export class MobileUtils {
         if (this.isTouchDevice()) {
             document.body.classList.add('is-touch');
         }
+        this.installResizeWatcher();
     }
 }

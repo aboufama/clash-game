@@ -1,3 +1,4 @@
 node_modules/
 shots/
 package-lock.json
+.shared-device-token.json

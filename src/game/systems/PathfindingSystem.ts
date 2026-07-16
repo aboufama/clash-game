@@ -46,11 +46,8 @@ export class PathfindingSystem {
             if (throughId && b.id === throughId) continue;
             const info = BUILDING_DEFINITIONS[b.type as keyof typeof BUILDING_DEFINITIONS];
             if (!info) continue;
-            // Gates are the door villagers actually use; a bare wall stays
-            // hoppable only as a last resort (someone bricked themselves in
-            // mid-edit) at four times the old reluctance.
             const cost = b.type === 'wall'
-                ? (b.isGate ? 3 : WALL_HOP_COST * 4)
+                ? WALL_HOP_COST
                 : PathfindingSystem.COST_IMPASSABLE;
             for (let x = b.gridX; x < b.gridX + info.width; x++) {
                 for (let y = b.gridY; y < b.gridY + info.height; y++) {
@@ -157,6 +154,14 @@ export class PathfindingSystem {
                 while (cameFrom[p] !== -1) {
                     path.push(new Phaser.Math.Vector2(p % width, Math.floor(p / width)));
                     p = cameFrom[p];
+                }
+                if (path.length === 0) {
+                    // Start cell already inside the goal rect. Callers treat
+                    // an empty array as "no route", which stranded entities
+                    // standing on their destination tile (panicked villagers
+                    // cowering on the town-hall doorstep). A single waypoint
+                    // on the current cell is a legal, walkable arrival.
+                    return [new Phaser.Math.Vector2(cx, cy)];
                 }
                 return path.reverse();
             }

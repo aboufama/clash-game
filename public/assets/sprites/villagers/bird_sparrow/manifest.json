@@ -1,0 +1,63 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "bird_sparrow",
+  "variants": {
+    "c": {
+      "states": {
+        "fly": {
+          "loopMs": 200,
+          "frames": [
+            {
+              "file": "bird_sparrow_c_fly0.png",
+              "texelW": 4,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.44444444444444414
+            },
+            {
+              "file": "bird_sparrow_c_fly1.png",
+              "texelW": 4,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.44444444444444414
+            },
+            {
+              "file": "bird_sparrow_c_fly2.png",
+              "texelW": 4,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.944444444444444
+            },
+            {
+              "file": "bird_sparrow_c_fly3.png",
+              "texelW": 4,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.44444444444444414
+            },
+            {
+              "file": "bird_sparrow_c_fly4.png",
+              "texelW": 4,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.44444444444444414
+            },
+            {
+              "file": "bird_sparrow_c_fly5.png",
+              "texelW": 4,
+              "texelH": 2,
+              "cellWorldPx": 1.35,
+              "originX": 0.4629629629629629,
+              "originY": 0.944444444444444
+            }
+          ]
+        }
+      }
+    }
+  }
+}

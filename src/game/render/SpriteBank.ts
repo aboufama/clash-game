@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
 import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitions';
 import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
+import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 
 /**
  * SpriteBank — the runtime half of the bake pipeline
@@ -20,8 +21,13 @@ import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
  *  - fire/charge: time − lastFireTime (or chargeStart) → nearest baked age
  *  - troops: state from isMoving/attackAge/drivers; direction octant from
  *    facingAngle; walk phase from the troop's real stride
- *  - ambient idle loops replay at the measured period (global time-synced,
- *    exactly like the old per-frame vector animation)
+ *  - ambient idle loops replay at the measured period, de-phased per entity
+ *    by a stable id hash (deterministic in time, never in lockstep)
+ *
+ * Shadows are RECONCILED each frame: SpriteBank.update() (end of the scene
+ * update, every mode) re-copies position/depth/alpha/visibility/scale from
+ * every live carrier through the binding its last stamp recorded — carriers
+ * that move, fade, hide or tween between stamps keep their sprite honest.
  *
  * Atlas sampling is governed by TextureRenderPolicy's PixelMode: every
  * 'bank:*' texture is registered as a pixel surface (NEAREST outside legacy).
@@ -78,7 +84,27 @@ interface TroopManifest {
 }
 
 interface WreckManifest { cellWorldPx: number; levels: Record<string, { ground?: FrameMeta; body?: FrameMeta }> }
-interface ObstacleManifest { cellWorldPx: number; buckets: number; loopMs: number | null; variants: Array<{ frames: FrameMeta[] } | null> }
+interface ObstacleManifest {
+    cellWorldPx: number;
+    buckets: number;
+    /** grass_patch only: 'look' = variants indexed by
+     *  ObstacleRenderer.grassLookOf(id).variant, NOT hash % buckets —
+     *  gameplay keys off the look, so the sprite must match it exactly. */
+    axis?: 'look';
+    loopMs: number | null;
+    variants: Array<{ frames: FrameMeta[] } | null>;
+    /** grass_patch only: explicit easter-egg variants keyed '0'..'3'. */
+    eggs?: Record<string, { frames: FrameMeta[] }>;
+}
+
+/** Figures (villagers/animals/world figures/projectiles): identity variants
+ *  keyed by string, each with named states of phase-sampled frames. */
+interface FigureStateEntry { loopMs: number | null; frames: FrameMeta[] }
+interface FigureManifest {
+    cellWorldPx: number;
+    unit: string;
+    variants: Record<string, { states: Record<string, FigureStateEntry> }>;
+}
 
 interface UnitRecord {
     kind: string;
@@ -93,12 +119,54 @@ const fnv = (id: string): number => {
     return h >>> 0;
 };
 
+/** Missing-bake fallbacks warn once per unit/variant/state (dev only). */
+const warnedFigureStates = new Set<string>();
+
+/** Everything update() needs to re-derive a shadow's render state from its
+ *  carrier between stamps — stamp() records it, update() replays it. */
+interface ShadowBinding {
+    /** Stamp anchor relative to the carrier (0 for carriers that own position). */
+    dx: number;
+    dy: number;
+    /** Figure stamps: snap (carrier + offset) to this texel grid. Presence also
+     *  selects figure semantics — fixed bake scale, no carrier-flip fold-in
+     *  (figures bake at final world scale; the carrier's own scale/mirror
+     *  belongs to its vector overlays and fallback art). */
+    snapCell?: number;
+    /** carrier.depth − stamped depth at stamp time (stays valid when stale). */
+    depthBias: number;
+    alphaMul: number;
+    scaleMul: number;
+    cellWorldPx: number;
+    flipX: boolean;
+    originX: number;
+    originY: number;
+}
+
+interface ShadowRec {
+    body?: Phaser.GameObjects.Image;
+    ground?: Phaser.GameObjects.Image;
+    bodyBind?: ShadowBinding;
+    groundBind?: ShadowBinding;
+    /** Carrier-level status tint (chill etc.) — Graphics has no setTint, so
+     *  effects plumb theirs through setCarrierTint; sticky across stamps. */
+    tint?: number | null;
+}
+
 class SpriteBankImpl {
     enabled = true;
     ready = false;
     private units = new Map<string, UnitRecord>();
+    /** Design-variant slots present in the bank: 'kind:unit' → slots (sorted).
+     *  Populated from '@'-tagged atlas dirs ('cannon@A') at load time. */
+    private variantSlots = new Map<string, string[]>();
     /** Carrier graphics → its shadow images (body + optional ground decal). */
-    private shadows = new Map<Phaser.GameObjects.Graphics, { body?: Phaser.GameObjects.Image; ground?: Phaser.GameObjects.Image }>();
+    private shadows = new Map<Phaser.GameObjects.Graphics, ShadowRec>();
+    /** Carriers that already have a DESTROY→release hook. release() drops the
+     *  shadow rec but NOT the hook (once-listeners persist until the carrier
+     *  dies), so re-hooking on every fallback→re-sync cycle would accumulate
+     *  one closure per cycle on long-lived carriers. */
+    private hooked = new WeakSet<Phaser.GameObjects.Graphics>();
     private lastSweep = 0;
 
     /** Kick off loading; call from scene create(). Safe to call once. */
@@ -106,7 +174,20 @@ class SpriteBankImpl {
         try {
             if (localStorage.getItem('clash.sprites.off') === '1') { this.enabled = false; return; }
         } catch { /* storage unavailable → stay enabled */ }
-        if (this.ready || this.units.size > 0) return;
+        if (this.ready || this.units.size > 0) {
+            // Dev-HMR hazard: a hot update that re-creates the Phaser game
+            // hands us a FRESH TextureManager while this module singleton
+            // still says ready — stale atlas keys would stamp __MISSING
+            // green boxes over every unit (worse than the vector fallback).
+            // Detect the empty manager and reload the bank into it; the
+            // 'spritebank:ready' emit below re-busts the scene's draw caches.
+            const stale = [...this.units.values()].some(u => !scene.textures.exists(u.atlasKey));
+            if (!stale) return;
+            this.ready = false;
+            this.units.clear();
+            this.variantSlots.clear();
+            this.shadows.clear();
+        }
         fetch('/assets/sprites/index.json')
             .then(r => (r.ok ? r.json() : null))
             .then(async (index: { units: Array<{ kind: string; unit: string; atlas: string; frames: string; manifest: string }> } | null) => {
@@ -124,28 +205,85 @@ class SpriteBankImpl {
                         // Baked atlases must follow the active PixelMode (NEAREST outside legacy).
                         registerPixelSurface(scene.textures.get(atlasKey));
                         this.units.set(`${u.kind}:${u.unit}`, { kind: u.kind, unit: u.unit, atlasKey, manifest });
+                        // Design-variant bakes live in '@'-tagged sibling dirs
+                        // ('cannon@A') and load as ordinary units; record the
+                        // slot so resolveVariantUnit can route the plain name.
+                        const at = u.unit.indexOf('@');
+                        if (at > 0) {
+                            const key = `${u.kind}:${u.unit.slice(0, at)}`;
+                            const slots = this.variantSlots.get(key) ?? [];
+                            slots.push(u.unit.slice(at + 1));
+                            this.variantSlots.set(key, slots.sort());
+                        }
                     }
                     this.ready = this.units.size > 0;
                     console.info(`SpriteBank: ${this.units.size} unit atlases live`);
+                    // Anything painted before this moment fell back to vector.
+                    // Most surfaces repaint themselves every few frames, but
+                    // one-shot art (walls!) never would — announce readiness
+                    // so the scene can force one full repaint.
+                    if (this.ready) scene.events.emit('spritebank:ready');
                 });
                 scene.load.start();
             })
             .catch(() => { this.enabled = false; });
     }
 
+    /**
+     * Design-variant resolution — the ONE place a plain unit name becomes its
+     * '@slot'-tagged bake. When variant atlases exist for `kind:unit` (baked
+     * into sibling '<unit>@<slot>' dirs), the plain name transparently means
+     * the ACTIVE variant: localStorage['clash.design.<unit>'] when that slot
+     * is baked, else 'A', else the first baked slot. The key is re-read per
+     * call — the exact semantics of the vector path's DesignRegistry, so the
+     * baked and fallback art always agree (and a console localStorage poke
+     * takes effect on the next stamp). Units with no variant bakes (wrecks,
+     * figures, every non-tournament unit) resolve to themselves.
+     */
+    resolveVariantUnit(kind: string, unit: string): string {
+        if (unit.indexOf('@') >= 0) return unit; // already slot-qualified
+        const slots = this.variantSlots.get(`${kind}:${unit}`);
+        if (!slots || slots.length === 0) return unit;
+        let picked: string | null = null;
+        try {
+            if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+                const v = window.localStorage.getItem(`clash.design.${unit}`);
+                if (v && slots.includes(v)) picked = v;
+            }
+        } catch {
+            // Storage unavailable — fall through to the default slot.
+        }
+        return `${unit}@${picked ?? (slots.includes('A') ? 'A' : slots[0])}`;
+    }
+
+    /** EVERY unit lookup routes through the variant resolver (unitOf + backed
+     *  are the only two doors into this.units), so buildings, troops, wrecks,
+     *  figures and obstacles all pick up '@slot' bakes automatically. */
     private unitOf(kind: string, unit: string): UnitRecord | null {
-        return this.units.get(`${kind}:${unit}`) ?? null;
+        return this.units.get(`${kind}:${this.resolveVariantUnit(kind, unit)}`) ?? null;
     }
 
     backed(kind: string, unit: string): boolean {
-        return this.enabled && this.ready && this.units.has(`${kind}:${unit}`);
+        return this.enabled && this.ready && this.units.has(`${kind}:${this.resolveVariantUnit(kind, unit)}`);
     }
 
     // ------------------------------------------------------------ shadows --
 
     private shadowFor(scene: Phaser.Scene, carrier: Phaser.GameObjects.Graphics, atlasKey: string, slot: 'body' | 'ground'): Phaser.GameObjects.Image {
         let rec = this.shadows.get(carrier);
-        if (!rec) { rec = {}; this.shadows.set(carrier, rec); }
+        if (!rec) {
+            rec = {};
+            this.shadows.set(carrier, rec);
+            // Transients (projectiles) die between 1 Hz sweeps — release with
+            // the carrier so no stamped frame outlives its owner. Hook at most
+            // once per carrier: release() (vector fallback) deletes the rec
+            // but the once-listener stays armed, so re-hooking here on every
+            // fallback→re-sync cycle would pile up duplicate closures.
+            if (!this.hooked.has(carrier)) {
+                this.hooked.add(carrier);
+                carrier.once(Phaser.GameObjects.Events.DESTROY, () => this.release(carrier));
+            }
+        }
         let img = rec[slot];
         if (!img || !img.scene) {
             img = scene.add.image(0, 0, atlasKey);
@@ -184,20 +322,102 @@ class SpriteBankImpl {
         meta: FrameMeta,
         x: number,
         y: number,
-        opts: { alpha?: number; tint?: number | null; depth?: number; slot?: 'body' | 'ground' } = {}
+        opts: { alpha?: number; tint?: number | null; depth?: number; slot?: 'body' | 'ground'; scaleMul?: number; flipX?: boolean; snapCell?: number } = {}
     ) {
-        const img = this.shadowFor(scene, carrier, atlasKey, opts.slot ?? 'body');
+        const slot = opts.slot ?? 'body';
+        const img = this.shadowFor(scene, carrier, atlasKey, slot);
         if (img.texture.key !== atlasKey) img.setTexture(atlasKey, meta.file);
         else if (img.frame.name !== meta.file) img.setFrame(meta.file);
-        img.setPosition(x, y)
-            .setOrigin(meta.originX, meta.originY)
-            .setScale(meta.cellWorldPx)
-            .setDepth(opts.depth ?? carrier.depth)
-            .setAlpha((opts.alpha ?? 1) * carrier.alpha)
-            .setVisible(carrier.visible);
-        if (opts.tint != null) img.setTint(opts.tint);
+        // Record the carrier-relative render state so update() can reconcile
+        // the shadow every frame between stamps (tweens, hiding, movement).
+        const rec = this.shadows.get(carrier)!;
+        const bind: ShadowBinding = {
+            dx: x - carrier.x,
+            dy: y - carrier.y,
+            snapCell: opts.snapCell,
+            depthBias: opts.depth !== undefined ? carrier.depth - opts.depth : 0,
+            alphaMul: opts.alpha ?? 1,
+            scaleMul: opts.scaleMul ?? 1,
+            cellWorldPx: meta.cellWorldPx,
+            flipX: opts.flipX ?? false,
+            originX: meta.originX,
+            originY: meta.originY
+        };
+        rec[slot === 'body' ? 'bodyBind' : 'groundBind'] = bind;
+        // Status tint (chill) is carrier-level and sticky; a per-stamp tint wins.
+        const tint = opts.tint ?? (slot === 'body' ? rec.tint : null) ?? null;
+        if (tint != null) img.setTint(tint);
         else img.clearTint();
+        this.apply(carrier, img, bind);
         return img;
+    }
+
+    /** Copy the carrier's live render state onto a shadow through its binding.
+     *  stamp() and update() share this, so a reconciled frame is identical to
+     *  a freshly stamped one. */
+    private apply(carrier: Phaser.GameObjects.Graphics, img: Phaser.GameObjects.Image, bind: ShadowBinding) {
+        let x = carrier.x + bind.dx;
+        let y = carrier.y + bind.dy;
+        if (bind.snapCell) {
+            // Figures: texel-grid snap + fixed bake scale — they bake at final
+            // world scale, and the carrier's own scale/mirror belongs to its
+            // vector overlays (chat bubbles) and fallback art.
+            x = Math.round(x / bind.snapCell) * bind.snapCell;
+            y = Math.round(y / bind.snapCell) * bind.snapCell;
+            img.setScale(bind.cellWorldPx * bind.scaleMul);
+        } else {
+            // Everything else rides the carrier's scale so spawn bounces,
+            // recursion splits and squish tweens survive on the baked path.
+            // The SIGN stays out of flipX: multi-dir bakes carry facing in the
+            // frame itself, and every flip request arrives already resolved.
+            img.setScale(
+                bind.cellWorldPx * bind.scaleMul * Math.abs(carrier.scaleX),
+                bind.cellWorldPx * bind.scaleMul * Math.abs(carrier.scaleY)
+            );
+        }
+        // Frames crop tight per frame, so a mirror without an origin
+        // reflection lands up to half a frame wide of its anchor (shepherd
+        // drifts −9.7..−13.8 px across the gait) — reflect the origin so the
+        // flip pivots on the baked anchor.
+        img.setOrigin(bind.flipX ? 1 - bind.originX : bind.originX, bind.originY);
+        if (img.flipX !== bind.flipX) img.setFlipX(bind.flipX);
+        // Guard depth: Phaser's depth setter queues a full display-list sort
+        // on EVERY write, and this runs per shadow per frame — unguarded it
+        // forces a whole-scene re-sort even on frames where nothing moved.
+        const depth = carrier.depth - bind.depthBias;
+        if (img.depth !== depth) img.setDepth(depth);
+        img.setPosition(x, y)
+            .setAlpha(bind.alphaMul * carrier.alpha)
+            .setVisible(carrier.visible);
+        // Blend rides along (the dragon shadow is a MULTIPLY pass, e.g.).
+        if (img.blendMode !== carrier.blendMode) img.setBlendMode(carrier.blendMode);
+    }
+
+    /** Per-frame carrier→shadow reconciliation (+ the 1 Hz reap): copies
+     *  position, depth, alpha, visibility and scale from every live carrier.
+     *  Call once at the END of the scene update in every mode — nothing else
+     *  propagates carrier changes (hide-inside fades, night hiding, move-carry
+     *  hiding, off-screen walking) to the baked sprite between stamps. */
+    update(time: number) {
+        for (const [carrier, rec] of this.shadows) {
+            if (!carrier.scene || !carrier.active) continue; // reaped by sweep below
+            if (rec.body?.scene && rec.bodyBind) this.apply(carrier, rec.body, rec.bodyBind);
+            if (rec.ground?.scene && rec.groundBind) this.apply(carrier, rec.ground, rec.groundBind);
+        }
+        this.sweep(time);
+    }
+
+    /** Status tint for a carrier's body shadow (chill etc.) — Graphics has no
+     *  tint of its own, so effects plumb theirs through here. Sticky across
+     *  re-stamps until cleared with null. */
+    setCarrierTint(carrier: Phaser.GameObjects.Graphics, tint: number | null) {
+        const rec = this.shadows.get(carrier);
+        if (!rec) return;
+        rec.tint = tint;
+        if (rec.body?.scene) {
+            if (tint != null) rec.body.setTint(tint);
+            else rec.body.clearTint();
+        }
     }
 
     // ---------------------------------------------------------- buildings --
@@ -217,12 +437,9 @@ class SpriteBankImpl {
         return { entry, atlasKey: rec.atlasKey, man };
     }
 
-    /** The wall variant tag for a neighbor topology (+ gate). */
-    wallTag(n: { nN: boolean; nE: boolean; nS: boolean; nW: boolean }, isGate: boolean): string {
-        const base = `m${['N', 'E', 'S', 'W'].filter((_, i) => [n.nN, n.nE, n.nS, n.nW][i]).join('') || '0'}`;
-        if (isGate && base === 'mNS') return 'mNS_gate';
-        if (isGate && base === 'mEW') return 'mEW_gate';
-        return base;
+    /** The wall variant tag for a neighbor topology. */
+    wallTag(n: { nN: boolean; nE: boolean; nS: boolean; nW: boolean }): string {
+        return `m${['N', 'E', 'S', 'W'].filter((_, i) => [n.nN, n.nE, n.nS, n.nW][i]).join('') || '0'}`;
     }
 
     /** Pick the frame for a building's CURRENT state. */
@@ -230,6 +447,7 @@ class SpriteBankImpl {
         type: string,
         level: number,
         building: {
+            id?: string;
             ballistaAngle?: number; lastFireTime?: number;
             teslaCharging?: boolean; teslaChargeStart?: number; teslaCharged?: boolean;
             fillLevel?: number; doorOpen?: number;
@@ -244,7 +462,8 @@ class SpriteBankImpl {
         const nAngles = st.idle.angles;
         const angle = building?.ballistaAngle ?? 0;
         const TAU = Math.PI * 2;
-        const aIdx = nAngles > 1 ? ((Math.round(((angle % TAU) + TAU) % TAU / (TAU / nAngles)) % nAngles) + nAngles) % nAngles : 0;
+        const angleIdx = (n: number) => n > 1 ? ((Math.round(((angle % TAU) + TAU) % TAU / (TAU / n)) % n) + n) % n : 0;
+        const aIdx = angleIdx(nAngles);
 
         const nearest = (frames: FrameMeta[], key: string, value: number): FrameMeta => {
             let best = frames[0], bestD = Infinity;
@@ -259,7 +478,9 @@ class SpriteBankImpl {
         // Fire animation window (recoil/tension/reload) — time since the shot.
         if (st.fire && building?.lastFireTime) {
             const el = time - building.lastFireTime;
-            const frames = st.fire.frames[Math.min(aIdx, st.fire.frames.length - 1)];
+            // A state can bake fewer angles than idle — re-quantize the aim to
+            // its own count (a clamp collapsed every aim to the last angle).
+            const frames = st.fire.frames[angleIdx(st.fire.angles || st.fire.frames.length)] ?? st.fire.frames[0];
             const maxAge = Number(frames[frames.length - 1]?.ov?.fireAge ?? 0) + 180;
             if (el >= 0 && el < maxAge) {
                 return { meta: nearest(frames, 'fireAge', el), atlasKey, ground: entry.ground };
@@ -286,11 +507,13 @@ class SpriteBankImpl {
             const frames = st.playing.frames[0];
             return { meta: frames[Math.floor(time / 400) % frames.length], atlasKey, ground: entry.ground };
         }
-        // Ambient idle (loops at the measured period; global-time-synced like
-        // the old vector animation).
+        // Ambient idle (loops at the measured period), de-phased per building
+        // by a stable id hash — a row of watchtowers must not scan in lockstep,
+        // yet each one stays a deterministic function of time.
         const idle = st.idle.frames[aIdx] ?? st.idle.frames[0];
         if (st.idle.loopMs && idle.length > 1) {
-            const k = Math.floor(((time % st.idle.loopMs) / st.idle.loopMs) * idle.length) % idle.length;
+            const tOff = building?.id ? fnv(building.id) : 0;
+            const k = Math.floor((((time + tOff) % st.idle.loopMs) / st.idle.loopMs) * idle.length) % idle.length;
             return { meta: idle[k], atlasKey, ground: entry.ground };
         }
         return { meta: idle[0], atlasKey, ground: entry.ground };
@@ -316,13 +539,29 @@ class SpriteBankImpl {
         const def = BUILDING_DEFINITIONS[type as BuildingType];
         const cx = (gridX + (def?.width ?? 1) / 2 - (gridY + (def?.height ?? 1) / 2)) * (TILE_WIDTH / 2);
         const cy = (gridX + (def?.width ?? 1) / 2 + (gridY + (def?.height ?? 1) / 2)) * (TILE_HEIGHT / 2);
-        this.stamp(scene, carrier, pick.atlasKey, pick.meta, cx, cy, { alpha, tint });
+        // A hair below the carrier: overlays drawn INTO the carrier (patina)
+        // must win the equal-depth tie the later-created image would take.
+        this.stamp(scene, carrier, pick.atlasKey, pick.meta, cx, cy, { alpha, tint, depth: carrier.depth - 0.05 });
         // Walls never go through the ground bake (fully dynamic), so their
         // baked ground decal rides along as a second shadow just underneath.
         if (type === 'wall' && pick.ground) {
             this.stamp(scene, carrier, pick.atlasKey, pick.ground, cx, cy, { alpha, tint, depth: carrier.depth - 0.1, slot: 'ground' });
         }
         return true;
+    }
+
+    /** World px from the building's iso-center stamp anchor UP to the baked
+     *  body's top edge, measured on the FIRST idle frame so it stays stable
+     *  across the ambient loop. Health bars anchor on this instead of a blind
+     *  height guess — squat sprites (walls, storages) sit far below the old
+     *  formula, which left their bars floating over the tile behind them.
+     *  null → not sprite-backed (caller falls back to the formula). */
+    buildingTopOffset(type: string, level: number, wallTag?: string): number | null {
+        if (!this.backed('buildings', type)) return null;
+        const found = this.buildingEntry(type, level, wallTag);
+        const idle = found?.entry.states?.idle?.frames[0]?.[0];
+        if (!idle) return null;
+        return idle.originY * idle.texelH * idle.cellWorldPx;
     }
 
     /** The building's baked ground decal (for the ground RT bake). */
@@ -346,7 +585,7 @@ class SpriteBankImpl {
         isMoving: boolean,
         attackAge: number,
         time: number,
-        drivers: { attackDelay?: number; slamOffset?: number; phalanxSpearOffset?: number } = {}
+        drivers: { attackDelay?: number; slamOffset?: number; phalanxSpearOffset?: number; phaseId?: string; pose?: string } = {}
     ): { meta: FrameMeta; atlasKey: string } | null {
         if (!this.backed('troops', type)) return null;
         const rec = this.unitOf('troops', type)!;
@@ -361,6 +600,17 @@ class SpriteBankImpl {
         const dIdx = man.params.dirs > 1 ? Math.round(facing / (TAU / man.params.dirs)) % man.params.dirs : 0;
         const frames = dirs[dIdx]?.frames ?? dirs[0].frames;
         const by = (state: string) => frames.filter(f => f.state === state);
+        // Stable per-entity clock offset — same-type troops must not stride,
+        // breathe or free-run attacks in lockstep (deterministic, never random).
+        const tOff = drivers.phaseId ? fnv(drivers.phaseId) : 0;
+
+        // Explicit named pose (e.g. the da-vinci tank's baked 'deactivated'
+        // husk): a timeless state outside the walk/attack/idle drivers.
+        if (drivers.pose) {
+            const posed = by(drivers.pose);
+            if (!posed.length) return null;
+            return { meta: posed[0], atlasKey: rec.atlasKey };
+        }
 
         let meta: FrameMeta | undefined;
         const driver = man.params.attackDriver;
@@ -380,7 +630,7 @@ class SpriteBankImpl {
         if (!meta && attackAge >= 0 && man.params.delay > 0) {
             const delay = drivers.attackDelay || man.params.delay;
             let age = attackAge;
-            if (age > delay + 600) age = time % delay; // replay free-run, mirrors attackAnim
+            if (age > delay + 600) age = (time + tOff) % delay; // replay free-run, mirrors attackAnim
             const inWindup = delay - age <= man.params.windup + 60;
             const inStrike = age <= (man.params.strike || 60) + 120;
             if (inWindup || inStrike) {
@@ -397,13 +647,13 @@ class SpriteBankImpl {
         }
         if (!meta && isMoving) {
             const walk = by('walk');
-            if (walk.length) meta = walk[Math.floor(((time % man.params.stride) / man.params.stride) * walk.length) % walk.length];
+            if (walk.length) meta = walk[Math.floor((((time + tOff) % man.params.stride) / man.params.stride) * walk.length) % walk.length];
         }
         if (!meta) {
             const idle = by('idle');
             if (!idle.length) return null;
             const loop = man.params.idleLoopMs || 4021;
-            meta = idle[Math.floor(((time % loop) / loop) * idle.length) % idle.length];
+            meta = idle[Math.floor((((time + tOff) % loop) / loop) * idle.length) % idle.length];
         }
         return { meta, atlasKey: rec.atlasKey };
     }
@@ -412,6 +662,7 @@ class SpriteBankImpl {
     syncTroop(
         scene: Phaser.Scene,
         troop: {
+            id?: string;
             type: string; owner: 'PLAYER' | 'ENEMY'; level?: number;
             gameObject: Phaser.GameObjects.Graphics;
             facingAngle?: number; lastAttackTime?: number; attackDelay?: number;
@@ -424,10 +675,28 @@ class SpriteBankImpl {
         const pick = this.pickTroopFrame(
             troop.type, troop.owner, troop.level ?? 1, troop.facingAngle ?? 0,
             isMoving, attackAge, time,
-            { attackDelay: troop.attackDelay, slamOffset: troop.slamOffset, phalanxSpearOffset: troop.phalanxSpearOffset }
+            { attackDelay: troop.attackDelay, slamOffset: troop.slamOffset, phalanxSpearOffset: troop.phalanxSpearOffset, phaseId: troop.id }
         );
         if (!pick) return false;
         this.stamp(scene, troop.gameObject, pick.atlasKey, pick.meta, troop.gameObject.x, troop.gameObject.y, {});
+        return true;
+    }
+
+    /** Stamp a named troop pose (e.g. the da-vinci tank's baked 'deactivated'
+     *  husk) on a loose carrier; returns false → caller draws vector. The
+     *  carrier keeps position/depth/alpha, so fade-out tweens ride along. */
+    syncTroopPose(
+        scene: Phaser.Scene,
+        carrier: Phaser.GameObjects.Graphics,
+        type: string,
+        owner: 'PLAYER' | 'ENEMY',
+        level: number,
+        facingAngle: number,
+        pose: string
+    ): boolean {
+        const pick = this.pickTroopFrame(type, owner, level, facingAngle, false, -1, 0, { pose });
+        if (!pick) return false;
+        this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, {});
         return true;
     }
 
@@ -446,8 +715,93 @@ class SpriteBankImpl {
     ): boolean {
         const pick = this.pickTroopFrame(type, owner, level, facingAngle, isMoving, -1, time);
         if (!pick) return false;
-        const img = this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, {});
-        img.setFlipX(flipX);
+        // Multi-direction manifests carry facing in the frame itself (the
+        // facingAngle already picked a west-facing frame); mirroring it again
+        // would moonwalk the figure east. flipX only mirrors 1-dir bakes, and
+        // rides the stamp so the flip pivots on the baked anchor and survives
+        // per-frame reconciliation.
+        const dirs = (this.unitOf('troops', type)!.manifest as TroopManifest).params.dirs;
+        this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, { flipX: dirs > 1 ? false : flipX });
+        return true;
+    }
+
+    // ------------------------------------------------------------ figures --
+
+    /** Frame pick for a baked figure (villager/animal/world figure/projectile).
+     *  `phase` is the caller's own 0..1 animation phase — computed with the
+     *  exact formula the vector draw used, so sprite and vector stay in step. */
+    pickFigureFrame(
+        kind: string,
+        unit: string,
+        variant: string,
+        state: string,
+        phase: number
+    ): { meta: FrameMeta; atlasKey: string } | null {
+        if (!this.backed(kind, unit)) return null;
+        const rec = this.unitOf(kind, unit)!;
+        const man = rec.manifest as unknown as FigureManifest;
+        const v = man.variants?.[variant];
+        if (!v) return null;
+        let st = v.states[state];
+        if (!st && state !== 'idle') {
+            // Un-baked carry/walk cycles degrade to the plain gait before
+            // idle — a hauler must not glide across the village in an idle
+            // pose. The proper cure is a re-bake; warn once so it happens.
+            if (state.includes('walk')) st = v.states.walk;
+            if (!st) st = v.states.idle;
+            if (import.meta.env.DEV) {
+                const key = `${kind}:${unit}:${variant}:${state}`;
+                if (!warnedFigureStates.has(key)) {
+                    warnedFigureStates.add(key);
+                    console.warn(`SpriteBank: no baked state '${state}' for ${kind}/${unit}/${variant} — falling back (re-bake to cure)`);
+                }
+            }
+        }
+        if (!st || st.frames.length === 0) return null;
+        const p = ((phase % 1) + 1) % 1;
+        const meta = st.frames[Math.floor(p * st.frames.length) % st.frames.length];
+        return { meta, atlasKey: rec.atlasKey };
+    }
+
+    /** Whether a baked figure variant actually contains this state — call
+     *  sites pick an honest nearby state (e.g. plain 'walk' for a carry cycle
+     *  the role never baked) instead of silently falling back to idle. */
+    hasFigureState(kind: string, unit: string, variant: string, state: string): boolean {
+        if (!this.backed(kind, unit)) return false;
+        const man = this.unitOf(kind, unit)!.manifest as unknown as FigureManifest;
+        const st = man.variants?.[variant]?.states?.[state];
+        return Boolean(st && st.frames.length > 0);
+    }
+
+    /** Shadow-stamp a figure; returns false → caller draws vector. The carrier
+     *  owns position/depth/alpha/visibility (translucent silhouettes like the
+     *  owl/dragon bake opaque and get their alpha back from the carrier). */
+    syncFigure(
+        scene: Phaser.Scene,
+        carrier: Phaser.GameObjects.Graphics,
+        unit: string,
+        variant: string,
+        state: string,
+        phase: number,
+        flipX = false,
+        opts: { kind?: string; depthBias?: number; at?: { x: number; y: number }; scaleMul?: number } = {}
+    ): boolean {
+        const pick = this.pickFigureFrame(opts.kind ?? 'villagers', unit, variant, state, phase);
+        if (!pick) return false;
+        // depthBias sinks the sprite a hair below its carrier so overlays the
+        // carrier still draws (chat bubbles) stay on top at equal depth. `at`
+        // overrides position for carriers that draw in absolute coords.
+        // Figure stamps SNAP to the texel grid (via the stored snapCell, so
+        // reconciliation keeps snapping between stamps): figures step
+        // cell-by-cell instead of gliding at sub-cell offsets — deliberately
+        // a touch jagged, like everything else in the baked world.
+        const cell = pick.meta.cellWorldPx || 1.35;
+        this.stamp(scene, carrier, pick.atlasKey, pick.meta, opts.at?.x ?? carrier.x, opts.at?.y ?? carrier.y, {
+            ...(opts.depthBias ? { depth: carrier.depth - opts.depthBias } : {}),
+            ...(opts.scaleMul != null ? { scaleMul: opts.scaleMul } : {}),
+            flipX,
+            snapCell: cell
+        });
         return true;
     }
 
@@ -476,6 +830,52 @@ class SpriteBankImpl {
         return true;
     }
 
+    /** Baked-frame selection for an obstacle, shared by the live shadow-sprite
+     *  path (syncObstacle) and static consumers that rasterize the frame
+     *  themselves (the neighbour-postcard bake in WorldMapSystem, which must
+     *  stamp CHUNKY baked trees into its RT instead of AA vector draws).
+     *  Returns null when the type has no bake (or a rare un-baked egg look),
+     *  in which case callers fall back to the vector renderer. */
+    pickObstacleFrame(
+        type: string,
+        id: string | undefined,
+        gridX: number,
+        gridY: number,
+        time: number
+    ): { atlasKey: string; meta: FrameMeta } | null {
+        if (!this.backed('obstacles', type)) return null;
+        const rec = this.unitOf('obstacles', type)!;
+        const man = rec.manifest as ObstacleManifest;
+        const hash = fnv(id ?? `${gridX},${gridY}`);
+        // Gameplay keys a grass patch's WHOLE look — egg and regular variant
+        // alike — off the full id hash (ObstacleRenderer.grassLookOf), so the
+        // sprite must be picked on that same axis: eggs first (baked as
+        // explicit variants), then the 'look'-axis variant. A raw hash-bucket
+        // pick disagreed — two ids in one bucket can carry different %12
+        // looks, so a 'mushrooms' patch could render as tulips and mushroom
+        // picking looked broken.
+        const look = type === 'grass_patch' ? ObstacleRenderer.grassLookOf(id) : null;
+        if (look?.egg != null && !man.eggs?.[look.egg]?.frames.length) {
+            // Rare find with no baked egg variant (older bake): let the vector
+            // path draw it — gameplay keys off grassLookOf, so painting a
+            // regular look here would hide an egg the game still honors.
+            return null;
+        }
+        const variant = (look?.egg != null ? man.eggs?.[look.egg] : undefined)
+            ?? (look && man.axis === 'look' ? man.variants[look.variant] : undefined)
+            ?? (man.axis === 'look' ? undefined : man.variants[hash % man.buckets])
+            ?? man.variants.find(Boolean);
+        if (!variant?.frames.length) return null;
+        let meta = variant.frames[0];
+        if (man.loopMs && variant.frames.length > 1) {
+            // Per-instance ms phase offset (the same id-hash desync the
+            // vector renderer applies) so same-bucket obstacles sway apart.
+            const t = time + hash % man.loopMs;
+            meta = variant.frames[Math.floor(((t % man.loopMs) / man.loopMs) * variant.frames.length) % variant.frames.length];
+        }
+        return { atlasKey: rec.atlasKey, meta };
+    }
+
     syncObstacle(
         scene: Phaser.Scene,
         carrier: Phaser.GameObjects.Graphics,
@@ -485,23 +885,23 @@ class SpriteBankImpl {
         gridY: number,
         time: number
     ): boolean {
-        if (!this.backed('obstacles', type)) return false;
-        const rec = this.unitOf('obstacles', type)!;
-        const man = rec.manifest as ObstacleManifest;
-        const bucket = fnv(id ?? `${gridX},${gridY}`) % man.buckets;
-        const variant = man.variants[bucket] ?? man.variants.find(Boolean);
-        if (!variant?.frames.length) return false;
-        let meta = variant.frames[0];
-        if (man.loopMs && variant.frames.length > 1) {
-            meta = variant.frames[Math.floor(((time % man.loopMs) / man.loopMs) * variant.frames.length) % variant.frames.length];
-        }
+        const pick = this.pickObstacleFrame(type, id, gridX, gridY, time);
+        if (!pick) return false;
         const cx = (gridX + 0.5 - (gridY + 0.5)) * (TILE_WIDTH / 2);
         const cy = (gridX + 0.5 + (gridY + 0.5)) * (TILE_HEIGHT / 2);
-        this.stamp(scene, carrier, rec.atlasKey, meta, cx, cy, {});
+        this.stamp(scene, carrier, pick.atlasKey, pick.meta, cx, cy, {});
         return true;
     }
 
     // ------------------------------------------------------- RT quantizer --
+
+    /** Writers call this the moment they draw into an already-quantized RT:
+     *  any in-flight snapshot callback then discards itself instead of
+     *  restoring pre-write pixels over the new content, and the next
+     *  quantize pass isn't deduped away by a matching epoch. */
+    invalidateQuantize(rt: Phaser.GameObjects.RenderTexture) {
+        delete (rt as unknown as Record<string, number | undefined>).__pixelBaked;
+    }
 
     /**
      * One-time pixel-quantize of a RenderTexture IN PLACE — the treatment for
@@ -514,18 +914,25 @@ class SpriteBankImpl {
         const record = rt as unknown as Record<string, number | undefined>;
         if (record[stampKey] === epoch) return;
         record[stampKey] = epoch;
-        rt.snapshot((img) => {
-            if (!rt.scene || !(img instanceof HTMLImageElement)) return;
-            const W = img.width, H = img.height;
+        // Quantize a FULL-RT capture and write it back in place. Runs after
+        // capture so the guards below can discard a pass that went stale
+        // while in flight.
+        const apply = (src: ImageData) => {
+            if (!rt.scene) return;
+            // A write landed (invalidateQuantize) or a newer pass started
+            // while this capture was in flight — writing the stale capture
+            // back would clobber that content. Discard; the bumped epoch has
+            // a fresh pass queued.
+            if (record[stampKey] !== epoch) return;
+            const W = src.width, H = src.height;
             const cv = document.createElement('canvas');
             cv.width = W; cv.height = H;
             const ctx = cv.getContext('2d', { willReadFrequently: true });
             if (!ctx) return;
-            ctx.drawImage(img, 0, 0);
-            const src = ctx.getImageData(0, 0, W, H);
             const out = ctx.createImageData(W, H);
             // The RT is world-resolution; write each cell's CENTER sample to
-            // every pixel of the cell (the removed shader's exact output).
+            // every pixel of the cell (the removed shader's exact output),
+            // grid anchored at the RT's own origin.
             for (let cy = 0; cy < H; cy += cell) {
                 const sy = Math.min(H - 1, Math.floor(cy + cell / 2));
                 const y0 = Math.floor(cy), y1 = Math.min(H, Math.floor(cy + cell));
@@ -547,11 +954,129 @@ class SpriteBankImpl {
             ctx.putImageData(out, 0, 0);
             const key = `bank:quant:${(rt as unknown as { name?: string }).name ?? 'rt'}:${Date.now()}`;
             scene.textures.addCanvas(key, cv);
-            rt.clear();
+            // A full capture replaces the RT wholesale. A short capture (belt
+            // and braces — both capture paths below are full-size) paints
+            // over only the region it covered instead of ERASING the rest.
+            if (W >= dt.width && H >= dt.height) rt.clear();
             const tmp = scene.make.image({ key }, false).setOrigin(0, 0);
             rt.draw(tmp, 0, 0);
             tmp.destroy();
             scene.textures.remove(key);
+        };
+        // Runtime is a DynamicTexture (the TS defs still say
+        // CanvasTexture | Texture): renderTarget is set exactly in WebGL
+        // mode, canvas/context exactly in Canvas mode.
+        const dt = rt.texture as unknown as {
+            width: number; height: number;
+            renderTarget: object | null;
+            canvas: HTMLCanvasElement | null;
+            context: CanvasRenderingContext2D | null;
+        };
+        if (!dt.renderTarget && dt.canvas && dt.context) {
+            // CANVAS renderer: Phaser clamps EVERY snapshot's width/height to
+            // the GAME canvas (CanvasRenderer.snapshotArea does
+            // Math.min(w, gameCanvas.width)), so on a window smaller than the
+            // RT the capture came back cropped and the redraw erased all
+            // paint beyond the window — the sharp-cornered wilderness wedge
+            // and the ground-bake seams at canvas dimensions. The
+            // DynamicTexture's backing canvas already holds every pixel:
+            // read it whole — synchronously, matching snapshot's
+            // capture-at-call timing — and apply on a microtask to keep the
+            // async contract callers rely on.
+            const src = dt.context.getImageData(0, 0, dt.canvas.width, dt.canvas.height);
+            queueMicrotask(() => apply(src));
+            return;
+        }
+        // WEBGL renderer: rt.snapshot reads the RT's OWN framebuffer and
+        // clamps only to the RT's own dimensions
+        // (WebGLRenderer.snapshotFramebuffer) — full coverage at any window
+        // size. Do NOT tile via snapshotArea instead: partial framebuffer
+        // grabs mis-address rows (verified live against Phaser 3.90).
+        rt.snapshot((img) => {
+            if (!rt.scene || !(img instanceof HTMLImageElement)) return;
+            if (record[stampKey] !== epoch) return;
+            const cap = document.createElement('canvas');
+            cap.width = img.width; cap.height = img.height;
+            const cctx = cap.getContext('2d', { willReadFrequently: true });
+            if (!cctx) return;
+            cctx.drawImage(img, 0, 0);
+            apply(cctx.getImageData(0, 0, img.width, img.height));
+        });
+    }
+
+    /**
+     * Point-sample a (super-sampled) source RT down into a low-resolution RT:
+     * ONE pure center sample per destination texel, alpha-snapped — the bake
+     * harness's exact math (`sx = floor((i + 0.5) * srcW / dstW)`). This is
+     * how a vector postcard earns REAL pixel-art texels: relying on the
+     * renderer to scale the source down (even with a NEAREST filter request)
+     * leaves the Canvas renderer free to area-average, which preserves every
+     * AA gradient as soft multi-step ramps inside the texels. The source is
+     * destroyed after capture. Same dual capture paths as the quantizer.
+     */
+    pointSampleRenderTexture(
+        scene: Phaser.Scene,
+        src: Phaser.GameObjects.RenderTexture,
+        dst: Phaser.GameObjects.RenderTexture
+    ): void {
+        const apply = (cap: ImageData) => {
+            if (!dst.scene) return;
+            const W = cap.width, H = cap.height;
+            const W2 = Math.max(1, Math.floor(dst.width));
+            const H2 = Math.max(1, Math.floor(dst.height));
+            const cv = document.createElement('canvas');
+            cv.width = W2; cv.height = H2;
+            const ctx = cv.getContext('2d', { willReadFrequently: true });
+            if (!ctx) return;
+            const out = ctx.createImageData(W2, H2);
+            const cellX = W / W2;
+            const cellY = H / H2;
+            for (let j = 0; j < H2; j++) {
+                const sy = Math.min(H - 1, Math.floor((j + 0.5) * cellY));
+                for (let i = 0; i < W2; i++) {
+                    const sx = Math.min(W - 1, Math.floor((i + 0.5) * cellX));
+                    const s = (sy * W + sx) * 4;
+                    const d = (j * W2 + i) * 4;
+                    out.data[d] = cap.data[s];
+                    out.data[d + 1] = cap.data[s + 1];
+                    out.data[d + 2] = cap.data[s + 2];
+                    // Alpha snap keeps the parcel silhouette hard (no halo).
+                    out.data[d + 3] = cap.data[s + 3] < 128 ? 0 : 255;
+                }
+            }
+            ctx.putImageData(out, 0, 0);
+            const key = `bank:lod:${Date.now()}:${Math.random()}`;
+            scene.textures.addCanvas(key, cv);
+            dst.clear();
+            const tmp = scene.make.image({ key }, false).setOrigin(0, 0);
+            dst.draw(tmp, 0, 0);
+            tmp.destroy();
+            scene.textures.remove(key);
+        };
+        const sdt = src.texture as unknown as {
+            renderTarget: object | null;
+            canvas: HTMLCanvasElement | null;
+            context: CanvasRenderingContext2D | null;
+        };
+        if (!sdt.renderTarget && sdt.canvas && sdt.context) {
+            // CANVAS renderer: read the backing canvas whole (see the
+            // quantizer's note on Phaser's snapshot clamping).
+            const cap = sdt.context.getImageData(0, 0, sdt.canvas.width, sdt.canvas.height);
+            src.destroy();
+            queueMicrotask(() => apply(cap));
+            return;
+        }
+        // WEBGL renderer: capture the source's own framebuffer, then drop it.
+        src.snapshot((img) => {
+            if (!(img instanceof HTMLImageElement)) { src.destroy(); return; }
+            const cap = document.createElement('canvas');
+            cap.width = img.width; cap.height = img.height;
+            const cctx = cap.getContext('2d', { willReadFrequently: true });
+            if (!cctx) { src.destroy(); return; }
+            cctx.drawImage(img, 0, 0);
+            const data = cctx.getImageData(0, 0, img.width, img.height);
+            src.destroy();
+            apply(data);
         });
     }
 }

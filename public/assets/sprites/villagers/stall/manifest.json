@@ -1,0 +1,108 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "stall",
+  "variants": {
+    "c": {
+      "states": {
+        "idle": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "stall_c_idle0.png",
+              "texelW": 38,
+              "texelH": 40,
+              "cellWorldPx": 1.35,
+              "originX": 0.502923976608187,
+              "originY": 0.8268518518518518
+            }
+          ]
+        },
+        "build": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "stall_c_build0.png",
+              "texelW": 31,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.4874551971326164,
+              "originY": 0.6152263374485596
+            },
+            {
+              "file": "stall_c_build1.png",
+              "texelW": 31,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.4874551971326164,
+              "originY": 0.7336182336182336
+            },
+            {
+              "file": "stall_c_build2.png",
+              "texelW": 31,
+              "texelH": 34,
+              "cellWorldPx": 1.35,
+              "originX": 0.4874551971326164,
+              "originY": 0.7962962962962962
+            },
+            {
+              "file": "stall_c_build3.png",
+              "texelW": 31,
+              "texelH": 38,
+              "cellWorldPx": 1.35,
+              "originX": 0.4874551971326164,
+              "originY": 0.817738791423002
+            },
+            {
+              "file": "stall_c_build4.png",
+              "texelW": 31,
+              "texelH": 38,
+              "cellWorldPx": 1.35,
+              "originX": 0.4874551971326164,
+              "originY": 0.817738791423002
+            },
+            {
+              "file": "stall_c_build5.png",
+              "texelW": 31,
+              "texelH": 38,
+              "cellWorldPx": 1.35,
+              "originX": 0.4874551971326164,
+              "originY": 0.817738791423002
+            },
+            {
+              "file": "stall_c_build6.png",
+              "texelW": 34,
+              "texelH": 38,
+              "cellWorldPx": 1.35,
+              "originX": 0.5326797385620914,
+              "originY": 0.817738791423002
+            },
+            {
+              "file": "stall_c_build7.png",
+              "texelW": 34,
+              "texelH": 38,
+              "cellWorldPx": 1.35,
+              "originX": 0.5326797385620914,
+              "originY": 0.817738791423002
+            },
+            {
+              "file": "stall_c_build8.png",
+              "texelW": 35,
+              "texelH": 39,
+              "cellWorldPx": 1.35,
+              "originX": 0.5174603174603174,
+              "originY": 0.822412155745489
+            },
+            {
+              "file": "stall_c_build9.png",
+              "texelW": 38,
+              "texelH": 40,
+              "cellWorldPx": 1.35,
+              "originX": 0.502923976608187,
+              "originY": 0.8268518518518518
+            }
+          ]
+        }
+      }
+    }
+  }
+}

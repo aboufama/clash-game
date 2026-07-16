@@ -55,20 +55,27 @@ Key handles:
   (`gameManager.advanceDayNight()`) steps day -> sunset -> night -> dawn.
 - Economy: shop is `.bshop-modal` (open via `.action-btn.build`); cards are
   `.bshop-card:has(.<id>-icon)`; place by selecting a card then clicking a
-  tile (screen pos = ((gx-gy)*32, (gx+gy)*16) camera-transformed). B+M keys
-  grant +10k gold (debug). Chicken eggs: set a hen's `nextEggAt=1`, egg
+  tile (screen pos = ((gx-gy)*32, (gx+gy)*16) camera-transformed). The dev
+  scripts enable server-authoritative infinite resources: the HUD shows
+  `999,999` for gold, ore, and food, while player resource costs do not debit
+  the saved finite balances. Chicken eggs: set a hen's `nextEggAt=1`, egg
   appears in `villageLife.eggs`, click it for +5 food. Rocks: place via
   `scene.placeObstacle(x,y,'rock_small',true,id)`, click it — a villager
   hauls it to the storehouse/town hall for ore. Miners/farmers finish shifts
   with `carryingPack` deliveries to storage. Roles reassign only on
   `villageLife.populate('PLAYER')`, so repopulate after placing a mine/farm.
 - Server: mine/farm accrue ore/food (produces field in GameDefinitions);
-  storage raises both caps (`world.storage {ore, food}`); grants clamp at cap.
+  storage raises both caps (`world.storage {ore, food}`); ambient collection
+  clamps at cap, while the dev infinite wallet leaves saved balances finite.
   Staffing: production scales by population/workersNeeded (2 per mine/farm);
   each population growth eats 10 food (stalls at 0). `world.population`
   carries {count, capacity, workersNeeded, staffing}.
 - Keys: D = summon dragon shadow, P = FPS debug overlay, N = advance
-  day/night, B+M = +10k gold.
+  day/night, M = move the selected building.
+- Dev upgrades: the server stamps `upgradeStartedAt` and `upgradeEndsAt`
+  exactly 1,000 ms apart. Scaffold, progress, and builder presentation use
+  that same interval; verify both a normal upgrade and an immediate second
+  upgrade on the same building.
 - Sound: `window.__clashSound` — `.state` ('running' after first gesture),
   `.muted`, `.lastPlayed` (e.g. 'voice:villager', 'coin'). HUD `.mute-btn`
   toggles + persists. Clicking creatures fires voices; sleeping ones answer

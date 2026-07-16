@@ -72,6 +72,9 @@ export interface ApiService<Principal> {
   authenticate(rawToken: unknown): Awaitable<Principal>
   register(player: Principal, rawUsername: unknown, rawPassword: unknown): Awaitable<unknown>
   rename(player: Principal, rawName: unknown): Awaitable<unknown>
+  /** Optional until the normalized-persistence runtime grows a banner column;
+   *  the JSON service implements it fully. Routes 404 when absent. */
+  setBanner?(player: Principal, rawBanner: unknown): Awaitable<unknown>
 
   getWorld(player: Principal): Awaitable<unknown>
   saveWorld(player: Principal, body: SaveWorldRequest): Awaitable<unknown>

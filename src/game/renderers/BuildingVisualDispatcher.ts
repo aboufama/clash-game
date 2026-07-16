@@ -113,8 +113,17 @@ const DEDICATED_BUILDING_VISUALS = {
         c.building, c.time, c.baseGraphics, c.skipBase, c.onlyBase
     ),
     wall: c => {
-        // Walls have no ground-plane pass. Their S/E connector ownership is
-        // supplied by the caller because it depends on the surrounding world.
+        // Walls never bake into the ground RT (fully dynamic), but they DO
+        // have a ground pass now: the contact shadow. The bake captures it as
+        // the per-topology ground decal (onlyBase job) that SpriteBank stamps
+        // under the body; a full vector draw paints it first, under the post.
+        // The bake's body job (skipBase) must stay shadow-free. S/E connector
+        // ownership is supplied by the caller (it depends on the world).
+        if (!c.skipBase) {
+            BuildingRenderer.drawWallShadow(
+                c.graphics, c.gridX, c.gridY, c.alpha, c.wallNeighbors
+            );
+        }
         if (!c.onlyBase) {
             BuildingRenderer.drawWall(
                 c.graphics, c.center, c.gridX, c.gridY, c.alpha, c.tint,
@@ -124,7 +133,7 @@ const DEDICATED_BUILDING_VISUALS = {
     },
     armyCamp: c => BuildingRenderer.drawArmyCamp(
         c.graphics, c.c1, c.c2, c.c3, c.c4, c.center, c.alpha, c.tint,
-        c.baseGraphics, c.building, c.skipBase, c.onlyBase
+        c.baseGraphics, c.building, c.skipBase, c.onlyBase, c.time
     ),
     xbow: c => {
         const level = c.building?.level ?? 1;
