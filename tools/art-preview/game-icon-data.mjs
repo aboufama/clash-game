@@ -496,36 +496,6 @@ export const ICONS = [
         -2px 6px #5A3E1E, 0 6px #6B4A24, 2px 6px #5A3E1E`
   },
   {
-    classes: ["pavisebearer-icon"],
-    note: "PAVISE BEARER - Full-body slate-blue tower shield with white double chevron, helmet peeking over",
-    base: "#2E6E8E",
-    px: `
-        /* Helmet peeking above the shield */
-        -2px -20px #808080, 0 -20px #909090, 2px -20px #808080,
-        -2px -18px #696969, 0 -18px #808080, 2px -18px #696969,
-        /* Shield top edge */
-        -8px -16px #1E4A62, -6px -16px #4A94B4, -4px -16px #4A94B4, -2px -16px #4A94B4, 0 -16px #4A94B4, 2px -16px #4A94B4, 4px -16px #4A94B4, 6px -16px #4A94B4, 8px -16px #1E4A62,
-        /* Field rows */
-        -8px -14px #1E4A62, -6px -14px #2E6E8E, -4px -14px #2E6E8E, -2px -14px #2E6E8E, 0 -14px #2E6E8E, 2px -14px #2E6E8E, 4px -14px #2E6E8E, 6px -14px #2E6E8E, 8px -14px #1E4A62,
-        -8px -12px #1E4A62, -6px -12px #2E6E8E, -4px -12px #2E6E8E, -2px -12px #2E6E8E, 0 -12px #2E6E8E, 2px -12px #2E6E8E, 4px -12px #2E6E8E, 6px -12px #2E6E8E, 8px -12px #1E4A62,
-        /* Upper chevron */
-        -8px -10px #1E4A62, -6px -10px #2E6E8E, -4px -10px #2E6E8E, -2px -10px #2E6E8E, 0 -10px #D8E8F0, 2px -10px #2E6E8E, 4px -10px #2E6E8E, 6px -10px #2E6E8E, 8px -10px #1E4A62,
-        -8px -8px #1E4A62, -6px -8px #2E6E8E, -4px -8px #2E6E8E, -2px -8px #D8E8F0, 0 -8px #2E6E8E, 2px -8px #D8E8F0, 4px -8px #2E6E8E, 6px -8px #2E6E8E, 8px -8px #1E4A62,
-        -8px -6px #1E4A62, -6px -6px #2E6E8E, -4px -6px #D8E8F0, -2px -6px #2E6E8E, 0 -6px #2E6E8E, 2px -6px #2E6E8E, 4px -6px #D8E8F0, 6px -6px #2E6E8E, 8px -6px #1E4A62,
-        /* Gauntlets gripping the rim */
-        -10px -6px #DEB887, 10px -6px #DEB887,
-        /* Lower chevron */
-        -8px -4px #1E4A62, -6px -4px #2E6E8E, -4px -4px #2E6E8E, -2px -4px #2E6E8E, 0 -4px #D8E8F0, 2px -4px #2E6E8E, 4px -4px #2E6E8E, 6px -4px #2E6E8E, 8px -4px #1E4A62,
-        -8px -2px #1E4A62, -6px -2px #2E6E8E, -4px -2px #2E6E8E, -2px -2px #D8E8F0, 0 -2px #2E6E8E, 2px -2px #D8E8F0, 4px -2px #2E6E8E, 6px -2px #2E6E8E, 8px -2px #1E4A62,
-        -8px 0 #1E4A62, -6px 0 #2E6E8E, -4px 0 #D8E8F0, -2px 0 #2E6E8E, 2px 0 #2E6E8E, 4px 0 #D8E8F0, 6px 0 #2E6E8E, 8px 0 #1E4A62,
-        /* Shaded bottom of the field */
-        -8px 2px #1E4A62, -6px 2px #255C78, -4px 2px #255C78, -2px 2px #255C78, 0 2px #255C78, 2px 2px #255C78, 4px 2px #255C78, 6px 2px #255C78, 8px 2px #1E4A62,
-        /* Bottom edge */
-        -6px 4px #1E4A62, -4px 4px #1E4A62, -2px 4px #1E4A62, 0 4px #1E4A62, 2px 4px #1E4A62, 4px 4px #1E4A62, 6px 4px #1E4A62,
-        /* Boots under the shield */
-        -6px 6px #3E2723, -4px 6px #5C3317, 4px 6px #5C3317, 6px 6px #3E2723`
-  },
-  {
     classes: ["quartermaster-icon"],
     note: "QUARTERMASTER - Barrel-chested drummer, gold-laced war drum, both sticks raised, banner pole",
     base: "#D4A017",
@@ -652,33 +622,6 @@ export const ICONS = [
         -8px 2px #6B4F2E, -6px 2px #8A6D4A, -4px 2px #8A6D4A, -2px 2px #8A6D4A, 0 2px #8A6D4A, 2px 2px #8A6D4A, 4px 2px #8A6D4A, 6px 2px #8A6D4A, 8px 2px #6B4F2E,
         /* Wheels */
         -8px 4px #3A2A1A, -6px 4px #5C3317, -4px 4px #3A2A1A, 4px 4px #3A2A1A, 6px 4px #5C3317, 8px 4px #3A2A1A`
-  },
-  {
-    classes: ["hawkeyeassassin-icon"],
-    note: "HAWK-EYE ASSASSIN - Hooded slate sniper kneeling with long scoped wheellock, single gold eye glint",
-    base: "#394B59",
-    px: `
-        /* Hood peak */
-        -6px -16px #2A3843, -4px -16px #394B59, -2px -16px #2A3843,
-        /* Hood */
-        -8px -14px #2A3843, -6px -14px #394B59, -4px -14px #46596A, -2px -14px #394B59, 0 -14px #2A3843,
-        -10px -12px #2A3843, -8px -12px #394B59, -6px -12px #46596A, -4px -12px #394B59, -2px -12px #394B59, 0 -12px #2A3843,
-        /* Shadowed face, gold eye glint */
-        -8px -10px #394B59, -6px -10px #10181E, -4px -10px #10181E, -2px -10px #E8C860, 0 -10px #10181E,
-        /* Scope with lens glint */
-        4px -10px #2A2A32, 6px -10px #2A2A32, 8px -10px #7CD9E8,
-        /* Wheellock rifle: stock then long barrel */
-        -4px -8px #5C3A22, -2px -8px #6E4A2E, 0 -8px #5C3A22,
-        2px -8px #3A3A42, 4px -8px #4A4A52, 6px -8px #3A3A42, 8px -8px #4A4A52, 10px -8px #3A3A42, 12px -8px #2A2A32, 14px -8px #1A1A20,
-        /* Cloaked torso, brass wheellock, hands */
-        -8px -6px #2A3843, -6px -6px #394B59, -4px -6px #394B59, -2px -6px #C9A23C, 0 -6px #B89468, 2px -6px #394B59, 4px -6px #B89468,
-        /* Shimmer fleck */
-        -10px -6px #5A7484,
-        /* Crouched body */
-        -8px -4px #223039, -6px -4px #2A3843, -4px -4px #394B59, -2px -4px #394B59, 0 -4px #2A3843,
-        -8px -2px #1A2630, -6px -2px #223039, -4px -2px #2A3843, -2px -2px #223039, 0 -2px #2A3843, 2px -2px #223039,
-        /* Kneeling legs + boots */
-        -6px 0 #10181E, -4px 0 #10181E, 2px 0 #10181E, 4px 0 #10181E`
   },
   {
     classes: ["warelephant-icon"],

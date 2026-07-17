@@ -443,18 +443,7 @@ function run(): void {
       `v4 summoner credit adds exactly the documented wave formula (${label})`)
   }
 
-  // --- (c) untargetable deploy window --------------------------------------
-  const hawkAttack = kitAttack('attack_kit_hawk', defSnapshot, { hawkeyeassassin: 1 }, [
-    { id: 'h1', type: 'hawkeyeassassin' }
-  ])
-  const hawkV4 = simulateCombat(hawkAttack, 75_000)
-  const hawkV3 = simulateCombat(atVersion(hawkAttack, 3), 75_000)
-  check(hawkV4.damageDealt > hawkV3.damageDealt,
-    'v4 untargetable window extends the assassin attrition lifetime and banks extra strikes')
-  check(simulateCombat(hawkAttack, 75_000).resultHash === hawkV4.resultHash,
-    'v4 untargetable credit stays deterministic across re-simulation')
-
-  // --- (d) quartermaster cadence aura --------------------------------------
+  // --- (c) quartermaster cadence aura --------------------------------------
   const qmAttack = kitAttack('attack_kit_qm', defSnapshot, { quartermaster: 1, warrior: 1 }, [
     { id: 'q1', type: 'quartermaster' },
     { id: 'w1', type: 'warrior' }
@@ -464,7 +453,7 @@ function run(): void {
   check(qmV4.damageDealt > qmV3.damageDealt,
     'v4 quartermaster aura credits allied strikes inside its window at the faster cadence')
 
-  // --- (e) support window extensions ---------------------------------------
+  // --- (d) support window extensions ---------------------------------------
   const cartAttack = kitAttack('attack_kit_cart', defSnapshot, { physicianscart: 1, stormmage: 1 }, [
     { id: 'c1', type: 'physicianscart' },
     { id: 'm1', type: 'stormmage' }
@@ -473,22 +462,6 @@ function run(): void {
   const cartV3 = simulateCombat(atVersion(cartAttack, 3), 75_000)
   check(cartV4.damageDealt > cartV3.damageDealt,
     "v4 physician's cart heal pulses extend an overlapping ally's credit window")
-
-  const paviseAttack = kitAttack('attack_kit_pavise', defSnapshot, { pavisebearer: 1, archer: 1 }, [
-    { id: 'p1', type: 'pavisebearer' },
-    { id: 'a1', type: 'archer' }
-  ])
-  const paviseV4 = simulateCombat(paviseAttack, 75_000)
-  const paviseV3 = simulateCombat(atVersion(paviseAttack, 3), 75_000)
-  check(paviseV4.damageDealt > paviseV3.damageDealt,
-    'v4 pavise bearer redistribution extends a RANGED ally credit window')
-
-  const paviseMeleeAttack = kitAttack('attack_kit_pavise_melee', defSnapshot, { pavisebearer: 1, warrior: 1 }, [
-    { id: 'p1', type: 'pavisebearer' },
-    { id: 'w1', type: 'warrior' }
-  ])
-  check(simulateCombat(paviseMeleeAttack, 75_000).damageDealt === simulateCombat(atVersion(paviseMeleeAttack, 3), 75_000).damageDealt,
-    'v4 pavise bearer never extends melee allies (the client redirect rule is ranged-only)')
 
   const towerAttack = kitAttack('attack_kit_tower', defSnapshot, { siegetower: 1, warrior: 1 }, [
     { id: 't1', type: 'siegetower' },

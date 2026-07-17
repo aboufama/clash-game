@@ -185,18 +185,6 @@
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAA40lEQVR42mNggAIrK5f/IMww2MCgc5iWltF/bHjUYYTAiyc3/oPwjStHwJhcc3a82fEfhIevw2CJ3ssrDIxh/BNHNoAxqebl78//D8Ijz2EwPrr6bC+V/yDcnWoCxgsqvMAYFx+mfvg7DF0e3UGwRE4Iw9QPH4fBClSYAwgVsDCL+m/2o+AzxsZgjC4+6jB0h8EchI6Hr8NwVeYDHpWD1mFSUgr/kTEhcVixge4AXJjsAnbQOoxSEGUn9x+EYQ6A8Qe8gTnoHIbuIPRKe8AcOGgdNprGRsEoGAWjYBSMglGAFQAA2GD1wzeMOrcAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
-/* PAVISE BEARER - Full-body slate-blue tower shield with white double chevron, helmet peeking over */
-.pavisebearer-icon::before {
-    content: '';
-    position: absolute;
-    width: 22px;
-    height: 42px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAqCAYAAAC3DKvtAAAAnUlEQVR42mNgIAAaGhr+g/CECRPAGMZnoBTQzODMzMz/IAwzEMYfeIPlvJL+g7DXlC1kYZh++husl9dHFh41mHKDb7z4AMaD32B0A3FZQD+D7+1o/w/C6AYT8jq6PEw/zDzaGTyaKgbOYHIjj/4Gq8ZUkIXpbzC6BaRioitVqhtsp678H4RjjMXBGJc6mDxM/cAZPApGwSgYBcMCAABBS82GA9YM8AAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
-}
 
 /* QUARTERMASTER - Barrel-chested drummer, gold-laced war drum, both sticks raised, banner pole */
 .quartermaster-icon::before {
@@ -250,18 +238,6 @@
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAmCAYAAADTGStiAAAA0ElEQVR42u2UsQrCMBBA8xeCk7ODi7hkdMwiOBaHgE4VIZM4SWanLO6OfoIf4H+dXOAcAgFbm8TIPXjDldKXHqVCJOZx3QIqcpM9TMH9auZ93s/e/wvfTgpQCtJ15xygxhhv/eFYkLDWAqq19tYTvhwUoJ8GByN7WKk1oO95MQE0+ZsmDzfNDtC2PXppjq28/jCtlILhiikUhr8+QLGwlEtAKUhz+ODYqnsfoFi4648keShbOPyIutr7QMXCcjoGdDMfeWke6v7fCzMMwzBMMV6pNrvsC1jhTwAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
 }
 
-/* HAWK-EYE ASSASSIN - Hooded slate sniper kneeling with long scoped wheellock, single gold eye glint */
-.hawkeyeassassin-icon::before {
-    content: '';
-    position: absolute;
-    width: 30px;
-    height: 34px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAiCAYAAABIiGl0AAAAvklEQVR42mNgIAC0LJz/g7CldyQYw/gMtAZ0txjdQrfILDCmuQPobjEhC4efxTAAs0BAQg4FvziRAMYwPtzBWkb/kXHNzRdgPHQsRgcxVkr/QTjPSw+MYXwrKycw9vIKAmNcfJiDpKQUwHjwWBxV0vIfhNETGQyfXGQDxjumZIAxTBzGJztIB8xiGFAysPwPwrgcQLPsNGAWS6kZ/AdhdAfg4g99i2EAvQAhVMAMfYtHwSgYBaNgFIyCUUBzAABzqI4whzqO0gAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
-}
 
 /* WAR ELEPHANT - Armored elephant head-on: plated forehead with gold boss, fanned ears, white tusks, trunk, red howdah crest */
 .warelephant-icon::before {

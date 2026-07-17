@@ -1425,20 +1425,18 @@ async function main() {
   // machine via a bot raid (no real victim to perturb). Isolated on fresh
   // sessions so the eco/battle flows above and below stay undisturbed.
   // Unlock levels follow getTroopUnlockLevel = floor(index / 2) + 1 over the
-  // 21-troop order (two troops per barracks level, barracks maxLevel 11).
+  // 19-troop order (two troops per barracks level, barracks maxLevel 10).
   const troopAcceptance = [
     { type: 'goblinplunderer', unlock: 2 },
     { type: 'clockworkbeetle', unlock: 3 },
     { type: 'physicianscart', unlock: 3 },
-    { type: 'pavisebearer', unlock: 4 },
     { type: 'quartermaster', unlock: 6 },
-    { type: 'siegetower', unlock: 7 },
-    { type: 'icegolem', unlock: 8 },
+    { type: 'siegetower', unlock: 6 },
+    { type: 'icegolem', unlock: 7 },
     { type: 'necromancer', unlock: 8 },
-    { type: 'trebuchet', unlock: 9 },
-    { type: 'hawkeyeassassin', unlock: 10 },
-    { type: 'warelephant', unlock: 10 },
-    { type: 'ornithopter', unlock: 11 }
+    { type: 'trebuchet', unlock: 8 },
+    { type: 'warelephant', unlock: 9 },
+    { type: 'ornithopter', unlock: 10 }
   ]
   for (const { type, unlock } of troopAcceptance) {
     const tag = `nta-${type}`

@@ -43,9 +43,6 @@ import { drawClockworkbeetleC } from './ClockworkbeetleC'; // IMPORT clockworkbe
 import { drawPhysicianscartA } from './PhysicianscartA'; // IMPORT physicianscart A
 import { drawPhysicianscartB } from './PhysicianscartB'; // IMPORT physicianscart B
 import { drawPhysicianscartC } from './PhysicianscartC'; // IMPORT physicianscart C
-import { drawPavisebearerA } from './PavisebearerA'; // IMPORT pavisebearer A
-import { drawPavisebearerB } from './PavisebearerB'; // IMPORT pavisebearer B
-import { drawPavisebearerC } from './PavisebearerC'; // IMPORT pavisebearer C
 import { drawQuartermasterA } from './QuartermasterA'; // IMPORT quartermaster A
 import { drawQuartermasterB } from './QuartermasterB'; // IMPORT quartermaster B
 import { drawQuartermasterC } from './QuartermasterC'; // IMPORT quartermaster C
@@ -58,9 +55,6 @@ import { drawNecromancerC } from './NecromancerC'; // IMPORT necromancer C
 import { drawTrebuchetA } from './TrebuchetA'; // IMPORT trebuchet A
 import { drawTrebuchetB } from './TrebuchetB'; // IMPORT trebuchet B
 import { drawTrebuchetC } from './TrebuchetC'; // IMPORT trebuchet C
-import { drawHawkeyeassassinA } from './HawkeyeassassinA'; // IMPORT hawkeyeassassin A
-import { drawHawkeyeassassinB } from './HawkeyeassassinB'; // IMPORT hawkeyeassassin B
-// IMPORT hawkeyeassassin C
 import { drawWarelephantA } from './WarelephantA'; // IMPORT warelephant A
 import { drawWarelephantB } from './WarelephantB'; // IMPORT warelephant B
 import { drawWarelephantC } from './WarelephantC'; // IMPORT warelephant C
@@ -86,9 +80,6 @@ import * as ClockworkbeetleCMod from './ClockworkbeetleC';
 import * as PhysicianscartAMod from './PhysicianscartA';
 import * as PhysicianscartBMod from './PhysicianscartB';
 import * as PhysicianscartCMod from './PhysicianscartC';
-import * as PavisebearerAMod from './PavisebearerA';
-import * as PavisebearerBMod from './PavisebearerB';
-import * as PavisebearerCMod from './PavisebearerC';
 import * as QuartermasterAMod from './QuartermasterA';
 import * as QuartermasterBMod from './QuartermasterB';
 import * as QuartermasterCMod from './QuartermasterC';
@@ -101,8 +92,6 @@ import * as NecromancerCMod from './NecromancerC';
 import * as TrebuchetAMod from './TrebuchetA';
 import * as TrebuchetBMod from './TrebuchetB';
 import * as TrebuchetCMod from './TrebuchetC';
-import * as HawkeyeassassinAMod from './HawkeyeassassinA';
-import * as HawkeyeassassinBMod from './HawkeyeassassinB';
 import * as WarelephantAMod from './WarelephantA';
 import * as WarelephantBMod from './WarelephantB';
 import * as WarelephantCMod from './WarelephantC';
@@ -160,12 +149,10 @@ export type DesignUnit =
     | 'goblinplunderer'
     | 'clockworkbeetle'
     | 'physicianscart'
-    | 'pavisebearer'
     | 'quartermaster'
     | 'siegetower'
     | 'necromancer'
     | 'trebuchet'
-    | 'hawkeyeassassin'
     | 'warelephant'
     | 'ornithopter'
     | 'skeleton';
@@ -176,12 +163,10 @@ export interface DesignSlots {
     goblinplunderer: Record<DesignSlotId, TroopDesignFn | null>;
     clockworkbeetle: Record<DesignSlotId, TroopDesignFn | null>;
     physicianscart: Record<DesignSlotId, TroopDesignFn | null>;
-    pavisebearer: Record<DesignSlotId, TroopDesignFn | null>;
     quartermaster: Record<DesignSlotId, TroopDesignFn | null>;
     siegetower: Record<DesignSlotId, TroopDesignFn | null>;
     necromancer: Record<DesignSlotId, TroopDesignFn | null>;
     trebuchet: Record<DesignSlotId, TroopDesignFn | null>;
-    hawkeyeassassin: Record<DesignSlotId, TroopDesignFn | null>;
     warelephant: Record<DesignSlotId, TroopDesignFn | null>;
     ornithopter: Record<DesignSlotId, TroopDesignFn | null>;
     skeleton: Record<DesignSlotId, TroopDesignFn | null>;
@@ -208,11 +193,6 @@ export const DESIGN_SLOTS: DesignSlots = {
         B: drawPhysicianscartB, // SLOT physicianscart B
         C: drawPhysicianscartC, // SLOT physicianscart C
     },
-    pavisebearer: {
-        A: drawPavisebearerA, // SLOT pavisebearer A
-        B: drawPavisebearerB, // SLOT pavisebearer B
-        C: drawPavisebearerC, // SLOT pavisebearer C
-    },
     quartermaster: {
         A: drawQuartermasterA, // SLOT quartermaster A
         B: drawQuartermasterB, // SLOT quartermaster B
@@ -232,11 +212,6 @@ export const DESIGN_SLOTS: DesignSlots = {
         A: drawTrebuchetA, // SLOT trebuchet A
         B: drawTrebuchetB, // SLOT trebuchet B
         C: drawTrebuchetC, // SLOT trebuchet C
-    },
-    hawkeyeassassin: {
-        A: drawHawkeyeassassinA, // SLOT hawkeyeassassin A
-        B: drawHawkeyeassassinB, // SLOT hawkeyeassassin B
-        C: null, // SLOT hawkeyeassassin C
     },
     warelephant: {
         A: drawWarelephantA, // SLOT warelephant A
@@ -275,12 +250,10 @@ export const DEFAULT_DESIGN_SLOTS: Partial<Record<DesignUnit, DesignSlotId>> = {
     goblinplunderer: 'B',
     clockworkbeetle: 'B',
     physicianscart: 'B',
-    pavisebearer: 'B',
     quartermaster: 'C',
     siegetower: 'C',
     necromancer: 'A',
     trebuchet: 'B',
-    hawkeyeassassin: 'A',
     warelephant: 'C',
     ornithopter: 'C',
     skeleton: 'A', // ships with necromancer A — pair must match
@@ -351,12 +324,10 @@ const DESIGN_PARAM_MODULES: Partial<Record<DesignUnit, Partial<Record<DesignSlot
     goblinplunderer: { A: GoblinplundererAMod, B: GoblinplundererBMod, C: GoblinplundererCMod },
     clockworkbeetle: { A: ClockworkbeetleAMod, B: ClockworkbeetleBMod, C: ClockworkbeetleCMod },
     physicianscart: { A: PhysicianscartAMod, B: PhysicianscartBMod, C: PhysicianscartCMod },
-    pavisebearer: { A: PavisebearerAMod, B: PavisebearerBMod, C: PavisebearerCMod },
     quartermaster: { A: QuartermasterAMod, B: QuartermasterBMod, C: QuartermasterCMod },
     siegetower: { A: SiegetowerAMod, B: SiegetowerBMod, C: SiegetowerCMod },
     necromancer: { A: NecromancerAMod, B: NecromancerBMod, C: NecromancerCMod },
     trebuchet: { A: TrebuchetAMod, B: TrebuchetBMod, C: TrebuchetCMod },
-    hawkeyeassassin: { A: HawkeyeassassinAMod, B: HawkeyeassassinBMod },
     warelephant: { A: WarelephantAMod, B: WarelephantBMod, C: WarelephantCMod },
     ornithopter: { A: OrnithopterAMod, B: OrnithopterBMod, C: OrnithopterCMod },
     skeleton: { A: NecromancerAMod, B: NecromancerBMod, C: NecromancerCMod },

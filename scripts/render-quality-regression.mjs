@@ -148,9 +148,9 @@ for (const manifestFile of manifestFiles) {
   manifestsByKind[kindOf(manifestFile)] = (manifestsByKind[kindOf(manifestFile)] ?? 0) + 1;
 }
 assert.deepEqual(manifestsByKind,
-  { buildings: 21, figures: 10, obstacles: 5, projectiles: 11, troops: 47, villagers: 11, wrecks: 19 },
-  'expected manifests for 21 buildings (tournament resolved: plain cannon + plain mortar; frostfall pending as @A/@B/@C variant slots), 46 troops (11 plain — golem + icegolem; ward/recursion/giant/sharpshooter deleted with their musket_ball projectile — plus 35 tournament variant dirs: 10 units × @A/@B/@C incl. skeleton, hawkeyeassassin at @A/@B only), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 11 projectiles (trebuchet_stone + ornithopter_bomb joined 2026-07)');
-assert.equal(manifestFiles.length, 124, 'the baked unit roster changed size');
+  { buildings: 21, figures: 10, obstacles: 5, projectiles: 11, troops: 41, villagers: 11, wrecks: 19 },
+  'expected manifests for 21 buildings (tournament resolved: plain cannon + plain mortar; frostfall pending as @A/@B/@C variant slots), 41 troops (11 plain — golem + icegolem; ward/recursion/giant/sharpshooter deleted with their musket_ball projectile; pavisebearer + hawkeyeassassin deleted 2026-07 with all their variant dirs — plus 30 tournament variant dirs: 10 units × @A/@B/@C incl. skeleton), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 11 projectiles (trebuchet_stone + ornithopter_bomb joined 2026-07)');
+assert.equal(manifestFiles.length, 118, 'the baked unit roster changed size');
 
 const referencedPngs = new Set();
 const framesByKind = {};
@@ -217,10 +217,10 @@ assert.equal(Object.keys(wallAtlas.frames).some(name => /_gate_/.test(name)), fa
 assert.equal(emittedPngs.some(file => /^buildings\/wall\/.*_gate_/.test(file)), false,
   'a removed loose wall-gate PNG is still committed');
 assert.deepEqual(framesByKind,
-  { buildings: 8_224, figures: 180, obstacles: 872, projectiles: 374, troops: 45_396, villagers: 2_924, wrecks: 71 },
+  { buildings: 8_224, figures: 180, obstacles: 872, projectiles: 374, troops: 38_484, villagers: 2_924, wrecks: 71 },
   'the baked roster is incomplete');
-assert.equal(frameCount, 58_041,
-  '8,224 building (incl. frostfall@A/B/C tournament variants, 208 frames each, old frostfall retired) + 44,244 troop (11,664 plain — ward/recursion/giant/sharpshooter deleted 2026-07 — plus 32,580 tournament @-variant frames: goblinplunderer/clockworkbeetle/physicianscart/pavisebearer/quartermaster/siegetower/necromancer/trebuchet/warelephant/ornithopter/skeleton slots, hawkeyeassassin @A/@B only) + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 180 figure (caravan_soldier escort palettes refreshed by the 2026-07 figures re-bake) + 374 projectile frames (trebuchet_stone 48 + ornithopter_bomb 1 joined) '
+assert.equal(frameCount, 51_129,
+  '8,224 building (incl. frostfall@A/B/C tournament variants, 208 frames each, old frostfall retired) + 38,484 troop (11,664 plain — ward/recursion/giant/sharpshooter deleted 2026-07 — plus 26,820 tournament @-variant frames: goblinplunderer/clockworkbeetle/physicianscart/quartermaster/siegetower/necromancer/trebuchet/warelephant/ornithopter/skeleton slots; pavisebearer + hawkeyeassassin variant dirs deleted 2026-07, 6,912 frames) + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 180 figure (caravan_soldier escort palettes refreshed by the 2026-07 figures re-bake) + 374 projectile frames (trebuchet_stone 48 + ornithopter_bomb 1 joined) '
   + '(dense ambient/idle loops; every defense idles — turrets bake per-angle idle loops; tournament finals resolved the @-variant slots: plain cannon (ex-@B) and reverted plain mortar rebaked, plain golem (ex-@C) plus the new icegolem troop; '
   + 'walls carry a per-topology GROUND decal now — the contact shadow stamped under the body by SpriteBank\'s wall-ground slot, 64 frames)');
 assert.deepEqual(emittedPngs.sort(), [...atlasPackedPngs].sort(),

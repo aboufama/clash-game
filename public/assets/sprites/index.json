@@ -213,27 +213,6 @@
     },
     {
       "kind": "troops",
-      "unit": "hawkeyeassassin@A",
-      "atlas": "troops/hawkeyeassassin@A/atlas.png",
-      "frames": "troops/hawkeyeassassin@A/atlas.json",
-      "manifest": "troops/hawkeyeassassin@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "hawkeyeassassin@B",
-      "atlas": "troops/hawkeyeassassin@B/atlas.png",
-      "frames": "troops/hawkeyeassassin@B/atlas.json",
-      "manifest": "troops/hawkeyeassassin@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "hawkeyeassassin@C",
-      "atlas": "troops/hawkeyeassassin@C/atlas.png",
-      "frames": "troops/hawkeyeassassin@C/atlas.json",
-      "manifest": "troops/hawkeyeassassin@C/manifest.json"
-    },
-    {
-      "kind": "troops",
       "unit": "icegolem",
       "atlas": "troops/icegolem/atlas.png",
       "frames": "troops/icegolem/atlas.json",
@@ -287,27 +266,6 @@
       "atlas": "troops/ornithopter@C/atlas.png",
       "frames": "troops/ornithopter@C/atlas.json",
       "manifest": "troops/ornithopter@C/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "pavisebearer@A",
-      "atlas": "troops/pavisebearer@A/atlas.png",
-      "frames": "troops/pavisebearer@A/atlas.json",
-      "manifest": "troops/pavisebearer@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "pavisebearer@B",
-      "atlas": "troops/pavisebearer@B/atlas.png",
-      "frames": "troops/pavisebearer@B/atlas.json",
-      "manifest": "troops/pavisebearer@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "pavisebearer@C",
-      "atlas": "troops/pavisebearer@C/atlas.png",
-      "frames": "troops/pavisebearer@C/atlas.json",
-      "manifest": "troops/pavisebearer@C/manifest.json"
     },
     {
       "kind": "troops",

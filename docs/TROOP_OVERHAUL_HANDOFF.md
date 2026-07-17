@@ -1,16 +1,18 @@
 # Troop overhaul — remaining items (stub, 2026-07-16)
 
 The overhaul itself is DONE and documented in CLAUDE.md / AGENTS.md (the
-"troop overhaul + design tournaments" bullet): 21-troop roster (11 new
-units; ward/recursion/giant/sharpshooter deleted), 2-per-level barracks
-unlocks (barracks maxLevel 11), `ATTACK_SIMULATION_VERSION` 4, every
+"troop overhaul + design tournaments" bullet): 19-troop roster (was 21 —
+pavisebearer + hawkeyeassassin were deleted end-to-end 2026-07-16, owner
+call, on top of the earlier ward/recursion/giant/sharpshooter deletion),
+2-per-level barracks unlocks (barracks maxLevel 10),
+`ATTACK_SIMULATION_VERSION` 4, every
 tournament slot baked + live-switchable, judge-panel defaults live in
-`DEFAULT_DESIGN_SLOTS` (`src/game/renderers/redesign/DesignRegistry.ts`),
-render-quality green at 123 manifests / 56,889 frames. Gate live
+`DEFAULT_DESIGN_SLOTS` (`src/game/renderers/redesign/DesignRegistry.ts`).
+Gate live
 checkpoints (trebuchet-vs-dragons_breath duel, elephant wall trample,
-quartermaster aura, 21-entry TrainingModal/battle bar) were captured
-2026-07-16. This file lists only what remains; delete it when the list
-empties.
+quartermaster aura, TrainingModal/battle bar) were captured
+2026-07-16 (pre-deletion, at the then-21-entry roster). This file lists
+only what remains; delete it when the list empties.
 
 ## Waiting on the OWNER (block winner promotion until picked)
 
@@ -27,8 +29,6 @@ empties.
 
 - **Wallbreaker L4 balance cliff** (flagged by the balance review) —
   owner decision pending on the retune.
-- **hawkeyeassassin slot C** was never authored (only @A/@B exist) —
-  either accept the two-way race or commission a C before the final pick.
 - **clockworkbeetle judge verdict** still in flight — no
   `DEFAULT_DESIGN_SLOTS` entry yet (default falls back A→B→C, i.e. @A).
 

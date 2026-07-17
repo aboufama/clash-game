@@ -1,12 +1,9 @@
 import {
     BUILDING_DEFINITIONS,
     MAP_SIZE,
-    getBuildingStats,
     getTroopStats,
-    type BuildingType,
     type TroopDef
 } from '../config/GameDefinitions';
-import { defenseDps } from './DefenseBehaviorCatalog';
 import type { PlacedBuilding, Troop } from '../types/GameTypes';
 
 export interface CombatPoint {
@@ -206,36 +203,6 @@ export class CombatNavigationSystem {
             if (tier.length === 0) continue;
             bestTarget = null;
             bestPlan = null;
-
-            // Threat-ordered tier (hawk-eye): the PRIORITY tier is ranked by
-            // sustained defense DPS (desc, deterministic id tie-break) and the
-            // first REACHABLE candidate wins outright — route cost never
-            // reorders a threat hunt, so no hysteresis is needed. Lower tiers
-            // keep the standard nearest/route scoring.
-            if (stats.targetOrdering === 'defenseDps' && tier === priorityCandidates) {
-                const ranked = [...tier].sort((a, b) => {
-                    const dpsA = defenseDps(a.type, getBuildingStats(a.type as BuildingType, a.level || 1)) ?? 0;
-                    const dpsB = defenseDps(b.type, getBuildingStats(b.type as BuildingType, b.level || 1)) ?? 0;
-                    return (dpsB - dpsA) || a.id.localeCompare(b.id);
-                });
-                for (const candidate of ranked) {
-                    const plan = this.planToBuildingWithContext(
-                        troop,
-                        candidate,
-                        context,
-                        topologyRevision,
-                        plannedAt,
-                        stats
-                    );
-                    if (plan) {
-                        bestTarget = candidate;
-                        bestPlan = plan;
-                        break;
-                    }
-                }
-                if (bestTarget && bestPlan) break;
-                continue;
-            }
 
             let bestScore = Number.POSITIVE_INFINITY;
             const sorted = [...tier].sort((a, b) => {

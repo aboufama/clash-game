@@ -101,12 +101,10 @@ const TROOP_PARAMS = {
   goblinplunderer: { stride: 240, delay: 600, windup: 200, strike: 120, dirs: 8 }, // fast mover needs 8 headings
   clockworkbeetle: { stride: 240, delay: 500, windup: 240, strike: 0,   dirs: 8 },
   physicianscart:  { stride: 500, delay: 6000, windup: 800, strike: 400, dirs: 8, big: true }, // heal pulse baked as attack seq on 6s cadence
-  pavisebearer:    { stride: 500, delay: 1200, windup: 350, strike: 180, dirs: 8 },
   quartermaster:   { stride: 450, delay: 0, windup: 0, strike: 0, dirs: 1, attack: false, idleMs: 2000 }, // drum beat = exact 2000ms idle harmonics; damage 0 so attack:false is consistent
   siegetower:      { stride: 700, delay: 0, windup: 0, strike: 0, dirs: 8, big: true, attack: false, deactivated: true }, // deactivated = parked ramp idle
   necromancer:     { stride: 480, delay: 5000, windup: 700, strike: 400, dirs: 1 },
   trebuchet:       { stride: 700, delay: 4000, windup: 900, strike: 400, dirs: 8, big: true },
-  hawkeyeassassin: { stride: 340, delay: 1300, windup: 420, strike: 0,   dirs: 8 },
   warelephant:     { stride: 1200, delay: 3000, windup: 900, strike: 500, dirs: 8, big: true },
   ornithopter:     { stride: 500, delay: 0, windup: 0, strike: 0, dirs: 8, attack: false, idleMs: 500 }, // 'walk'=flap loop, idle=hover bob; bombs are projectiles, no attack frames
   skeleton:        { stride: 300, delay: 900, windup: 260, strike: 150, dirs: 8 }
@@ -1183,8 +1181,7 @@ try {
       // 2026-07 troop overhaul projectiles: the trebuchet boulder tumbles
       // (nearest of 16 rotations, troop levels 1-3 = material tiers) and the
       // ornithopter's iron bomb is radially-stable mm_shell class (1 level,
-      // 1 angle — MainScene passes angles=1). Hawk-eye fires NO projectile:
-      // its kit is instant-hit, the muzzle flash lives in the troop art.
+      // 1 angle — MainScene passes angles=1).
       projRot('trebuchet_stone', 'drawTrebuchetStone', [1, 2, 3], 16),
       projRot('ornithopter_bomb', 'drawOrnithopterBomb', [1], 1)
     ])

@@ -123,12 +123,6 @@ function attritionLifetimeMs(
   const jitterHex = deterministicScore(attack.simulationSeed, `attrition:${deploy.troopInstanceId}`).slice(0, 8)
   const jitter = 0.8 + 0.4 * (Number.parseInt(jitterHex, 16) / 0xffffffff)
   const lifetime = Math.round(hitPoints * 1_000 * jitter / perTroopDps)
-  // Rules v4: a troop that deploys hidden (hawk-eye assassin) takes no
-  // defensive fire while untargetable, so its credit window starts burning
-  // only after the cloak drops — the whole window extends by untargetableMs.
-  if (attack.rules.simulationVersion >= 4 && typeof stats.untargetableMs === 'number' && stats.untargetableMs > 0) {
-    return Math.min(attack.rules.maxDamageCreditMs, Math.max(1_000, lifetime) + Math.floor(stats.untargetableMs))
-  }
   return Math.min(attack.rules.maxDamageCreditMs, Math.max(1_000, lifetime))
 }
 
@@ -199,11 +193,6 @@ function quartermasterWindowsV4(
  *   (cadence = the healer's attackDelay) that fits inside the overlap grants
  *   the ally healAmount equivalent hit points, converted to lifetime at the
  *   same per-troop defense DPS the v3 attrition model burns at.
- * - Guard (guardRadius + guardRedirectShare; pavise bearer): while the guard
- *   overlaps a RANGED ally (range >= 1.5, mirroring the client redirect
- *   rule), guardRedirectShare of the fire aimed at the ally lands on the
- *   guard's larger pool instead — the ally's burn rate drops by that share,
- *   worth overlapMs x share extra lifetime.
  * - Siege tower ('siegetower', the one type-keyed support until a
  *   declarative ramp field exists): a parked ramp spares each overlapping
  *   ally a flat SIEGE_TOWER_PATHING_CREDIT_MS of wall-line pathing.
@@ -222,7 +211,6 @@ function supportExtendedLifetimeMs(
   if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return baseLifetimeMs
   const own = baseWindows.get(deploy.troopInstanceId)
   if (!own) return baseLifetimeMs
-  const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
   const perTroopDps = totalDefenseDps / Math.max(1, deployedCount)
   let bonusMs = 0
   for (const support of deploys) {
@@ -237,9 +225,6 @@ function supportExtendedLifetimeMs(
       const pulseMs = Math.max(1_000, Math.floor(supportStats.attackDelay ?? 1_000))
       const pulses = Math.floor(overlapMs / pulseMs)
       if (pulses > 0) bonusMs += Math.round(pulses * (supportStats.healAmount ?? 0) * 1_000 / perTroopDps)
-    }
-    if ((supportStats.guardRadius ?? 0) > 0 && (supportStats.guardRedirectShare ?? 0) > 0 && stats.range >= 1.5) {
-      bonusMs += Math.floor(overlapMs * Math.min(0.95, supportStats.guardRedirectShare ?? 0))
     }
     if (support.troopType === 'siegetower') {
       bonusMs += SIEGE_TOWER_PATHING_CREDIT_MS
@@ -464,8 +449,8 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   // an army that gets wiped in seconds no longer banks the full credit window.
   // Version 4 keeps the v3 scoring and attrition but credits the declarative
   // troop kits: resource-raider multipliers/tiering, summoner waves,
-  // untargetable deploy windows, quartermaster cadence auras and support
-  // window extensions (see the "Rules v4" helpers above).
+  // quartermaster cadence auras and support window extensions (see the
+  // "Rules v4" helpers above).
   const destruction = attack.rules.simulationVersion <= 1
     ? (scoring.length > 0
         ? Math.min(100, Math.round(scoring.filter(state => state.remainingHitPoints <= 0).length * 100 / scoring.length))

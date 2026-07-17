@@ -88,10 +88,6 @@ export interface PlacedBuilding {
     fillLevel?: number;
     lastHarvestAt?: number;
     lastDrawFill?: number;
-    /** Pavise-bearer redirect: per-defense counter of ELIGIBLE shots (a ranged
-     *  ally guarded by a live pavise). Deterministic share selection —
-     *  redirect when floor(n·share) increments — never Math.random. */
-    redirectShotCounter?: number;
 }
 
 export interface Troop {
@@ -156,8 +152,6 @@ export interface Troop {
     replaySampleY?: number;
     replaySampleT?: number;
     // === 2026-07 troop-kit state (client battle sim; all optional) ===
-    /** Hawk-eye cloak: defenses skip this troop while `time < untargetableUntil`. */
-    untargetableUntil?: number;
     /** Generated unit (skeleton): id of the summoner that raised it. */
     summonedBy?: string;
     /** Summoner (necromancer): last summon-wave tick (timer runs from deploy). */
@@ -171,8 +165,6 @@ export interface Troop {
     parked01?: number;
     /** Siege tower: the enemy wall tile currently serving as the ally ramp. */
     parkedWallId?: string;
-    /** Pavise bearer: shield-spark FX window armed by a redirected shot. */
-    guardFlareUntil?: number;
     /** Quartermaster aura: last frame this troop was inside a drum aura. */
     lastBoostedAt?: number;
     /** Quartermaster aura: brief gold tint window on newly buffed allies. */

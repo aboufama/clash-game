@@ -113,9 +113,6 @@ export class TroopRenderer {
             case 'physicianscart':
                 TroopRenderer.drawNewTroop(graphics, 'physicianscart', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
-            case 'pavisebearer':
-                TroopRenderer.drawNewTroop(graphics, 'pavisebearer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
-                break;
             case 'quartermaster':
                 TroopRenderer.drawNewTroop(graphics, 'quartermaster', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
@@ -130,9 +127,6 @@ export class TroopRenderer {
                 break;
             case 'trebuchet':
                 TroopRenderer.drawNewTroop(graphics, 'trebuchet', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
-                break;
-            case 'hawkeyeassassin':
-                TroopRenderer.drawNewTroop(graphics, 'hawkeyeassassin', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'warelephant':
                 TroopRenderer.drawNewTroop(graphics, 'warelephant', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);

@@ -40,9 +40,9 @@ import type {
 // defense DPS. Attacks pin the rules version at preparation, so replays and
 // settlements recorded under v1/v2 keep reproducing their original results.
 // v4 (2026-07, troop rework): declarative kit credit on top of v3 —
-// resource-raider damage multipliers, summoner wave credit, untargetable
-// deploy windows, quartermaster cadence auras and support-window lifetime
-// extensions (healer/guard/siege tower). Every v4 branch in simulation.ts is
+// resource-raider damage multipliers, summoner wave credit, quartermaster
+// cadence auras and support-window lifetime extensions (healer/siege
+// tower). Every v4 branch in simulation.ts is
 // guarded by rules.simulationVersion >= 4; stored v1–v3 attacks keep taking
 // their original branches byte-identically.
 export const ATTACK_SIMULATION_VERSION = 4

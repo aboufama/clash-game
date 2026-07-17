@@ -41,7 +41,7 @@ nothing can cross into the next row:
 | obstacle                 | 18 + 0.5·sz  | occluder band, capped bias (sz ≤ 4)      |
 | building / wall          | 18.5 + 0.5·(sz−1) | occluder band → wall/1x1 18.5 … 4x4 20 |
 | projectile               | 60           | `depthForProjectile(x, y)`               |
-| ground effect (impacts)  | 62           | `depthForGroundEffect(x, y)`             |
+| airborne burst FX        | 62           | `depthForGroundEffect(x, y)` — NOT lawn decals (see the two effect classes below) |
 
 ## The Occluder Band (characters vs solids)
 
@@ -80,7 +80,10 @@ Exported functions:
 - `depthForRubble(gridX, gridY, w, h)`
 - `depthForTroop(gridX, gridY, type)`
 - `depthForProjectile(gridX, gridY)` — rigid shots, at their CURRENT position
-- `depthForGroundEffect(gridX, gridY)` — muzzle flashes / impact FX
+- `depthForGroundEffect(gridX, gridY)` — AIRBORNE burst FX (muzzle flashes,
+  impact blooms, debris in flight)
+- `depthForGroundDecal(kind)` — GROUND-PLANE effect decals (absolute band,
+  see below)
 
 ## Footprint Anchor
 
@@ -154,21 +157,47 @@ underneath) before touching depth math — every 2026-07 case was this read
 artifact, and "fixing" it by shifting anchors/offsets re-opens the real
 occluder-band bugs listed above.
 
-## Ground-Decal Band (absolute, below 1000)
+## The Two Effect Depth Classes (policy)
 
-Scorches/craters/hazard zones that must sit ON the lawn but never over
-entities use small absolute depths:
+Every effect is exactly one of two things — classify BEFORE picking a depth:
+
+**(a) GROUND-PLANE DECAL** — flat art painted ON the lawn: slam cracks and
+dust/shock rings, scorch marks, craters, spike/caltrop zones, rime/freeze
+rings, chill residue, deploy/heal/aura rings, ground shockfronts. These must
+render UNDER every troop and building standing art, ALWAYS → use
+`depthForGroundDecal(kind)` (small ABSOLUTE depths, the band below). Never
+give a lawn decal painter's-order depth: base+62 out-depths every troop up
+to ~0.4 rows in FRONT of the effect's tile, so the decal paints OVER units
+standing inside it (the golem-slam-ring-over-troops bug, fixed 2026-07).
+
+**(b) AIRBORNE / BURST FX** — anything with a vertical body or in flight:
+explosion blooms, muzzle flashes, debris/embers/chips in flight, beams,
+rising smoke, floating particles, impact flashes → painter's order via
+`depthForProjectile` / `depthForGroundEffect` (+ tiny ±N internal offsets).
+
+Debris that FALLS and LANDS may transition (b) → (a) on landfall if a case
+visibly needs it; today's landed chunks fade fast enough to stay in (b).
+
+### Ground-Decal Band (absolute, below 1000)
+
+`depthForGroundDecal(kind)` — persistent stains low, living/transient FX on
+top; callers may stack tiny ±0.5 offsets:
 
 - ground RT: 0
 - stone lanes RT (`VillageLifeSystem.presentStonePaths`): 2.5
-- mortar craters / cracks: 3
-- spike-launcher zones: 4
-- prism scorch: 5
-- dragons-breath scorch: 6
-- frostfall rime / spike-impact cracks: 7
+- `crater` 3 — mortar craters, slam/impact crack webs
+- `zone` 4 — spike-launcher caltrop fields
+- `scorch` 5 — prism scorch / chasm trail
+- `scorchHot` 6 — dragons-breath scorch, melt puddles
+- `residue` 7 — frost rime, freeze fissures, spike-impact cracks
+- `aura` 8 — heal/drum auras, heal waves, click pulses
+- `shockfront` 9 — transient expanding ground rings / dust blooms
 
 Anything new in this band goes ABOVE 2.5 (the stone lanes RT) and below the
-entity range (1000+).
+entity range (1000+). Known exceptions that stay painter's-order on purpose:
+the defense freeze overlay + range indicator (dressing ANCHORED to a
+building's art, not lawn decals) and the 30000-band death/collapse bursts
+(legacy always-on-top airborne FX).
 
 ## Ground Plane Contract
 

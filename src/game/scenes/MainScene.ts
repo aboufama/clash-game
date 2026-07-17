@@ -15,7 +15,7 @@ import { DefenseSystem } from '../systems/DefenseSystem';
 import { TargetingSystem } from '../systems/TargetingSystem';
 import { DEFENSE_BEHAVIOR_CATALOG } from '../systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
-import { depthForBuilding, depthForGroundEffect, depthForGroundPlane, depthForObstacle, depthForProjectile, depthForRubble, depthForTroop } from '../systems/DepthSystem';
+import { depthForBuilding, depthForGroundDecal, depthForGroundEffect, depthForGroundPlane, depthForObstacle, depthForProjectile, depthForRubble, depthForTroop } from '../systems/DepthSystem';
 import { IsoUtils, TILE_HEIGHT, TILE_WIDTH } from '../utils/IsoUtils';
 import { cameraCssHeight, cameraCssWidth, getRenderScale, toBackingZoom, toLogicalZoom } from '../utils/DisplayResolution';
 import { MobileUtils } from '../utils/MobileUtils';
@@ -41,7 +41,7 @@ import { installBakeBridge } from '../dev/BakeBridge';
 import { SpriteBank } from '../render/SpriteBank';
 import { installPixelModeHandle, registerPixelSurface, settleLogicalZoom, zoomSettleEnabled } from '../renderers/TextureRenderPolicy';
 import { pixelBitmap, pixelEllipse, pixelLine, pixelRect, PIXEL_CELL } from '../render/PixelDraw';
-import { PixelFx } from '../systems/PixelFx';
+import { PixelFx, screenShake } from '../systems/PixelFx';
 
 const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
@@ -2147,7 +2147,8 @@ export class MainScene extends Phaser.Scene {
                 r0: 11, r1: 17.6, squash: 0.5, thick0: 1,
                 color: golden ? 0xffd84a : 0xffffff, alpha: 0.8,
                 life: 380, ease: 'Quad.easeOut',
-                depth: patch.graphics.depth + 1
+                // Ground-plane pulse: decal band, under villagers/obstacle art.
+                depth: depthForGroundDecal('aura')
             });
         }
         return assigned;
@@ -2175,7 +2176,8 @@ export class MainScene extends Phaser.Scene {
                 r0: 12, r1: 19.2, squash: 0.5, thick0: 1,
                 color: 0xffffff, alpha: 0.8,
                 life: 380, ease: 'Quad.easeOut',
-                depth: rock.graphics.depth + 1
+                // Ground-plane pulse: decal band, under villagers/obstacle art.
+                depth: depthForGroundDecal('aura')
             });
         }
         return assigned;
@@ -3277,7 +3279,8 @@ export class MainScene extends Phaser.Scene {
 
         if (!this.kitAuraGfx || !this.kitAuraGfx.active) {
             this.kitAuraGfx = this.trackBattleFx(this.add.graphics());
-            this.kitAuraGfx.setDepth(7);
+            // Ground-plane decal: aura rings live on the lawn, under every troop.
+            this.kitAuraGfx.setDepth(depthForGroundDecal('aura'));
         }
         const gfx = this.kitAuraGfx;
         gfx.clear();
@@ -3305,7 +3308,9 @@ export class MainScene extends Phaser.Scene {
                         r0: 8, r1: aura.rx, squash: aura.ry / Math.max(1, aura.rx),
                         thick0: 3, thick1: 1, color: 0x8ef5b6, alpha: 0.85,
                         life: 460, ease: 'Quad.easeOut',
-                        depth: depthForGroundEffect(troop.gridX, troop.gridY) + 1
+                        // Ground-plane decal: the heal wave sweeps the lawn
+                        // UNDER the allies it heals, never over them.
+                        depth: depthForGroundDecal('aura') + 0.5
                     }));
 
                     // (b) Burst-heal ALL allies in radius (+ floating green
@@ -3368,7 +3373,6 @@ export class MainScene extends Phaser.Scene {
      *  flash at the staff + a rolling ground ring. */
     private showSummonFlourish(troop: Troop) {
         const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-        const groundDepth = depthForGroundEffect(troop.gridX, troop.gridY);
         this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 16, {
             r: 7, color: 0xb08aff, alpha: 0.9, scaleTo: 1.8, life: 220,
             depth: depthForTroop(troop.gridX, troop.gridY, troop.type) + 0.5
@@ -3376,7 +3380,8 @@ export class MainScene extends Phaser.Scene {
         this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 5, {
             r0: 6, r1: 34, squash: 0.5, thick0: 2, thick1: 1,
             color: 0x8a63cc, alpha: 0.7, life: 380, ease: 'Quad.easeOut',
-            depth: groundDepth + 1
+            // Ground-plane decal: the grave-light ring rolls along the lawn.
+            depth: depthForGroundDecal('shockfront')
         }));
         this.redrawTroopWithMovement(troop, false);
     }
@@ -3434,7 +3439,7 @@ export class MainScene extends Phaser.Scene {
             life: 320, lifeJitter: 120, scaleTo: 1.6,
             depth: depthForGroundEffect(troop.gridX, troop.gridY)
         });
-        this.cameras.main.shake(30, 0.001);
+        screenShake(this, 30, 0.001);
     }
 
     /** The ally-ramp set threaded into navigation for THIS troop — only
@@ -3578,7 +3583,7 @@ export class MainScene extends Phaser.Scene {
                                     },
                                     onComplete: () => {
                                         // Screen shake at impact
-                                        this.cameras.main.shake(50, 0.0015);
+                                        screenShake(this, 50, 0.0015);
 
                                         // Deal damage to all buildings within 3 tile radius
                                         const aoeTiles = 3;
@@ -3697,7 +3702,7 @@ export class MainScene extends Phaser.Scene {
                                 particleManager.emitSmokeTracker('troop_fire_' + troop.id, muzzleX, muzzleY, time, depthForGroundEffect(launchGX, launchGY), 3, 0);
 
                                 // Light screen shake on fire
-                                this.cameras.main.shake(25, 0.0005);
+                                screenShake(this, 25, 0.0005);
 
                                 // ROTATE AFTER SHOT - delayed until cannonball is in flight
                                 const newAngle = currentAngle + Math.PI / 4;
@@ -3873,7 +3878,7 @@ export class MainScene extends Phaser.Scene {
                                     // wall. One strike kills the wall; the
                                     // topology invalidation below replans it
                                     // onward with minimal stop.
-                                    this.cameras.main.shake(50, 0.0022);
+                                    screenShake(this, 50, 0.0022);
                                     PixelFx.burst(this, targetPos.x, targetPos.y + 4, {
                                         count: 8, colors: [0x8b7355, 0x9b8365, 0x6b5344], alpha: 0.7,
                                         r: 2.2, rJitter: 1.6, spread: 14, up: 9, upJitter: 6,
@@ -3894,7 +3899,7 @@ export class MainScene extends Phaser.Scene {
 
                                     // Screen shake for Ram impact
                                     if (troop.type === 'ram') {
-                                        this.cameras.main.shake(40, 0.002);
+                                        screenShake(this, 40, 0.002);
                                     }
                                 }
 
@@ -4001,21 +4006,21 @@ export class MainScene extends Phaser.Scene {
         // Airborne explosion layers sort with the world at the impact tile;
         // small ±N offsets keep the effect's internal stacking.
         const fxDepth = depthForGroundEffect(targetGx, targetGy);
-        this.cameras.main.shake(50, 0.001 * scale);
+        screenShake(this, 50, 0.001 * scale);
 
         // Ground crater/scorch mark (L1-L2 only, L3 uses cracks instead) —
         // ground-decal band: above the stone-lanes RT (2.5), below scorches (5/6).
         if (level < 3) {
             const crater = this.trackBattleFx(this.add.graphics());
             pixelEllipse(crater, x, y + 5, 20 * scale, 10 * scale, 0x2a1a0a, 0.6);
-            crater.setDepth(3);
+            crater.setDepth(depthForGroundDecal('crater'));
             this.tweens.add({ targets: crater, alpha: 0, duration: 2000, delay: 500, onComplete: () => crater.destroy() });
         }
 
         // L3: Ground cracks radiating from impact (no circular crater)
         if (level >= 3) {
             const cracks = this.trackBattleFx(this.add.graphics());
-            cracks.setDepth(3); // ground-decal band, above the stone-lanes RT (2.5)
+            cracks.setDepth(depthForGroundDecal('crater'));
             // Draw 6 cracks radiating outward
             for (let i = 0; i < 6; i++) {
                 const angle = (i / 6) * Math.PI * 2 + Math.random() * 0.3;
@@ -4044,10 +4049,11 @@ export class MainScene extends Phaser.Scene {
             scaleTo: 10, life: 100, depth: fxDepth + 1
         }));
 
-        // Primary shockwave ring (isometric oval)
+        // Primary shockwave ring (isometric oval) — a GROUND shockfront:
+        // decal band, under every troop it washes across.
         const shock = this.trackBattleFx(this.add.graphics());
         this.pixelRing(shock, x, y, 10 * scale, 5 * scale, 3, 0xff6600, 0.8);
-        shock.setDepth(fxDepth);
+        shock.setDepth(depthForGroundDecal('shockfront'));
         this.tweens.add({
             targets: shock, alpha: 0, duration: 400,
             onUpdate: (tween) => {
@@ -4063,7 +4069,7 @@ export class MainScene extends Phaser.Scene {
         this.scheduleBattleCall(50, () => {
             const shock2 = this.trackBattleFx(this.add.graphics());
             this.pixelRing(shock2, x, y, 15 * scale, 7.5 * scale, 1, 0xffaa00, 0.5);
-            shock2.setDepth(fxDepth - 1);
+            shock2.setDepth(depthForGroundDecal('shockfront') - 0.5);
             this.tweens.add({
                 targets: shock2, alpha: 0, duration: 350,
                 onUpdate: (tween) => {
@@ -4564,7 +4570,7 @@ export class MainScene extends Phaser.Scene {
 
             // Thick, dark charcoal
             pixelLine(scorch, prism.prismTrailLastPos.x, prism.prismTrailLastPos.y, jaggedEndX, jaggedEndY, 4, 0x0a0505, 0.7);
-            scorch.setDepth(5);
+            scorch.setDepth(depthForGroundDecal('scorch'));
 
             // Persist for a while, then fade out slowly
             this.tweens.add({
@@ -4586,7 +4592,7 @@ export class MainScene extends Phaser.Scene {
             const sy = end.y + (Math.random() - 0.5) * 15;
             pixelLine(scratch, sx, sy, sx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 8, 3, 0x0a0505, 0.6);
 
-            scratch.setDepth(5);
+            scratch.setDepth(depthForGroundDecal('scorch'));
 
             this.tweens.add({
                 targets: scratch,
@@ -4772,7 +4778,7 @@ export class MainScene extends Phaser.Scene {
                     frostfall.isFiring = false;
 
                     // === IMPACT: a real cold snap ===
-                    this.cameras.main.shake(130, 0.0022);
+                    screenShake(this, 130, 0.0022);
 
                     // Pale flash of the freeze.
                     const iceFlash = this.trackBattleFx(this.add.graphics());
@@ -4804,7 +4810,7 @@ export class MainScene extends Phaser.Scene {
                     };
                     drawRime(0);
                     rime.setPosition(end.x, end.y);
-                    rime.setDepth(7);
+                    rime.setDepth(depthForGroundDecal('residue'));
                     rime.setAlpha(0.9);
                     const rimeRush = { p: 0 };
                     this.trackBattleFxTween(this.tweens.add({
@@ -4894,7 +4900,7 @@ export class MainScene extends Phaser.Scene {
                     pixelEllipse(puddle, -3, 1, 13, 5.5, 0xa8d8f8, 0.35);
                     pixelEllipse(puddle, -7, -1, 3.5, 1.5, 0xe8f6ff, 0.5);
                     puddle.setPosition(end.x, end.y + 2);
-                    puddle.setDepth(6);
+                    puddle.setDepth(depthForGroundDecal('scorchHot'));
                     puddle.setScale(0.1);
                     puddle.setAlpha(0);
 
@@ -5242,7 +5248,7 @@ export class MainScene extends Phaser.Scene {
                         shell.destroy();
 
                         // Explosion effect
-                        this.cameras.main.shake(25, 0.001);
+                        screenShake(this, 25, 0.001);
                         particleManager.emitExplosion(end.x, endY, depthForGroundEffect(shotTargetGX, shotTargetGY));
 
                         // Splash damage to all buildings in radius
@@ -5338,7 +5344,7 @@ export class MainScene extends Phaser.Scene {
                     onComplete: () => {
                         stone.destroy();
 
-                        this.cameras.main.shake(45, 0.0018);
+                        screenShake(this, 45, 0.0018);
                         particleManager.emitExplosion(end.x, end.y, depthForGroundEffect(shotTargetGX, shotTargetGY));
 
                         // Splash to FOOTPRINT EDGES around the impact point —
@@ -5416,7 +5422,7 @@ export class MainScene extends Phaser.Scene {
                     onComplete: () => {
                         bomb.destroy();
 
-                        this.cameras.main.shake(20, 0.0008);
+                        screenShake(this, 20, 0.0008);
                         particleManager.emitExplosion(end.x, end.y, depthForGroundEffect(shotTargetGX, shotTargetGY));
 
                         const sRadius = stats.splashRadius || 1.2;
@@ -5751,7 +5757,7 @@ export class MainScene extends Phaser.Scene {
                         }
                     },
                     onComplete: () => {
-                        this.cameras.main.shake(50, 0.00025, true);
+                        screenShake(this, 50, 0.00025, true);
                         bolt.destroy();
                         boltShadow.destroy();
                         // Deal damage
@@ -6444,17 +6450,6 @@ export class MainScene extends Phaser.Scene {
                 }
             }
 
-            // --- HAWK-EYE CLOAK SHIMMER --- (carrier-level alpha; SpriteBank
-            // reconciliation copies it onto the baked shadow sprite)
-            if (troop.untargetableUntil !== undefined) {
-                if (now < troop.untargetableUntil) {
-                    troop.gameObject.setAlpha(0.55 + 0.07 * Math.sin(now / 150));
-                } else {
-                    troop.untargetableUntil = undefined;
-                    troop.gameObject.setAlpha(1);
-                }
-            }
-
             // --- QUARTERMASTER AURA (one application max) ---
             let marchBoost = 1;
             const drum = drummers.length > 0 ? boostFor(troop) : null;
@@ -6859,7 +6854,7 @@ export class MainScene extends Phaser.Scene {
 
         // Screen shake proportional to building size
         const shakeIntensity = (0.0015 + size * 0.001) * (this.mode === 'HOME' ? 0.2 : 1.0);
-        if (!silent) this.cameras.main.shake(75 + size * 50, shakeIntensity);
+        if (!silent) screenShake(this, 75 + size * 50, shakeIntensity);
 
         // Initial flash
         if (!silent) this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 20, { r: 10 * size, color: 0xffffcc, alpha: 0.8, scaleTo: 2, life: 100, depth: 30001 }));
@@ -7034,21 +7029,6 @@ export class MainScene extends Phaser.Scene {
         if (t.type === 'golem' && t.health > 0) this.showStoneGolemHitFx(t);
         // Ice golem hit reaction (throttled inside): chips of ice + frost puff.
         if (t.type === 'icegolem' && t.health > 0) this.emitIceGolemHitFx(t);
-        // Pavise-redirected impact: the soak lands with a shield spark
-        // (DefenseSystem armed guardFlareUntil when it swung the shot).
-        if (t.health > 0 && (t.guardFlareUntil ?? 0) > this.time.now) {
-            t.guardFlareUntil = 0;
-            const sparkPos = IsoUtils.cartToIso(t.gridX, t.gridY);
-            const sparkDepth = depthForTroop(t.gridX, t.gridY, t.type) + 0.5;
-            this.trackBattleFx(PixelFx.flash(this, sparkPos.x - 3, sparkPos.y - 12, {
-                r: 5, color: 0x9fd4ff, alpha: 0.9, scaleTo: 1.6, life: 160, depth: sparkDepth
-            }));
-            PixelFx.burst(this, sparkPos.x - 3, sparkPos.y - 12, {
-                count: 4, colors: [0xcfe8ff, 0x2e6e8e], alpha: 0.9,
-                r: 1.2, rJitter: 0.6, spread: 8, up: 5, upJitter: 3,
-                life: 200, lifeJitter: 60, depth: sparkDepth + 0.1
-            });
-        }
         if (t.health <= 0) this.destroyTroop(t);
         return true;
     }
@@ -7103,10 +7083,11 @@ export class MainScene extends Phaser.Scene {
 
             // 1. Area damage ring — expanding ground circle showing blast
             // radius, REDRAWN per step (ring + interior wash) so the cells
-            // stay 1.35px instead of scaling up ×4.
+            // stay 1.35px instead of scaling up ×4. Ground-plane decal: the
+            // blast ring washes the lawn UNDER troops caught in it.
             const ring = this.trackBattleFx(this.add.graphics());
             ring.setPosition(ex, ey + 8);
-            ring.setDepth(29999);
+            ring.setDepth(depthForGroundDecal('shockfront'));
             const drawBlast = (p: number) => {
                 ring.clear();
                 const r = 10 + ringMax * p;
@@ -7140,7 +7121,7 @@ export class MainScene extends Phaser.Scene {
             this.tweens.add({ targets: fireball, scale: 2, alpha: 0, duration: 300, onComplete: () => fireball.destroy() });
 
             // 4. Screen shake
-            this.cameras.main.shake(60, 0.003);
+            screenShake(this, 60, 0.003);
 
             // 5. Debris — barrel chunks + splinters (wallbreaker) or brass
             // gears + cogs (clockwork beetle)
@@ -7288,11 +7269,11 @@ export class MainScene extends Phaser.Scene {
                 });
             }
 
-            // Debris dust (isometric oval)
+            // Debris dust (isometric oval) — flat ground bloom: decal band.
             const dust = this.trackBattleFx(this.add.graphics());
             pixelEllipse(dust, 0, 0, 20, 10, 0x888888, 0.3);
             dust.setPosition(pos.x, pos.y);
-            dust.setDepth(5);
+            dust.setDepth(depthForGroundDecal('shockfront') - 0.5);
             this.tweens.add({
                 targets: dust,
                 scale: 2.5, alpha: 0,
@@ -7365,7 +7346,7 @@ export class MainScene extends Phaser.Scene {
                 const dust = this.trackBattleFx(this.add.graphics());
                 pixelEllipse(dust, 0, 0, 30, 30, 0x888888, 0.2);
                 dust.setPosition(pos.x, pos.y + 10);
-                dust.setDepth(4);
+                dust.setDepth(depthForGroundDecal('shockfront') - 0.5);
                 this.tweens.add({
                     targets: dust,
                     scale: 2.5, alpha: 0, y: pos.y - 5,
@@ -7465,8 +7446,8 @@ export class MainScene extends Phaser.Scene {
         // Impact weight: heavier than the old pop (stays under the frostfall
         // ceiling 130/0.0022), plus a delayed micro-thud as the torso berg
         // lands (playStoneGolemDeath precedent).
-        this.cameras.main.shake(110, 0.0022);
-        this.scheduleBattleCall(380, () => this.cameras.main.shake(40, 0.001));
+        screenShake(this, 110, 0.0022);
+        this.scheduleBattleCall(380, () => screenShake(this, 40, 0.001));
 
         // --- Stage 1: the frozen heart lets go ------------------------------
         this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 22, {
@@ -7485,10 +7466,10 @@ export class MainScene extends Phaser.Scene {
                 blend: Phaser.BlendModes.ADD, depth: baseDepth + 0.4
             }));
         }
-        // Ground frost bloom under the collapse.
+        // Ground frost bloom under the collapse — flat lawn decal.
         this.trackBattleFx(PixelFx.flash(this, pos.x, groundY - 5, {
             r: 16, squash: 0.5, color: c.hot, alpha: 0.55, life: 320,
-            scaleTo: 2.0, ease: 'Quad.easeOut', depth: groundDepth + 1
+            scaleTo: 2.0, ease: 'Quad.easeOut', depth: depthForGroundDecal('shockfront') - 0.5
         }));
 
         // --- Stage 2: the bergs calve and fall -------------------------------
@@ -7565,16 +7546,17 @@ export class MainScene extends Phaser.Scene {
 
         // --- Stage 3: the released cold rolls out ----------------------------
         // Freeze front: an expanding iso ring out to the debuff radius, with
-        // a fainter trailing ring — cold rolling across the ground.
+        // a fainter trailing ring — cold rolling across the ground. Ground-
+        // plane decals: the front sweeps UNDER every troop standing in it.
         this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 6, {
             r0: 8, r1: radiusPx, squash: 0.5, thick0: 3, thick1: 1.5,
             color: c.core, alpha: 0.85, life: 420, ease: 'Quad.easeOut',
-            depth: groundDepth + 2
+            depth: depthForGroundDecal('shockfront')
         }));
         this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 6, {
             r0: 6, r1: radiusPx * 0.9, squash: 0.5, thick0: 2, thick1: 1,
             color: c.hot, alpha: 0.6, life: 460, delay: 90, ease: 'Quad.easeOut',
-            depth: groundDepth + 1
+            depth: depthForGroundDecal('shockfront') - 0.5
         }));
 
         // Body shards: chunky berg fragments thrown outward and up...
@@ -7608,7 +7590,9 @@ export class MainScene extends Phaser.Scene {
             pixelRect(spears, sxp + 0.2, syp - hgt + 1, 1, hgt - 2, c.deep, 0.6);
         }
         spears.setPosition(pos.x, groundY - 4);
-        spears.setDepth(groundDepth + 2);
+        // Ground residue (melts with the rime patch): decal band, spears a
+        // hair above the patch they erupt from.
+        spears.setDepth(depthForGroundDecal('residue') + 0.4);
         spears.setAlpha(0);
         this.tweens.add({ targets: spears, alpha: 1, duration: 130, delay: 60 });
         this.tweens.add({
@@ -7623,7 +7607,7 @@ export class MainScene extends Phaser.Scene {
         pixelEllipse(rime, 0, 0, 17, 8.5, 0xffffff, 0.3);
         this.pixelRing(rime, 0, 0, 24, 12, 1, c.core, 0.5);
         rime.setPosition(pos.x, pos.y + 6);
-        rime.setDepth(groundDepth);
+        rime.setDepth(depthForGroundDecal('residue'));
         this.tweens.add({
             targets: rime, alpha: 0, duration: 2100, delay: 400,
             ease: 'Quad.easeIn', onComplete: () => rime.destroy()
@@ -7762,16 +7746,19 @@ export class MainScene extends Phaser.Scene {
         const groundDepth = depthForGroundEffect(grid.x, grid.y);
         const rng = this.stoneGolemFxRng(`slam:${Math.round(x)}:${Math.round(y)}`, 0x51a3);
 
-        // Dust shockfront expanding to the damage radius.
+        // Dust shockfront expanding to the damage radius — a GROUND ring:
+        // decal band, UNDER every troop standing inside it (painter's-order
+        // depth here painted the ring over units up to ~0.4 rows in front).
         this.trackBattleFx(PixelFx.ring(this, x, y, {
             r0: 8, r1: radiusPx, squash: 0.5, thick0: 2, thick1: 1,
             color: 0x9b8f7a, alpha: 0.5, life: 380, ease: 'Quad.easeOut',
-            fadePow: 1.6, depth: groundDepth + 1
+            fadePow: 1.6, depth: depthForGroundDecal('shockfront')
         }));
-        // Central dust bloom right under the fists.
+        // Central dust bloom right under the fists — flat lawn decal too.
         this.trackBattleFx(PixelFx.flash(this, x, y, {
             r: 13, squash: 0.45, color: 0xa89b8d, alpha: 0.5,
-            life: 260, scaleTo: 1.8, ease: 'Quad.easeOut', depth: groundDepth
+            life: 260, scaleTo: 1.8, ease: 'Quad.easeOut',
+            depth: depthForGroundDecal('shockfront') - 0.5
         }));
         // Thrown stone chips, iso-squashed radially.
         PixelFx.burst(this, x, y, {
@@ -7786,7 +7773,8 @@ export class MainScene extends Phaser.Scene {
         // cells stay 1.35 px (never a scale tween).
         const g = this.trackBattleFx(this.add.graphics());
         g.setPosition(x, y);
-        g.setDepth(groundDepth + 1.5);
+        // Crack web = earth damage: crater rung of the ground-decal band.
+        g.setDepth(depthForGroundDecal('crater'));
         const cracks: Array<Array<{ px: number; py: number }>> = [];
         const arms = 6;
         for (let i = 0; i < arms; i++) {
@@ -7841,16 +7829,18 @@ export class MainScene extends Phaser.Scene {
         const groundDepth = depthForGroundEffect(grid.x, grid.y);
         const rng = this.stoneGolemFxRng(`iceslam:${Math.round(x)}:${Math.round(y)}`, 0x1ce5);
 
-        // Frost shockfront expanding to the damage radius.
+        // Frost shockfront expanding to the damage radius — a GROUND ring:
+        // decal band, UNDER every troop standing inside it.
         this.trackBattleFx(PixelFx.ring(this, x, y, {
             r0: 8, r1: radiusPx, squash: 0.5, thick0: 2, thick1: 1,
             color: c.core, alpha: 0.55, life: 380, ease: 'Quad.easeOut',
-            fadePow: 1.6, depth: groundDepth + 1
+            fadePow: 1.6, depth: depthForGroundDecal('shockfront')
         }));
-        // Central cold bloom right under the joined fists.
+        // Central cold bloom right under the joined fists — flat lawn decal.
         this.trackBattleFx(PixelFx.flash(this, x, y, {
             r: 13, squash: 0.45, color: c.hot, alpha: 0.55,
-            life: 260, scaleTo: 1.8, ease: 'Quad.easeOut', depth: groundDepth
+            life: 260, scaleTo: 1.8, ease: 'Quad.easeOut',
+            depth: depthForGroundDecal('shockfront') - 0.5
         }));
         // Thrown ice chips, iso-squashed radially.
         PixelFx.burst(this, x, y, {
@@ -7865,7 +7855,8 @@ export class MainScene extends Phaser.Scene {
         // cells stay 1.35 px (never a scale tween).
         const g = this.trackBattleFx(this.add.graphics());
         g.setPosition(x, y);
-        g.setDepth(groundDepth + 1.5);
+        // Rime fissures = frost residue: residue rung of the decal band.
+        g.setDepth(depthForGroundDecal('residue'));
         const fissures: Array<Array<{ px: number; py: number }>> = [];
         const arms = 6;
         for (let i = 0; i < arms; i++) {
@@ -8104,10 +8095,11 @@ export class MainScene extends Phaser.Scene {
 
         // --- Stage 3: the cairn settles -------------------------------------
         this.scheduleBattleCall(430, () => {
+            // Cairn-settle dust ring — ground decal, under the survivors.
             this.trackBattleFx(PixelFx.ring(this, pos.x, groundY - 2, {
                 r0: 6, r1: 30, squash: 0.5, thick0: 2, thick1: 1,
                 color: 0x9b8f7a, alpha: 0.4, life: 420, ease: 'Quad.easeOut',
-                fadePow: 1.5, depth: groundDepth
+                fadePow: 1.5, depth: depthForGroundDecal('shockfront')
             }));
             PixelFx.burst(this, pos.x, groundY - 4, {
                 count: 5, colors: [0x7d7361, 0x6f6552], alpha: 0.28,
@@ -8117,7 +8109,7 @@ export class MainScene extends Phaser.Scene {
             });
         });
         // heaviest landfall (the torso megalith) — a tiny ground thud
-        this.scheduleBattleCall(460, () => this.cameras.main.shake(40, 0.001));
+        this.scheduleBattleCall(460, () => screenShake(this, 40, 0.001));
     }
 
     public spawnTroop(
@@ -8190,7 +8182,6 @@ export class MainScene extends Phaser.Scene {
         };
 
         // Kit clocks anchor at deploy time (deterministic, never per-frame).
-        if (stats.untargetableMs) troop.untargetableUntil = spawnTime + stats.untargetableMs;
         if (stats.summonType) troop.lastSummonTime = spawnTime;
         if ((stats.healRadius ?? 0) > 0 && (stats.healAmount ?? 0) > 0) troop.lastHealPulseAt = spawnTime;
 
@@ -9871,12 +9862,6 @@ export class MainScene extends Phaser.Scene {
             replaySampleY: snapshot.gridY,
             replaySampleT: 0,
         };
-        // Kit visual parity: the frame stream carries no kit state, so the
-        // hawk-eye cloak window re-derives from first appearance (a deploy
-        // shows up within a frame of its real time). Health stays authorial.
-        if (stats.untargetableMs) {
-            troop.untargetableUntil = this.replaySimulationTime + stats.untargetableMs;
-        }
         return troop;
     }
 
@@ -10159,18 +10144,10 @@ export class MainScene extends Phaser.Scene {
             }
 
             // Kit visual parity in replay watch (the stream carries no kit
-            // state): hawk-eye cloak shimmer on the replay clock, and the
-            // siege tower eases into its parked pose once its samples go
-            // still — both purely presentational, frames own everything else.
+            // state): the siege tower eases into its parked pose once its
+            // samples go still — purely presentational, frames own
+            // everything else.
             const replayClock = this.animClockNow();
-            if (troop.untargetableUntil !== undefined) {
-                if (replayClock < troop.untargetableUntil) {
-                    troop.gameObject.setAlpha(0.55 + 0.07 * Math.sin(replayClock / 150));
-                } else {
-                    troop.untargetableUntil = undefined;
-                    troop.gameObject.setAlpha(1);
-                }
-            }
             if (troop.type === 'siegetower') {
                 if (motionDist > 0.004) {
                     troop.replayStillSince = undefined;
@@ -10451,7 +10428,7 @@ export class MainScene extends Phaser.Scene {
         );
 
         // A soft rumble as the salvo begins
-        this.cameras.main.shake(60, 0.0012);
+        screenShake(this, 60, 0.0012);
 
         // One rocket per silo — the catalog's fire model is the single source
         // for the volley size (the UI derives its DPS from the same number).
@@ -10586,7 +10563,7 @@ export class MainScene extends Phaser.Scene {
             },
             onComplete: () => {
                 pod.destroy();
-                this.cameras.main.shake(85, 0.0016);
+                screenShake(this, 85, 0.0016);
                 // Impact layers sort with the world at the impact tile.
                 const fxDepth = depthForGroundEffect(targetGridX, targetGridY);
 
@@ -10621,7 +10598,8 @@ export class MainScene extends Phaser.Scene {
                 this.trackBattleFx(PixelFx.ring(this, end.x, end.y, {
                     r0: 9, r1: 47, squash: 0.5, thick0: 2,
                     color: 0xffd9a0, alpha: 0.85,
-                    life: 380, ease: 'Cubic.easeOut', depth: fxDepth
+                    // Ground shockfront: decal band, under nearby troops.
+                    life: 380, ease: 'Cubic.easeOut', depth: depthForGroundDecal('shockfront')
                 }));
 
                 // 4 — embers thrown out, arcing and dying.
@@ -10670,7 +10648,7 @@ export class MainScene extends Phaser.Scene {
                 pixelEllipse(scorch, 0, 0, 12, 5.5, 0x2b241c, 0.38);
                 pixelEllipse(scorch, 2, 1, 6, 2.75, 0x1c1712, 0.3);
                 scorch.setPosition(end.x, end.y + 1);
-                scorch.setDepth(6);
+                scorch.setDepth(depthForGroundDecal('scorchHot'));
                 this.tweens.add({ targets: scorch, alpha: 0, duration: 3800, ease: 'Quad.easeIn', onComplete: () => scorch.destroy() });
 
                 this.troops.slice().forEach(t => {
@@ -10822,7 +10800,7 @@ export class MainScene extends Phaser.Scene {
         impactDamage: number = Math.round(damage * 1.45)
     ) {
         // A heavy iron THUD — felt, not deafening.
-        this.cameras.main.shake(70, 0.0012);
+        screenShake(this, 70, 0.0012);
         // Impact layers sort with the world at the landing tile.
         const fxDepth = depthForGroundEffect(gridX, gridY);
 
@@ -10847,13 +10825,14 @@ export class MainScene extends Phaser.Scene {
         this.trackBattleFx(PixelFx.ring(this, x, y + 1, {
             r0: 8, r1: 35, squash: 0.5, thick0: 2,
             color: 0xc9b593, alpha: 0.8,
-            life: 340, ease: 'Cubic.easeOut', depth: fxDepth
+            // Ground shockfront: decal band, under the troops it washes past.
+            life: 340, ease: 'Cubic.easeOut', depth: depthForGroundDecal('shockfront')
         }));
 
         // 3 — the ground CRACKS under the blow: jagged lines that fade.
         const cracks = this.trackBattleFx(this.add.graphics());
         cracks.setPosition(x, y);
-        cracks.setDepth(7);
+        cracks.setDepth(depthForGroundDecal('residue'));
         for (let c = 0; c < 5; c++) {
             const baseAngle = (c / 5) * Math.PI * 2 + 0.35;
             let cx = 0;
@@ -10937,11 +10916,10 @@ export class MainScene extends Phaser.Scene {
             }
         });
 
-        // Create persistent spike zone graphics — ground-decal band: above
-        // the stone-lanes RT (2.5) and mortar craters (3), below the prism
-        // scorch (5) and dragons-breath scorch (6).
+        // Create persistent spike zone graphics — ground-decal band: the
+        // caltrop field is a hazard zone troops walk OVER.
         const zoneGraphics = this.add.graphics();
-        zoneGraphics.setDepth(4);
+        zoneGraphics.setDepth(depthForGroundDecal('zone'));
 
         // Draw scattered spikes on ground
         const drawSpikes = (alpha: number) => {

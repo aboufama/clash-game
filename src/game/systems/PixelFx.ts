@@ -2,6 +2,23 @@ import Phaser from 'phaser';
 import { pixelEllipse, PIXEL_CELL } from '../render/PixelDraw';
 
 /**
+ * Owner-tuned global screen shake level. EVERY camera shake in the game
+ * routes through `screenShake` below, which multiplies its intensity by
+ * this — per-event proportions stay intact (a town-hall collapse still
+ * out-shakes a cannon hit); only the overall strength scales.
+ */
+export const SHAKE_SCALE = 0.6;
+
+/**
+ * The single screen-shake entry point — never call `cam.shake` directly.
+ * Same signature as `Camera.shake` (duration ms, intensity, force), with
+ * the intensity scaled by the global `SHAKE_SCALE`.
+ */
+export function screenShake(scene: Phaser.Scene, durationMs: number, intensity: number, force?: boolean) {
+    scene.cameras.main.shake(durationMs, intensity * SHAKE_SCALE, force);
+}
+
+/**
  * PixelFx — the one-shot effects vocabulary, consolidated.
  *
  * Every quick effect in the game speaks the same three words:

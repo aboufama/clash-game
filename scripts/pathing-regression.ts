@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { getBuildingStats, getTroopStats, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions';
-import { defenseDps } from '../src/game/systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem } from '../src/game/systems/CombatNavigationSystem';
 import { PathfindingSystem } from '../src/game/systems/PathfindingSystem';
 import type { PlacedBuilding, Troop } from '../src/game/types/GameTypes';
@@ -443,30 +442,6 @@ const elephantContinue = CombatNavigationSystem.selectTargetAndPlan(
     elephant, trampled, [elephant], 2, 1, elephantSelection.strategicTarget ?? undefined);
 assert.equal(elephantContinue.strategicTarget?.id, inside.id, 'elephant dropped its objective after trampling');
 assert.equal(elephantContinue.plan?.blockerId, undefined, 'elephant kept a blocker after the wall fell');
-
-// HAWK-EYE ASSASSIN: hunts the highest-DPS standing defense (deterministic
-// id tie-break), NOT the nearest one, and retargets to the next-highest
-// once it falls.
-const hkCannon = building('hk-cannon', 'cannon', 6, 6);
-const hkXbow = building('hk-xbow', 'xbow', 18, 18);
-const hkDecoy = building('hk-storage', 'storage', 3, 6);
-const dpsOf = (b: PlacedBuilding) => defenseDps(b.type, getBuildingStats(b.type as BuildingType, 1)) ?? 0;
-const [hkHigh, hkLow] = dpsOf(hkXbow) >= dpsOf(hkCannon) ? [hkXbow, hkCannon] : [hkCannon, hkXbow];
-// Stand the assassin right next to the LOW-DPS defense so distance would pick it.
-const hawkeye = troop('hawkeye-priority', 'hawkeyeassassin', hkLow.gridX - 2, hkLow.gridY + 0.5);
-const hkSelection = CombatNavigationSystem.selectTargetAndPlan(
-    hawkeye, [hkCannon, hkXbow, hkDecoy], [hawkeye], 1, 0);
-assert.equal(hkSelection.strategicTarget?.id, hkHigh.id,
-    'hawk-eye must hunt the highest-DPS defense, not the nearest');
-for (let attempt = 0; attempt < 20; attempt++) {
-    const repeated = CombatNavigationSystem.selectTargetAndPlan(
-        hawkeye, [hkCannon, hkXbow, hkDecoy], [hawkeye], 1, 0);
-    assert.equal(repeated.strategicTarget?.id, hkHigh.id, 'hawk-eye threat hunt is not deterministic');
-}
-const hkAfterKill = CombatNavigationSystem.selectTargetAndPlan(
-    hawkeye, [hkLow, hkDecoy], [hawkeye], 2, 1);
-assert.equal(hkAfterKill.strategicTarget?.id, hkLow.id,
-    'hawk-eye must retarget the next-highest defense after a kill');
 
 const performanceTroops = Array.from({ length: 150 }, (_, index) =>
     troop(`perf-${index}`, 'warrior', 2.5 + (index % 5) * 0.08, 10.5 + (index % 7) * 0.06)

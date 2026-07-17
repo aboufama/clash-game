@@ -12,7 +12,6 @@ const TROOP_FLAVOR: Record<string, string> = {
     goblinplunderer: 'Greedy sprinter that hits resource buildings 3x harder. Terrible in a fight.',
     clockworkbeetle: 'Wind-up bomb that scuttles to the nearest building and pops.',
     physicianscart: 'Plague doctor with a cart of cures. Heals nearby allies, never fights.',
-    pavisebearer: 'Walking tower shield. Soaks shots aimed at your ranged troops.',
     ram: 'Armored battering ram that charges the Town Hall. 4x wall damage.',
     stormmage: 'Chain lightning hits up to 4 targets per strike.',
     mobilemortar: 'Sets up and lobs splash damage shells from long range.',
@@ -24,7 +23,6 @@ const TROOP_FLAVOR: Record<string, string> = {
     necromancer: 'Raises skeletons from the battlefield while blasting from range.',
     trebuchet: 'Counterweight artillery that outranges every defense but one.',
     davincitank: "Armored war machine that fires cannons in all directions.",
-    hawkeyeassassin: 'Cloaked sniper. Invisible for 6 seconds, hunts the deadliest defense.',
     warelephant: 'Armored titan that tramples straight through walls.',
     ornithopter: "Da Vinci's flying machine. Soars over walls and bombs defenses.",
 };

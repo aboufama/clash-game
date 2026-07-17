@@ -8,7 +8,6 @@ export const PLAYER_TROOP_TYPES = [
     'goblinplunderer',
     'clockworkbeetle',
     'physicianscart',
-    'pavisebearer',
     'stormmage',
     'mobilemortar',
     'ram',
@@ -20,7 +19,6 @@ export const PLAYER_TROOP_TYPES = [
     'necromancer',
     'trebuchet',
     'davincitank',
-    'hawkeyeassassin',
     'warelephant',
     'ornithopter'
 ] as const;
@@ -54,18 +52,9 @@ export interface TroopDef {
     /** Quartermaster war drums: fraction shaved off allies' effective attack delay (0.15 = −15%). */
     boostCadence?: number;
     targetPriority?: 'town_hall' | 'defense' | 'wall' | 'resource';
-    /** Orders the priority tier by threat instead of distance (hawk-eye:
-     *  highest defenseDps first, deterministic id tie-break). */
-    targetOrdering?: 'defenseDps';
     wallDamageMultiplier?: number;
     /** Damage multiplier applied when the target is a resource building (goblin plunderer). */
     resourceDamageMultiplier?: number;
-    /** Pavise bearer: defense shots aimed at ranged allies within this radius may redirect to him. */
-    guardRadius?: number;
-    /** Pavise bearer: the share (0..1) of eligible redirected shots he soaks. */
-    guardRedirectShare?: number;
-    /** Hawk-eye: ms after deployment during which defenses cannot target this troop. */
-    untargetableMs?: number;
     /** Summoner (necromancer): the generated-only troop type it raises. */
     summonType?: TroopType;
     /** Summoner: units raised per summon wave. */
@@ -108,7 +97,6 @@ export const TROOP_DEFINITIONS: Record<TroopType, TroopDef> = {
     goblinplunderer: { id: 'goblinplunderer', name: 'Goblin Plunderer', cost: 30, space: 1, desc: 'Manic thief. Beelines for resources and hits them 3x harder.', health: 80, range: 0.5, damage: 6, speed: 0.0038, color: 0x7ec850, targetPriority: 'resource', resourceDamageMultiplier: 3, attackDelay: 700 },
     clockworkbeetle: { id: 'clockworkbeetle', name: 'Clockwork Beetle', cost: 60, space: 1, desc: 'Wind-up bomb on legs. Scuttles to the nearest building and detonates.', health: 60, range: 0.5, damage: 150, speed: 0.0035, color: 0x7a5c20, splashRadius: 1.8, attackDelay: 500, detonateOnAttack: true },
     physicianscart: { id: 'physicianscart', name: "Physician's Cart", cost: 120, space: 5, desc: 'Battlefield medic. Never attacks; pulses healing to nearby allies.', health: 600, range: 0.5, damage: 0, speed: 0.0012, color: 0x8fd98f, healRadius: 5.5, healAmount: 120, attackDelay: 6000 },
-    pavisebearer: { id: 'pavisebearer', name: 'Pavise Bearer', cost: 180, space: 7, desc: 'Hulking porter behind a tower shield. Soaks shots meant for nearby ranged allies.', health: 1800, range: 0.5, damage: 20, speed: 0.0015, color: 0x2e6e8e, guardRadius: 4.0, guardRedirectShare: 0.5, attackDelay: 1300 },
     quartermaster: { id: 'quartermaster', name: 'Quartermaster', cost: 250, space: 8, desc: 'War drums. Never attacks; nearby allies march and strike faster.', health: 900, range: 0.5, damage: 0, speed: 0.0018, color: 0xd4a017, boostRadius: 6.0, boostAmount: 1.5, boostCadence: 0.15 },
     // Siege tower rides the ram's straight-charge lane: the ray to the town
     // hall finds the nearest wall on its line; the tower PARKS there (damage 0
@@ -116,7 +104,6 @@ export const TROOP_DEFINITIONS: Record<TroopType, TroopDef> = {
     siegetower: { id: 'siegetower', name: 'Siege Tower', cost: 300, space: 14, desc: 'Rolling belfry. Parks at a wall and turns it into a ramp for allies.', health: 3500, range: 0.5, damage: 0, speed: 0.001, color: 0x9a7b4f, targetPriority: 'town_hall', straightCharge: true },
     necromancer: { id: 'necromancer', name: 'Necromancer', cost: 320, space: 12, desc: 'Raises skeletons from the battlefield while blasting from range.', health: 900, range: 4.0, damage: 25, speed: 0.0014, color: 0x6a4c93, summonType: 'skeleton', summonCount: 2, summonIntervalMs: 5000, summonCap: 8, attackDelay: 1600 },
     trebuchet: { id: 'trebuchet', name: 'Trebuchet Crew', cost: 450, space: 16, desc: 'Counterweight artillery. Outranges every defense but one.', health: 1200, range: 11.0, damage: 320, speed: 0.0006, color: 0x8a6d4a, splashRadius: 2.0, attackDelay: 4000, firstAttackDelay: 1500 },
-    hawkeyeassassin: { id: 'hawkeyeassassin', name: 'Hawk-Eye Assassin', cost: 380, space: 10, desc: 'Cloaked sniper. Untargetable for 6s; hunts the deadliest standing defense.', health: 700, range: 4.5, damage: 150, speed: 0.0028, color: 0x394b59, untargetableMs: 6000, targetPriority: 'defense', targetOrdering: 'defenseDps', attackDelay: 1300 },
     warelephant: { id: 'warelephant', name: 'War Elephant', cost: 420, space: 12, desc: 'Armored titan. Tramples straight through walls.', health: 4200, range: 0.6, damage: 85, speed: 0.0011, color: 0x8d8d99, wallDamageMultiplier: 20, attackDelay: 2000 },
     ornithopter: { id: 'ornithopter', name: 'Ornithopter', cost: 550, space: 15, desc: "Da Vinci's flying machine. Soars over walls and bombs defenses.", health: 1500, range: 1.5, damage: 90, speed: 0.0022, color: 0xa88d5e, splashRadius: 1.2, movementType: 'air', targetPriority: 'defense', attackDelay: 1600 },
     skeleton: { id: 'skeleton', name: 'Skeleton', cost: 0, space: 1, desc: 'A rattling servant raised by a Necromancer.', health: 180, range: 0.5, damage: 14, speed: 0.0025, color: 0xd8d8c8, attackDelay: 900 }

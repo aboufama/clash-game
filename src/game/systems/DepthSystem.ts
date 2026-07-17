@@ -145,10 +145,70 @@ export const depthForProjectile = (gridX: number, gridY: number) =>
     baseDepth(gridX, gridY) + LAYER_OFFSETS.projectile;
 
 /**
- * Ground-anchored combat FX (muzzle flashes, impact glows, shockwaves,
- * explosion debris) at a grid position — just above the projectile band so
- * an impact covers the shot that caused it. Callers may stack tiny ±N
- * offsets on top to keep an effect's internal layers ordered.
+ * ═══════════════ THE TWO EFFECT DEPTH CLASSES (policy) ═══════════════
+ *
+ * Every effect is exactly one of two things:
+ *
+ * (a) GROUND-PLANE DECAL — flat art painted ON the lawn: slam cracks and
+ *     dust/shock rings, scorch marks, craters, spike/caltrop hazard zones,
+ *     rime & freeze rings, chill residue, deploy/heal/aura rings, any
+ *     shockfront that travels along the ground. These must render UNDER
+ *     every entity (troop, villager, building standing art) at ALL times →
+ *     `depthForGroundDecal(kind)`: a small ABSOLUTE depth in the
+ *     ground-decal band, above the stone-lanes RT (2.5) and below the
+ *     entity range (1000+). NEVER give a lawn decal painter's-order depth:
+ *     base+62 out-depths every troop up to ~0.4 rows in FRONT of the
+ *     effect's tile, so the decal paints OVER units standing inside it
+ *     (the golem-slam-ring-over-troops bug).
+ *
+ * (b) AIRBORNE / BURST FX — anything with a vertical body or in flight:
+ *     explosion blooms, muzzle flashes, debris/embers/chips in flight,
+ *     beams, rising smoke, floating particles, impact flashes. These sort
+ *     with the world → painter's order via `depthForProjectile` /
+ *     `depthForGroundEffect`.
+ *
+ * Debris that FALLS and LANDS may transition (a) ← (b) on landfall if a
+ * case visibly needs it; today's landed chunks fade fast enough to stay
+ * painter's-order.
+ *
+ * Sub-ordering of the decal band (persistent stains low, living/transient
+ * FX on top; callers may stack tiny ±0.5 offsets for internal layering):
+ */
+export const GROUND_DECAL_DEPTHS = {
+    /** Persistent earth damage: mortar craters, slam/impact crack webs. */
+    crater: 3,
+    /** Persistent hazard fields: spike-launcher caltrop zones. */
+    zone: 4,
+    /** Prism scorch / chasm trail. */
+    scorch: 5,
+    /** Dragons-breath scorch, melt puddles. */
+    scorchHot: 6,
+    /** Frost rime patches, freeze fissures, spike-impact cracks. */
+    residue: 7,
+    /** Living rings: heal/drum auras, heal waves, click/deploy pulses. */
+    aura: 8,
+    /** Transient expanding ground rings / dust blooms — topmost decal. */
+    shockfront: 9
+} as const;
+
+export type GroundDecalKind = keyof typeof GROUND_DECAL_DEPTHS;
+
+/**
+ * Depth for a GROUND-PLANE effect decal (class (a) above): flat lawn art
+ * that must never cover an entity. Absolute band value — no grid coords,
+ * the decal never competes with painter's order.
+ */
+export const depthForGroundDecal = (kind: GroundDecalKind) => GROUND_DECAL_DEPTHS[kind];
+
+/**
+ * Painter's-order depth for AIRBORNE/burst FX (class (b) above): muzzle
+ * flashes, impact blooms, debris in flight, rising smoke — effects with a
+ * vertical body that sort with the world at a grid position, just above
+ * the projectile band so an impact covers the shot that caused it. Callers
+ * may stack tiny ±N offsets on top to keep an effect's internal layers
+ * ordered. NOT for flat lawn decals (cracks/scorch/rings/zones) — those
+ * use `depthForGroundDecal`, or they will paint over troops standing up
+ * to ~0.4 rows in front of the tile.
  */
 export const depthForGroundEffect = (gridX: number, gridY: number) =>
     baseDepth(gridX, gridY) + LAYER_OFFSETS.groundEffect;
@@ -165,6 +225,7 @@ if (typeof window !== 'undefined') {
         depthForRubble,
         depthForTroop,
         depthForProjectile,
-        depthForGroundEffect
+        depthForGroundEffect,
+        depthForGroundDecal
     };
 }
