@@ -216,8 +216,11 @@ assert.match(mainSceneSource, /troop\.type\s*===\s*'siegetower'\s*&&\s*\(troop\.
   'the Siege Tower deploy atlas must own the full tween before its terminal-pose handoff');
 assert.match(mainSceneSource, /const prevScreen\s*=\s*IsoUtils\.cartToIso\(prevRenderX,\s*prevRenderY\)[\s\S]*?const nextScreen\s*=\s*IsoUtils\.cartToIso\(troop\.gridX,\s*troop\.gridY\)/,
   'replay headings must convert grid motion through the isometric projection');
-assert.match(troopRendererSource, /drawDaVinciTank\([\s\S]*?tankSpin01[\s\S]*?Phaser\.Math\.Angle\.Normalize\([\s\S]*?Phaser\.Math\.Clamp\(tankSpin01,\s*0,\s*1\)/,
-  'Da Vinci Tank art must expose a normalized one-bay spin driver');
+const davinciTankSource = readSource('src/game/renderers/redesign/DaVinciTank.ts');
+assert.match(davinciTankSource, /const eff = facingAngle \+ spin \* BAY;/,
+  'Da Vinci Tank art must derive every angle from the one-bay spin driver (the seam law)');
+assert.match(davinciTankSource, /Math\.pow\(Math\.max\(0, 1 - spin \/ 0\.8\), 1\.5\)/,
+  'Da Vinci Tank recoil must fully recuperate by spin01=0.8 so the spin seam stays byte-identical');
 assert.match(mainSceneSource, /troop\.tankSpin01\s*=\s*rotationTarget\.spin01[\s\S]*?troop\.facingAngle\s*=\s*Phaser\.Math\.Angle\.Normalize\(newAngle\)[\s\S]*?troop\.tankSpin01\s*=\s*0/,
   'live tank attacks must drive intermediate poses before committing the next bay');
 assert.match(mainSceneSource, /aimAngleToTarget\s*=\s*Math\.atan2\([\s\S]*?targetPos\.y\s*-\s*tankPos\.y\)\s*\*\s*2[\s\S]*?relativeAim[\s\S]*?muzzleOffset\s*=\s*38/,

@@ -3383,7 +3383,7 @@ export class MainScene extends Phaser.Scene {
             if (spriteTop != null) yOffset = Math.ceil(spriteTop + height + 4);
             else if (troop.type === 'warelephant') yOffset = 49;
             else if (troop.type === 'golem' || troop.type === 'icegolem') yOffset = 70;
-            else if (troop.type === 'davincitank') yOffset = 48;
+            else if (troop.type === 'davincitank') yOffset = 42;
             else if (troop.type === 'mobilemortar') yOffset = 26;
 
             y = pos.y - yOffset;
@@ -4721,7 +4721,7 @@ export class MainScene extends Phaser.Scene {
         let legacy = 22;
         if (type === 'warelephant') legacy = 49;
         else if (type === 'golem' || type === 'icegolem') legacy = 70;
-        else if (type === 'davincitank') legacy = 48;
+        else if (type === 'davincitank') legacy = 42;
         else if (type === 'mobilemortar') legacy = 26;
         else if (type === 'siegetower') legacy = 62;
         else if (type === 'trebuchet') legacy = 46;

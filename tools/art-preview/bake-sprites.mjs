@@ -99,7 +99,7 @@ const TROOP_PARAMS = {
   stormmage:    { stride: 480, delay: 1700, windup: 620, strike: 380, dirs: 1 },
   davincitank:  { stride: 480, delay: 1800, windup: 0,   strike: 0,   dirs: 8, big: true,
                   attackDriver: { key: 'tankSpin01', values: [0.12, 0.28, 0.44, 0.6, 0.8, 1] },
-                  loopExact: false, deactivated: true },
+                  idleMs: 2000, deactivated: true }, // Testudo rebuild: banner wave + glint circuit close exactly on 2000 ms
   phalanx:      { stride: 600, delay: 0,    windup: 0,   strike: 0,   dirs: 8,
                   attackDriver: { key: 'phalanxSpearOffset', values: [0, 0.45, 1, 0.55, 0.15] } },
   romanwarrior: { stride: 600, delay: 900,  windup: 260, strike: 150, dirs: 8 },

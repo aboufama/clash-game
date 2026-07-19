@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { drawSiegetowerC } from '../redesign/SiegetowerC';
+import { DAVINCI_GEOM, davinciTankPalette, drawDaVinciTank } from '../redesign/DaVinciTank';
 
 /** Large machines whose death silhouettes are authored here for sprite baking. */
 export type MachineDeathType = 'davincitank' | 'siegetower';
@@ -201,299 +202,255 @@ function drawSheddingWheel(
     g.fillCircle(hub[0], hub[1], 1.35);
 }
 
-function drawSimpleFrustum(
-    g: G,
-    view: View,
-    transform: Transform,
-    radius0: number,
-    h0: number,
-    radius1: number,
-    h1: number,
-    segments: number,
-    colorA: number,
-    colorB: number,
-    rotation = 0,
-): void {
-    const faces: { points: V2[]; color: number; y: number }[] = [];
-    const slope = (radius0 - radius1) / Math.max(1, h1 - h0);
-    for (let i = 0; i < segments; i++) {
-        const a0 = rotation + i / segments * TAU;
-        const a1 = rotation + (i + 1) / segments * TAU;
-        const am = (a0 + a1) * 0.5;
-        const normal = transform.vector([Math.cos(am), Math.sin(am), slope]);
-        if (view.dot(normal) <= 0.01) continue;
-        const world = [
-            transform.point([Math.cos(a0) * radius0, Math.sin(a0) * radius0, h0]),
-            transform.point([Math.cos(a1) * radius0, Math.sin(a1) * radius0, h0]),
-            transform.point([Math.cos(a1) * radius1, Math.sin(a1) * radius1, h1]),
-            transform.point([Math.cos(a0) * radius1, Math.sin(a0) * radius1, h1]),
-        ] as const;
-        const points = world.map(point => view.point(point));
-        faces.push({
-            points,
-            color: shade(i % 2 === 0 ? colorA : colorB, view.light(normal)),
-            y: points.reduce((sum, point) => sum + point[1], 0) / points.length,
-        });
-    }
-    faces.sort((a, b) => a.y - b.y);
-    for (const face of faces) polygon(g, face.points, face.color);
-}
-
-// -------------------------------------------------------------------------
-// Da Vinci tank
-
-interface TankPalette {
-    wood: number;
-    woodDark: number;
-    woodLight: number;
-    plank: number;
-    metal: number;
-    metalDark: number;
-    cannon: number;
-    band: number;
-}
-
-function tankPalette(level: number, isPlayer: boolean): TankPalette {
-    const high = level >= 3;
-    return {
-        wood: isPlayer ? 0xc9a07a : 0xb8956e,
-        woodDark: isPlayer ? 0x9a7050 : 0x8a6548,
-        woodLight: isPlayer ? 0xdab898 : 0xd0a080,
-        plank: isPlayer ? 0xb08560 : 0xa57852,
-        metal: high ? 0xdaa520 : 0x4a4a4a,
-        metalDark: high ? 0xb8860b : 0x333333,
-        cannon: high ? 0xc99a18 : 0x1a1a1a,
-        band: level >= 2 ? 0xdaa520 : 0x4a4a4a,
-    };
-}
-
-function drawTankFrustumPanels(
-    g: G,
-    view: View,
-    body: Transform,
-    radius0: number,
-    h0: number,
-    radius1: number,
-    h1: number,
-    phase: number,
-    colorA: number,
-    colorB: number,
-    detachStart: number,
-): void {
-    const segments = 16;
-    const slope = (radius0 - radius1) / Math.max(1, h1 - h0);
-    const panels = Array.from({ length: segments }, (_, i) => {
-        const a0 = i / segments * TAU;
-        const a1 = (i + 1) / segments * TAU;
-        const am = (a0 + a1) * 0.5;
-        const normal = body.vector([Math.cos(am), Math.sin(am), slope]);
-        return { i, a0, a1, am, normal, facing: view.dot(normal) };
-    });
-    const nearest = panels.filter(panel => panel.facing > 0.01).sort((a, b) => b.facing - a.facing)[0]?.i ?? -1;
-
-    const rendered: { points: V2[]; color: number; y: number }[] = [];
-    for (const panel of panels) {
-        if (panel.facing <= 0.01 && panel.i !== nearest) continue;
-        const attached: V3[] = [
-            body.point([Math.cos(panel.a0) * radius0, Math.sin(panel.a0) * radius0, h0]),
-            body.point([Math.cos(panel.a1) * radius0, Math.sin(panel.a1) * radius0, h0]),
-            body.point([Math.cos(panel.a1) * radius1, Math.sin(panel.a1) * radius1, h1]),
-            body.point([Math.cos(panel.a0) * radius1, Math.sin(panel.a0) * radius1, h1]),
-        ];
-        let world = attached;
-        let normal = panel.normal;
-        if (panel.i === nearest) {
-            const k = smooth((phase - detachStart) / (0.72 - detachStart));
-            const radial: V2 = [Math.cos(panel.am), Math.sin(panel.am)];
-            const tangent: V2 = [-radial[1], radial[0]];
-            const width = Math.max(3.2, radius0 * Math.sin(Math.PI / segments) * 0.9);
-            const length = Math.max(5, (h1 - h0) * 0.21);
-            const center: V3 = [
-                radial[0] * (radius0 + 12) + tangent[0] * 3,
-                radial[1] * (radius0 + 12) + tangent[1] * 3,
-                0.8,
-            ];
-            const target: V3[] = [
-                [center[0] + radial[0] * length - tangent[0] * width, center[1] + radial[1] * length - tangent[1] * width, center[2]],
-                [center[0] + radial[0] * length + tangent[0] * width, center[1] + radial[1] * length + tangent[1] * width, center[2]],
-                [center[0] - radial[0] * length + tangent[0] * width, center[1] - radial[1] * length + tangent[1] * width, center[2]],
-                [center[0] - radial[0] * length - tangent[0] * width, center[1] - radial[1] * length - tangent[1] * width, center[2]],
-            ];
-            const hop = Math.sin(k * Math.PI) * 7;
-            world = attached.map((point, index) => {
-                const moved = lerp3(point, target[index], k);
-                return [moved[0], moved[1], moved[2] + hop];
-            });
-            normal = lerp3(panel.normal, [0, 0, 1], k);
-        }
-        const points = world.map(point => view.point(point));
-        rendered.push({
-            points,
-            color: shade(panel.i % 2 === 0 ? colorA : colorB, view.light(normal)),
-            y: points.reduce((sum, point) => sum + point[1], 0) / points.length,
-        });
-    }
-    rendered.sort((a, b) => a.y - b.y);
-    for (const panel of rendered) polygon(g, panel.points, panel.color);
-}
-
-function drawTankBand(g: G, view: View, body: Transform, radius: number, height: number, color: number, width: number): void {
-    for (let i = 0; i < 24; i++) {
-        const a0 = i / 24 * TAU;
-        const a1 = (i + 1) / 24 * TAU;
-        const normal = body.vector([Math.cos((a0 + a1) * 0.5), Math.sin((a0 + a1) * 0.5), 0]);
-        if (view.dot(normal) <= -0.02) continue;
-        segment(
-            g,
-            view,
-            body.point([Math.cos(a0) * radius, Math.sin(a0) * radius, height]),
-            body.point([Math.cos(a1) * radius, Math.sin(a1) * radius, height]),
-            width,
-            color,
-        );
-    }
-}
-
-function drawTankBeltDetails(g: G, view: View, body: Transform, palette: TankPalette): void {
-    // Eight black viewing slits sit immediately below the shoulder belt.
-    for (let i = 0; i < 8; i++) {
-        const angle = (i + 0.5) / 8 * TAU;
-        const normal = body.vector([Math.cos(angle), Math.sin(angle), 0]);
-        if (view.dot(normal) <= -0.04) continue;
-        const tangent: V2 = [-Math.sin(angle), Math.cos(angle)];
-        const center: V3 = [Math.cos(angle) * 16.2, Math.sin(angle) * 16.2, 27.8];
-        const a = body.point([center[0] - tangent[0] * 2.7, center[1] - tangent[1] * 2.7, center[2]]);
-        const b = body.point([center[0] + tangent[0] * 2.7, center[1] + tangent[1] * 2.7, center[2]]);
-        segment(g, view, a, b, 2.1, 0x151515);
-    }
-    // The nail ring survives the initial failure and makes phase zero read
-    // as the canonical armored belt instead of a simplified cone.
-    for (let i = 0; i < 12; i++) {
-        const angle = i / 12 * TAU;
-        const normal = body.vector([Math.cos(angle), Math.sin(angle), 0]);
-        if (view.dot(normal) <= -0.03) continue;
-        const point = view.point(body.point([Math.cos(angle) * 18.7, Math.sin(angle) * 18.7, 31]));
-        g.fillStyle(palette.metal, 1);
-        g.fillCircle(point[0], point[1], 1.35);
-    }
-}
-
-function drawTankCannons(g: G, view: View, body: Transform, palette: TankPalette, level: number, phase: number, nearPass: boolean): void {
-    const centerY = view.point(body.point([0, 0, 10]))[1];
-    for (let i = 0; i < 8; i++) {
-        const angle = i / 8 * TAU;
-        const radial: V2 = [Math.cos(angle), Math.sin(angle)];
-        const mountAttached = body.point([radial[0] * 24, radial[1] * 24, 10]);
-        const muzzleAttached = body.point([radial[0] * 37, radial[1] * 37, 10.5]);
-        const isNear = view.point(mountAttached)[1] >= centerY;
-        if (isNear !== nearPass) continue;
-
-        const detach = i % 3 === 0 ? smooth((phase - 0.18 - (i % 2) * 0.04) / 0.48) : 0;
-        const tangent: V2 = [-radial[1], radial[0]];
-        const targetMount: V3 = [radial[0] * 30 + tangent[0] * 5, radial[1] * 30 + tangent[1] * 5, 1.2];
-        const targetMuzzle: V3 = [radial[0] * 43 + tangent[0] * 8, radial[1] * 43 + tangent[1] * 8, 1.2];
-        const hop = Math.sin(detach * Math.PI) * 5;
-        const mount = lerp3(mountAttached, targetMount, detach);
-        const muzzle = lerp3(muzzleAttached, targetMuzzle, detach);
-        const m0: V3 = [mount[0], mount[1], mount[2] + hop];
-        const m1: V3 = [muzzle[0], muzzle[1], muzzle[2] + hop];
-        const p0 = view.point(m0), p1 = view.point(m1);
-        g.fillStyle(palette.metalDark, 1);
-        g.fillCircle(p0[0], p0[1], 2.6);
-        g.lineStyle(level >= 3 ? 5.2 : 4, palette.cannon, 1);
-        g.lineBetween(p0[0], p0[1], p1[0], p1[1]);
-        g.fillStyle(palette.metal, 1);
-        g.fillCircle(p1[0], p1[1], level >= 3 ? 3.6 : 2.8);
-        g.fillStyle(0x11100e, 1);
-        g.fillCircle(p1[0], p1[1], level >= 3 ? 1.8 : 1.35);
-    }
-}
-
+/**
+ * DA VINCI TANK death — Testudo rebuild (2026-07-19): the revolver-tank dies
+ * by its own magazine. Beats (all deterministic in phase alone):
+ *   0.13-0.34 RUPTURE  — hull shudder, port flash, two lids blown off, the
+ *                        whole cupola pod launched tumbling off the crown;
+ *   0.30-0.62 SHEAR    — the roof cone slides backward off the waist as one
+ *                        piece, near bombards sag out of their ports;
+ *   0.55-0.90 COLLAPSE — the shell pancakes, rim spreads, rollers splay,
+ *                        dust ring, embers die;
+ *   1.00 REMNANT       — static wreck: crushed skirt, grounded roof cone,
+ *                        cupola pod on its side, spilled bombards, soot fan
+ *                        thrown toward its final firing line, the crown
+ *                        banner draped dead over the roof piece.
+ * The dispatcher keeps p <= 0.13 on the literal live renderer so the first
+ * two bake samples cannot pop into an approximation.
+ */
 function drawDaVinciTankDeath(g: G, view: View, isPlayer: boolean, level: number, phase: number): void {
-    const palette = tankPalette(level, isPlayer);
-    const collapse = smooth((phase - 0.04) / 0.78);
-    const body = transformAround(
-        6,
-        -0.1 * collapse,
-        0.17 * collapse,
-        3.2 * collapse,
-        -2.2 * collapse,
-        1.8 * collapse,
-        1 - 0.58 * collapse,
-    );
+    const pal = davinciTankPalette(level, isPlayer);
+    const GG = DAVINCI_GEOM;
+    const p = clamp01(phase);
+    const dp = (rel: number, r: number, h: number): V2 => view.point([Math.cos(rel) * r, Math.sin(rel) * r, h]);
 
-    g.fillStyle(0x10160d, 0.26);
-    g.fillEllipse(0, GROUND_Y + 3, lerp(52, 67, collapse), lerp(22, 18, collapse));
+    const rupture = smooth((p - 0.13) / 0.2);
+    const shear = smooth((p - 0.3) / 0.32);
+    const crush = smooth((p - 0.55) / 0.35);
+    const jitter = p > 0.13 && p < 0.42 ? Math.sin(p * 113) * 1.4 * (1 - smooth((p - 0.3) / 0.12)) : 0;
+    const emberA = p < 0.18 ? 0 : 0.85 * (1 - smooth((p - 0.45) / 0.45));
+    const drop = crush * 2.5;
+    const spread = crush * 5;
+    const hCrush = (h: number): number => (h <= GG.RIM_H ? h : h - (h - GG.RIM_H) * 0.42 * crush) - drop;
+    const rSpread = (r: number, h: number): number => r + spread * Math.max(0, 1 - h / GG.WAIST_H);
+    const P = (rel: number, r: number, h: number): V2 => {
+        const q = dp(rel, rSpread(r, h), hCrush(h));
+        return [q[0] + jitter, q[1]];
+    };
+    const BAY = Math.PI / 4;
 
-    // The running wheels are hidden at rest, then become visible as the skirt
-    // sinks and finally tear free from the failed undercarriage.
-    if (phase > 0.07) {
-        const wheelDetach = (index: number) => smooth((phase - 0.22 - index * 0.035) / 0.52);
-        drawSheddingWheel(g, view, body, [-13, -12, 6], 5, [-20, -24, 0.8], wheelDetach(0), palette.metalDark, shade(palette.woodDark, 0.8), palette.metal, phase * 4);
-        drawSheddingWheel(g, view, body, [13, -12, 6], 5, [21, -21, 0.8], wheelDetach(1), palette.metalDark, shade(palette.woodDark, 0.8), palette.metal, phase * 4 + 0.8);
+    // ---- ground statements first: soot fan + grounded debris shadows ----
+    const sootA = 0.42 * smooth((p - 0.28) / 0.5);
+    if (sootA > 0.01) {
+        const fan = (spanRel: number, len: number, a: number): void => {
+            polygon(g, [
+                dp(spanRel - 0.5, GG.RIM_R - 4, 0), dp(spanRel + 0.5, GG.RIM_R - 4, 0),
+                dp(spanRel + 0.24, GG.RIM_R + len, 0), dp(spanRel - 0.28, GG.RIM_R + len * 0.82, 0)
+            ], pal.soot, a);
+        };
+        fan(0, 15, sootA);
+        fan(0.42, 8, sootA * 0.7);
+        fan(-0.36, 6, sootA * 0.6);
     }
 
-    drawTankCannons(g, view, body, palette, level, phase, false);
-
-    // Low octagonal carriage, then the armored shell. A dark inner cone is
-    // deliberately retained beneath the two plates that peel away.
-    drawSimpleFrustum(g, view, body, 28, 3.5, 24.5, 9, 12, palette.woodDark, palette.plank, Math.PI / 12);
-    drawSimpleFrustum(g, view, body, 23.2, 10.2, 16.8, 30.2, 16, shade(palette.woodDark, 0.55), shade(palette.woodDark, 0.62));
-    drawTankFrustumPanels(g, view, body, 24, 10, 18, 31, phase, palette.wood, palette.plank, 0.17);
-    drawSimpleFrustum(g, view, body, 17.2, 31.2, 7.2, 47.2, 16, shade(palette.woodDark, 0.52), shade(palette.woodDark, 0.58));
-    drawTankFrustumPanels(g, view, body, 18, 31, 8, 47, phase, palette.woodLight, palette.wood, 0.25);
-    drawTankBand(g, view, body, 18.4, 31, palette.metalDark, 4.2);
-    drawTankBand(g, view, body, 18.6, 31, palette.band, level >= 2 ? 2.1 : 1.7);
-    drawTankBeltDetails(g, view, body, palette);
-    if (level >= 3) {
-        drawTankBand(g, view, body, 24.5, 11.2, palette.metalDark, 3.6);
-        drawTankBand(g, view, body, 24.6, 11.2, palette.band, 2.1);
+    // ---- the roof cone, sheared off backward as one piece ----
+    if (shear > 0.01) {
+        const slide = shear;
+        const cd = -6 - 20 * slide;
+        const baseH = Math.max(1.6, GG.WAIST_H * (1 - slide) - drop * 0.6);
+        const coneH = (GG.CROWN_H - GG.WAIST_H) * (1 - 0.25 * crush);
+        const R = GG.WAIST_R * (1 - 0.12 * crush);
+        const base = view.point([cd, 0, baseH]);
+        const apex = view.point([cd - 6 - 4 * slide, 0, baseH + coneH * (1 - 0.45 * slide)]);
+        g.fillStyle(shade(pal.wood, 0.8), 1);
+        g.fillEllipse(base[0], base[1], R * 2, R);
+        polygon(g, [[base[0] - R, base[1]], [base[0] + R, base[1]], apex], shade(pal.wood, 0.92));
+        g.lineStyle(1, shade(pal.wood, 0.5), 0.85);
+        g.lineBetween(base[0] - R, base[1], apex[0], apex[1]);
+        g.lineBetween(base[0] + R, base[1], apex[0], apex[1]);
+        g.lineBetween(base[0] - R * 0.35, base[1] + R * 0.32, apex[0], apex[1]);
+        // the dead crown banner drapes over the piece once everything lands
+        const drape = smooth((p - 0.8) / 0.14);
+        if (drape > 0.01) {
+            polygon(g, [
+                [apex[0] - 1, apex[1]], [apex[0] + 2.4, apex[1] + 0.6],
+                [apex[0] + 3.2, apex[1] + 6.4 * drape], [apex[0] - 2.2, apex[1] + 5.6 * drape]
+            ], pal.clothDk, 0.95);
+        }
     }
 
-    // The cupola shears loose rather than shrinking with the telescoping hull.
-    const capFall = smooth((phase - 0.1) / 0.68);
-    const cap = transformAround(47, -0.32 * capFall, -1.12 * capFall, 43 * capFall, -18 * capFall, 12 * capFall);
-    drawSimpleFrustum(g, view, cap, 8.4, 46.5, 1.6, 55.5, 10, palette.woodLight, palette.wood, Math.PI / 10);
-    drawTankBand(g, view, cap, 8.5, 46.8, palette.metalDark, 3.5);
-    const finialBase = cap.point([0, 0, 55]), finialTip = cap.point([0, 0, 63]);
-    const finial = view.point(finialBase), finialEnd = view.point(finialTip);
-    const axisX = finialEnd[0] - finial[0], axisY = finialEnd[1] - finial[1];
-    const axisLength = Math.hypot(axisX, axisY) || 1;
-    const perpX = -axisY / axisLength * 3, perpY = axisX / axisLength * 3;
-    polygon(g, [
-        finialEnd,
-        [finial[0] + perpX, finial[1] + perpY],
-        [finial[0] - perpX, finial[1] - perpY],
-    ], level >= 2 ? 0xffd700 : palette.metal);
-    if (level >= 3 && capFall < 1) {
-        g.fillStyle(0xffd700, 0.3 * (1 - capFall));
-        g.fillCircle(finialEnd[0], finialEnd[1] + 2, 5);
-    }
-    g.fillStyle(palette.metalDark, 1);
-    g.fillCircle(finial[0], finial[1], 2.5);
-
-    drawTankCannons(g, view, body, palette, level, phase, true);
-    if (phase > 0.07) {
-        const wheelDetach = (index: number) => smooth((phase - 0.19 - index * 0.04) / 0.52);
-        drawSheddingWheel(g, view, body, [-13, 12, 6], 5, [-22, 24, 0.8], wheelDetach(0), palette.metalDark, palette.woodDark, palette.metal, phase * 4 + 1.6);
-        drawSheddingWheel(g, view, body, [13, 12, 6], 5, [23, 21, 0.8], wheelDetach(1), palette.metalDark, palette.woodDark, palette.metal, phase * 4 + 2.4);
+    // ---- far bombards sink, near bombards sag and spill ----
+    for (let k = 0; k < 8; k++) {
+        const rel = k * BAY;
+        const sr = Math.sin(rel) * view.ca + Math.cos(rel) * view.sa; // screen-depth sign of the bay
+        const near = sr > -0.1;
+        const isFront = k === 0 || k === 1 || k === 7;
+        let out = GG.BARREL_OUT;
+        if (!isFront) out *= 1 - 0.7 * crush;
+        const sag = isFront ? crush : crush * 0.3;
+        const spill = isFront && k !== 7 && crush > 0.55;
+        if (spill) continue; // detached — drawn as grounded spills below
+        if (!near && shear < 0.6) continue; // hidden behind the intact shell
+        const b0 = P(rel, 23, GG.HUB_H - sag * 1.5);
+        const b1 = P(rel, GG.RING_R + out, GG.HUB_H - sag * 4.5);
+        g.lineStyle(3.4, shade(pal.barrel, near ? 1 : 0.85), 1);
+        g.lineBetween(b0[0], b0[1], b1[0], b1[1]);
+        g.lineStyle(1.4, 0x252220, 1);
+        g.lineBetween(b1[0], b1[1], b1[0] - (b1[0] - b0[0]) * 0.08, b1[1] - (b1[1] - b0[1]) * 0.08);
     }
 
-    // Fixed damage language: open seams and a snapped axle, never smoke or
-    // animated particles. At phase one this is a quiet, persistent wreck.
-    const scar = smooth((phase - 0.32) / 0.46);
-    if (scar > 0) {
-        const a = body.point([-7, 2, 23]), b = body.point([-2, 5, 17]), c = body.point([-6, 7, 13]);
-        segment(g, view, a, b, 1.6, 0x2a1a10, scar);
-        segment(g, view, b, c, 1.6, 0x2a1a10, scar);
-        segment(g, view, [-17, -5, 1], [10, 10, 1], 2.2, palette.metalDark, scar);
+    // ---- skirt shell with one blown-open facet ----
+    const order = Array.from({ length: 8 }, (_, k) => k).sort((a, b) => {
+        const da = Math.sin(a * BAY) * view.ca + Math.cos(a * BAY) * view.sa;
+        const db = Math.sin(b * BAY) * view.ca + Math.cos(b * BAY) * view.sa;
+        return da - db;
+    });
+    for (const k of order) {
+        const mid = k * BAY;
+        const a0 = mid - BAY / 2, a1 = mid + BAY / 2;
+        const blown = k === 2 && rupture > 0.4;
+        const gapW = blown ? 0.16 * shear + 0.06 : 0;
+        const light = view.light([Math.cos(mid), Math.sin(mid), 0.35]);
+        if (blown && gapW > 0.02) {
+            polygon(g, [
+                P(a0, GG.RIM_R, GG.RIM_H), P(a1, GG.RIM_R, GG.RIM_H),
+                P(a1, GG.WAIST_R, GG.WAIST_H), P(a0, GG.WAIST_R, GG.WAIST_H)
+            ], 0x17130f, 0.96);
+            if (emberA > 0.02) {
+                polygon(g, [
+                    P(mid - 0.1, GG.RIM_R - 3, GG.RIM_H + 1.5), P(mid + 0.12, GG.RIM_R - 3.4, GG.RIM_H + 1.2),
+                    P(mid + 0.05, GG.WAIST_R + 1, GG.WAIST_H - 2.5), P(mid - 0.07, GG.WAIST_R + 1.4, GG.WAIST_H - 2.2)
+                ], 0xd96a2a, emberA);
+            } else if (p >= 0.9) {
+                // dead-warm coal pocket in the split — static, never bright
+                const c = P(mid, GG.RING_R - 2, GG.HUB_H - 1);
+                g.fillStyle(0x6a2f1d, 0.9);
+                g.fillEllipse(c[0], c[1], 3.4, 1.9);
+            }
+            polygon(g, [
+                P(a1 - gapW, GG.RIM_R + 2.5, GG.RIM_H - 0.6), P(a1 + 0.34, GG.RIM_R + 3.5, GG.RIM_H - 1),
+                P(a1 + 0.3, GG.WAIST_R + 3, GG.WAIST_H - 4), P(a1 - gapW, GG.WAIST_R + 1, GG.WAIST_H - 3)
+            ], shade(pal.wood, light * 0.9));
+            continue;
+        }
+        polygon(g, [
+            P(a0, GG.RIM_R, GG.RIM_H), P(mid, GG.RIM_R + 0.7, GG.RIM_H - 0.2), P(a1, GG.RIM_R, GG.RIM_H),
+            P(a1, GG.WAIST_R, GG.WAIST_H), P(mid, GG.WAIST_R + 0.5, GG.WAIST_H - 0.1), P(a0, GG.WAIST_R, GG.WAIST_H)
+        ], shade(pal.wood, light * (1 - 0.14 * crush)));
+        g.lineStyle(0.9, pal.line, 0.8);
+        const s0 = P(a0, GG.RIM_R, GG.RIM_H), s1 = P(a0, GG.WAIST_R, GG.WAIST_H);
+        g.lineBetween(s0[0], s0[1], s1[0], s1[1]);
+    }
+    // waist scar where the roof tore away
+    if (shear > 0.05) {
+        g.lineStyle(1.6, 0x1c1712, 0.9);
+        const w0 = P(Math.PI * 0.85, GG.WAIST_R, GG.WAIST_H), w1 = P(Math.PI * 0.15, GG.WAIST_R, GG.WAIST_H);
+        g.lineBetween(w0[0], w0[1], w1[0], w1[1]);
+    } else {
+        // roof still seated: draw it (pre-shear) so the machine reads whole
+        for (const k of order) {
+            const mid = k * BAY;
+            const a0 = mid - BAY / 2, a1 = mid + BAY / 2;
+            const light = view.light([Math.cos(mid), Math.sin(mid), 0.7]);
+            polygon(g, [
+                P(a0, GG.WAIST_R, GG.WAIST_H), P(a1, GG.WAIST_R, GG.WAIST_H),
+                P(a1, GG.CROWN_R, GG.CROWN_H), P(a0, GG.CROWN_R, GG.CROWN_H)
+            ], shade(pal.wood, light));
+        }
+    }
+
+    // ---- splayed rollers at the crushed rim ----
+    if (crush > 0.2) {
+        for (const rel of [0.55, -0.5, 2.4]) {
+            const c = P(rel, GG.RIM_R - 1, 1.2);
+            g.fillStyle(pal.ironDk, 1);
+            g.fillEllipse(c[0], c[1], 7, 5.2);
+            g.fillStyle(shade(pal.iron, 0.9), 1);
+            g.fillEllipse(c[0], c[1], 5, 3.6);
+        }
+    }
+
+    // ---- spilled bombards on the ground (front pair, after detach) ----
+    if (crush > 0.55) {
+        const lay = (rel: number, ang: number, len: number): void => {
+            const c = dp(rel, GG.RING_R + 7, 0.8);
+            const dx = Math.cos(ang) * len, dy = Math.sin(ang) * len * 0.5;
+            g.lineStyle(3.2, pal.barrel, 1);
+            g.lineBetween(c[0] - dx, c[1] - dy, c[0] + dx, c[1] + dy);
+            g.fillStyle(0x26262b, 1);
+            g.fillEllipse(c[0] + dx, c[1] + dy, 2.6, 1.9);
+        };
+        lay(0.18, 0.5, 6.5);
+        lay(BAY + 0.1, -0.35, 6);
+    }
+
+    // ---- port flashes + flying lids during the rupture ----
+    if (rupture > 0.02 && p < 0.34) {
+        const flashA = Math.max(0, 1 - Math.abs(p - 0.2) / 0.12);
+        for (const rel of [0, BAY, -BAY]) {
+            const c = P(rel, GG.RING_R + 3, GG.HUB_H);
+            g.fillStyle(0xfff3c8, flashA * 0.95);
+            g.fillEllipse(c[0], c[1], 7 + 9 * rupture, 4 + 5 * rupture);
+            g.fillStyle(0xffb347, flashA * 0.8);
+            g.fillEllipse(c[0], c[1], 12 + 12 * rupture, 6.5 + 6 * rupture);
+        }
+    }
+    if (rupture > 0.05) {
+        const fly = Math.min(1, (p - 0.16) / 0.32);
+        for (const s of [-1, 1] as const) {
+            const rel = s * BAY;
+            const c = dp(rel, GG.RING_R + 4 + fly * 14, GG.HUB_H + 10 * Math.sin(Math.PI * Math.min(1, fly)) + (fly >= 1 ? -GG.HUB_H + 0.8 : 0));
+            const spin = fly * 5 * s;
+            const lx = Math.cos(spin) * 2.2, ly = Math.sin(spin) * 1.4;
+            polygon(g, [
+                [c[0] - lx, c[1] - ly], [c[0] + ly, c[1] - lx * 0.5],
+                [c[0] + lx, c[1] + ly], [c[0] - ly, c[1] + lx * 0.5]
+            ], pal.woodDk, 0.95);
+        }
+    }
+
+    // ---- the launched cupola pod (drum + cap + finial), tumbling ----
+    const q = smooth((p - 0.16) / 0.5);
+    if (p > 0.16) {
+        const cd = -3 - 11 * q, cw = 4 + 6 * q;
+        const ch = q >= 1 ? 2.2 : GG.CROWN_H + 26 * Math.sin(Math.PI * q) * (1 - 0.35 * q) + (GG.CROWN_H - 2) * (1 - q) * 0 - (GG.CROWN_H - 2.2) * q;
+        const c = view.point([cd, cw, Math.max(2.2, ch)]);
+        const th = q >= 1 ? 1.15 : q * 2.6;
+        const ux = Math.cos(th), uy = Math.sin(th);
+        const drumW = 4.6, drumH = 6.5;
+        polygon(g, [
+            [c[0] - ux * drumW + uy * drumH * 0.5, c[1] - uy * drumW * 0.6 - ux * drumH * 0.5],
+            [c[0] + ux * drumW + uy * drumH * 0.5, c[1] + uy * drumW * 0.6 - ux * drumH * 0.5],
+            [c[0] + ux * drumW - uy * drumH * 0.5, c[1] + uy * drumW * 0.6 + ux * drumH * 0.5],
+            [c[0] - ux * drumW - uy * drumH * 0.5, c[1] - uy * drumW * 0.6 + ux * drumH * 0.5]
+        ], pal.wood, 1);
+        const capC: V2 = [c[0] + uy * drumH * 0.72, c[1] - ux * drumH * 0.72];
+        polygon(g, [
+            [capC[0] - ux * 5.4, capC[1] - uy * 3],
+            [capC[0] + ux * 5.4, capC[1] + uy * 3],
+            [capC[0] + uy * 4.6, capC[1] - ux * 4.6]
+        ], shade(pal.wood, 0.92));
+        g.fillStyle(pal.gold !== null ? pal.gold : pal.iron, 1);
+        g.fillCircle(capC[0] + uy * 5.4, capC[1] - ux * 5.4, 1.3);
+        g.fillStyle(0x1f1c18, 0.9);
+        g.fillRect(c[0] - 1.8, c[1] - 1.2, 1.3, 2.6);
+    }
+
+    // ---- collapse dust ring ----
+    if (p > 0.5 && p < 0.97) {
+        for (let i = 0; i < 5; i++) {
+            const t0 = 0.52 + i * 0.055;
+            const a = Math.max(0, 1 - Math.abs((p - t0) / 0.16)) * 0.4;
+            if (a <= 0.01) continue;
+            const rel = i * 1.26 + 0.4;
+            const c = dp(rel, GG.RIM_R + 4 + 7 * smooth((p - t0) / 0.2), 1.5 + 2.5 * smooth((p - t0) / 0.25));
+            const s = 6 + 7 * smooth((p - t0) / 0.2);
+            g.fillStyle(0xcdbfa5, a);
+            g.fillEllipse(c[0], c[1], s * 1.6, s);
+        }
     }
 }
 
-// -------------------------------------------------------------------------
-// Gatecrasher Belfry (canonical siege-tower design C)
-
-/** Which intact conversion pose the machine occupied on the fatal frame. */
 export type MachineTerminalPose = 'rolling' | 'parked';
 
 interface GatecrasherPalette {
@@ -928,8 +885,14 @@ export function drawMachineDeath(
     const p = clamp01(phase);
     const facing = Number.isFinite(facingAngle) ? facingAngle : 0;
     if (type === 'davincitank') {
-        const view = makeView(facing);
-        drawDaVinciTankDeath(g, view, isPlayer, level, p);
+        // First two bake samples stay on the literal live renderer (static
+        // pose at the bake clock) so the death never pops into an
+        // approximation before the destructive motion begins.
+        if (p <= 0.13) {
+            drawDaVinciTank(g, isPlayer, false, false, facing, level, 1000, 0);
+            return;
+        }
+        drawDaVinciTankDeath(g, makeView(facing), isPlayer, level, p);
         return;
     }
     // The first two bake samples remain the literal selected body renderer,

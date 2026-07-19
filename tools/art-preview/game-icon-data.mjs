@@ -333,33 +333,34 @@ export const ICONS = [
   },
   {
     classes: ["davincitank-icon"],
-    note: "DA VINCI TANK - Leonardo's iconic conical armored war machine with cannons",
-    base: "#C9A07A",
+    note: "DA VINCI TANK - Testudo rebuild: two-pitch plank shell, bombard ring, cupola + crown banner",
+    base: "#B5946A",
     px: `
-        /* Top finial/spike */
-        0 -20px #505050, 0 -18px #606060,
-        /* Upper turret cone */
-        -2px -16px #C9A07A, 0 -16px #DAB898, 2px -16px #C9A07A,
-        -4px -14px #B08560, -2px -14px #C9A07A, 0 -14px #DAB898, 2px -14px #C9A07A, 4px -14px #B08560,
-        /* Upper metal band */
-        -6px -12px #505050, -4px -12px #606060, -2px -12px #505050, 0 -12px #606060, 2px -12px #505050, 4px -12px #606060, 6px -12px #505050,
-        /* Middle cone section */
-        -8px -10px #9A7050, -6px -10px #B08560, -4px -10px #C9A07A, -2px -10px #B08560, 0 -10px #C9A07A, 2px -10px #B08560, 4px -10px #C9A07A, 6px -10px #B08560, 8px -10px #9A7050,
-        -10px -8px #8A6548, -8px -8px #9A7050, -6px -8px #B08560, -4px -8px #C9A07A, -2px -8px #B08560, 0 -8px #C9A07A, 2px -8px #B08560, 4px -8px #C9A07A, 6px -8px #B08560, 8px -8px #9A7050, 10px -8px #8A6548,
-        /* Lower metal band with rivets */
-        -12px -6px #404040, -10px -6px #505050, -8px -6px #606060, -6px -6px #505050, -4px -6px #606060, -2px -6px #505050, 0 -6px #606060, 2px -6px #505050, 4px -6px #606060, 6px -6px #505050, 8px -6px #606060, 10px -6px #505050, 12px -6px #404040,
-        /* Lower cone (widest) */
-        -14px -4px #8A6548, -12px -4px #9A7050, -10px -4px #B08560, -8px -4px #C9A07A, -6px -4px #B08560, -4px -4px #C9A07A, -2px -4px #B08560, 0 -4px #C9A07A, 2px -4px #B08560, 4px -4px #C9A07A, 6px -4px #B08560, 8px -4px #C9A07A, 10px -4px #B08560, 12px -4px #9A7050, 14px -4px #8A6548,
-        /* Cannon barrels sticking out */
-        -18px -2px #1A1A1A, -16px -2px #303030,
-        18px -2px #1A1A1A, 16px -2px #303030,
-        -20px 0 #1A1A1A, -18px 0 #303030,
-        20px 0 #1A1A1A, 18px 0 #303030,
-        /* Base platform */
-        -14px -2px #654321, -12px -2px #8B4513, -10px -2px #9A7050, -8px -2px #8B4513, -6px -2px #9A7050, -4px -2px #8B4513, -2px -2px #9A7050, 0 -2px #8B4513, 2px -2px #9A7050, 4px -2px #8B4513, 6px -2px #9A7050, 8px -2px #8B4513, 10px -2px #9A7050, 12px -2px #8B4513, 14px -2px #654321,
-        -12px 0 #5C3317, -10px 0 #654321, -8px 0 #8B4513, -6px 0 #654321, -4px 0 #8B4513, -2px 0 #654321, 0 0 #8B4513, 2px 0 #654321, 4px 0 #8B4513, 6px 0 #654321, 8px 0 #8B4513, 10px 0 #654321, 12px 0 #5C3317,
-        /* Ground base */
-        -10px 2px #3E2723, -8px 2px #5C3317, -6px 2px #654321, -4px 2px #5C3317, -2px 2px #654321, 0 2px #5C3317, 2px 2px #654321, 4px 2px #5C3317, 6px 2px #654321, 8px 2px #5C3317, 10px 2px #3E2723`
+        /* Crown banner + finial */
+        0 -22px #8A8A96, 2px -22px #3F74B3, 4px -22px #3F74B3, 6px -22px #3F74B3,
+        0 -20px #3E3E47, 2px -20px #2D5486, 4px -20px #2D5486,
+        /* Cupola cap */
+        0 -18px #A08155,
+        -2px -16px #8A6844, 0 -16px #B5946A, 2px -16px #8A6844,
+        -4px -14px #6B4E31, -2px -14px #8A6844, 0 -14px #A08155, 2px -14px #8A6844, 4px -14px #6B4E31,
+        /* Cupola drum with viewing slits */
+        -2px -12px #26262B, 0 -12px #B5946A, 2px -12px #26262B,
+        /* Crown deck */
+        -4px -10px #8F6F4C, -2px -10px #CBAB7D, 0 -10px #CBAB7D, 2px -10px #CBAB7D, 4px -10px #8F6F4C,
+        /* Roof cone facets */
+        -6px -8px #8F6F4C, -4px -8px #B5946A, -2px -8px #CBAB7D, 0 -8px #B5946A, 2px -8px #CBAB7D, 4px -8px #B5946A, 6px -8px #8F6F4C,
+        -8px -6px #6B4E31, -6px -6px #8F6F4C, -4px -6px #B5946A, -2px -6px #8F6F4C, 0 -6px #B5946A, 2px -6px #8F6F4C, 4px -6px #B5946A, 6px -6px #8F6F4C, 8px -6px #6B4E31,
+        /* Studded waist hoop */
+        -10px -4px #3E3E47, -8px -4px #565661, -6px -4px #8A8A96, -4px -4px #565661, -2px -4px #8A8A96, 0 -4px #565661, 2px -4px #8A8A96, 4px -4px #565661, 6px -4px #8A8A96, 8px -4px #565661, 10px -4px #3E3E47,
+        /* Skirt facets + diagonal bombards */
+        -14px -2px #26262B, -12px -2px #46464F, -10px -2px #8F6F4C, -8px -2px #B5946A, -6px -2px #8F6F4C, -4px -2px #B5946A, -2px -2px #8F6F4C, 0 -2px #B5946A, 2px -2px #8F6F4C, 4px -2px #B5946A, 6px -2px #8F6F4C, 8px -2px #B5946A, 10px -2px #8F6F4C, 12px -2px #46464F, 14px -2px #26262B,
+        /* Widest run + broadside bombards */
+        -20px 0 #26262B, -18px 0 #46464F, -16px 0 #46464F, -14px 0 #8F6F4C, -12px 0 #B5946A, -10px 0 #8F6F4C, -8px 0 #B5946A, -6px 0 #8F6F4C, -4px 0 #B5946A, -2px 0 #8F6F4C, 0 0 #B5946A, 2px 0 #8F6F4C, 4px 0 #B5946A, 6px 0 #8F6F4C, 8px 0 #B5946A, 10px 0 #8F6F4C, 12px 0 #B5946A, 14px 0 #8F6F4C, 16px 0 #46464F, 18px 0 #46464F, 20px 0 #26262B,
+        -18px 2px #26262B, -16px 2px #46464F, -14px 2px #6B4E31, -12px 2px #8F6F4C, -10px 2px #B5946A, -8px 2px #8F6F4C, -6px 2px #B5946A, -4px 2px #8F6F4C, -2px 2px #B5946A, 0 2px #8F6F4C, 2px 2px #B5946A, 4px 2px #8F6F4C, 6px 2px #B5946A, 8px 2px #8F6F4C, 10px 2px #B5946A, 12px 2px #8F6F4C, 14px 2px #6B4E31, 16px 2px #46464F, 18px 2px #26262B,
+        /* Rim lip */
+        -14px 4px #4A3A28, -12px 4px #6B4E31, -10px 4px #6B4E31, -8px 4px #6B4E31, -6px 4px #6B4E31, -4px 4px #6B4E31, -2px 4px #6B4E31, 0 4px #6B4E31, 2px 4px #6B4E31, 4px 4px #6B4E31, 6px 4px #6B4E31, 8px 4px #6B4E31, 10px 4px #6B4E31, 12px 4px #6B4E31, 14px 4px #4A3A28,
+        /* Rollers peeking under the skirt */
+        -8px 6px #26262B, -6px 6px #3E3E47, -4px 6px #26262B, 4px 6px #26262B, 6px 6px #3E3E47, 8px 6px #26262B`
   },
   {
     classes: ["phalanx-icon"],

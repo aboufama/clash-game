@@ -124,12 +124,12 @@
     content: '';
     position: absolute;
     width: 42px;
-    height: 42px;
+    height: 46px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAAA4ElEQVR42u2VPQrCQBCFcwcLIZ1Y2AbsJSCC5R7AYpv01vY2egGx8giWXsEreJmRWXjNSHCNG8jq++AVjySzX9j8FEVinHOiKYZONqLee9FQ9Fvul51oHrdTCDpFP+W696JpE8VxisZ+hvDyxHaKWs5bJxq75bEd11P00KxFk0oU8/5PtK5r0XR9ed51zP990VRb3fujMFjRsixFU1VVSLOchBxXoxAM7KtjPawPn/xEraC9gc18LBor3taxtbHnY75d90U4G9FYFrOpaKx41455yf9M2YgSQgghhBBCMuAJypbKyh9E20sAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAuCAYAAABeUotNAAABBElEQVR42u2WsQqCUBSG79NIEA2tDbaEQUQt5d4WNbS0NrQ0uLREc3tj9BQ91Ikj/EOmXL1pnUvng384KNdPjx6vMTWTJGfi9Le33BgpeCMahkPidGaHlxhpeCN62c+JY6QjXjRZDohzP63SoFbRqqwnXeJADK1HjeMqWpUgaBMHrUct7h0VL3rcjInzuO5yg+MqWlYQrYZYUf0zYfGiGDdZ0bL118aVeFFs3+J4kQYbZNca6/2PKAZ2FE3TuLbaVmN95x+EONGsUNNiZcXfbsAb0aIn++kYch1b1lfBG9Eso16LOFig6eB6lb96b0RtUwID29aiquf/n6iiKIqiKIqi1MgTjvZhnSWgBF4AAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
 /* PHALANX - Roman Testudo Formation (3x3 shield wall) */
