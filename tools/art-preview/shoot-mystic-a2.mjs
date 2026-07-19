@@ -74,7 +74,9 @@ try {
       if (building.baseGraphics) window.__clashBake?.SpriteBank?.release?.(building.baseGraphics)
       building.type = unit
       building.level = lv
-      building.doorOpen = door
+      // Freeze doorOpen at the requested pose — VillageLifeSystem otherwise
+      // eases it toward open/closed before the screenshot fires.
+      Object.defineProperty(building, 'doorOpen', { configurable: true, get: () => door, set: () => {} })
       building.doorOpenUntil = door > 0 ? Number.POSITIVE_INFINITY : 0
       building.lastDrawDoorOpen = -1
       building.graphics.clear()
