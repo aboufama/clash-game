@@ -40,8 +40,12 @@ export function bearerToken(authorization: string | string[] | undefined): strin
 
 /**
  * The whole API surface. Every route is same-origin JSON over a bearer session
- * token (no cookies). A device starts as an auto-created guest; registering a
- * username + password makes the account loadable from any device via login.
+ * token (no cookies). In production a fresh device must register a username +
+ * password (or log in) before it gets a village — /auth/session answers
+ * `{ registrationRequired: true }` until then. With CLASH_ALLOW_GUESTS=1
+ * (dev/harnesses) a tokenless device auto-creates a playable guest instead;
+ * registering later upgrades that guest in place. Valid tokens always resume
+ * their account either way.
  */
 export function createApiHandler<Principal>(game: ApiService<Principal>) {
   return async function handle(req: ApiRequest): Promise<ApiResult> {
@@ -64,13 +68,16 @@ export function createApiHandler<Principal>(game: ApiService<Principal>) {
         await game.logout(body.token ?? token)
         return { status: 200, body: { ok: true } }
       }
+      if (method === 'POST' && path === '/auth/register') {
+        // Two modes, decided by the service: a valid bearer token upgrades
+        // that guest in place ({ player }); no token creates the account,
+        // allocates its plot and answers a full session envelope.
+        return { status: 200, body: await game.register(token, body.username, body.password, clientAddress) }
+      }
 
       // Everything below requires a valid device token.
       const player = await game.authenticate(token)
 
-      if (method === 'POST' && path === '/auth/register') {
-        return { status: 200, body: { player: await game.register(player, body.username, body.password) } }
-      }
       if (method === 'POST' && path === '/player/rename') {
         return { status: 200, body: { player: await game.rename(player, body.name) } }
       }

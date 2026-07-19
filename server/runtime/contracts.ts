@@ -42,10 +42,23 @@ export interface AttackStartRequest {
   requestId?: unknown
 }
 
+/** Hard cap on the NEXT-cycling exclusion list (matches the client's bound). */
+export const MATCHMAKE_EXCLUSION_LIMIT = 64
+
 export interface MatchmakeRequest {
   requestId?: unknown
-  /** Previously presented defender; skipped when another candidate exists. */
+  /**
+   * SOFT exclusion — the previously presented defender. Skipped when another
+   * candidate exists, but reused rather than failing a one-opponent world.
+   */
   excludeTargetId?: unknown
+  /**
+   * STRICT exclusions — every defender already offered in this NEXT-cycling
+   * session (bounded by MATCHMAKE_EXCLUSION_LIMIT). Never returned again:
+   * when they cover the whole eligible pool the request fails 404 with
+   * code MATCH_POOL_EXHAUSTED so the client can fall back to bot camps.
+   */
+  excludeTargetIds?: unknown
 }
 
 export interface AttackCommandRequest {
@@ -76,7 +89,13 @@ export interface ApiService<Principal> {
   login(rawUsername: unknown, rawPassword: unknown, rawAddress?: unknown): Awaitable<unknown>
   logout(rawToken: unknown): Awaitable<void>
   authenticate(rawToken: unknown): Awaitable<Principal>
-  register(player: Principal, rawUsername: unknown, rawPassword: unknown): Awaitable<unknown>
+  /**
+   * With a valid bearer token: upgrade that guest account in place. With no
+   * token: create the account, allocate its plot and issue a session (the
+   * production registration wall's entry point) — hence raw token, not an
+   * authenticated principal.
+   */
+  register(rawToken: unknown, rawUsername: unknown, rawPassword: unknown, rawAddress?: unknown): Awaitable<unknown>
   rename(player: Principal, rawName: unknown): Awaitable<unknown>
   /** Optional until the normalized-persistence runtime grows a banner column;
    *  the JSON service implements it fully. Routes 404 when absent. */

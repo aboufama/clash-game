@@ -268,6 +268,15 @@ export class MainScene extends Phaser.Scene {
 
     // Online attack tracking
     public currentEnemyWorld: EnemyWorldMeta | null = null;
+    /** Player bases already offered in this FIND MATCH / NEXT cycling session
+     *  (server-side strict exclusions, bounded to the protocol's 64). */
+    private matchmakeSeenTargetIds: string[] = [];
+    /** Once the eligible player pool is exhausted, NEXT keeps cycling bot
+     *  camps until a fresh FIND MATCH resets the session to players. */
+    private matchmakePhase: 'players' | 'bots' = 'players';
+    /** Last player base offered across sessions — softly avoided on the next
+     *  FIND MATCH so consecutive searches vary when alternatives exist. */
+    private lastMatchedTargetId: string | null = null;
     /** True while a neighbour raid is being fought IN PLACE on the world map
      *  (no cloud, no lighting/weather cutover — the world just keeps going). */
     public battleInPlace = false;
@@ -2139,9 +2148,13 @@ export class MainScene extends Phaser.Scene {
         // his final position — from the very first frame the clouds part.
         // Placed, never walked; his audio handover (drums, horn) rides along.
         this.worldMap.plantWarCamp(shift);
-        // No UI theatre either: the name label stays hidden — the only
-        // change on screen is the attack HUD arriving.
-        this.setVillageNameVisible(false);
+        // Pre-deployment the nameplate stays up: it is the FIND MATCH / NEXT
+        // read of WHO this raid target is — "<NAME>'S VILLAGE · PLAYER/BOT"
+        // (updateVillageName tags every server-issued target). The first
+        // boots on the ground take it down (deployTroop's existing hide), so
+        // the battle itself keeps the no-theatre contract.
+        this.setVillageNameVisible(true);
+        this.updateVillageName();
         if (shift && cameraArrivedAtGate) {
             // The world re-anchored by exactly (-dx, -dy) plots; the camera
             // moves by the same world-space delta. Because the march glide
@@ -2288,7 +2301,15 @@ export class MainScene extends Phaser.Scene {
         }
         // The enemy's username identifies the target of an attack/scout.
         const name = this.currentEnemyWorld?.username || 'ENEMY';
-        this.villageNameLabel.setText(`${name.toUpperCase()}'S VILLAGE`);
+        // Server-issued raid targets carry a PLAYER/BOT tag so the FIND
+        // MATCH → NEXT flow makes the player-pool → bot-camp transition
+        // legible. Practice drills and scouting stay untagged.
+        const enemy = this.currentEnemyWorld;
+        const serverIssued = Boolean(enemy && (enemy.attackId || enemy.botRaidId));
+        const kindTag = this.mode === 'ATTACK' && serverIssued
+            ? (enemy?.isBot ? '  ·  BOT' : '  ·  PLAYER')
+            : '';
+        this.villageNameLabel.setText(`${name.toUpperCase()}'S VILLAGE${kindTag}`);
         this.layoutVillageNameLabel();
     }
 
@@ -8800,6 +8821,7 @@ export class MainScene extends Phaser.Scene {
             startAttack: () => {
                 this.showCloudTransition(async epoch => {
                     if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+                    this.resetMatchmakeSession();
                     const loaded = await this.generateFindMatchVillage(epoch);
                     if (!this.isTransitionCurrent(epoch)) return;
                     if (!loaded) {
@@ -8884,6 +8906,7 @@ export class MainScene extends Phaser.Scene {
                     // Matchmaking selects a real world plot; the shared focus
                     // path below installs that neighborhood and enters the
                     // same battle-in-place flow as a nearby road attack.
+                    this.resetMatchmakeSession();
                     const loaded = await this.generateFindMatchVillage(epoch);
                     if (!this.isTransitionCurrent(epoch)) return;
                     if (!loaded) {
@@ -8975,9 +8998,12 @@ export class MainScene extends Phaser.Scene {
                 }
 
                 this.showCloudTransition(async epoch => {
-                    const excludeTargetId = this.currentEnemyWorld?.isBot
-                        ? undefined
-                        : this.currentEnemyWorld?.id;
+                    // A skipped PLAYER base joins the strict session exclusions
+                    // (covers leaderboard/revenge entries too), so NEXT cycles
+                    // onward through the remaining pool instead of bouncing.
+                    if (this.currentEnemyWorld && !this.currentEnemyWorld.isBot) {
+                        this.recordMatchmakeOffer(this.currentEnemyWorld.id);
+                    }
                     // End any live capture, then settle the registered online attack as an abort.
                     await this.endAttackReplayCapture('aborted')?.catch(() => undefined);
                     await this.abandonCurrentAttack();
@@ -8995,7 +9021,7 @@ export class MainScene extends Phaser.Scene {
                     // world-map matchmaking path as the initial FIND MATCH.
                     this.clearScene();
                     this.currentEnemyWorld = null;
-                    const loaded = await this.generateFindMatchVillage(epoch, { excludeTargetId });
+                    const loaded = await this.generateFindMatchVillage(epoch);
                     if (!this.isTransitionCurrent(epoch)) return;
                     if (!loaded) {
                         await this.goHome();
@@ -9531,28 +9557,55 @@ export class MainScene extends Phaser.Scene {
         return this.mode === 'ATTACK' && this.currentEnemyWorld?.botRaidId === started.raidId;
     }
 
+    /** A fresh FIND MATCH searches players again with an empty seen-list. */
+    private resetMatchmakeSession() {
+        this.matchmakeSeenTargetIds = [];
+        this.matchmakePhase = 'players';
+    }
+
+    /** Track an offered player base for strict NEXT exclusions (bounded 64). */
+    private recordMatchmakeOffer(targetId: string) {
+        if (!targetId) return;
+        this.lastMatchedTargetId = targetId;
+        this.matchmakeSeenTargetIds = this.matchmakeSeenTargetIds
+            .filter(id => id !== targetId)
+            .concat(targetId)
+            .slice(-64);
+    }
+
     /**
      * One entry point for FIND MATCH and every pre-deployment NEXT. Online
-     * searches always select another server-issued player plot; the bot
-     * generator remains reserved for explicit bot-camp attacks.
+     * searches prefer a real player whenever one is eligible; when the server
+     * reports the player pool empty or exhausted, the session transitions to
+     * bot camps and NEXT keeps cycling bots until a fresh FIND MATCH.
      */
-    private generateFindMatchVillage(
-        epoch?: number,
-        options: MatchmakingOptions = {}
-    ): Promise<boolean> {
-        return Auth.isOnlineMode()
-            ? this.generateOnlineEnemyVillage(epoch, options)
-            : this.generateEnemyVillage(epoch);
+    private async generateFindMatchVillage(epoch?: number): Promise<boolean> {
+        if (!Auth.isOnlineMode()) return this.generateEnemyVillage(epoch);
+        if (this.matchmakePhase === 'bots') return this.generateEnemyVillage(epoch);
+        const options: MatchmakingOptions = this.matchmakeSeenTargetIds.length > 0
+            ? { excludeTargetIds: [...this.matchmakeSeenTargetIds] }
+            : (this.lastMatchedTargetId ? { excludeTargetId: this.lastMatchedTargetId } : {});
+        const loaded = await this.generateOnlineEnemyVillage(epoch, options);
+        if (loaded !== 'no-players') return loaded;
+        if (epoch !== undefined && !this.isTransitionCurrent(epoch)) return false;
+        // No (more) eligible player villages: fall back to the bot-camp flow.
+        this.matchmakePhase = 'bots';
+        gameManager.showToast(this.matchmakeSeenTargetIds.length > 0
+            ? 'No more rival villages right now — raiding bot camps instead.'
+            : 'No rival villages are open to raid — raiding bot camps instead.');
+        return this.generateEnemyVillage(epoch);
     }
 
     // Matchmake against a random online player. The server snapshots the
     // defender's base and issues the attackId, so the fight is registered
-    // before the first troop drops.
+    // before the first troop drops. Resolves 'no-players' when the eligible
+    // player pool is empty/exhausted (the find-match flow then goes to bots).
     public async generateOnlineEnemyVillage(
         epoch?: number,
         options: MatchmakingOptions = {}
-    ): Promise<boolean> {
+    ): Promise<boolean | 'no-players'> {
         const started = await Backend.startMatchedAttack(options);
+        if (started === 'no-players') return 'no-players';
         if (epoch !== undefined && !this.isTransitionCurrent(epoch)) {
             if (started?.attackId) void Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
             return false;
@@ -9566,6 +9619,7 @@ export class MainScene extends Phaser.Scene {
             await Backend.endAttack(started.attackId, 'aborted', 0, 0).catch(() => undefined);
             return false;
         }
+        this.recordMatchmakeOffer(started.world.ownerId);
         const plot = { x: started.target.x, y: started.target.y };
         const meta: EnemyWorldMeta = {
             id: started.world.ownerId,

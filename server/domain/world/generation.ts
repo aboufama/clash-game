@@ -1,4 +1,4 @@
-import { botSeedAt, isWildernessPreserveAt } from '../../../src/game/config/Economy'
+import { botFrontierFillSeedAt, botSeedAt, isWildernessPreserveAt } from '../../../src/game/config/Economy'
 import {
   assertGenerationVersion,
   assertPlotCoordinate,
@@ -117,6 +117,44 @@ export function isPlayerPlotEligible(
   worldSeedVersion: unknown = INITIAL_WORLD_PRESENTATION_SEED_VERSION
 ): boolean {
   return classifyPlot(coordinate, generationVersion, worldSeedVersion).kind === 'PLAYER'
+}
+
+/**
+ * The spiral settlement rule: every plot that is not a preserve (including
+ * the hydrology plots folded into preserves) can be claimed by a player.
+ * Claiming a BOT-classified coordinate replaces that generated camp — the
+ * occupancy index always wins over generated presentation.
+ */
+export function isSpiralSettleable(
+  coordinate: PlotCoordinate,
+  generationVersion = CURRENT_WORLD_GENERATION_VERSION,
+  worldSeedVersion: unknown = INITIAL_WORLD_PRESENTATION_SEED_VERSION
+): boolean {
+  return classifyPlot(coordinate, generationVersion, worldSeedVersion).kind !== 'PRESERVE'
+}
+
+/**
+ * Which bot village (if any) presents at an UNOCCUPIED coordinate, given the
+ * settled frontier around the world origin. Structural clans from botSeedAt
+ * show everywhere, exactly as before. Inside the frontier every remaining
+ * settleable plot additionally presents a deterministic fill camp, so the
+ * world center reads as one dense bot neighbourhood that new accounts replace
+ * plot by plot as the spiral hands those coordinates out. Preserves and
+ * beyond-frontier gaps stay wilderness. Callers must check real occupancy
+ * first; a claimed plot never presents as a bot.
+ */
+export function settledFrontierBotVillageSeedAt(
+  coordinate: PlotCoordinate,
+  input: { frontierRadius: number; presentationSeedVersion?: unknown }
+): number | null {
+  assertPlotCoordinate(coordinate)
+  const seedVersion = input.presentationSeedVersion ?? INITIAL_WORLD_PRESENTATION_SEED_VERSION
+  const structural = botVillageSeedAt(coordinate, seedVersion)
+  if (structural !== null) return structural
+  if (!Number.isSafeInteger(input.frontierRadius) || input.frontierRadius < 0) return null
+  if (Math.max(Math.abs(coordinate.x), Math.abs(coordinate.y)) > input.frontierRadius) return null
+  const fillSeed = botFrontierFillSeedAt(coordinate.x, coordinate.y, seedVersion)
+  return fillSeed === null ? null : botVillagePresentationSeed(fillSeed, seedVersion)
 }
 
 export function isInsideLegacyWorld(coordinate: PlotCoordinate): boolean {

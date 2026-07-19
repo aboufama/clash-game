@@ -11,7 +11,7 @@ import { PersistenceGameService } from '../server/runtime/service'
 
 interface ServerlessRuntime {
   middleware: ReturnType<typeof createApiMiddleware>
-  runMaintenance(): void
+  runMaintenance(): Promise<void>
 }
 
 let runtimePromise: Promise<ServerlessRuntime> | null = null
@@ -35,12 +35,17 @@ async function createServerlessRuntime(): Promise<ServerlessRuntime> {
 
     return {
       middleware: createApiMiddleware(service),
-      runMaintenance() {
+      async runMaintenance() {
         const now = Date.now()
         if (maintenanceRunning || now - lastMaintenanceAt < 30_000) return
         maintenanceRunning = true
         lastMaintenanceAt = now
-        void Promise.allSettled([
+        // The invocation must stay alive until the sweep settles: a serverless
+        // instance freezes the moment the handler resolves, so a fire-and-forget
+        // promise here would only run if this warm instance happens to thaw for
+        // a later request. The response is already flushed before this awaits,
+        // so clients never wait on maintenance.
+        await Promise.allSettled([
           service.sweepExpiredGuestLeases(50),
           service.sweepRetention(500),
           attacks.sweepDueAttacks(50)
@@ -94,7 +99,7 @@ export default async function handler(
       response.setHeader('Cache-Control', 'no-store')
       response.end(JSON.stringify({ error: 'API route not found', code: 'NOT_FOUND' }))
     }
-    current.runMaintenance()
+    await current.runMaintenance()
   } catch (error) {
     console.error('[serverless] game authority unavailable:', error)
     if (!response.headersSent) {

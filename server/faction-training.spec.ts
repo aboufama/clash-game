@@ -28,12 +28,18 @@ import {
   armyCampUnlockProgress,
   maxCompletedArmyCampLevel
 } from '../src/game/config/Economy'
+import { grantedSession } from './domain/auth'
 import { sanitizeArmy } from './domain/village/layout'
 import { ApiError, GameService } from './game'
 import { MemoryPersistence } from './persistence'
 import type { JsonValue } from './persistence'
 import type { RuntimePrincipal } from './runtime/contracts'
 import { PersistenceGameService } from './runtime/service'
+
+// This spec mints guest sessions on both runtimes; opt into guest auto-play
+// (the legacy GameService reads the env flag per call, the normalized runtime
+// defaults its allowGuestSessions option from the same shared rule).
+process.env.CLASH_ALLOW_GUESTS = '1'
 
 const EXPECTED_TREES = {
   mystic: [
@@ -203,7 +209,7 @@ test('normalized runtime enforces Army Camp core unlocks and both Barracks paths
   })
 
   try {
-    const session = await service.ensureSession('', 'two-path-runtime')
+    const session = grantedSession(await service.ensureSession('', 'two-path-runtime'))
     const principal: RuntimePrincipal = { playerId: session.player.id }
 
     const barbarian = await service.trainTroop(principal, {
@@ -295,7 +301,7 @@ test('normalized runtime materializes and persists known buildings at their curr
   })
 
   try {
-    const session = await service.ensureSession('', 'level-cap-runtime')
+    const session = grantedSession(await service.ensureSession('', 'level-cap-runtime'))
     const principal: RuntimePrincipal = { playerId: session.player.id }
     const injected = await persistence.transaction(async tx => {
       const village = await tx.villages.get(principal.playerId, { forUpdate: true })
@@ -355,7 +361,7 @@ test('legacy runtime enforces Army Camp core unlocks and both Barracks paths', (
   let game: GameService | undefined
   try {
     game = new GameService(dataRoot)
-    const session = game.ensureSession(undefined, 'two-path-legacy')
+    const session = grantedSession(game.ensureSession(undefined, 'two-path-legacy'))
     const player = game.authenticate(session.token)
     player.balance = 100_000
     player.food = 10_000
@@ -406,7 +412,7 @@ test('legacy runtime hydrates and persists known buildings at their current leve
   try {
     const writer = new GameService(dataRoot)
     active = writer
-    const session = writer.ensureSession(undefined, 'level-cap-legacy')
+    const session = grantedSession(writer.ensureSession(undefined, 'level-cap-legacy'))
     const player = writer.authenticate(session.token)
     const injected = {
       revision: player.revision,

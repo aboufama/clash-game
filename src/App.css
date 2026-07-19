@@ -3249,6 +3249,96 @@ body.is-touch {
 }
 
 /* ============================================
+   ACCOUNT GATE — the required login/register wall
+   ============================================ */
+/* Shares .auth-lock-overlay (full bury) but carries a form, so it gets its
+   own pxf-panel card. Field/label/error chrome comes from the global
+   .account-panel / .account-error kit the settings modal already uses. */
+.auth-gate-panel {
+    width: min(380px, 92vw);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 20px 24px;
+    text-align: left;
+    font-family: var(--ui-font);
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+}
+
+.auth-gate-panel h2 {
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--fantasy-gold);
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.auth-gate-sub {
+    font-size: 8px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0 0 12px;
+    text-align: center;
+}
+
+.auth-gate-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.auth-gate-btn {
+    font-family: var(--ui-font);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+    padding: calc(var(--px) * 3) 0;
+    text-align: center;
+    cursor: pointer;
+}
+
+/* CREATE ACCOUNT is the wall's primary action: gold frame, gold text. */
+.auth-gate-btn.primary {
+    color: var(--ui-gold);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+}
+
+.auth-gate-btn:hover:not(:disabled) {
+    background: none;
+    filter: brightness(1.15);
+}
+
+.auth-gate-btn:active:not(:disabled) {
+    background: none;
+    box-shadow: none;
+    border-image-source: var(--pxf-btn-down);
+    color: var(--text-primary);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+.auth-gate-panel button:disabled {
+    filter: grayscale(1) brightness(0.75);
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ============================================
    BUILDING SHOP — refreshed card layout
    ============================================ */
 .bshop-body {

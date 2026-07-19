@@ -3,12 +3,15 @@ import {
   CURRENT_WORLD_GENERATION_VERSION,
   DEFAULT_GUEST_PLOT_TTL_MS,
   DEFAULT_REGION_SIZE,
+  INITIAL_PLOT_VERSION,
   LEGACY_WORLD_ID,
   MAX_ALLOCATION_PROBE_BUDGET,
   allocationOrdinalOf,
   allocateNextPlayerPlot,
+  coordinateAtAllocationOrdinal,
   nextPlotVersion,
   regionAddressForPlot,
+  spiralHoleOrdinalsBelowCursor,
   type PlotCoordinate,
   type WorldAllocationIndex
 } from '../domain/world'
@@ -26,6 +29,10 @@ import { ApiError } from '../errors'
 // plots while retaining the bounded repair loop for malformed legacy rows.
 const ALLOCATION_PAGE_SIZE = 64
 
+/** Settlement model 2: bot ordinals are settleable and central holes are indexed. */
+const SPIRAL_ALLOCATION_MODEL = 2
+const SPIRAL_OCCUPANCY_PROBE_CHUNK = 256
+
 function allocationIndex(record: WorldAllocationRecord): WorldAllocationIndex {
   return {
     schemaVersion: 1,
@@ -36,15 +43,72 @@ function allocationIndex(record: WorldAllocationRecord): WorldAllocationIndex {
   }
 }
 
+/**
+ * One-time spiral-model upgrade, run under the world's allocation row lock.
+ * Pre-spiral admission skipped every bot-classified ordinal below the cursor —
+ * the entire dense world center — so an upgraded world would otherwise keep
+ * spawning new accounts on its old frontier. Index the settleable, unoccupied
+ * holes as free slots once; ordinal-ordered reuse then fills the center first.
+ * The scan is bounded exactly like the legacy cutover hole scan.
+ */
+async function upgradeAllocationToSpiralModel(
+  tx: UnitOfWork,
+  record: WorldAllocationRecord,
+  now: Date
+): Promise<WorldAllocationRecord> {
+  if ((record.allocationModel ?? 1) >= SPIRAL_ALLOCATION_MODEL) return record
+  const holes = spiralHoleOrdinalsBelowCursor({
+    nextOrdinal: record.nextOrdinal,
+    generationVersion: record.currentGenerationVersion
+  })
+  if (holes.length > 0) {
+    // Every released row below the cursor sits at a settleable ordinal, and
+    // rows are ordinal-ordered, so the first `holes.length` rows cover them.
+    const indexed = new Set(
+      (await tx.world.getReleasedSlots(record.worldId, holes.length)).map(slot => slot.ordinal)
+    )
+    const candidates = holes
+      .filter(ordinal => !indexed.has(ordinal))
+      .map(ordinal => ({ ordinal, coordinate: coordinateAtAllocationOrdinal(ordinal) }))
+    for (let start = 0; start < candidates.length; start += SPIRAL_OCCUPANCY_PROBE_CHUNK) {
+      const chunk = candidates.slice(start, start + SPIRAL_OCCUPANCY_PROBE_CHUNK)
+      const occupied = new Set(
+        (await tx.world.listOccupantsAt(record.worldId, chunk.map(item => item.coordinate)))
+          .map(plot => `${plot.x},${plot.y}`)
+      )
+      for (const item of chunk) {
+        if (occupied.has(`${item.coordinate.x},${item.coordinate.y}`)) continue
+        await tx.world.putReleasedSlot({
+          worldId: record.worldId,
+          ordinal: item.ordinal,
+          plotVersion: INITIAL_PLOT_VERSION,
+          releasedAt: now
+        })
+      }
+    }
+  }
+  const upgraded: WorldAllocationRecord = {
+    ...record,
+    allocationModel: SPIRAL_ALLOCATION_MODEL,
+    revision: record.revision + 1,
+    updatedAt: now
+  }
+  if (!await tx.world.updateAllocation(upgraded, record.revision)) {
+    throw new ApiError(409, 'World allocation changed; retry the request', 'WORLD_ALLOCATION_CONFLICT')
+  }
+  return upgraded
+}
+
 async function lockedAllocation(tx: UnitOfWork, now: Date): Promise<WorldAllocationRecord> {
   const existing = await tx.world.getAllocation(LEGACY_WORLD_ID, { forUpdate: true })
-  if (existing) return existing
+  if (existing) return upgradeAllocationToSpiralModel(tx, existing, now)
   const created: WorldAllocationRecord = {
     worldId: LEGACY_WORLD_ID,
     schemaVersion: 1,
     regionSize: DEFAULT_REGION_SIZE,
     currentGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
     nextOrdinal: 0,
+    allocationModel: SPIRAL_ALLOCATION_MODEL,
     revision: 0,
     updatedAt: now
   }

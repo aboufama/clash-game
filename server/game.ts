@@ -30,7 +30,7 @@ import type {
   SessionResponse,
   StartedAttackResponse
 } from './protocol'
-import type { MatchmakeRequest } from './runtime/contracts'
+import { MATCHMAKE_EXCLUSION_LIMIT, type MatchmakeRequest } from './runtime/contracts'
 import { JsonCollection } from './store'
 import {
   applyAttackCommand,
@@ -70,6 +70,7 @@ import {
 } from './domain/village'
 import {
   InMemoryAuthRateLimiter,
+  guestSessionsAllowed,
   hashPassword,
   hashSessionToken as hashToken,
   isValidUsername,
@@ -77,9 +78,11 @@ import {
   migrateLegacyTokenHashes,
   normalizeSessionToken,
   normalizeUsernameKey,
+  registrationRequiredResponse,
   revokeSessionToken,
   validateRegistrationCredentials,
-  verifyPassword
+  verifyPassword,
+  type RegistrationRequiredResponse
 } from './domain/auth'
 import {
   CURRENT_WORLD_GENERATION_VERSION,
@@ -88,15 +91,18 @@ import {
   MAX_WORLD_COORDINATE,
   allocateNextPlayerPlot,
   allocationOrdinalOf,
-  botVillageSeedAt,
+  botFrontierRadiusForCursor,
   classifyPlot,
   coordinateAtAllocationOrdinal,
   createAllocationIndex,
   INITIAL_WORLD_PRESENTATION_SEED_VERSION,
+  isSpiralSettleable,
   nextWorldPresentationSeedVersion,
   normalizeAllocationIndex,
   normalizeWorldPresentationSeedVersion,
   releasePlayerPlotForTopology,
+  settledFrontierBotVillageSeedAt,
+  spiralHoleOrdinalsBelowCursor,
   type ReleasedPlotSlot,
   type WorldAllocationIndex
 } from './domain/world'
@@ -285,6 +291,12 @@ interface WorldStateRecord {
   presentationSeedVersion: number
   /** Epoch for which allocation/released slots were rebuilt. Missing means legacy epoch zero. */
   allocationSeedVersion?: number
+  /**
+   * Settlement-model marker. Missing/1 = the pre-spiral world whose admission
+   * skipped bot ordinals; 2 = central bot ordinals below the cursor have been
+   * indexed as free slots once, so new accounts fill the world center first.
+   */
+  spiralModelVersion?: number
 }
 
 type LeaderboardSnapshotRow = Omit<LeaderboardEntry, 'online' | 'inScoutRange'>
@@ -433,6 +445,15 @@ export function generatedTroopHasRootDeployment(
 
 function sanitizeId(value: unknown): string {
   return String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 96)
+}
+
+/** Bounded strict NEXT-cycling exclusion list (see MatchmakeRequest). */
+function parseMatchmakeExclusions(value: unknown): Set<string> {
+  if (value === undefined) return new Set()
+  if (!Array.isArray(value) || value.length > MATCHMAKE_EXCLUSION_LIMIT) {
+    throw new ApiError(400, `excludeTargetIds must be an array of at most ${MATCHMAKE_EXCLUSION_LIMIT} ids`)
+  }
+  return new Set(value.map(entry => strictSafeId(entry, 'excludeTargetIds entry')))
 }
 
 function strictSafeId(value: unknown, label: string): string {
@@ -648,13 +669,15 @@ export class GameService {
       // or a bot. Epoch-zero startup retains the legacy relocation migration.
       const pinnedByGeneratedEpoch = this.allocationState.presentationSeedVersion > 0
         || player.worldTopologyPinned === true
+      // Spiral settlement: villages legitimately sit on bot-classified land
+      // (their claim replaced the camp), so only preserves/water relocate.
       if (Number.isInteger(x) && Number.isInteger(y)
         && Math.abs(x) <= HOME_COORD_LIMIT && Math.abs(y) <= HOME_COORD_LIMIT
-        && (pinnedByGeneratedEpoch || classifyPlot(
+        && (pinnedByGeneratedEpoch || isSpiralSettleable(
           { x, y },
           CURRENT_WORLD_GENERATION_VERSION,
           this.allocationState.presentationSeedVersion
-        ).kind === 'PLAYER')
+        ))
         && !this.plotIndex.has(key)) {
         this.plotIndex.set(key, player.id)
       } else {
@@ -671,27 +694,25 @@ export class GameService {
     if (!storedWorldState) {
       const nextOrdinal = greatestOccupiedOrdinal + 1
       const releasedSlots: ReleasedPlotSlot[] = []
-      // The legacy envelope is tiny, so index its holes once at cutover. For
-      // unexpectedly huge imported coordinates, advance the frontier without
-      // attempting a multi-billion-coordinate migration scan.
-      if (nextOrdinal <= 25_000) {
-        for (let ordinal = 0; ordinal < nextOrdinal; ordinal += 1) {
-          const coordinate = coordinateAtAllocationOrdinal(ordinal)
-          if (classifyPlot(
-            coordinate,
-            CURRENT_WORLD_GENERATION_VERSION,
-            this.allocationState.presentationSeedVersion
-          ).kind === 'PLAYER'
-            && !this.plotIndex.has(plotKey(coordinate.x, coordinate.y))) {
-            releasedSlots.push({ ordinal, plotVersion: 1 })
-          }
+      // The legacy envelope is tiny, so index its holes once at cutover
+      // (bounded by the shared scan limit for unexpectedly huge imports).
+      // Bot ordinals are settleable spiral holes now, so they index too.
+      for (const ordinal of spiralHoleOrdinalsBelowCursor({
+        nextOrdinal,
+        generationVersion: CURRENT_WORLD_GENERATION_VERSION,
+        worldSeedVersion: this.allocationState.presentationSeedVersion
+      })) {
+        const coordinate = coordinateAtAllocationOrdinal(ordinal)
+        if (!this.plotIndex.has(plotKey(coordinate.x, coordinate.y))) {
+          releasedSlots.push({ ordinal, plotVersion: 1 })
         }
       }
       this.allocationState = {
         allocation: createAllocationIndex({ worldId: LEGACY_WORLD_ID, nextOrdinal }),
         releasedSlots,
         presentationSeedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION,
-        allocationSeedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION
+        allocationSeedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION,
+        spiralModelVersion: 2
       }
       this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
     } else {
@@ -699,7 +720,10 @@ export class GameService {
         allocation: normalizeAllocationIndex(storedWorldState.allocation),
         releasedSlots: Array.isArray(storedWorldState.releasedSlots) ? storedWorldState.releasedSlots : [],
         presentationSeedVersion: normalizeWorldPresentationSeedVersion(storedWorldState.presentationSeedVersion),
-        allocationSeedVersion: normalizeWorldPresentationSeedVersion(storedWorldState.allocationSeedVersion)
+        allocationSeedVersion: normalizeWorldPresentationSeedVersion(storedWorldState.allocationSeedVersion),
+        spiralModelVersion: Number.isSafeInteger(storedWorldState.spiralModelVersion)
+          ? storedWorldState.spiralModelVersion
+          : 1
       }
       if (this.allocationState.allocation.nextOrdinal <= greatestOccupiedOrdinal) {
         this.allocationState.allocation = {
@@ -715,6 +739,7 @@ export class GameService {
     if (this.allocationState.allocationSeedVersion !== this.allocationState.presentationSeedVersion) {
       this.rebuildAllocationForGeneratedTopology()
     }
+    this.upgradeAllocationToSpiralModel()
     plotless.sort((a, b) => a.createdAt - b.createdAt)
     for (const player of plotless) {
       this.assignPlot(player)
@@ -1173,9 +1198,9 @@ export class GameService {
    * Old released rows encode now-invalid eligibility and cannot survive. The
    * high-water cursor is eligibility-agnostic, however, and stays beyond every
    * prior frontier claim; retaining it prevents the first post-reseed player
-   * from rescanning a densely populated MMO world. Newly eligible holes below
-   * that cursor are deliberately sacrificed. Every future frontier probe still
-   * checks both pinned occupancy and the current seed.
+   * from rescanning a densely populated MMO world. The bounded spiral-model
+   * upgrade then re-indexes the settleable central holes under the new seed,
+   * so admission keeps filling the world center first after a reseed too.
    */
   private rebuildAllocationForGeneratedTopology(): void {
     const previous = normalizeAllocationIndex(this.allocationState.allocation)
@@ -1183,9 +1208,42 @@ export class GameService {
       allocation: previous,
       releasedSlots: [],
       presentationSeedVersion: this.allocationState.presentationSeedVersion,
-      allocationSeedVersion: this.allocationState.presentationSeedVersion
+      allocationSeedVersion: this.allocationState.presentationSeedVersion,
+      spiralModelVersion: 1
     }
     this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+    this.upgradeAllocationToSpiralModel()
+  }
+
+  /**
+   * One-time (per world, per topology rebuild) spiral-model upgrade: index
+   * every settleable, unoccupied ordinal below the high-water cursor as a
+   * free slot. Pre-spiral admission skipped bot-classified ordinals — the
+   * entire dense center — so without this backfill an upgraded world would
+   * keep spawning new accounts on its old frontier instead of replacing the
+   * central bot neighbourhood from the inside out.
+   */
+  private upgradeAllocationToSpiralModel(): void {
+    if ((this.allocationState.spiralModelVersion ?? 1) >= 2) return
+    const indexed = new Set(this.allocationState.releasedSlots.map(slot => slot.ordinal))
+    for (const ordinal of spiralHoleOrdinalsBelowCursor({
+      nextOrdinal: this.allocationState.allocation.nextOrdinal,
+      generationVersion: this.allocationState.allocation.currentGenerationVersion,
+      worldSeedVersion: this.allocationState.presentationSeedVersion
+    })) {
+      if (indexed.has(ordinal)) continue
+      const coordinate = coordinateAtAllocationOrdinal(ordinal)
+      if (this.plotIndex.has(plotKey(coordinate.x, coordinate.y))) continue
+      this.allocationState.releasedSlots.push({ ordinal, plotVersion: 1 })
+    }
+    this.allocationState.releasedSlots.sort((a, b) => a.ordinal - b.ordinal)
+    this.allocationState.spiralModelVersion = 2
+    this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+  }
+
+  /** Unclaimed spiral plots inside this Chebyshev radius present as bot camps. */
+  private botFrontierRadius(): number {
+    return botFrontierRadiusForCursor(this.allocationState.allocation.nextOrdinal)
   }
 
   private assignPlot(player: PlayerRecord) {
@@ -1194,6 +1252,9 @@ export class GameService {
     player.plotY = spot.y
     player.plotVersion = spot.plotVersion
     this.plotIndex.set(plotKey(spot.x, spot.y), player.id)
+    // The claim replaces any bot camp presented at this spiral plot; the
+    // claimant's own raid cooldown for the coordinate dies with the camp.
+    if (player.botRaids) delete player.botRaids[plotKey(spot.x, spot.y)]
   }
 
   /** Allocate from indexed releases first, then resume the durable frontier. */
@@ -1320,10 +1381,10 @@ export class GameService {
             continue
           }
         }
-        const seed = botVillageSeedAt(
-          { x, y },
-          this.allocationState.presentationSeedVersion
-        )
+        const seed = settledFrontierBotVillageSeedAt({ x, y }, {
+          frontierRadius: this.botFrontierRadius(),
+          presentationSeedVersion: this.allocationState.presentationSeedVersion
+        })
         if (seed !== null) {
           plots.push({ x, y, kind: 'bot', seed, username: botNameFor(seed, x, y), trophies: 100 + (seed % 900) })
         } else {
@@ -1376,13 +1437,14 @@ export class GameService {
         throw new ApiError(403, 'That relocation plot is beyond your watchtower sight')
       }
       if (this.plotIndex.has(key)) throw new ApiError(409, 'That plot is taken')
+      // Spiral settlement: an unclaimed bot camp is claimable land — settling
+      // there replaces the camp. Only preserves/water refuse a village.
       const eligibility = classifyPlot(
         { x, y },
         CURRENT_WORLD_GENERATION_VERSION,
         this.allocationState.presentationSeedVersion
       )
       if (eligibility.kind === 'PRESERVE') throw new ApiError(409, 'That wilderness is permanently protected')
-      if (eligibility.kind === 'BOT') throw new ApiError(409, 'A bot camp already occupies that plot')
       const targetOrdinal = allocationOrdinalOf({ x, y })
       const releasedIndex = this.allocationState.releasedSlots.findIndex(slot => slot.ordinal === targetOrdinal)
       const targetVersion = releasedIndex >= 0 ? this.allocationState.releasedSlots[releasedIndex].plotVersion : 1
@@ -1395,14 +1457,24 @@ export class GameService {
     player.plotY = target.y
     player.plotVersion = target.plotVersion
     this.plotIndex.set(plotKey(target.x, target.y), player.id)
+    // Claiming a plot dissolves any bot camp presented there; the mover's own
+    // raid cooldown for that coordinate is now meaningless. Everyone else's
+    // entries are inert (occupancy is checked before any cooldown) and expire.
+    if (player.botRaids) delete player.botRaids[plotKey(target.x, target.y)]
     player.revision += 1
     player.lastMutationAt = Date.now()
     this.players.markDirty(player.id)
     return { me: { x: target.x, y: target.y, plotVersion: target.plotVersion }, serverNow: Date.now() }
   }
 
-  /** Device-token session: a valid token resumes its account, anything else creates a fresh guest. */
-  ensureSession(rawToken: unknown, rawAddress?: unknown): SessionResponse {
+  /**
+   * Device-token session: a valid token resumes its account (guest or
+   * registered — existing villages are grandfathered). Without one, the
+   * production registration wall answers `{ registrationRequired: true }`;
+   * only with CLASH_ALLOW_GUESTS=1 (dev/harnesses) is a fresh playable guest
+   * minted instead.
+   */
+  ensureSession(rawToken: unknown, rawAddress?: unknown): SessionResponse | RegistrationRequiredResponse {
     const now = Date.now()
     const token = normalizeSessionToken(rawToken)
     if (token) {
@@ -1418,6 +1490,8 @@ export class GameService {
       }
     }
 
+    if (!guestSessionsAllowed()) return registrationRequiredResponse()
+
     const guestCreation = this.authLimiter.consumeGuestCreation(rawAddress, now)
     if (!guestCreation.allowed) {
       throw new ApiError(429, 'Too many new villages from this address — try again later')
@@ -1425,10 +1499,31 @@ export class GameService {
 
     const issuedSession = issueSessionToken([], { maximumSessions: MAX_SESSIONS_PER_PLAYER })
     const newToken = issuedSession.token
+    const player = this.createStarterPlayer(now, issuedSession.tokenHashes, {
+      username: `Chief-${randomHex(2).toUpperCase()}`
+    })
+    this.players.set(player.id, player)
+    this.playerDirectory.add(player.id)
+    this.tokenIndex.set(issuedSession.tokenHash, player.id)
+    return this.sessionFor(player, newToken, true)
+  }
+
+  /**
+   * Mint a starter player record and claim its plot through the shared
+   * allocation path. Guests (no credentials) get a renewable plot lease;
+   * registered accounts (credentials present) own their plot permanently.
+   */
+  private createStarterPlayer(
+    now: number,
+    tokenHashes: string[],
+    identity: { username: string; usernameKey?: string; passwordHash?: string }
+  ): PlayerRecord {
+    const registered = Boolean(identity.passwordHash)
     const player: PlayerRecord = {
       id: `p_${randomHex(8)}`,
-      tokenHashes: issuedSession.tokenHashes,
-      username: `Chief-${randomHex(2).toUpperCase()}`,
+      tokenHashes,
+      username: identity.username,
+      ...(registered ? { usernameKey: identity.usernameKey, passwordHash: identity.passwordHash } : {}),
       createdAt: now,
       lastSeen: now,
       trophies: 0,
@@ -1444,16 +1539,14 @@ export class GameService {
       population: { count: STARTING_POPULATION, lastGrowthAt: now },
       ore: STARTING_ORE,
       food: STARTING_FOOD,
-      shieldUntil: now + STARTER_SHIELD_MS,
-      plotLeaseId: '',
-      plotLeaseExpiresAt: now + DEFAULT_GUEST_PLOT_TTL_MS
+      shieldUntil: now + STARTER_SHIELD_MS
     }
-    player.plotLeaseId = `guest_${player.id}`
+    if (!registered) {
+      player.plotLeaseId = `guest_${player.id}`
+      player.plotLeaseExpiresAt = now + DEFAULT_GUEST_PLOT_TTL_MS
+    }
     this.assignPlot(player)
-    this.players.set(player.id, player)
-    this.playerDirectory.add(player.id)
-    this.tokenIndex.set(issuedSession.tokenHash, player.id)
-    return this.sessionFor(player, newToken, true)
+    return player
   }
 
   authenticate(rawToken: unknown): PlayerRecord {
@@ -1470,33 +1563,71 @@ export class GameService {
   }
 
   /**
-   * Attach a username + password to the caller's current (guest) account, so the
-   * village they already built becomes loadable from any device. The device token
-   * keeps working as this device's session.
+   * Create or claim a username + password account. With a valid device token,
+   * the caller's current (guest) account is upgraded in place: the village
+   * they already built becomes loadable from any device and the token keeps
+   * working as this device's session. With NO token (the production
+   * registration wall), the account is created from scratch — starter
+   * village, a permanent plot through the shared allocation path, and a fresh
+   * device session, returned as a full session envelope.
    */
-  register(player: PlayerRecord, rawUsername: unknown, rawPassword: unknown): PlayerProfile {
-    if (player.passwordHash) {
-      throw new ApiError(409, 'This village is already registered — log out to create a different account')
-    }
+  register(
+    rawToken: unknown,
+    rawUsername: unknown,
+    rawPassword: unknown,
+    rawAddress?: unknown
+  ): { player: PlayerProfile } | SessionResponse {
+    const token = normalizeSessionToken(rawToken)
     const credentials = validateRegistrationCredentials(rawUsername, rawPassword)
     if (!credentials.ok) throw new ApiError(400, credentials.message)
     const { username, password } = credentials
     const key = normalizeUsernameKey(username)
-    const existing = this.usernameIndex.get(key)
-    if (existing && existing !== player.id) {
-      throw new ApiError(409, 'That username is already taken')
+
+    if (token) {
+      // A presented token must be live — a dead session never silently mints
+      // a second account under the player's feet (401 -> normal expiry flow).
+      const player = this.authenticate(token)
+      if (player.passwordHash) {
+        throw new ApiError(409, 'This village is already registered — log out to create a different account')
+      }
+      const existing = this.usernameIndex.get(key)
+      if (existing && existing !== player.id) {
+        throw new ApiError(409, 'That username is already taken', 'USERNAME_TAKEN')
+      }
+      player.username = username
+      player.usernameKey = key
+      player.passwordHash = hashPassword(password)
+      delete player.plotLeaseId
+      delete player.plotLeaseExpiresAt
+      player.revision += 1
+      player.appearanceRevision = appearanceRevisionOf(player) + 1
+      player.lastMutationAt = Date.now()
+      this.usernameIndex.set(key, player.id)
+      this.players.markDirty(player.id)
+      return { player: this.profileOf(player) }
     }
-    player.username = username
-    player.usernameKey = key
-    player.passwordHash = hashPassword(password)
-    delete player.plotLeaseId
-    delete player.plotLeaseExpiresAt
-    player.revision += 1
-    player.appearanceRevision = appearanceRevisionOf(player) + 1
-    player.lastMutationAt = Date.now()
+
+    // Anonymous registration: account + village + permanent plot in one step.
+    if (this.usernameIndex.has(key)) {
+      throw new ApiError(409, 'That username is already taken — use LOG IN instead', 'USERNAME_TAKEN')
+    }
+    const now = Date.now()
+    // New accounts occupy world plots exactly like guests; share their budget.
+    const creation = this.authLimiter.consumeGuestCreation(rawAddress, now)
+    if (!creation.allowed) {
+      throw new ApiError(429, 'Too many new villages from this address — try again later')
+    }
+    const issuedSession = issueSessionToken([], { maximumSessions: MAX_SESSIONS_PER_PLAYER })
+    const player = this.createStarterPlayer(now, issuedSession.tokenHashes, {
+      username,
+      usernameKey: key,
+      passwordHash: hashPassword(password)
+    })
+    this.players.set(player.id, player)
+    this.playerDirectory.add(player.id)
+    this.tokenIndex.set(issuedSession.tokenHash, player.id)
     this.usernameIndex.set(key, player.id)
-    this.players.markDirty(player.id)
-    return this.profileOf(player)
+    return this.sessionFor(player, issuedSession.token, true)
   }
 
   /** Log into a registered account from any device. Issues a fresh session token for this device. */
@@ -2215,10 +2346,13 @@ export class GameService {
     const raids = this.pruneBotRaidCooldowns(player, now)
     const eligible = (x: number, y: number) => {
       if (this.plotIndex.has(plotKey(x, y))) return null
-      const seed = botVillageSeedAt(
-        { x, y },
-        this.allocationState.presentationSeedVersion
-      )
+      // The same settled-frontier rule the map presents: structural clans
+      // everywhere, plus fill camps at unclaimed central spiral plots — a
+      // camp the map shows is always a camp the player can raid.
+      const seed = settledFrontierBotVillageSeedAt({ x, y }, {
+        frontierRadius: this.botFrontierRadius(),
+        presentationSeedVersion: this.allocationState.presentationSeedVersion
+      })
       if (seed === null || now - (raids[plotKey(x, y)] ?? 0) < BOT_RAID_COOLDOWN_MS) return null
       return { x, y, seed }
     }
@@ -3431,12 +3565,18 @@ export class GameService {
     }
   }
 
-  /** Random matchmaking: pick another player's base that isn't already under attack. */
+  /**
+   * Random matchmaking: pick another player's base that isn't already under
+   * attack. Eligibility keeps only the principled exclusions — self, bases
+   * without a town hall, defenders with a live attack lease, and shielded
+   * villages (starter + post-raid shields both protect a base from raids).
+   */
   matchmake(attacker: PlayerRecord, body: MatchmakeRequest = {}, rawToken?: unknown): StartedAttackResponse {
     const requestId = this.normalizeKey(body?.requestId)
     const excludeTargetId = body.excludeTargetId === undefined
       ? undefined
       : strictSafeId(body.excludeTargetId, 'excludeTargetId')
+    const excludedTargetIds = parseMatchmakeExclusions(body.excludeTargetIds)
     const retry = this.retryAttackStart(attacker, requestId)
     if (retry) return retry
     const candidates: PlayerRecord[] = []
@@ -3452,11 +3592,22 @@ export class GameService {
       if ((player.shieldUntil ?? 0) > Date.now()) continue
       candidates.push(player)
     }
-    if (candidates.length === 0) throw new ApiError(404, 'No opponents available')
-    const alternatives = excludeTargetId
-      ? candidates.filter(candidate => candidate.id !== excludeTargetId)
+    if (candidates.length === 0) throw new ApiError(404, 'No opponents available', 'NO_OPPONENTS')
+    // Strict NEXT-cycling exclusions: a base already offered this session is
+    // never offered again. An exhausted pool is a distinct signal so the
+    // client can transition to bot camps.
+    const remaining = excludedTargetIds.size > 0
+      ? candidates.filter(candidate => !excludedTargetIds.has(candidate.id))
       : candidates
-    const selectionPool = alternatives.length > 0 ? alternatives : candidates
+    if (remaining.length === 0) {
+      throw new ApiError(404, 'Every eligible player village has already been offered', 'MATCH_POOL_EXHAUSTED')
+    }
+    // Soft exclusion is a repeat-avoidance preference, not a way to make a
+    // one-opponent world unplayable. Reuse the sole candidate when needed.
+    const alternatives = excludeTargetId
+      ? remaining.filter(candidate => candidate.id !== excludeTargetId)
+      : remaining
+    const selectionPool = alternatives.length > 0 ? alternatives : remaining
     const victim = selectionPool[Math.floor(Math.random() * selectionPool.length)]
     return this.startAttack(attacker, { targetId: victim.id, requestId }, true, rawToken)
   }

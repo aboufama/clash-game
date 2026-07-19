@@ -157,6 +157,13 @@ export interface WorldAllocationRecord {
   regionSize: number
   currentGenerationVersion: number
   nextOrdinal: number
+  /**
+   * Settlement-model marker (absent/1 = pre-spiral admission that skipped bot
+   * ordinals; 2 = settleable central holes below the cursor were indexed as
+   * free slots once, so admission fills the world center first). The record
+   * shape itself is unchanged, hence not part of schemaVersion.
+   */
+  allocationModel?: number
   revision: number
   updatedAt: Date
 }

@@ -12,11 +12,13 @@ import {
     wildernessEcologyPresentationSeed,
     wildernessPlotPresentationSeed
 } from './WorldNatureSeed';
-// Design-tournament coupling (the deadwood round). Value imports are only
-// CALLED at draw/revision time, never during module evaluation, so the
+// Design-tournament coupling. Value imports are only CALLED at
+// draw/revision time, never during module evaluation, so the
 // WildernessRenderer <-> DesignRegistry <-> design-file cycle is safe (the
 // registry's exports are hoisted function declarations).
-import { activeDesign, activeSlot, listVariantUnits } from './redesign/DesignRegistry';
+import { activeSlot, listVariantUnits } from './redesign/DesignRegistry';
+// Canonical Stormbreak Wood: tournament winner A, called directly.
+import { deadwoodDesignA } from './redesign/DeadwoodA';
 
 /**
  * The unclaimed wilds: every empty plot is a PLACE — a lake, a crag field,
@@ -1281,22 +1283,11 @@ const ARCHETYPES: Array<{ key: string; place: Placer }> = [
     },
     {
         key: 'deadwood',
-        place: (ctx, put) => {
-            // CLEAN-ROOM REDESIGN IN PROGRESS — the deadwood composition is a
-            // live 2-variant design tournament. The active design is resolved
-            // per draw call from localStorage['clash.design.deadwood'] via the
-            // DesignRegistry; the old composition was removed so isolated
-            // designers cannot see it (revert path: git HEAD).
-            const design = activeDesign('deadwood');
-            if (design) {
-                design(ctx, put);
-                return;
-            }
-            // Neutral placeholder while no slot is filled: open ground with a
-            // rock scatter — deliberately design-language-free.
-            groundPatch(ctx, 12.5, 12.5, 9.4, 7.6, 0x6a6046, 0.22, 'deadwood-placeholder');
-            scatterRocks(ctx, 12.5, 12.5, 15, 10);
-        }
+        // TOURNAMENT RESOLVED (2026-07-18): design A "The Wind Road" won the
+        // 2-variant round and is the canonical Stormbreak Wood — called
+        // directly (the cannon-B / golem-C promotion pattern), no registry
+        // routing. See ./redesign/DeadwoodA.ts.
+        place: (ctx, put) => deadwoodDesignA(ctx, put)
     },
     {
         key: 'boulder-lone-tree',

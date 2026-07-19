@@ -11,6 +11,7 @@ import { PersistenceGameService } from '../../runtime/service'
 import { createPersistenceAttackService } from '../../runtime/attack-service'
 import { outboxEvent } from '../repositories'
 import { createApiMiddleware } from '../../node-adapter'
+import { grantedSession } from '../../domain/auth'
 import { allocationOrdinalOf, nextPlotVersion } from '../../domain/world'
 
 interface EmbeddedResult {
@@ -127,13 +128,14 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
     attacks,
     starterShieldMs: 0,
     allowDebugGrants: true,
+    allowGuestSessions: true,
     now: () => new Date(NOW)
   })
 
   try {
-    const first = await service.ensureSession('', 'pglite-a')
-    const second = await service.ensureSession('', 'pglite-b')
-    const third = await service.ensureSession('', 'pglite-c')
+    const first = grantedSession(await service.ensureSession('', 'pglite-a'))
+    const second = grantedSession(await service.ensureSession('', 'pglite-b'))
+    const third = grantedSession(await service.ensureSession('', 'pglite-c'))
     const attacker = { playerId: first.player.id }
 
     // This path exercises region creation and PgWorld.assign. In particular,
@@ -346,7 +348,7 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
     const migrationCount = await database.query<{ count: number }>(
       'SELECT count(*)::integer AS count FROM schema_migrations'
     )
-    assert.equal(migrationCount.rows[0]?.count, 10)
+    assert.equal(migrationCount.rows[0]?.count, 11)
   } finally {
     await service.close()
   }
@@ -368,6 +370,7 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
       attacks,
       starterShieldMs: 0,
       allowDebugGrants: true,
+      allowGuestSessions: true,
       now: () => new Date(NOW)
     })
     const middleware = createApiMiddleware(service)
@@ -493,10 +496,13 @@ test('embedded PostgreSQL keeps release, frontier, and guest-reaper fencing cons
   await migrate(database)
   const persistence = new PostgresPersistence(database)
   let now = new Date(NOW)
-  const service = new PersistenceGameService(persistence, { now: () => new Date(now) })
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    allowGuestSessions: true
+  })
 
   try {
-    const guest = await service.ensureSession('', 'pglite-world-fence')
+    const guest = grantedSession(await service.ensureSession('', 'pglite-world-fence'))
     const before = await database.query<{ next_ordinal: string; revision: string }>(
       'SELECT next_ordinal::text, revision::text FROM world_allocation_state WHERE world_id = $1',
       ['main']
@@ -540,7 +546,7 @@ test('embedded PostgreSQL keeps release, frontier, and guest-reaper fencing cons
       ...before.rows[0], plots: 0, released: 1
     }, 'guest cleanup does not serialize on or mutate the frontier cursor')
 
-    const replacement = await service.ensureSession('', 'pglite-world-reuse')
+    const replacement = grantedSession(await service.ensureSession('', 'pglite-world-reuse'))
     assert.deepEqual(
       [replacement.player.plotX, replacement.player.plotY],
       [coordinate.x, coordinate.y],

@@ -1,6 +1,7 @@
 import type { SerializedBuilding, SerializedObstacle, SerializedWorld, VillageBanner, VillageLifeManifest } from '../src/game/data/Models'
 import type { AttackAggregate } from './attack-domain'
 export type { VillageBanner, VillageLifeManifest } from '../src/game/data/Models'
+export type { RegistrationRequiredResponse } from './domain/auth'
 
 /** A village postcard that is safe to expose to nearby players. */
 export interface PublicWorldSnapshot {

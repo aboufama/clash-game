@@ -15,8 +15,7 @@ import {
   merchantOffersFor,
   resourceCapacity,
   watchtowerSightOf,
-  worldDayIndex,
-  botSeedAt
+  worldDayIndex
 } from '../../src/game/config/Economy'
 import type { SerializedWorld } from '../../src/game/data/Models'
 import {
@@ -30,7 +29,9 @@ import {
 import {
   CURRENT_WORLD_GENERATION_VERSION,
   MAX_WORLD_COORDINATE,
-  classifyPlot
+  botFrontierRadiusForCursor,
+  classifyPlot,
+  settledFrontierBotVillageSeedAt
 } from '../domain/world'
 import { ApiError } from '../errors'
 import type {
@@ -107,6 +108,12 @@ interface RuntimeOptions {
   infiniteResources?: boolean
   upgradeTimeScale?: number
   fixedUpgradeDurationMs?: number
+  /**
+   * Whether tokenless /auth/session mints a playable guest. Defaults to the
+   * shared CLASH_ALLOW_GUESTS env rule — production keeps the registration
+   * wall; `npm run dev` (and the art harnesses behind it) opt guests in.
+   */
+  allowGuestSessions?: boolean
 }
 
 class NoCommitResponse extends Error {
@@ -301,7 +308,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
       starterShieldMs: options.starterShieldMs,
       sessionTtlMs: options.sessionTtlMs,
       infiniteResources: this.infiniteResources,
-      upgradePolicy: this.upgradePolicy
+      upgradePolicy: this.upgradePolicy,
+      allowGuestSessions: options.allowGuestSessions
     })
   }
 
@@ -397,11 +405,12 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
   }
 
   async register(
-    principal: RuntimePrincipal,
+    rawToken: unknown,
     rawUsername: unknown,
-    rawPassword: unknown
+    rawPassword: unknown,
+    rawAddress?: unknown
   ) {
-    return this.auth.register(principal, rawUsername, rawPassword)
+    return this.auth.register(rawToken, rawUsername, rawPassword, rawAddress)
   }
 
   async login(rawUsername: unknown, rawPassword: unknown, rawAddress?: unknown) {
@@ -880,6 +889,11 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
     const known = knownRevisions(rawKnown)
 
     return this.persistence.transaction(async tx => {
+      // Unclaimed spiral plots inside the settled frontier present as bot
+      // camps until a real account claims them; the radius follows the
+      // world's admission cursor so the neighbourhood always looks alive.
+      const allocation = await tx.world.getAllocation(viewer.plot.worldId)
+      const frontierRadius = botFrontierRadiusForCursor(allocation?.nextOrdinal ?? 0)
       const entries = await tx.world.listAtlas({
         worldId: viewer.plot.worldId,
         minX, maxX, minY, maxY, now, limit: 25
@@ -920,7 +934,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
             plots.push(plot)
             continue
           }
-          const seed = botSeedAt(x, y)
+          const seed = settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius })
           plots.push(seed === null
             ? { x, y, kind: 'empty', settleable: !isWildernessPreserveAt(x, y) }
             : { x, y, kind: 'bot', seed, username: botNameFor(seed, x, y), trophies: 100 + seed % 900 })
@@ -1018,9 +1032,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
         if (chebyshev(x, y, state.plot.x, state.plot.y) > watchtowerSightOf(villageBuildings(state.village))) {
           throw new ApiError(403, 'That relocation plot is beyond your watchtower sight')
         }
+        // Spiral settlement: an unclaimed bot camp is claimable land — the
+        // claim replaces the camp. Only preserves/water refuse a village.
         const eligibility = classifyPlot({ x, y }, CURRENT_WORLD_GENERATION_VERSION)
         if (eligibility.kind === 'PRESERVE') throw new ApiError(409, 'That wilderness is permanently protected')
-        if (eligibility.kind === 'BOT') throw new ApiError(409, 'A bot camp already occupies that plot')
         coordinate = { x, y }
       }
       const old = state.plot

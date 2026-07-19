@@ -192,9 +192,25 @@ export type StartedAttack = {
 };
 
 export type MatchmakingOptions = {
-  /** Player base just skipped with NEXT; omitted for the initial search. */
+  /**
+   * SOFT repeat-avoidance: the last presented player base. The server skips
+   * it when another candidate exists but may reuse it in a one-opponent world.
+   */
   excludeTargetId?: string;
+  /**
+   * STRICT NEXT-cycling exclusions: every base already offered this session
+   * (bounded to 64, oldest dropped). The server never returns these; an
+   * exhausted pool answers 404 MATCH_POOL_EXHAUSTED.
+   */
+  excludeTargetIds?: string[];
 };
+
+/**
+ * Matchmaking outcome: a started attack, `'no-players'` when the server
+ * reports an empty or exhausted player pool (the caller should fall back to
+ * bot camps), or null for transient failures.
+ */
+export type MatchmakeAttempt = StartedAttack | 'no-players' | null;
 
 export type AttackEndResult = {
   lootApplied: number;
@@ -258,7 +274,14 @@ type RememberedBattle =
     };
 
 type PendingBattleStart =
-  | { kind: 'pvp-start'; requestId: string; matchmade: boolean; targetId?: string; excludeTargetId?: string }
+  | {
+      kind: 'pvp-start';
+      requestId: string;
+      matchmade: boolean;
+      targetId?: string;
+      excludeTargetId?: string;
+      excludeTargetIds?: string[];
+    }
   | { kind: 'bot-start'; requestId: string; x?: number; y?: number };
 
 type ServerActiveBattle =
@@ -461,10 +484,14 @@ function parsePendingBattleStart(value: unknown): PendingBattleStart | null {
     matchmade?: unknown;
     targetId?: unknown;
     excludeTargetId?: unknown;
+    excludeTargetIds?: unknown;
     x?: unknown;
     y?: unknown;
   };
   if (parsed.kind === 'pvp-start' && typeof parsed.requestId === 'string' && parsed.requestId) {
+    const excludeTargetIds = Array.isArray(parsed.excludeTargetIds)
+      ? parsed.excludeTargetIds.filter((id): id is string => typeof id === 'string' && id.length > 0).slice(-64)
+      : [];
     return {
       kind: 'pvp-start',
       requestId: parsed.requestId,
@@ -472,7 +499,8 @@ function parsePendingBattleStart(value: unknown): PendingBattleStart | null {
       ...(typeof parsed.targetId === 'string' && parsed.targetId ? { targetId: parsed.targetId } : {}),
       ...(typeof parsed.excludeTargetId === 'string' && parsed.excludeTargetId
         ? { excludeTargetId: parsed.excludeTargetId }
-        : {})
+        : {}),
+      ...(excludeTargetIds.length > 0 ? { excludeTargetIds } : {})
     };
   }
   if (parsed.kind === 'bot-start' && typeof parsed.requestId === 'string' && parsed.requestId) {
@@ -1838,6 +1866,9 @@ export class Backend {
         const result = await Backend.enqueueMutation(user.id, () => Backend.postWithRetry<StartedAttack>(path, {
           ...(!pending.matchmade ? { targetId: pending.targetId } : {}),
           ...(pending.matchmade && pending.excludeTargetId ? { excludeTargetId: pending.excludeTargetId } : {}),
+          ...(pending.matchmade && pending.excludeTargetIds?.length
+            ? { excludeTargetIds: pending.excludeTargetIds }
+            : {}),
           requestId: pending.requestId
         }));
         if (!result?.attackId || !Array.isArray(result.world?.buildings)) {
@@ -2030,8 +2061,12 @@ export class Backend {
 
   // ---- attacks ----
 
-  /** Server picks an opponent, snapshots their base and opens the attack. */
-  static async startMatchedAttack(options: MatchmakingOptions = {}): Promise<StartedAttack | null> {
+  /**
+   * Server picks an opponent, snapshots their base and opens the attack.
+   * Returns 'no-players' when the eligible player pool is empty or the
+   * NEXT-cycling exclusions exhausted it — the caller falls back to bots.
+   */
+  static async startMatchedAttack(options: MatchmakingOptions = {}): Promise<MatchmakeAttempt> {
     if (!Auth.isOnlineMode()) return null;
     const user = Auth.getCurrentUser();
     if (!user) return null;
@@ -2043,16 +2078,21 @@ export class Backend {
     const excludeTargetId = typeof options.excludeTargetId === 'string' && options.excludeTargetId
       ? options.excludeTargetId
       : undefined;
+    const excludeTargetIds = Array.isArray(options.excludeTargetIds)
+      ? options.excludeTargetIds.filter(id => typeof id === 'string' && id.length > 0).slice(-64)
+      : [];
     rememberPendingBattleStart(user.id, {
       kind: 'pvp-start',
       requestId,
       matchmade: true,
-      ...(excludeTargetId ? { excludeTargetId } : {})
+      ...(excludeTargetId ? { excludeTargetId } : {}),
+      ...(excludeTargetIds.length > 0 ? { excludeTargetIds } : {})
     });
     try {
       return await Backend.enqueueMutation(user.id, async () => {
         const result = await Backend.postWithRetry<StartedAttack>('/api/attacks/matchmake', {
           ...(excludeTargetId ? { excludeTargetId } : {}),
+          ...(excludeTargetIds.length > 0 ? { excludeTargetIds } : {}),
           requestId
         });
         if (!result?.attackId || !Array.isArray(result.world?.buildings)
@@ -2066,6 +2106,9 @@ export class Backend {
     } catch (error) {
       if (Backend.terminalBattleStartFailure(error)) forgetPendingBattleStart(user.id);
       else Backend.scheduleBattleReconciliation(user.id);
+      // An empty/exhausted player pool is an expected outcome, not a failure:
+      // the attack flow continues into the bot-camp fallback.
+      if ((error as { status?: number } | null)?.status === 404) return 'no-players';
       console.warn('Matchmaking failed:', error);
       return null;
     }

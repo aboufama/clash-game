@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import {
   RAIDABLE_SHARE,
-  botSeedAt,
   hashString,
   mulberry32,
   resourceCapacity,
@@ -33,7 +32,11 @@ import type {
   TroopCounts
 } from '../attack-domain/types'
 import { troopLevelOf } from '../domain/village'
-import { CURRENT_WORLD_GENERATION_VERSION } from '../domain/world'
+import {
+  CURRENT_WORLD_GENERATION_VERSION,
+  botFrontierRadiusForCursor,
+  settledFrontierBotVillageSeedAt
+} from '../domain/world'
 import {
   BOT_RAID_COOLDOWN_MS,
   grantRevengeRight,
@@ -59,16 +62,17 @@ import {
   type VillageRecord,
   type WorldPlotRecord
 } from '../persistence'
-import type {
-  AttackCommandRequest,
-  AttackEndRequest,
-  AttackFrameRequest,
-  AttackStartRequest,
-  BotSettleRequest,
-  BotStartRequest,
-  MatchmakeRequest,
-  RuntimeAttackService,
-  RuntimePrincipal
+import {
+  MATCHMAKE_EXCLUSION_LIMIT,
+  type AttackCommandRequest,
+  type AttackEndRequest,
+  type AttackFrameRequest,
+  type AttackStartRequest,
+  type BotSettleRequest,
+  type BotStartRequest,
+  type MatchmakeRequest,
+  type RuntimeAttackService,
+  type RuntimePrincipal
 } from './contracts'
 import {
   MAX_PLAYER_GOLD,
@@ -186,6 +190,15 @@ function strictId(raw: unknown, label: string): string {
     throw new ApiError(400, `${label} must be a safe identifier`)
   }
   return raw
+}
+
+/** Bounded strict NEXT-cycling exclusion list (see MatchmakeRequest). */
+function matchmakeExclusions(raw: unknown): Set<string> {
+  if (raw === undefined) return new Set()
+  if (!Array.isArray(raw) || raw.length > MATCHMAKE_EXCLUSION_LIMIT) {
+    throw new ApiError(400, `excludeTargetIds must be an array of at most ${MATCHMAKE_EXCLUSION_LIMIT} ids`)
+  }
+  return new Set(raw.map(entry => strictId(entry, 'excludeTargetIds entry')))
 }
 
 function requestId(raw: unknown, operation: string): string {
@@ -673,6 +686,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     const excludeTargetId = body.excludeTargetId === undefined
       ? undefined
       : strictId(body.excludeTargetId, 'excludeTargetId')
+    const excludedTargetIds = matchmakeExclusions(body.excludeTargetIds)
     return this.serializable(async (tx, now) => {
       const result = await idempotentMutation(tx, {
         actorId: principal.playerId,
@@ -689,15 +703,24 @@ export class PersistenceAttackService implements RuntimeAttackService {
           targetTrophies: account.trophies,
           trophyRadius: 10_000,
           now,
-          limit: MATCHMAKE_LIMIT + (excludeTargetId ? 1 : 0)
+          limit: MATCHMAKE_LIMIT + excludedTargetIds.size + (excludeTargetId ? 1 : 0)
         })
-        if (candidates.length === 0) throw new ApiError(404, 'No opponents available')
-        const alternatives = excludeTargetId
-          ? candidates.filter(candidate => candidate.player.playerId !== excludeTargetId)
+        if (candidates.length === 0) throw new ApiError(404, 'No opponents available', 'NO_OPPONENTS')
+        // Strict NEXT-cycling exclusions: a base already offered this session
+        // is never offered again. An exhausted pool is a distinct signal so
+        // the client can transition to bot camps.
+        const remaining = excludedTargetIds.size > 0
+          ? candidates.filter(candidate => !excludedTargetIds.has(candidate.player.playerId))
           : candidates
-        // Exclusion is a NEXT preference, not a way to make a one-opponent
+        if (remaining.length === 0) {
+          throw new ApiError(404, 'Every eligible player village has already been offered', 'MATCH_POOL_EXHAUSTED')
+        }
+        const alternatives = excludeTargetId
+          ? remaining.filter(candidate => candidate.player.playerId !== excludeTargetId)
+          : remaining
+        // Soft exclusion is a NEXT preference, not a way to make a one-opponent
         // world unplayable. Reuse the sole candidate only when no alternative exists.
-        const selectionPool = (alternatives.length > 0 ? alternatives : candidates)
+        const selectionPool = (alternatives.length > 0 ? alternatives : remaining)
           .slice(0, MATCHMAKE_LIMIT)
         const offset = hashString(`${principal.playerId}:${operationId}`) % selectionPool.length
         const targetId = selectionPool[offset]!.player.playerId
@@ -720,8 +743,14 @@ export class PersistenceAttackService implements RuntimeAttackService {
     now: Date
   ): Promise<{ x: number; y: number; seed: number; visible: boolean }> {
     const explicit = rawX !== undefined || rawY !== undefined
+    // The settled-frontier rule the map presents: structural clans everywhere,
+    // plus deterministic fill camps at unclaimed central spiral plots — a camp
+    // the map shows is always a camp the player can raid. Occupancy is checked
+    // separately below, so a claimed plot never validates as a camp.
+    const allocation = await tx.world.getAllocation(plot.worldId)
+    const frontierRadius = botFrontierRadiusForCursor(allocation?.nextOrdinal ?? 0)
     const candidateAt = (x: number, y: number) => {
-      const seed = botSeedAt(x, y)
+      const seed = settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius })
       if (seed === null || now.getTime() - botCooldown(account, x, y) < BOT_RAID_COOLDOWN_MS) return null
       return { x, y, seed }
     }

@@ -308,6 +308,81 @@ test('expired revenge rights cannot pierce a shield at selection or first engage
   }
 })
 
+test('matchmake finds the other player in a two-player world and soft exclusion never empties it', async () => {
+  const { service } = await fixture(['attacker', 'defender'])
+  const principal = { playerId: 'attacker' }
+
+  const first = await service.matchmake(principal, { requestId: 'two-player-first' }, 'device-token')
+  assert.equal(first.world.ownerId, 'defender')
+  await service.endAttack(principal, { attackId: first.attackId, status: 'aborted' })
+
+  // Soft repeat-avoidance (excludeTargetId) reuses the sole candidate rather
+  // than making a one-opponent world unplayable.
+  const reused = await service.matchmake(principal, {
+    requestId: 'two-player-soft', excludeTargetId: 'defender'
+  }, 'device-token')
+  assert.equal(reused.world.ownerId, 'defender')
+  await service.endAttack(principal, { attackId: reused.attackId, status: 'aborted' })
+
+  // Strict NEXT exclusions exhaust the pool with a distinct code, so the
+  // client can transition to bot camps.
+  await assert.rejects(service.matchmake(principal, {
+    requestId: 'two-player-exhausted', excludeTargetIds: ['defender']
+  }, 'device-token'), error => {
+    assert.ok(error instanceof ApiError)
+    assert.equal(error.status, 404)
+    assert.equal(error.code, 'MATCH_POOL_EXHAUSTED')
+    return true
+  })
+})
+
+test('NEXT cycling visits every eligible player once before reporting exhaustion', async () => {
+  const { service } = await fixture(['attacker', 'defender_one', 'defender_two', 'defender_three'])
+  const principal = { playerId: 'attacker' }
+  const seen: string[] = []
+  for (let step = 0; step < 3; step += 1) {
+    const started = await service.matchmake(principal, {
+      requestId: `cycle-${step}`,
+      ...(seen.length > 0 ? { excludeTargetIds: [...seen] } : {})
+    }, 'device-token')
+    const ownerId = started.world.ownerId
+    assert.ok(!seen.includes(ownerId), 'a base excluded this session is never re-offered')
+    seen.push(ownerId)
+    await service.endAttack(principal, { attackId: started.attackId, status: 'aborted' })
+  }
+  assert.deepEqual([...seen].sort(), ['defender_one', 'defender_three', 'defender_two'])
+  await assert.rejects(service.matchmake(principal, {
+    requestId: 'cycle-exhausted', excludeTargetIds: seen
+  }, 'device-token'), error => {
+    assert.ok(error instanceof ApiError)
+    assert.equal(error.code, 'MATCH_POOL_EXHAUSTED')
+    return true
+  })
+})
+
+test('matchmake keeps principled exclusions: shielded players are invisible to the pool', async () => {
+  const { persistence, service } = await fixture(['attacker', 'defender'])
+  await patchAccount(persistence, 'defender', record => {
+    record.shieldUntil = new Date(START.getTime() + 60 * 60_000)
+  })
+  await assert.rejects(service.matchmake({ playerId: 'attacker' }, {
+    requestId: 'all-shielded'
+  }, 'device-token'), error => {
+    assert.ok(error instanceof ApiError)
+    assert.equal(error.status, 404)
+    assert.equal(error.code, 'NO_OPPONENTS')
+    return true
+  })
+  await assert.rejects(service.matchmake({ playerId: 'attacker' }, {
+    requestId: 'oversized-exclusions',
+    excludeTargetIds: Array.from({ length: 65 }, (_, index) => `p_${index}`)
+  }, 'device-token'), error => {
+    assert.ok(error instanceof ApiError)
+    assert.equal(error.status, 400)
+    return true
+  })
+})
+
 test('legacy revenge values canonicalize and settlements cap counts and opponents', async () => {
   const { persistence, now, service } = await fixture()
   const grantedAt = START.getTime() - 1_000

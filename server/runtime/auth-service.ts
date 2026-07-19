@@ -3,13 +3,16 @@ import type { SerializedBuilding } from '../../src/game/data/Models'
 import {
   InMemoryAuthRateLimiter,
   createOpaqueSessionToken,
+  guestSessionsAllowed,
   hashPasswordAsync,
   hashSessionToken,
   isValidUsername,
   normalizeSessionToken,
   normalizeUsernameKey,
+  registrationRequiredResponse,
   validateRegistrationCredentials,
-  verifyPasswordAsync
+  verifyPasswordAsync,
+  type RegistrationRequiredResponse
 } from '../domain/auth'
 import { STARTING_POPULATION, VILLAGE_SIMULATION_VERSION } from '../domain/village'
 import { DEFAULT_GUEST_PLOT_TTL_MS } from '../domain/world'
@@ -49,6 +52,11 @@ export interface AuthSessionOptions {
   infiniteResources?: boolean
   /** Effective upgrade clock advertised on session world payloads. */
   upgradePolicy?: AdvertisedUpgradePolicy
+  /**
+   * Whether a tokenless /auth/session may mint a playable guest. Defaults to
+   * the shared CLASH_ALLOW_GUESTS env rule (production: registration wall).
+   */
+  allowGuestSessions?: boolean
 }
 
 function starterBuildings(): SerializedBuilding[] {
@@ -91,6 +99,7 @@ export class AuthSessionService {
   private readonly sessionTtlMs: number
   private readonly infiniteResources: boolean
   private readonly upgradePolicy?: AdvertisedUpgradePolicy
+  private readonly allowGuestSessions: boolean
   private readonly limiter: InMemoryAuthRateLimiter
 
   constructor(persistence: Persistence, authority: VillageAuthority, options: AuthSessionOptions) {
@@ -101,6 +110,7 @@ export class AuthSessionService {
     this.sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS
     this.infiniteResources = options.infiniteResources ?? false
     this.upgradePolicy = options.upgradePolicy
+    this.allowGuestSessions = options.allowGuestSessions ?? guestSessionsAllowed()
     this.limiter = new InMemoryAuthRateLimiter({
       loginMaximumFailures: 8,
       loginLockoutMs: 60_000,
@@ -221,25 +231,54 @@ export class AuthSessionService {
     })
   }
 
-  async ensureSession(rawToken: unknown, rawAddress?: unknown): Promise<SessionResponse> {
+  /**
+   * A valid token resumes its account (guest or registered — grandfathered
+   * either way). Without one, the production registration wall answers
+   * `{ registrationRequired: true }`; only with guest sessions enabled
+   * (CLASH_ALLOW_GUESTS=1 — dev/harnesses) is a playable guest minted.
+   */
+  async ensureSession(rawToken: unknown, rawAddress?: unknown): Promise<SessionResponse | RegistrationRequiredResponse> {
     const token = normalizeSessionToken(rawToken)
     if (token) {
       const resumed = await this.resumeSession(token)
       if (resumed) return resumed
     }
+    if (!this.allowGuestSessions) return registrationRequiredResponse()
     const now = this.clock()
     const allowance = this.limiter.consumeGuestCreation(rawAddress, now.getTime())
     if (!allowance.allowed) throw new ApiError(429, 'Too many new villages from this address — try again later')
 
-    const newToken = createOpaqueSessionToken()
+    return this.createAccountWithPlot(createOpaqueSessionToken(), now, {
+      username: `Chief-${randomBytes(2).toString('hex').toUpperCase()}`,
+      usernameKey: null,
+      passwordHash: null
+    })
+  }
+
+  /**
+   * Mint an account + starter village + device session and claim its plot
+   * through the shared allocation path — the ONE creation flow behind both
+   * guest auto-play and anonymous (wall) registration. Credentials present ⇒
+   * registered account with a permanent plot; absent ⇒ leased guest plot.
+   */
+  private async createAccountWithPlot(
+    newToken: string,
+    now: Date,
+    identity: { username: string; usernameKey: string | null; passwordHash: string | null }
+  ): Promise<SessionResponse> {
+    const registered = identity.passwordHash !== null
     return this.persistence.transaction(async tx => {
+      if (identity.usernameKey) {
+        const existing = await tx.accounts.getByUsernameKey(identity.usernameKey, { forUpdate: true })
+        if (existing) throw new ApiError(409, 'That username is already taken — use LOG IN instead', 'USERNAME_TAKEN')
+      }
       const playerId = randomId('p')
       const account: AccountRecord = {
         id: playerId,
-        username: `Chief-${randomBytes(2).toString('hex').toUpperCase()}`,
-        usernameKey: null,
-        passwordHash: null,
-        registered: false,
+        username: identity.username,
+        usernameKey: identity.usernameKey,
+        passwordHash: identity.passwordHash,
+        registered,
         trophies: 0,
         shieldUntil: new Date(now.getTime() + this.starterShieldMs),
         createdAt: now,
@@ -259,7 +298,7 @@ export class AuthSessionService {
         expiresAt: new Date(now.getTime() + this.sessionTtlMs),
         deviceId: null
       })
-      const plot = await allocatePlayerPlot(tx, { playerId, registered: false, now })
+      const plot = await allocatePlayerPlot(tx, { playerId, registered, now })
       await tx.outbox.add(outboxEvent({
         topic: 'players',
         aggregateType: 'player',
@@ -357,12 +396,49 @@ export class AuthSessionService {
     throw new ApiError(401, 'Unknown device token')
   }
 
-  async register(principal: RuntimePrincipal, rawUsername: unknown, rawPassword: unknown) {
+  /**
+   * With a valid device token: attach credentials to that guest account in
+   * place (its village and plot survive untouched). With no token — the
+   * production registration wall — create the account outright and answer a
+   * full session envelope. A presented-but-dead token stays a 401 so an
+   * expired session can never silently mint a second account.
+   */
+  async register(
+    rawToken: unknown,
+    rawUsername: unknown,
+    rawPassword: unknown,
+    rawAddress?: unknown
+  ): Promise<{ player: ReturnType<typeof profileOf> } | SessionResponse> {
+    const token = normalizeSessionToken(rawToken)
     const credentials = validateRegistrationCredentials(rawUsername, rawPassword)
     if (!credentials.ok) throw new ApiError(400, credentials.message)
     const key = normalizeUsernameKey(credentials.username)
+
+    if (token) {
+      const principal = await this.authenticate(token)
+      const passwordHash = await hashPasswordAsync(credentials.password)
+      return { player: await this.attachCredentials(principal, credentials.username, key, passwordHash) }
+    }
+
     const now = this.clock()
+    // New accounts occupy world plots exactly like guests; share their budget.
+    const creation = this.limiter.consumeGuestCreation(rawAddress, now.getTime())
+    if (!creation.allowed) throw new ApiError(429, 'Too many new villages from this address — try again later')
     const passwordHash = await hashPasswordAsync(credentials.password)
+    return this.usernameMutation(() => this.createAccountWithPlot(createOpaqueSessionToken(), now, {
+      username: credentials.username,
+      usernameKey: key,
+      passwordHash
+    }))
+  }
+
+  private async attachCredentials(
+    principal: RuntimePrincipal,
+    username: string,
+    key: string,
+    passwordHash: string
+  ) {
+    const now = this.clock()
     return this.usernameMutation(() => this.persistence.transaction(async tx => {
       const state = await this.authority.owned(tx, principal.playerId, true)
       if (state.account.registered) {
@@ -376,7 +452,7 @@ export class AuthSessionService {
         throw new ApiError(409, 'The guest village lease expired before registration')
       }
       const accountRevision = state.account.revision
-      state.account.username = credentials.username
+      state.account.username = username
       state.account.usernameKey = key
       state.account.passwordHash = passwordHash
       state.account.registered = true

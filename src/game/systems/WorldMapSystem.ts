@@ -337,10 +337,22 @@ export class WorldMapSystem {
      *  transitions) — while it is up the scene may hold a FOREIGN (enemy)
      *  building set, so sight RE-BASELINES silently instead of diffing, and
      *  only an id overlap with `homeBuildingIds` (my roster from the last
-     *  steady frame) proves my world is back and lowers it. */
+     *  steady frame) or `serverHomeRosterIds` (below) proves my world is back
+     *  and lowers it. */
     private sightHydrated = false;
     private sightSwapPending = false;
     private homeBuildingIds = new Set<string>();
+    /** Server-authoritative ids of MY OWN roster: every accepted map window
+     *  contains my plot's postcard (the own plot never becomes a view, so
+     *  `knownPlots` can never revision-suppress it), and its building ids are
+     *  the same save ids the scene instantiates. This is the OWNERSHIP-PROVEN
+     *  bootstrap for the swap latch — a swap raised before `homeBuildingIds`
+     *  ever populated (an instant replay opened on boot) resolves against
+     *  this set instead of guessing that the first non-empty HOME frame is
+     *  mine (those frames can still hold the ENEMY's roster). Null until the
+     *  first window lands; while both sets are empty the latch DEFERS —
+     *  sizing the fog silently, never adopting a baseline it cannot prove. */
+    private serverHomeRosterIds: Set<string> | null = null;
     private nextRefreshAt = 0;
     private refreshing = false;
     private refreshInFlight: Promise<void> | null = null;
@@ -1641,13 +1653,17 @@ export class WorldMapSystem {
             const next = watchtowerSightOf(standing as never);
             // My world is on stage whenever no swap is pending. While one IS
             // pending the set may be the ENEMY's: only a roster overlap with
-            // my last steady frame proves my world is back. A swap raised
-            // before the roster ever populated (an instant replay opened on
-            // boot) accepts the first non-empty HOME set as mine — the latch
-            // can never strand on an empty roster.
+            // my last steady frame — or with the server's postcard of my own
+            // plot (`serverHomeRosterIds`) — proves my world is back. A swap
+            // raised before the local roster ever populated (an instant
+            // replay opened on boot) therefore resolves against server truth,
+            // never by adopting whatever roster happens to be on stage first:
+            // an unproven set DEFERS (fog sized silently below) until the
+            // next accepted map window supplies the proof.
             const mine = !this.sightSwapPending
-                || (all.length > 0 && (this.homeBuildingIds.size === 0
-                    || all.some(b => b.id && this.homeBuildingIds.has(b.id))));
+                || (all.length > 0
+                    && all.some(b => b.id && (this.homeBuildingIds.has(b.id)
+                        || this.serverHomeRosterIds?.has(b.id))));
             if (!mine) {
                 // Foreign (or possibly-foreign) building set: size the fog to
                 // it silently and never move the HOME baseline — the reveal
@@ -1658,6 +1674,7 @@ export class WorldMapSystem {
                     this.cancelFogReveal();
                 }
             } else {
+                const swapWasPending = this.sightSwapPending;
                 this.sightSwapPending = false;
                 const prev = this.homeSightBaseline;
                 if (next !== prev) {
@@ -1680,14 +1697,24 @@ export class WorldMapSystem {
                 } else if (next !== this.viewRadiusValue) {
                     // Foreign frames clobbered the sizing value while the true
                     // sight never changed: restore quietly — no gain, no
-                    // reveal, and no cancel of anything.
+                    // reveal, and no cancel of anything. The clobber frame's
+                    // refresh already fetched a window sized to the FOREIGN
+                    // radius (performRefresh reads viewRadiusValue), so the
+                    // restore must refetch at the restored radius too —
+                    // otherwise the reopened fog ring sits over unfetched
+                    // meadow for the remainder of the 25 s cadence.
                     this.viewRadiusValue = next;
+                    this.nextRefreshAt = 0;
                 }
                 if (all.length > 0) {
                     // The baseline arms AFTER the diff: the evaluation that
                     // first sees the hydrated set never animates its own gain.
                     this.sightHydrated = true;
-                    if (this.homeBuildingIds.size !== all.length) {
+                    // The roster set refreshes on every accepted-mine
+                    // evaluation that just closed a swap window (not only on
+                    // a size change): an equal-count roster swap can never
+                    // leave a stale id set behind as the overlap key.
+                    if (swapWasPending || this.homeBuildingIds.size !== all.length) {
                         this.homeBuildingIds = new Set(
                             all.map(b => b.id).filter((id): id is string => Boolean(id)));
                     }
@@ -1760,6 +1787,25 @@ export class WorldMapSystem {
             this.applyHomePlot({ x: window.me.x, y: window.me.y });
         }
         return window.me.x === this.myPlot.x && window.me.y === this.myPlot.y;
+    }
+
+    /**
+     * Pull MY OWN roster's ids out of an accepted map window. The server
+     * builds `me` and the center plot authoritatively (it windows around my
+     * true plot whatever the client asked for), and my plot's postcard is
+     * present in EVERY window: the own plot is skipped when building views,
+     * so `knownPlots` never advertises its revision and the server never
+     * omits its `world`. These ids are the ownership proof the sight-swap
+     * latch overlaps against (computeViewRadius) — the ENEMY roster of a
+     * replay/battle frame can never match them.
+     */
+    private adoptServerHomeRoster(window: WorldMapWindow) {
+        const me = window.plots.find(p => p.x === window.me.x && p.y === window.me.y);
+        if (!me || me.kind !== 'player' || !me.world) return;
+        const ids = me.world.buildings
+            .map(b => b.id)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0);
+        if (ids.length > 0) this.serverHomeRosterIds = new Set(ids);
     }
 
     /** Commit a local relocation and release coalesced GETs so a fresh ring can start immediately. */
@@ -1883,6 +1929,7 @@ export class WorldMapSystem {
             return;
         }
         if (!this.acceptMapHome(window, ticket)) return;
+        this.adoptServerHomeRoster(window);
         DayNightSystem.serverOffsetMs = window.serverNow - Date.now();
         this.clearFallbackViews();
         this.ensureWilderness();
@@ -3352,6 +3399,7 @@ export class WorldMapSystem {
     private async performHomePoll(ticket: MapRequestTicket): Promise<void> {
         const window = await Backend.fetchMap(null, null, 0);
         if (!window || !this.sceneLive() || !this.acceptMapHome(window, ticket)) return;
+        this.adoptServerHomeRoster(window);
         DayNightSystem.serverOffsetMs = window.serverNow - Date.now();
         // An r=0 heartbeat can be the first request to recover after an
         // outage. Drop the coordinate-placeholder ring and pull the real one

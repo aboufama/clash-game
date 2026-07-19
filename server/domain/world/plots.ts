@@ -182,7 +182,9 @@ export function createPlotClaim(input: {
     size: input.region.size
   })
   if (input.region.id !== expectedRegionId) throw new RangeError('region metadata does not match its region id')
-  if (classifyPlot(input.coordinate, input.region.generationVersion).kind !== 'PLAYER') {
+  // Bot-classified land is claimable — the claim replaces the generated camp.
+  // Only preserves (and their hydrology plots) reject player claims.
+  if (classifyPlot(input.coordinate, input.region.generationVersion).kind === 'PRESERVE') {
     throw new RangeError('player plot claim is not eligible under its region generation')
   }
   if (input.lease.kind === 'GUEST') {

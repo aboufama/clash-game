@@ -39,6 +39,10 @@ function startServer(extraEnv = {}) {
       CLASH_AUTH_MUTATIONS_PER_10S: '10000',
       CLASH_AUTH_FRAME_PUSHES_PER_10S: '10000',
       CLASH_GUEST_LIMIT_PER_HOUR: '10000',
+      // Most of this suite exercises guest auto-play (like `npm run dev`).
+      // The registration-wall section restarts with this OFF to prove the
+      // production default: no account, no village.
+      CLASH_ALLOW_GUESTS: '1',
       // The historical HTTP suite still expresses deployments inside replay
       // frames. Production leaves this off; command-domain regressions and
       // the browser client exercise /attacks/commands directly.
@@ -874,15 +878,22 @@ async function main() {
     ok(true, 'no unshielded road target was present in this deterministic test neighborhood')
   }
 
-  // Relocation: settle a specific empty plot, then bounce off a taken one.
+  // Relocation under spiral settlement: inside the settled frontier every
+  // unclaimed settleable plot presents as a deterministic bot camp, so
+  // claiming land IS claiming a camp — the claim replaces the bot. The only
+  // empty land left in the neighbourhood is permanent preserve.
   const occupiedCamp = wide.json.plots.find(q => q.kind === 'bot')
-  ok((await api('POST', '/map/relocate', { token: m1.json.token, body: { x: occupiedCamp.x, y: occupiedCamp.y } })).status === 409,
-    'relocation cannot erase a deterministic bot camp')
-  const empty = wide.json.plots.find(q => q.kind === 'empty' && q.settleable !== false)
-  ok(Boolean(empty), 'there is wilderness to settle')
-  const moved = await api('POST', '/map/relocate', { token: m1.json.token, body: { x: empty.x, y: empty.y } })
-  ok(moved.status === 200 && moved.json.me.x === empty.x && moved.json.me.y === empty.y, 'relocating claims the chosen plot')
-  const taken = await api('POST', '/map/relocate', { token: m2.json.token, body: { x: empty.x, y: empty.y } })
+  ok(Boolean(occupiedCamp), 'the settled frontier presents bot camps on unclaimed spiral plots')
+  ok(wide.json.plots.filter(q => q.kind === 'empty').every(q => q.settleable === false),
+    'inside the settled frontier the only empty land is permanent preserve')
+  const claimed = { x: occupiedCamp.x, y: occupiedCamp.y }
+  const moved = await api('POST', '/map/relocate', { token: m1.json.token, body: claimed })
+  ok(moved.status === 200 && moved.json.me.x === claimed.x && moved.json.me.y === claimed.y,
+    'relocating onto an unclaimed bot camp claims the plot (the claim replaces the camp)')
+  const replacedPlot = (await api('GET', `/map?x=${claimed.x}&y=${claimed.y}&r=0`, { token: m1.json.token })).json.plots[0]
+  ok(replacedPlot?.kind === 'player' && replacedPlot.ownerId === p1.id,
+    'the claimed coordinate presents the player village — the bot camp is gone')
+  const taken = await api('POST', '/map/relocate', { token: m2.json.token, body: claimed })
   ok([403, 409].includes(taken.status), 'relocating onto an unauthorized/taken plot is refused')
   const movedAtlas = (await api('GET', '/map/atlas', { token: m1.json.token })).json
   ok(!movedAtlas.players.some(player => player.me && player.x === p1.plotX && player.y === p1.plotY), 'the old plot is freed on the atlas')
@@ -897,7 +908,7 @@ async function main() {
   const atk = await matchmakeUntil(m2.json.token, m1.json.player.id, 'map-live')
   ok(atk.attackId, 'matchmade attack starts against the chosen map victim')
   await api('POST', '/attacks/frames', { token: m2.json.token, body: { attackId: atk.attackId, frames: validBattleFrames(atk, 6, 3, 100) } })
-  const hot = await api('GET', `/map?x=${empty.x}&y=${empty.y}&r=0`, { token: m1.json.token })
+  const hot = await api('GET', `/map?x=${claimed.x}&y=${claimed.y}&r=0`, { token: m1.json.token })
   ok(hot.json.plots[0].underAttack === true && hot.json.plots[0].attackId === atk.attackId, 'a village under live attack is flagged on its home map')
   await api('POST', '/attacks/end', { token: m2.json.token, body: { attackId: atk.attackId, destruction: 0, goldLooted: 0 } })
 
@@ -2106,6 +2117,146 @@ async function main() {
   })
   ok(finiteMine.status === 409 && finiteMine.json?.code === 'INSUFFICIENT_RESOURCES',
     'finite mode again rejects a 35-ore mine at the stored 25 ore balance')
+
+  // --- FIND MATCH: real players first, NEXT cycling, bot-fallback signal ---
+  console.log('\nMatchmaking pool (fresh worlds):')
+
+  // Fresh villages under the starter shield are principled exclusions: the
+  // distinct NO_OPPONENTS code tells the client to raid bot camps instead of
+  // silently failing (the original FIND MATCH bug).
+  const shieldedDir = mkdtempSync(path.join(tmpdir(), 'clash-mm-shielded-'))
+  await stopServer()
+  await startServer({
+    CLASH_DATA_DIR: shieldedDir,
+    CLASH_STARTER_SHIELD_MS: '3600000',
+    CLASH_ALLOW_DEBUG_GRANTS: '1',
+    CLASH_ALLOW_GUESTS: '1',
+    CLASH_GUEST_LIMIT_PER_HOUR: '10000'
+  })
+  const shieldedAttacker = (await api('POST', '/auth/session')).json
+  ;(await api('POST', '/auth/session')).json // second fresh (shielded) village
+  await armWarriors(shieldedAttacker.token, 3, 'mm-shielded-arm')
+  const shieldedMatch = await api('POST', '/attacks/matchmake', {
+    token: shieldedAttacker.token, body: { requestId: 'mm-shielded-probe' }
+  })
+  ok(shieldedMatch.status === 404 && shieldedMatch.json?.code === 'NO_OPPONENTS',
+    'a world of starter-shielded villages answers 404 NO_OPPONENTS (client falls back to bots)')
+
+  const matchDir = mkdtempSync(path.join(tmpdir(), 'clash-mm-pool-'))
+  await stopServer()
+  await startServer({
+    CLASH_DATA_DIR: matchDir,
+    CLASH_STARTER_SHIELD_MS: '0',
+    CLASH_ALLOW_DEBUG_GRANTS: '1',
+    CLASH_ALLOW_GUESTS: '1',
+    CLASH_GUEST_LIMIT_PER_HOUR: '10000'
+  })
+  const mmA = (await api('POST', '/auth/session')).json
+  const mmB = (await api('POST', '/auth/session')).json
+  await armWarriors(mmA.token, 6, 'mm-pool-arm')
+
+  const twoPlayer = (await api('POST', '/attacks/matchmake', {
+    token: mmA.token, body: { requestId: 'mm-two-player' }
+  })).json
+  ok(twoPlayer.world?.ownerId === mmB.player.id,
+    'a two-player world matches the other real player')
+  await api('POST', '/attacks/end', { token: mmA.token, body: { attackId: twoPlayer.attackId, status: 'aborted' } })
+
+  const softReuse = (await api('POST', '/attacks/matchmake', {
+    token: mmA.token, body: { requestId: 'mm-soft-reuse', excludeTargetId: mmB.player.id }
+  })).json
+  ok(softReuse.world?.ownerId === mmB.player.id,
+    'soft exclusion reuses the sole opponent instead of failing the world')
+  await api('POST', '/attacks/end', { token: mmA.token, body: { attackId: softReuse.attackId, status: 'aborted' } })
+
+  const mmC = (await api('POST', '/auth/session')).json
+  const firstOffer = (await api('POST', '/attacks/matchmake', {
+    token: mmA.token, body: { requestId: 'mm-cycle-1' }
+  })).json
+  await api('POST', '/attacks/end', { token: mmA.token, body: { attackId: firstOffer.attackId, status: 'aborted' } })
+  const secondOffer = (await api('POST', '/attacks/matchmake', {
+    token: mmA.token, body: { requestId: 'mm-cycle-2', excludeTargetIds: [firstOffer.world.ownerId] }
+  })).json
+  await api('POST', '/attacks/end', { token: mmA.token, body: { attackId: secondOffer.attackId, status: 'aborted' } })
+  const offered = [firstOffer.world?.ownerId, secondOffer.world?.ownerId].sort()
+  ok(offered.join(',') === [mmB.player.id, mmC.player.id].sort().join(','),
+    'NEXT cycling visits every eligible player exactly once')
+
+  const exhausted = await api('POST', '/attacks/matchmake', {
+    token: mmA.token,
+    body: { requestId: 'mm-exhausted', excludeTargetIds: [mmB.player.id, mmC.player.id] }
+  })
+  ok(exhausted.status === 404 && exhausted.json?.code === 'MATCH_POOL_EXHAUSTED',
+    'an exhausted player pool answers 404 MATCH_POOL_EXHAUSTED (client transitions to bots)')
+
+  const oversized = await api('POST', '/attacks/matchmake', {
+    token: mmA.token,
+    body: {
+      requestId: 'mm-oversized',
+      excludeTargetIds: Array.from({ length: 65 }, (_, index) => `p_${index}`)
+    }
+  })
+  ok(oversized.status === 400, 'an oversized exclusion list is rejected (bounded at 64)')
+  rmSync(shieldedDir, { recursive: true, force: true })
+  rmSync(matchDir, { recursive: true, force: true })
+
+  // --- Registration wall (production default: CLASH_ALLOW_GUESTS unset/0) ---
+  console.log('\nRegistration wall:')
+  await stopServer()
+  await startServer({ CLASH_ALLOW_GUESTS: '0' })
+
+  const walled = await api('POST', '/auth/session')
+  ok(walled.status === 200 && walled.json?.registrationRequired === true,
+    'a fresh device gets registrationRequired instead of a guest village')
+  ok(!walled.json?.token && !walled.json?.world && !walled.json?.player,
+    'the wall response carries no token, player, or world')
+  const walledAgain = await api('POST', '/auth/session', { body: { token: 'tok_definitely_dead' } })
+  ok(walledAgain.json?.registrationRequired === true,
+    'a dead token also lands on the wall instead of minting a guest')
+
+  const grandfatheredGuest = (await api('POST', '/auth/session', { body: { token: infinite.token } })).json
+  ok(grandfatheredGuest.player?.id === infinite.player.id && grandfatheredGuest.registrationRequired === undefined,
+    'an existing guest village with a live lease still resumes (grandfathered)')
+  const grandfatheredLogin = (await api('POST', '/auth/login', { body: { username: 'AcctTester', password: 'hunter2hunter2' } })).json
+  ok(grandfatheredLogin.player?.id === guest.player.id,
+    'existing registered accounts keep logging in with the wall up')
+
+  const shortWallPw = await api('POST', '/auth/register', { body: { username: 'WallChief', password: 'short' } })
+  ok(shortWallPw.status === 400, 'anonymous registration still validates the password')
+  const badWallName = await api('POST', '/auth/register', { body: { username: 'x!', password: 'hunter2hunter2' } })
+  ok(badWallName.status === 400, 'anonymous registration still validates the username')
+  const wallDup = await api('POST', '/auth/register', { body: { username: 'accttester', password: 'hunter2hunter2' } })
+  ok(wallDup.status === 409, 'anonymous registration cannot take an existing username')
+  const wallDeadToken = await api('POST', '/auth/register', {
+    token: 'tok_definitely_dead',
+    body: { username: 'WallChief', password: 'hunter2hunter2' }
+  })
+  ok(wallDeadToken.status === 401,
+    'a presented-but-dead token is rejected instead of silently creating a second account')
+
+  const wallReg = (await api('POST', '/auth/register', { body: { username: 'WallChief', password: 'hunter2hunter2' } })).json
+  ok(Boolean(wallReg.token) && wallReg.player?.registered === true && wallReg.player.username === 'WallChief',
+    'registering through the wall creates the account and issues a session')
+  ok(Array.isArray(wallReg.world?.buildings) && wallReg.world.buildings.length >= 4,
+    'the new account gets a starter base')
+  ok(Number.isFinite(wallReg.player.plotX) && Number.isFinite(wallReg.player.plotY),
+    'the new account owns world plot coordinates (allocation ran at registration)')
+
+  const wallResume = (await api('POST', '/auth/session', { body: { token: wallReg.token } })).json
+  ok(wallResume.player?.id === wallReg.player.id && wallResume.created === false,
+    'the registration-issued token resumes the same account')
+  const wallDevice2 = (await api('POST', '/auth/login', { body: { username: 'wallchief', password: 'hunter2hunter2' } })).json
+  ok(wallDevice2.player?.id === wallReg.player.id && wallDevice2.token !== wallReg.token,
+    'a second fresh device logs into the same village with those credentials')
+  ok((await api('GET', '/world', { token: wallReg.token })).status === 200,
+    'the walled-in registration plays normally afterwards')
+
+  const wallUpgrade = (await api('POST', '/auth/register', {
+    token: infinite.token,
+    body: { username: 'WallUpgraded', password: 'hunter2hunter2' }
+  })).json
+  ok(wallUpgrade.player?.id === infinite.player.id && wallUpgrade.player.registered === true && !wallUpgrade.token,
+    'a grandfathered guest still upgrades in place through token-bearing registration')
 
   console.log(`\n${checks - failures}/${checks} checks passed`)
   process.exitCode = failures === 0 ? 0 : 1

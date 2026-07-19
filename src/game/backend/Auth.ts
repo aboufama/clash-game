@@ -22,6 +22,18 @@ interface SessionResponse {
   features?: Partial<SessionFeatures>;
 }
 
+export interface EnsuredSession {
+  user: AuthUser | null;
+  online: boolean;
+  world: SerializedWorld | null;
+  /**
+   * True when the server granted no identity: this device must register a
+   * username + password (or log in) before it gets a village. The app shows
+   * the account gate instead of booting the game.
+   */
+  registrationRequired?: boolean;
+}
+
 export interface DevWorldReseedResult {
   ok: true;
   removedGuests: number;
@@ -112,17 +124,19 @@ async function postJson<T>(path: string, body: unknown, token?: string | null): 
 }
 
 /**
- * Identity: the device holds a secret session token; the server turns it into
- * an account automatically, so a first visit always gets a village with nothing
- * to type. Registering a username + password on top of that account makes it
- * loadable from any device via login.
+ * Identity: the device holds a secret session token. A valid token resumes
+ * its account. Without one, production requires creating an account first —
+ * username + password, nothing else — before any village exists
+ * (`registrationRequired` from /auth/session drives the account gate). In
+ * development (CLASH_ALLOW_GUESTS=1) the server auto-creates a playable
+ * guest instead, which can later be upgraded in place via register().
  */
 export class Auth {
   private static current: AuthUser | null = null;
   private static online = false;
   private static token: string | null = null;
   private static features: SessionFeatures = { infiniteResources: false };
-  private static ensureInFlight: Promise<{ user: AuthUser | null; online: boolean; world: SerializedWorld | null }> | null = null;
+  private static ensureInFlight: Promise<EnsuredSession> | null = null;
 
   static getCurrentUser() {
     return Auth.current;
@@ -158,7 +172,7 @@ export class Auth {
    * creates) the account; without it, it falls back to the cached identity in
    * offline mode.
    */
-  static ensureUser(): Promise<{ user: AuthUser | null; online: boolean; world: SerializedWorld | null }> {
+  static ensureUser(): Promise<EnsuredSession> {
     // React StrictMode deliberately mounts effects twice in development. One
     // shared bootstrap prevents two tokenless requests from minting two guest
     // villages and racing to become this tab's identity.
@@ -171,7 +185,7 @@ export class Auth {
     return task;
   }
 
-  private static async establishSession(): Promise<{ user: AuthUser | null; online: boolean; world: SerializedWorld | null }> {
+  private static async establishSession(): Promise<EnsuredSession> {
     const stored = loadStoredUser();
     if (stored) Auth.current = stored;
 
@@ -183,7 +197,20 @@ export class Auth {
         cache: 'no-store'
       });
       if (!response.ok) throw new Error(`Session request failed (${response.status})`);
-      const session = (await response.json()) as SessionResponse;
+      const payload = (await response.json()) as SessionResponse | { registrationRequired?: unknown };
+      if ((payload as { registrationRequired?: unknown }).registrationRequired === true) {
+        // The registration wall: the server granted no identity, so whatever
+        // token/profile this tab cached is dead. Clear it so the account gate
+        // starts clean (createAccount must go out with no stale bearer).
+        Auth.token = null;
+        Auth.current = null;
+        Auth.online = true;
+        Auth.features = { infiniteResources: false };
+        removeStorage(TOKEN_KEY);
+        removeStorage(USER_KEY);
+        return { user: null, online: true, world: null, registrationRequired: true };
+      }
+      const session = payload as SessionResponse;
       Auth.adoptSession(session);
       return { user: session.player, online: true, world: session.world ?? null };
     } catch (error) {
@@ -222,6 +249,18 @@ export class Auth {
     Auth.current = data.player;
     writeStorage(USER_KEY, JSON.stringify(data.player));
     return data.player;
+  }
+
+  /**
+   * Account-gate registration: create a brand-new account (username +
+   * password, nothing else). Deliberately sends NO bearer token — the server
+   * creates the account, allocates its village plot and issues this device's
+   * session, which is adopted here.
+   */
+  static async createAccount(username: string, password: string): Promise<{ user: AuthUser; world: SerializedWorld | null }> {
+    const session = await postJson<SessionResponse>('/api/auth/register', { username, password });
+    Auth.adoptSession(session);
+    return { user: session.player, world: session.world ?? null };
   }
 
   /**

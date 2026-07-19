@@ -402,6 +402,7 @@ class MemoryWorld implements WorldRepository {
       throw new Error('World allocation schema and region size are immutable')
     }
     if (record.nextOrdinal < current.nextOrdinal) return false
+    if ((record.allocationModel ?? 1) < (current.allocationModel ?? 1)) return false
     this.state.worldAllocations.set(record.worldId, copy(record))
     return true
   }

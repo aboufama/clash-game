@@ -496,6 +496,7 @@ interface AllocationRow extends QueryResultRow {
   region_size: number
   current_generation_version: number
   next_ordinal: string | number
+  allocation_model: number
   revision: string | number
   updated_at: Date | string
 }
@@ -507,6 +508,7 @@ function allocationFromRow(row: AllocationRow): WorldAllocationRecord {
     regionSize: row.region_size,
     currentGenerationVersion: row.current_generation_version,
     nextOrdinal: Number(row.next_ordinal),
+    allocationModel: row.allocation_model,
     revision: Number(row.revision),
     updatedAt: date(row.updated_at)
   }
@@ -514,7 +516,7 @@ function allocationFromRow(row: AllocationRow): WorldAllocationRecord {
 
 const ALLOCATION_SELECT = String.raw`
   SELECT world_id, schema_version, region_size, current_generation_version,
-    next_ordinal, revision, updated_at
+    next_ordinal, allocation_model, revision, updated_at
   FROM world_allocation_state
 `
 
@@ -668,14 +670,15 @@ class PgWorld implements WorldRepository {
     await this.sql.query(String.raw`
       INSERT INTO world_allocation_state(
         world_id, schema_version, region_size, current_generation_version,
-        next_ordinal, revision, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        next_ordinal, allocation_model, revision, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [
       record.worldId,
       record.schemaVersion,
       record.regionSize,
       record.currentGenerationVersion,
       record.nextOrdinal,
+      record.allocationModel ?? 1,
       record.revision,
       record.updatedAt
     ])
@@ -688,9 +691,10 @@ class PgWorld implements WorldRepository {
     const result = await this.sql.query(String.raw`
       UPDATE world_allocation_state SET
         schema_version = $3, region_size = $4, current_generation_version = $5,
-        next_ordinal = $6, revision = $7, updated_at = $8
+        next_ordinal = $6, allocation_model = $7, revision = $8, updated_at = $9
       WHERE world_id = $1 AND revision = $2
         AND schema_version = $3 AND region_size = $4 AND next_ordinal <= $6
+        AND allocation_model <= $7
     `, [
       record.worldId,
       expectedRevision,
@@ -698,6 +702,7 @@ class PgWorld implements WorldRepository {
       record.regionSize,
       record.currentGenerationVersion,
       record.nextOrdinal,
+      record.allocationModel ?? 1,
       record.revision,
       record.updatedAt
     ])

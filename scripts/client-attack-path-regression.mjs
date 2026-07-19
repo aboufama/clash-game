@@ -58,18 +58,30 @@ const nextMapHandler = scene.slice(
   scene.indexOf('findNewMap: () => {'),
   scene.indexOf('deleteSelectedBuilding:', scene.indexOf('findNewMap: () => {'))
 )
-assert.match(nextMapHandler, /const excludeTargetId = this\.currentEnemyWorld\?\.isBot[\s\S]*?: this\.currentEnemyWorld\?\.id;[\s\S]*?await this\.abandonCurrentAttack\(\);[\s\S]*?const loaded = await this\.generateFindMatchVillage\(epoch, \{ excludeTargetId \}\);/,
-  'NEXT must capture the skipped player, close its reservation, then run the shared FIND MATCH path')
+assert.match(nextMapHandler, /if \(this\.currentEnemyWorld && !this\.currentEnemyWorld\.isBot\) \{[\s\S]*?this\.recordMatchmakeOffer\(this\.currentEnemyWorld\.id\);[\s\S]*?await this\.abandonCurrentAttack\(\);[\s\S]*?const loaded = await this\.generateFindMatchVillage\(epoch\);/,
+  'NEXT must add the skipped player to the strict session exclusions, close its reservation, then run the shared FIND MATCH path')
 assert.doesNotMatch(nextMapHandler, /const loaded = await this\.generateEnemyVillage\(epoch\);/,
-  'NEXT must never switch a world-map player search into the bot generator')
+  'NEXT must never switch a world-map player search into the bot generator directly')
+assert.doesNotMatch(nextMapHandler, /resetMatchmakeSession/,
+  'NEXT must keep the cycling session alive — only a fresh FIND MATCH resets it')
 const findMatchHelper = scene.slice(
-  scene.indexOf('private generateFindMatchVillage('),
+  scene.indexOf('private async generateFindMatchVillage('),
   scene.indexOf('// Matchmake against a random online player.')
 )
-assert.match(findMatchHelper, /Auth\.isOnlineMode\(\)[\s\S]*?generateOnlineEnemyVillage\(epoch, options\)[\s\S]*?generateEnemyVillage\(epoch\)/,
-  'FIND MATCH and NEXT must share one online world-map matcher with only the offline fallback')
-assert.equal((scene.match(/const loaded = await this\.generateFindMatchVillage\(epoch\);/g) ?? []).length, 2,
-  'Both initial FIND MATCH commands must use the shared loader without an exclusion')
+assert.match(findMatchHelper, /if \(!Auth\.isOnlineMode\(\)\) return this\.generateEnemyVillage\(epoch\);/,
+  'Offline play must keep the local practice generator')
+assert.match(findMatchHelper, /if \(this\.matchmakePhase === 'bots'\) return this\.generateEnemyVillage\(epoch\);/,
+  'After pool exhaustion NEXT must keep cycling bot camps until a fresh FIND MATCH')
+assert.match(findMatchHelper, /excludeTargetIds: \[\.\.\.this\.matchmakeSeenTargetIds\]/,
+  'Player searches must send the strict session exclusions to the server')
+assert.match(findMatchHelper, /if \(loaded !== 'no-players'\) return loaded;[\s\S]*?this\.matchmakePhase = 'bots';[\s\S]*?return this\.generateEnemyVillage\(epoch\);/,
+  'Only a server-reported empty/exhausted player pool may transition the session to bot camps')
+assert.equal((scene.match(/const loaded = await this\.generateFindMatchVillage\(epoch\);/g) ?? []).length, 3,
+  'FIND MATCH and NEXT must all use the shared loader (session state carries the exclusions)')
+assert.equal((scene.match(/this\.resetMatchmakeSession\(\);/g) ?? []).length, 2,
+  'Both initial FIND MATCH commands must reset the cycling session back to players')
+assert.match(scene, /enemy\?\.isBot \? '  ·  BOT' : '  ·  PLAYER'/,
+  'Server-issued raid targets must be labeled PLAYER or BOT in the village banner')
 
 const pendingStartParser = backend.slice(
   backend.indexOf('function parsePendingBattleStart('),
@@ -77,18 +89,24 @@ const pendingStartParser = backend.slice(
 )
 assert.match(pendingStartParser, /excludeTargetId[\s\S]*?parsed\.excludeTargetId/,
   'A pending NEXT must retain its excluded player through storage parsing')
+assert.match(pendingStartParser, /parsed\.excludeTargetIds[\s\S]*?\.slice\(-64\)/,
+  'A pending NEXT must retain its bounded strict exclusion list through storage parsing')
 const battleReconciliation = backend.slice(
   backend.indexOf('static async reconcileInterruptedBattle('),
   backend.indexOf('static async placeBuilding(')
 )
 assert.match(battleReconciliation, /pending\.matchmade && pending\.excludeTargetId[\s\S]*?excludeTargetId: pending\.excludeTargetId/,
   'Crash recovery must resend the same player exclusion with the stable request id')
+assert.match(battleReconciliation, /pending\.matchmade && pending\.excludeTargetIds\?\.length[\s\S]*?excludeTargetIds: pending\.excludeTargetIds/,
+  'Crash recovery must resend the same strict exclusion list with the stable request id')
 const matchedAttackStart = backend.slice(
   backend.indexOf('static async startMatchedAttack('),
   backend.indexOf('static async startAttackOnUser(')
 )
 assert.match(matchedAttackStart, /rememberPendingBattleStart[\s\S]*?excludeTargetId[\s\S]*?\/api\/attacks\/matchmake[\s\S]*?excludeTargetId/,
   'The match gateway must persist and send NEXT exclusions')
+assert.match(matchedAttackStart, /status === 404\) return 'no-players';/,
+  "An empty or exhausted player pool must resolve 'no-players' for the bot fallback, never a thrown failure")
 
 const combatAdapter = scene.slice(
   scene.indexOf('private updateCombat('),
@@ -100,7 +118,10 @@ assert.match(combatAdapter, /else if \(stats\.range > 1\)[\s\S]*?showGenericRang
   'unnamed declarative ranged troops must use the generic ranged adapter')
 assert.match(scene, /private applyDeclarativeTroopHit\([\s\S]*?stats\.splashRadius[\s\S]*?falloff = 0\.6/,
   'the local generic hit adapter must apply declared splash to clustered buildings')
-for (const type of ['goblinplunderer', 'wallbreaker', 'stormmage', 'necromancer']) {
+// Necromancer left this list with the troop overhaul: its bespoke orb
+// presentation (showNecromancerOrb) is intentional, like the beetle latch
+// and siege-tower park in the same dispatch chain.
+for (const type of ['goblinplunderer', 'wallbreaker', 'stormmage']) {
   assert.doesNotMatch(combatAdapter, new RegExp(`troop\\.type === '${type}'`),
     `${type} must not regain a type-hardcoded punch adapter`)
 }
@@ -114,4 +135,4 @@ assert.match(villageLife, /getTroopFaction\(type as TroopType\)[\s\S]*?\? factio
 assert.match(villageLife, /const trainingBuilding = getTroopFaction\(type\) \? factionBarracks : coreCamp;/,
   'Fresh Core troop figures must originate at their assigned Army Camp')
 
-console.log('client attack path regression: 39 checks passed')
+console.log('client attack path regression: 47 checks passed')

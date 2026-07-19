@@ -2,14 +2,17 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { grantedSession } from './domain/auth'
 import { GameService } from './game'
 
 assert.notEqual(process.env.CLASH_ALLOW_LEGACY_FRAME_COMMANDS, '1', 'authority test must run without the legacy bridge')
+// This spec mints guest sessions; opt into guest auto-play like `npm run dev`.
+process.env.CLASH_ALLOW_GUESTS = '1'
 
 const dataRoot = mkdtempSync(path.join(tmpdir(), 'clash-bot-authority-'))
 try {
   const game = new GameService(dataRoot)
-  const session = game.ensureSession(undefined, 'bot-authority-spec')
+  const session = grantedSession(game.ensureSession(undefined, 'bot-authority-spec'))
   const player = game.authenticate(session.token)
   game.trainTroop(player, { type: 'warrior', count: 2, requestId: 'train-two-warriors' })
 

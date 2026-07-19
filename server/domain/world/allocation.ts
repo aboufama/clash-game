@@ -125,6 +125,34 @@ function normalizeReleasedSlots(slots: readonly ReleasedPlotSlot[]): ReleasedPlo
   return [...releasedByOrdinal.values()].sort((a, b) => a.ordinal - b.ordinal)
 }
 
+/** Chebyshev ring (distance from the world origin) that contains this spiral ordinal. */
+export function allocationRingOfOrdinal(ordinal: number): number {
+  if (!Number.isSafeInteger(ordinal) || ordinal < 0 || ordinal > MAX_ALLOCATION_ORDINAL) {
+    throw new RangeError('allocation ordinal is out of range')
+  }
+  if (ordinal === 0) return 0
+  let radius = Math.ceil((Math.sqrt(ordinal + 1) - 1) / 2)
+  while ((radius * 2 - 1) ** 2 > ordinal) radius -= 1
+  while ((radius * 2 + 1) ** 2 <= ordinal) radius += 1
+  return radius
+}
+
+export const BOT_FRONTIER_RING_MARGIN = 2
+
+/**
+ * How far out from the world origin unclaimed spiral plots present as living
+ * bot neighbours (the settled frontier). The margin keeps the horizon two
+ * rings beyond the outermost frontier claim, so every new arrival lands
+ * inside a neighbourhood that already looks alive; even a world with a single
+ * settler shows its full first watchtower horizon as rival camps.
+ */
+export function botFrontierRadiusForCursor(nextOrdinal: number): number {
+  const cursor = Number.isSafeInteger(nextOrdinal) && nextOrdinal > 0
+    ? Math.min(nextOrdinal - 1, MAX_ALLOCATION_ORDINAL)
+    : 0
+  return allocationRingOfOrdinal(cursor) + BOT_FRONTIER_RING_MARGIN
+}
+
 /** Direct lookup in the legacy ring order used by GameService.nextFreePlot. */
 export function coordinateAtAllocationOrdinal(ordinal: number): PlotCoordinate {
   if (!Number.isSafeInteger(ordinal) || ordinal < 0 || ordinal > MAX_ALLOCATION_ORDINAL) {
@@ -132,9 +160,7 @@ export function coordinateAtAllocationOrdinal(ordinal: number): PlotCoordinate {
   }
   if (ordinal === 0) return { x: 0, y: 0 }
 
-  let radius = Math.ceil((Math.sqrt(ordinal + 1) - 1) / 2)
-  while ((radius * 2 - 1) ** 2 > ordinal) radius -= 1
-  while ((radius * 2 + 1) ** 2 <= ordinal) radius += 1
+  const radius = allocationRingOfOrdinal(ordinal)
   const ringStart = (radius * 2 - 1) ** 2
   let offset = ordinal - ringStart
   const verticalEdgeLength = radius * 2 + 1
@@ -230,27 +256,40 @@ export function allocateNextPlayerPlot(
     probes += 1
     const coordinate = coordinateAtAllocationOrdinal(ordinal)
     const region = resolvedRegion(current, coordinate, options.generationVersionForRegion)
-    if (classifyPlot(coordinate, region.generationVersion, options.worldSeedVersion).kind !== 'PLAYER') return null
+    // Every non-preserve spiral plot is settleable: claiming a coordinate that
+    // classifies as a generated BOT camp replaces that camp with the player.
+    // Only preserves (and the hydrology plots folded into them) stay wild.
+    if (classifyPlot(coordinate, region.generationVersion, options.worldSeedVersion).kind === 'PRESERVE') return null
     const candidate = { worldId: current.worldId, coordinate, region, ordinal, plotVersion, source }
     return options.isOccupied(candidate) ? null : candidate
   }
 
-  while (released.length > 0 && probes < budget) {
-    const slot = released.shift()!
-    consumedReleasedOrdinals.push(slot.ordinal)
-    const allocation = tryOrdinal(slot.ordinal, slot.plotVersion, 'RELEASED')
-    if (allocation) {
-      return {
-        allocation,
-        probes,
-        consumedReleasedOrdinals,
-        exhausted: false,
-        index: { ...current, nextOrdinal }
+  // Merge the free-slot stream and the frontier cursor in ordinal order, so
+  // admission is globally nearest-center-first: a vacated central plot beats
+  // the frontier, but a far released override never jumps a nearer frontier
+  // ring. A tie prefers the released row, preserving its plotVersion fence.
+  while (probes < budget) {
+    const nextReleased = released.length > 0 ? released[0] : null
+    const frontierOpen = nextOrdinal <= MAX_ALLOCATION_ORDINAL
+    if (!nextReleased && !frontierOpen) break
+    if (nextReleased && (!frontierOpen || nextReleased.ordinal <= nextOrdinal)) {
+      const slot = released.shift()!
+      consumedReleasedOrdinals.push(slot.ordinal)
+      // A free slot sitting exactly on the cursor also advances the cursor, so
+      // the frontier can never re-probe an ordinal whose fence lives in a slot.
+      if (slot.ordinal === nextOrdinal) nextOrdinal += 1
+      const allocation = tryOrdinal(slot.ordinal, slot.plotVersion, 'RELEASED')
+      if (allocation) {
+        return {
+          allocation,
+          probes,
+          consumedReleasedOrdinals,
+          exhausted: false,
+          index: { ...current, nextOrdinal }
+        }
       }
+      continue
     }
-  }
-
-  while (nextOrdinal <= MAX_ALLOCATION_ORDINAL && probes < budget) {
     const ordinal = nextOrdinal
     nextOrdinal += 1
     const allocation = tryOrdinal(ordinal, INITIAL_PLOT_VERSION, 'FRONTIER')
@@ -269,7 +308,7 @@ export function allocateNextPlayerPlot(
     allocation: null,
     probes,
     consumedReleasedOrdinals,
-    exhausted: nextOrdinal > MAX_ALLOCATION_ORDINAL,
+    exhausted: nextOrdinal > MAX_ALLOCATION_ORDINAL && released.length === 0,
     index: { ...current, nextOrdinal }
   }
 }
@@ -288,9 +327,11 @@ export function releasePlayerPlot(
 }
 
 /**
- * Release a real-player override only when its coordinate is player land in
- * the selected generated topology. Vacating a pinned village can reveal a bot,
+ * Release a real-player override only when its coordinate is settleable land
+ * in the selected generated topology. Vacating a pinned village can reveal a
  * preserve, lake or river; those coordinates must not enter the free index.
+ * Vacated bot-classified land does re-enter it: the coordinate presents as a
+ * bot camp again until the spiral re-issues it nearest-center-first.
  */
 export function releasePlayerPlotForTopology(
   rawIndex: WorldAllocationIndex,
@@ -302,10 +343,42 @@ export function releasePlayerPlotForTopology(
     released.coordinate,
     index.currentGenerationVersion,
     worldSeedVersion
-  ).kind !== 'PLAYER') {
+  ).kind === 'PRESERVE') {
     return { index, releasedSlot: null }
   }
   return releasePlayerPlot(index, released)
+}
+
+export const SPIRAL_BACKFILL_SCAN_LIMIT = 25_000
+
+/**
+ * One-time spiral-model upgrade helper. Worlds allocated before bot plots
+ * became settleable skipped every central bot ordinal; this enumerates all
+ * settleable ordinals below the high-water cursor so a runtime can index the
+ * unoccupied ones as free slots and future admission fills the center first.
+ * Bounded like the legacy cutover scan; a huge imported frontier keeps its
+ * holes unindexed rather than triggering a multi-billion-coordinate scan.
+ */
+export function spiralHoleOrdinalsBelowCursor(input: {
+  nextOrdinal: number
+  generationVersion?: GenerationVersion
+  worldSeedVersion?: unknown
+  scanLimit?: number
+}): number[] {
+  const cursor = Number.isSafeInteger(input.nextOrdinal) && input.nextOrdinal > 0
+    ? Math.min(input.nextOrdinal, MAX_ALLOCATION_ORDINAL + 1)
+    : 0
+  const scanLimit = input.scanLimit ?? SPIRAL_BACKFILL_SCAN_LIMIT
+  if (cursor > scanLimit) return []
+  const generationVersion = input.generationVersion ?? CURRENT_WORLD_GENERATION_VERSION
+  const ordinals: number[] = []
+  for (let ordinal = 0; ordinal < cursor; ordinal += 1) {
+    const coordinate = coordinateAtAllocationOrdinal(ordinal)
+    if (classifyPlot(coordinate, generationVersion, input.worldSeedVersion).kind !== 'PRESERVE') {
+      ordinals.push(ordinal)
+    }
+  }
+  return ordinals
 }
 
 /** Changes only the generator assigned to regions created after this transition. */

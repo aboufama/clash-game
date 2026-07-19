@@ -8,7 +8,8 @@ import { BUILDING_DEFINITIONS, FACTION_BARRACKS, PLAYER_TROOP_TYPES, TROOP_DEFIN
 import { armySpaceUsed, campCapacityOf, campHousingAtLevel, effectiveTroopLevel, factionBarracksLevels, labUpgradeInFlight, placementCharge, productionRatesPerSecond, resourceCapacity, type FactionBarracksLevels } from './game/config/Economy';
 import { Backend, type IncomingAttackSession } from './game/backend/GameBackend';
 import type { SerializedWorld } from './game/data/Models';
-import { Auth } from './game/backend/Auth';
+import { Auth, type AuthUser } from './game/backend/Auth';
+import { AuthGate } from './components/AuthGate';
 import { gameManager, type PlotPanelInfo, type PlotPanelAction } from './game/GameManager';
 import { PlotPanel } from './components/PlotPanel';
 import { MapAtlasModal } from './components/MapAtlasModal';
@@ -103,6 +104,9 @@ function App() {
   const [isOnline, setIsOnline] = useState(false);
   const [infiniteResources, setInfiniteResources] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
+  // Production registration wall: the server granted no identity, so the
+  // account gate (username + password) is all this device may see.
+  const [needsAccount, setNeedsAccount] = useState(false);
   const [worldReady, setWorldReady] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isJukeboxOpen, setIsJukeboxOpen] = useState(false);
@@ -162,8 +166,9 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     Auth.ensureUser()
-      .then(({ user: authUser, online, world }) => {
+      .then(({ user: authUser, online, world, registrationRequired }) => {
         if (cancelled) return;
+        setNeedsAccount(Boolean(registrationRequired) && online);
         if (authUser) {
           if (hasRenderableWorldPayload(world)) {
             Backend.primeWorldCache(authUser.id, world);
@@ -195,6 +200,7 @@ function App() {
           setUser(null);
           setIsOnline(false);
           setInfiniteResources(false);
+          setNeedsAccount(false);
         }
       })
       .finally(() => {
@@ -895,6 +901,40 @@ function App() {
     Backend.clearAllCaches();
     window.location.reload();
   };
+
+  // Account-gate success (required registration wall): this device had NO
+  // identity and no booted game, so the fresh session is adopted in place —
+  // the exact states the initial ensureUser path sets, which lets the normal
+  // world-load and game-boot effects take over from here.
+  const adoptGateSession = useCallback((authUser: AuthUser, world: SerializedWorld | null) => {
+    if (hasRenderableWorldPayload(world)) {
+      Backend.primeWorldCache(authUser.id, world);
+    }
+    // A logged-into account can have a raid interrupted on another device.
+    void Backend.reconcileInterruptedBattle().catch(error => {
+      console.warn('Interrupted battle reconciliation is still pending:', error);
+    });
+    setNeedsAccount(false);
+    setInfiniteResources(Auth.getFeatures().infiniteResources);
+    setUser({
+      id: authUser.id,
+      username: authUser.username,
+      trophies: authUser.trophies ?? 0,
+      registered: Boolean(authUser.registered),
+      lastLogin: Date.now()
+    });
+    setIsOnline(true);
+  }, []);
+
+  const handleGateLogin = useCallback(async (username: string, password: string) => {
+    const session = await Auth.login(username, password);
+    adoptGateSession(session.player, session.world ?? null);
+  }, [adoptGateSession]);
+
+  const handleGateCreate = useCallback(async (username: string, password: string) => {
+    const { user: created, world } = await Auth.createAccount(username, password);
+    adoptGateSession(created, world);
+  }, [adoptGateSession]);
 
   const handleReseedWorld = async () => {
     await Backend.flushPendingSave();
@@ -1907,7 +1947,12 @@ function App() {
         onReseedWorld={handleReseedWorld}
       />
 
-      {isLockedOut && (
+      {needsAccount && !sessionExpired && !user ? (
+        // The required registration wall — a fresh device gets no village
+        // until it creates an account or logs in. Replaces (and outranks)
+        // the generic lockout card, same full-screen bury.
+        <AuthGate onLogin={handleGateLogin} onCreate={handleGateCreate} />
+      ) : isLockedOut && (
         <div className="auth-lock-overlay">
           <div className="auth-lock-panel">
             <h2>{sessionExpired ? 'SESSION EXPIRED' : "CAN'T REACH THE GAME SERVER"}</h2>

@@ -43,7 +43,6 @@ const HEART_DK = 0x8f7448;
 const EARTH_FACE = 0x4c3f30;
 const EARTH_DK = 0x3a3126;
 const ROOT_TONE = 0x827054;
-const LOG_MOSS = 0x5d7346;
 const SHADOW_GREEN = 0x172015;
 
 // Regional storm heading (grid space) and its left normal — shared by every
@@ -270,7 +269,10 @@ function fallenGiant(
 
     // ---- the upturned root plate: a gnarled torn root mass, never a disc ----
     const pc = V.at(ctx, plateX, plateY);
-    const plate = { x: pc.x, y: pc.y - 23 };
+    // Sits down-and-right of the raw anchor so the root crown visually welds
+    // onto the trunk's butt instead of floating beside it (owner note, twice:
+    // the first +6/-17 nudge still read detached at close zoom).
+    const plate = { x: pc.x + 10, y: pc.y - 9 };
     const prx = 25 + rng() * 3;
     const pry = 31 + rng() * 3;
     const trunkA = Math.atan2(pts[1].y - plate.y, pts[1].x - plate.x);
@@ -278,8 +280,9 @@ function fallenGiant(
     const fy = (a: number, r: number) => plate.y + Math.sin(a) * pry * r;
 
     // Seven kinked root fingers radiate from the collar — thick at the base,
-    // tapering, several snapped pale where they tore. They own the outline;
-    // the sector facing the trunk stays clear (that's where the bole attaches).
+    // tapering dark to their tips. They own the outline; the sector facing
+    // the trunk stays clear (that's where the bole attaches). The `snapped`
+    // roll stays in the rng sequence to keep the owner-approved layout stable.
     const fingers: Array<{ a: number; kink: number; reach: number; w: number; snapped: boolean }> = [];
     const fingerN = 7;
     for (let i = 0; i < fingerN; i++) {
@@ -318,11 +321,8 @@ function fallenGiant(
             { x: eX - n2x * fg.w * 0.28 - 0.4, y: eY - n2y * fg.w * 0.28 - 0.3 },
             { x: bX - n1x * fg.w * 0.4 - 0.5, y: bY - n1y * fg.w * 0.4 - 0.2 }
         ], ROOT_TONE);
-        if (fg.snapped) {
-            // pale snapped cross-section, pulled inward so it stays welded on
-            g.fillStyle(rng() < 0.55 ? HEART_LIT : HEART_MID, 1);
-            g.fillCircle(tX - Math.cos(a2) * 3, tY - Math.sin(a2) * 3, Math.max(2.8, fg.w * 0.6));
-        }
+        // (no pale tip caps — the owner read them as odd bright circles;
+        // the fingers' tapered dark silhouette carries the read on its own)
         // one fine rootlet whipping off the elbow
         g.lineStyle(2.4, BARK_DARK, 0.9);
         const ra = a2 + (rng() < 0.5 ? 0.85 : -0.85);
@@ -342,6 +342,9 @@ function fallenGiant(
         let r = 0.84 + rng() * 0.18;
         if (near < 0.24) r += 0.18;
         else if (near > 0.52) r -= 0.16 + rng() * 0.1;
+        // The trunk-facing sector never tears: a notch there reads as a green
+        // hole punched between crown and trunk instead of torn earth.
+        if (angDist(a, trunkA) < 0.8) r = Math.max(r, 0.95);
         rim.push({ x: fx(a, r), y: fy(a, r) });
     }
     V.fillPolygon(g, rim, 0x41372a);
@@ -366,11 +369,12 @@ function fallenGiant(
         g.lineBetween(collarX, collarY, mX, mY);
         g.lineBetween(mX, mY, fx(fg.a, endR + 0.2), fy(fg.a, endR + 0.2));
     }
-    // the torn collar: ragged pale splinters where the bole ripped away
+    // the torn collar: ragged splinters where the bole ripped away — kept
+    // DARK (the owner reads any bright fleck on the crown as an odd tip)
     for (let i = 0; i < 4; i++) {
         const a = trunkA + (i / 3 - 0.5) * 2.6 + (rng() - 0.5) * 0.4;
         const len = 6 + rng() * 5;
-        g.fillStyle(i % 2 ? HEART_MID : HEART_DK, 1);
+        g.fillStyle(i % 2 ? HEART_DK : 0x6b5a41, 1);
         g.fillTriangle(
             collarX - Math.sin(a) * 3, collarY + Math.cos(a) * 3,
             collarX + Math.sin(a) * 3, collarY - Math.cos(a) * 3,
@@ -409,11 +413,9 @@ function fallenGiant(
     // ---- the trunk ----
     logBody(g, pts, rad, true);
 
-    // moss saddle near the root end (the old shaded side)
-    const mossEnd = Math.max(2, Math.floor(N * 0.28));
-    const mTop = pts.slice(0, mossEnd + 1).map((p, i) => ({ x: p.x, y: p.y - rad(i / N) * 1.42 - 1 }));
-    const mBot = pts.slice(0, mossEnd + 1).map((p, i) => ({ x: p.x, y: p.y - rad(i / N) * 0.75 }));
-    V.fillPolygon(g, [...mTop, ...mBot.reverse()], LOG_MOSS, 0.85);
+    // (No moss saddle: the flat green quad sat so close to the grass tones
+    // that the owner read it as a hole punched in the trunk at every zoom.
+    // The silvered bark + seams carry the weathering on their own.)
 
     // two continuous wavy bark seams
     for (const level of [-0.6, -0.05]) {
@@ -615,9 +617,11 @@ function windthrowLitter(
             g.lineStyle(2, BARK_LIT, 0.8);
             g.lineBetween(p.x - dx * 7.7, p.y - dy * 7.7 - 3, p.x + dx * 7.7, p.y + dy * 7.7 - 3.6);
         } else {
-            // a pale heartwood shard
+            // a heartwood shard — pale only away from the root end: bright
+            // flecks landing beside the crown read as odd tips on it
             const len = 9 + rng() * 6;
-            g.fillStyle(rng() < 0.5 ? HEART_MID : HEART_LIT, 1);
+            const paleRoll = rng() < 0.5;
+            g.fillStyle(t < 0.32 ? BARK_DARK : (paleRoll ? HEART_MID : HEART_LIT), 1);
             g.fillTriangle(p.x - dx * len, p.y - dy * len + 2.2, p.x + dx * len, p.y + dy * len + 1.6,
                 p.x + dx * len * 0.3, p.y + dy * len * 0.3 - len * 0.5);
         }

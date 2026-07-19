@@ -518,6 +518,17 @@ CREATE INDEX world_plots_guest_reaper_idx
   WHERE lease_expires_at IS NOT NULL;
 `
 
+// The spiral settlement model makes bot-classified ordinals settleable, so the
+// world center fills with real accounts. The column marks whether a world's
+// pre-spiral holes were indexed as free slots; hydrology-aware eligibility
+// cannot run in SQL, so the bounded backfill itself happens in the runtime
+// (world-authority) the first time the allocation row is locked at model 1.
+const SPIRAL_CENTER_ALLOCATION_SQL = String.raw`
+ALTER TABLE world_allocation_state
+  ADD COLUMN allocation_model integer NOT NULL DEFAULT 1
+  CHECK (allocation_model >= 1);
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -528,7 +539,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 7, name: 'runtime_maintenance_queries', sql: RUNTIME_MAINTENANCE_SQL },
   { version: 8, name: 'bounded_presentation_replays', sql: BOUNDED_PRESENTATION_REPLAYS_SQL },
   { version: 9, name: 'bounded_auxiliary_retention', sql: BOUNDED_AUXILIARY_RETENTION_SQL },
-  { version: 10, name: 'world_allocation_concurrency', sql: WORLD_ALLOCATION_CONCURRENCY_SQL }
+  { version: 10, name: 'world_allocation_concurrency', sql: WORLD_ALLOCATION_CONCURRENCY_SQL },
+  { version: 11, name: 'spiral_center_allocation', sql: SPIRAL_CENTER_ALLOCATION_SQL }
 ]
 
 function checksum(sql: string): string {

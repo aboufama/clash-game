@@ -8,6 +8,7 @@ import { combatSnapshotHash } from '../attack-domain/simulation'
 import type { CombatVillageSnapshot } from '../attack-domain/types'
 import { createApiHandler, type ApiResult } from '../http'
 import { ApiError } from '../errors'
+import { grantedSession, isRegistrationRequired } from '../domain/auth'
 import {
   attackRecordFromAuthority,
   MemoryPersistence,
@@ -273,6 +274,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
     now: () => new Date(now),
     starterShieldMs: 0,
     allowDebugGrants: true,
+    allowGuestSessions: true,
     infiniteResources: false,
     fixedUpgradeDurationMs: 1_000
   })
@@ -312,7 +314,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
   }, 'healthy authentication is read-mostly and skips village authority')
 
   persistence.resetAuthorityReads()
-  const resumed = await service.ensureSession(token, 'resume-lock-order')
+  const resumed = grantedSession(await service.ensureSession(token, 'resume-lock-order'))
   assert.equal(resumed.created, false)
   assert.deepEqual(
     persistence.lockOrder.slice(0, 4),
@@ -338,7 +340,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
   await service.authenticate(token)
   assert.equal(persistence.sessionTouches, 1, 'session presence is durably sampled once per interval')
 
-  const logoutGuest = await service.ensureSession('', 'logout-cleanup')
+  const logoutGuest = grantedSession(await service.ensureSession('', 'logout-cleanup'))
   await service.logout(logoutGuest.token)
   await persistence.base.transaction(async tx => {
     assert.equal(await tx.accounts.getById(logoutGuest.player.id), null)
@@ -499,11 +501,11 @@ test('MemoryPersistence serves the async core routes without global scans or che
   assert.equal((record(remoteMap).plots as unknown[]).length, 9, 'remote active target receives the full battle ring')
   assert.equal(authorizationQueries, 2, 'non-home centers retain active-attack focus authorization')
 
-  const raceA = await service.ensureSession('', 'register-race-a')
-  const raceB = await service.ensureSession('', 'register-race-b')
+  const raceA = grantedSession(await service.ensureSession('', 'register-race-a'))
+  const raceB = grantedSession(await service.ensureSession('', 'register-race-b'))
   const registrationRace = await Promise.allSettled([
-    service.register({ playerId: raceA.player.id }, 'OneSharedName', 'correct-horse'),
-    service.register({ playerId: raceB.player.id }, 'OneSharedName', 'correct-horse')
+    service.register(raceA.token, 'OneSharedName', 'correct-horse'),
+    service.register(raceB.token, 'OneSharedName', 'correct-horse')
   ])
   assert.equal(registrationRace.filter(result => result.status === 'fulfilled').length, 1)
   const rejectedRegistration = registrationRace.find(result => result.status === 'rejected')
@@ -550,8 +552,8 @@ test('MemoryPersistence serves the async core routes without global scans or che
     plotVersion: 1
   })
 
-  const expiringGuest = await service.ensureSession('', 'lease-atomicity')
-  const authExpiredGuest = await service.ensureSession('', 'auth-expired-lease')
+  const expiringGuest = grantedSession(await service.ensureSession('', 'lease-atomicity'))
+  const authExpiredGuest = grantedSession(await service.ensureSession('', 'auth-expired-lease'))
   now = new Date(now.getTime() + 8 * 24 * 60 * 60_000)
   persistence.resetAuthorityReads()
   await assert.rejects(service.authenticate(authExpiredGuest.token), error => (
@@ -605,10 +607,11 @@ test('explicit infinite resources waive every player spend without weakening gam
     now: () => new Date(now),
     starterShieldMs: 0,
     allowDebugGrants: false,
+    allowGuestSessions: true,
     infiniteResources: true
   })
 
-  const session = await service.ensureSession('', 'runtime-infinite')
+  const session = grantedSession(await service.ensureSession('', 'runtime-infinite'))
   const principal: RuntimePrincipal = { playerId: session.player.id }
   const initial = { ...session.world.resources }
   assert.equal(session.features.infiniteResources, true)
@@ -723,9 +726,10 @@ test('finite persistence mode still rejects unaffordable layouts and charges spe
     now: () => new Date(now),
     starterShieldMs: 0,
     allowDebugGrants: false,
+    allowGuestSessions: true,
     infiniteResources: false
   })
-  const session = await service.ensureSession('', 'runtime-finite-control')
+  const session = grantedSession(await service.ensureSession('', 'runtime-finite-control'))
   const principal: RuntimePrincipal = { playerId: session.player.id }
   assert.equal(session.features.infiniteResources, false)
 
@@ -828,9 +832,10 @@ test('device-session expiry does not tear down an otherwise-live guest lease', a
     now: () => new Date(now),
     starterShieldMs: 0,
     sessionTtlMs: 1,
+    allowGuestSessions: true,
     infiniteResources: false
   })
-  const guest = await service.ensureSession('', 'short-device-session')
+  const guest = grantedSession(await service.ensureSession('', 'short-device-session'))
   now = new Date(now.getTime() + 2)
   await assert.rejects(service.authenticate(guest.token), error => (
     error instanceof ApiError && error.status === 401
@@ -840,4 +845,81 @@ test('device-session expiry does not tear down an otherwise-live guest lease', a
     assert(await tx.world.getPlayerPlot(guest.player.id), 'the live guest plot is not released with one device session')
   })
   await service.close()
+})
+
+test('production registration wall: no guest villages, registration creates account + plot, tokens grandfather', async () => {
+  const persistence = new MemoryPersistence()
+  const now = new Date('2026-07-18T12:00:00.000Z')
+  // Dev-flavored service on the SAME persistence: mints the pre-existing
+  // guest that must stay grandfathered once the wall is up.
+  const devService = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    allowGuestSessions: true
+  })
+  const legacyGuest = grantedSession(await devService.ensureSession('', 'pre-wall-guest'))
+
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    allowGuestSessions: false
+  })
+
+  try {
+    // A fresh device gets the wall — and neither an account nor a plot exists for it.
+    const walled = await service.ensureSession('', 'walled-device')
+    assert.equal(isRegistrationRequired(walled), true)
+    assert.deepEqual(walled, { registrationRequired: true })
+    assert.throws(() => grantedSession(walled))
+
+    // Registration with NO token creates the account AND allocates its plot.
+    const registered = await service.register(null, 'WallChief', 'correct-horse-battery')
+    assert.equal('token' in registered, true, 'anonymous registration answers a full session envelope')
+    const session = registered as SessionResponse
+    assert.equal(session.created, true)
+    assert.equal(session.player.registered, true)
+    assert.equal(session.player.username, 'WallChief')
+    assert.equal(Number.isFinite(session.player.plotX) && Number.isFinite(session.player.plotY), true)
+    assert.equal(session.world.buildings.length >= 4, true, 'the new account starts with the starter base')
+    await persistence.transaction(async tx => {
+      const plot = await tx.world.getPlayerPlot(session.player.id)
+      assert(plot, 'registration claimed a plot through the shared allocation path')
+      assert.equal(plot.leaseId, null, 'registered plots are permanent, not guest leases')
+    })
+
+    // The issued token resumes; a second device logs in with the same credentials.
+    const resumed = grantedSession(await service.ensureSession(session.token, 'walled-device'))
+    assert.equal(resumed.player.id, session.player.id)
+    const secondDevice = await service.login('wallchief', 'correct-horse-battery')
+    assert.equal(secondDevice.player.id, session.player.id)
+    assert.notEqual(secondDevice.token, session.token)
+
+    // Same username cannot be registered twice anonymously.
+    await assert.rejects(service.register(null, 'WALLCHIEF', 'another-password'), error => (
+      error instanceof ApiError && error.status === 409 && error.code === 'USERNAME_TAKEN'
+    ))
+    // A presented-but-dead token is a 401, never a silent second account.
+    await assert.rejects(service.register('tok_bogus', 'GhostChief', 'correct-horse-battery'), error => (
+      error instanceof ApiError && error.status === 401
+    ))
+    // Credential validation still runs before anything is created.
+    await assert.rejects(service.register(null, 'x!', 'correct-horse-battery'), error => (
+      error instanceof ApiError && error.status === 400
+    ))
+    await assert.rejects(service.register(null, 'ShortPwChief', 'short'), error => (
+      error instanceof ApiError && error.status === 400
+    ))
+
+    // Pre-wall guests are grandfathered: their token resumes and they can
+    // still upgrade in place through the token-bearing register path.
+    const grandfathered = grantedSession(await service.ensureSession(legacyGuest.token, 'pre-wall-guest'))
+    assert.equal(grandfathered.player.id, legacyGuest.player.id)
+    const upgraded = await service.register(legacyGuest.token, 'GrandfatheredChief', 'correct-horse-battery')
+    assert.equal('token' in upgraded, false, 'token-bearing registration keeps the in-place upgrade shape')
+    const upgradedPlayer = (upgraded as { player: { id: string; registered: boolean } }).player
+    assert.equal(upgradedPlayer.id, legacyGuest.player.id)
+    assert.equal(upgradedPlayer.registered, true)
+  } finally {
+    await service.close()
+  }
 })

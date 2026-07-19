@@ -369,10 +369,7 @@ export function isWildernessPreserveAt(x: number, y: number, rawSeedVersion: unk
  * ~55% of non-preserve unowned plots; most of the origin ring is settled so a
  * new player's first horizon has both rival clans and permanent wilderness.
  */
-export function botSeedAt(x: number, y: number, rawSeedVersion: unknown = 0): number | null {
-    const seedVersion = generatedWorldSeedVersion(rawSeedVersion);
-    if (isWildernessPreserveAt(x, y, seedVersion)) return null;
-    if (x === 0 && y === 0) return null; // origin is the first player's home
+function botPlotSeedHash(x: number, y: number, seedVersion: number): number {
     let h = (x * 374761393 + y * 668265263) ^ 0x5bf03635;
     if (seedVersion !== 0) {
         // Rotate both occupancy and the village seed. This is deliberately
@@ -382,10 +379,33 @@ export function botSeedAt(x: number, y: number, rawSeedVersion: unknown = 0): nu
         h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
     }
     h = Math.imul(h ^ (h >>> 13), 1274126177);
-    h = (h ^ (h >>> 16)) >>> 0;
+    return (h ^ (h >>> 16)) >>> 0;
+}
+
+export function botSeedAt(x: number, y: number, rawSeedVersion: unknown = 0): number | null {
+    const seedVersion = generatedWorldSeedVersion(rawSeedVersion);
+    if (isWildernessPreserveAt(x, y, seedVersion)) return null;
+    if (x === 0 && y === 0) return null; // origin is the first player's home
+    const h = botPlotSeedHash(x, y, seedVersion);
     const near = Math.max(Math.abs(x), Math.abs(y)) <= 2;
     if (!near && h % 100 >= 55) return null;
     return seedVersion === 0 ? h : h === 0 ? 1 : h;
+}
+
+/**
+ * Deterministic camp seed for the plots botSeedAt leaves open (the ~45%
+ * structural gaps and the origin itself). The settled-frontier presentation
+ * fills every unclaimed spiral plot near the world center with one of these
+ * camps until a real account claims the coordinate. Same hash family as
+ * botSeedAt, so a structural clan and its gap-fill neighbour can never swap
+ * appearance when the topology epoch rotates; preserves stay wild.
+ */
+export function botFrontierFillSeedAt(x: number, y: number, rawSeedVersion: unknown = 0): number | null {
+    const seedVersion = generatedWorldSeedVersion(rawSeedVersion);
+    if (isWildernessPreserveAt(x, y, seedVersion)) return null;
+    const h = botPlotSeedHash(x, y, seedVersion);
+    // Zero is reserved as an invalid village seed by bot generation.
+    return h === 0 ? 1 : h;
 }
 
 const BOT_CLANS = ['Ash', 'Briar', 'Crag', 'Dun', 'Elder', 'Fen', 'Gorse', 'Heath', 'Iron', 'Juniper', 'Kettle', 'Larch', 'Moss', 'Nettle', 'Oaken', 'Pyre'];

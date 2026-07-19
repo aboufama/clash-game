@@ -5,9 +5,12 @@ import {
   queryWorldHydrology
 } from '../../../src/game/config/WorldHydrology'
 import {
+  BOT_FRONTIER_RING_MARGIN,
   LEGACY_HOME_COORD_LIMIT,
   allocationOrdinalOf,
+  allocationRingOfOrdinal,
   allocateNextPlayerPlot,
+  botFrontierRadiusForCursor,
   botVillagePresentationSeed,
   botVillageSeedAt,
   boundedLocalWindow,
@@ -19,6 +22,7 @@ import {
   createPlotClaim,
   expiredGuestPlotClaims,
   isGuestPlotLeaseExpired,
+  isSpiralSettleable,
   localCoordinatesForPlot,
   matchesPlotReference,
   nextWorldPresentationSeedVersion,
@@ -34,6 +38,8 @@ import {
   releasePlayerPlotForTopology,
   renewGuestPlotClaim,
   renewGuestPlotLease,
+  settledFrontierBotVillageSeedAt,
+  spiralHoleOrdinalsBelowCursor,
   windowArea
 } from './index'
 
@@ -229,7 +235,15 @@ import {
   })
   assert.ok(seededAllocation.allocation)
   assert.notDeepEqual(seededAllocation.allocation.coordinate, { x: 0, y: 0 })
-  assert.equal(classifyPlot(seededAllocation.allocation.coordinate, 1, 1).kind, 'PLAYER')
+  // Spiral settlement: admission takes the FIRST non-preserve ordinal — bot
+  // camps are settleable land (the claim replaces the camp); only preserves
+  // (and the hydrology folded into them) are skipped.
+  assert.equal(isSpiralSettleable(seededAllocation.allocation.coordinate, 1, 1), true)
+  let firstSettleableSeeded = 0
+  while (!isSpiralSettleable(coordinateAtAllocationOrdinal(firstSettleableSeeded), 1, 1)) {
+    firstSettleableSeeded += 1
+  }
+  assert.equal(seededAllocation.allocation.ordinal, firstSettleableSeeded)
 
   const denseWorldFrontier = 50_000
   const postReseedAdmission = allocateNextPlayerPlot(createAllocationIndex({
@@ -252,6 +266,139 @@ import {
   assert.equal(budgeted.exhausted, false)
 }
 
+// Spiral settlement: closed-form ring math, the settled-frontier bot horizon,
+// nearest-center-first admission, and the claim-replaces-bot rule.
+{
+  // Ring math agrees with the ordinal→coordinate closed form everywhere, and
+  // the boundaries are exact: (2r-1)^2 is the first ordinal of ring r.
+  assert.equal(allocationRingOfOrdinal(0), 0)
+  for (let ordinal = 0; ordinal < 5_000; ordinal += 1) {
+    const coordinate = coordinateAtAllocationOrdinal(ordinal)
+    assert.equal(
+      allocationRingOfOrdinal(ordinal),
+      Math.max(Math.abs(coordinate.x), Math.abs(coordinate.y))
+    )
+  }
+  for (let radius = 1; radius <= 12; radius += 1) {
+    assert.equal(allocationRingOfOrdinal((radius * 2 - 1) ** 2), radius)
+    assert.equal(allocationRingOfOrdinal((radius * 2 - 1) ** 2 - 1), radius - 1)
+  }
+
+  // The bot frontier keeps a two-ring margin beyond the outermost claim, so
+  // even a single-settler world presents a living first horizon.
+  assert.equal(BOT_FRONTIER_RING_MARGIN, 2)
+  assert.equal(botFrontierRadiusForCursor(0), BOT_FRONTIER_RING_MARGIN)
+  assert.equal(botFrontierRadiusForCursor(1), BOT_FRONTIER_RING_MARGIN)
+  assert.equal(botFrontierRadiusForCursor(2), 1 + BOT_FRONTIER_RING_MARGIN)
+  assert.equal(botFrontierRadiusForCursor(9), 1 + BOT_FRONTIER_RING_MARGIN)
+  assert.equal(botFrontierRadiusForCursor(10), 2 + BOT_FRONTIER_RING_MARGIN)
+
+  // Inside the frontier every unclaimed non-preserve plot presents a
+  // deterministic camp; structural clans keep their exact seed; preserves
+  // stay wild. The presentation is a pure function of the coordinate.
+  const frontierRadius = botFrontierRadiusForCursor(10)
+  for (let y = -frontierRadius; y <= frontierRadius; y += 1) {
+    for (let x = -frontierRadius; x <= frontierRadius; x += 1) {
+      const seed = settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius })
+      assert.equal(seed, settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius }))
+      const structural = botVillageSeedAt({ x, y }, 0)
+      if (isWildernessPreserveAt(x, y)) {
+        assert.equal(seed, null, `preserve (${x},${y}) must stay wilderness`)
+      } else if (structural !== null) {
+        assert.equal(seed, structural, `structural clan (${x},${y}) keeps its seed`)
+      } else {
+        assert.equal(typeof seed, 'number', `unclaimed settleable (${x},${y}) presents a fill camp`)
+      }
+    }
+  }
+  // Beyond the frontier the fill camps vanish; structural clans remain.
+  let beyond: { x: number; y: number } | null = null
+  for (let ordinal = 0; beyond === null; ordinal += 1) {
+    const coordinate = coordinateAtAllocationOrdinal(ordinal)
+    if (Math.max(Math.abs(coordinate.x), Math.abs(coordinate.y)) > frontierRadius
+      && !isWildernessPreserveAt(coordinate.x, coordinate.y)
+      && botVillageSeedAt(coordinate, 0) === null) beyond = coordinate
+  }
+  assert.equal(settledFrontierBotVillageSeedAt(beyond, { frontierRadius }), null,
+    'a structural gap beyond the frontier stays open wilderness')
+
+  // Nearest-center-first admission: the free-slot stream and the frontier
+  // cursor merge in ordinal order.
+  const firstSettleableFrom = (start: number) => {
+    let ordinal = start
+    while (!isSpiralSettleable(coordinateAtAllocationOrdinal(ordinal))) ordinal += 1
+    return ordinal
+  }
+  const centralHole = firstSettleableFrom(1)
+  const nearFirst = allocateNextPlayerPlot(createAllocationIndex({ worldId: 'main', nextOrdinal: 40 }), {
+    isOccupied: () => false,
+    releasedSlots: [{ ordinal: centralHole, plotVersion: 5 }]
+  })
+  assert.equal(nearFirst.allocation?.ordinal, centralHole,
+    'a vacated central slot beats the far frontier cursor')
+  assert.equal(nearFirst.allocation?.source, 'RELEASED')
+  assert.equal(nearFirst.allocation?.plotVersion, 5, 'the released fence rides along')
+  assert.equal(nearFirst.index.nextOrdinal, 40, 'central reuse never rewinds or advances the frontier')
+
+  const nearFrontier = firstSettleableFrom(4)
+  const farVsNear = allocateNextPlayerPlot(createAllocationIndex({ worldId: 'main', nextOrdinal: 4 }), {
+    isOccupied: () => false,
+    releasedSlots: [{ ordinal: 600, plotVersion: 9 }]
+  })
+  assert.equal(farVsNear.allocation?.ordinal, nearFrontier,
+    'a far released override never jumps a nearer frontier ring')
+  assert.equal(farVsNear.allocation?.source, 'FRONTIER')
+  assert.deepEqual(farVsNear.consumedReleasedOrdinals, [],
+    'the far slot stays indexed for when the spiral reaches it')
+
+  const tie = allocateNextPlayerPlot(createAllocationIndex({ worldId: 'main', nextOrdinal: centralHole }), {
+    isOccupied: () => false,
+    releasedSlots: [{ ordinal: centralHole, plotVersion: 7 }]
+  })
+  assert.equal(tie.allocation?.ordinal, centralHole)
+  assert.equal(tie.allocation?.source, 'RELEASED', 'a tie prefers the released row and its fence')
+  assert.equal(tie.allocation?.plotVersion, 7)
+  assert.ok(tie.index.nextOrdinal > centralHole, 'a slot on the cursor also advances the cursor')
+
+  // The one-time model-upgrade helper enumerates exactly the settleable
+  // ordinals below the cursor, and refuses giant imported frontiers.
+  const holes = spiralHoleOrdinalsBelowCursor({ nextOrdinal: 30 })
+  const expectedHoles: number[] = []
+  for (let ordinal = 0; ordinal < 30; ordinal += 1) {
+    if (isSpiralSettleable(coordinateAtAllocationOrdinal(ordinal))) expectedHoles.push(ordinal)
+  }
+  assert.deepEqual(holes, expectedHoles)
+  assert.ok(expectedHoles.length < 30, 'the fixture window really contains preserve holes')
+  assert.deepEqual(spiralHoleOrdinalsBelowCursor({ nextOrdinal: 26_000 }), [],
+    'an oversized imported frontier skips the backfill scan')
+
+  // Claim-replaces-bot: fresh-world admission walks the spiral strictly in
+  // order and settles bot-classified ordinals too — the settled-frontier camp
+  // at a coordinate exists only until its ordinal is handed out.
+  let admissionIndex = createAllocationIndex({ worldId: 'main' })
+  const settledCoordinates = new Set<string>()
+  const settledOrdinals: number[] = []
+  let sawBotClassified = false
+  for (let step = 0; step < 12; step += 1) {
+    const result = allocateNextPlayerPlot(admissionIndex, {
+      isOccupied: candidate => settledCoordinates.has(`${candidate.coordinate.x},${candidate.coordinate.y}`)
+    })
+    assert.ok(result.allocation)
+    settledCoordinates.add(`${result.allocation.coordinate.x},${result.allocation.coordinate.y}`)
+    settledOrdinals.push(result.allocation.ordinal)
+    if (classifyPlot(result.allocation.coordinate, 1).kind === 'BOT') sawBotClassified = true
+    admissionIndex = result.index
+  }
+  const expectedOrder: number[] = []
+  for (let ordinal = 0; expectedOrder.length < 12; ordinal += 1) {
+    if (isSpiralSettleable(coordinateAtAllocationOrdinal(ordinal))) expectedOrder.push(ordinal)
+  }
+  assert.deepEqual(settledOrdinals, expectedOrder,
+    'admission is the closed-form spiral order over settleable ordinals')
+  assert.ok(sawBotClassified,
+    'the dense center includes bot-classified ordinals that admission settles')
+}
+
 // Guest leases expire exactly at their deadline, renew only while active, and promote in place.
 {
   const lease = createGuestPlotLease({ leaseId: 'lease-1', now: 1_000, ttlMs: 100 })
@@ -270,11 +417,25 @@ import {
     assignedAt: 1_000,
     lease
   })
+  // Spiral settlement makes bot-classified land claimable — the claim
+  // replaces the generated camp; only preserves refuse a village.
   const botRegion = regionAddressForPlot({ worldId: 'main', generationVersion: 1, coordinate: { x: 1, y: 0 } })
-  assert.throws(() => createPlotClaim({
+  assert.equal(classifyPlot({ x: 1, y: 0 }, 1).kind, 'BOT')
+  const campClaim = createPlotClaim({
     coordinate: { x: 1, y: 0 },
     region: botRegion,
     ownerId: 'guest-2',
+    plotVersion: 1,
+    assignedAt: 1_000,
+    lease
+  })
+  assert.equal(campClaim.ownerId, 'guest-2')
+  const preserveRegion = regionAddressForPlot({ worldId: 'main', generationVersion: 1, coordinate: { x: 2, y: 2 } })
+  assert.equal(classifyPlot({ x: 2, y: 2 }, 1).kind, 'PRESERVE')
+  assert.throws(() => createPlotClaim({
+    coordinate: { x: 2, y: 2 },
+    region: preserveRegion,
+    ownerId: 'guest-3',
     plotVersion: 1,
     assignedAt: 1_000,
     lease
@@ -292,4 +453,4 @@ import {
   assert.throws(() => promoteGuestPlotClaim(claim, 1_100), /cannot be promoted/)
 }
 
-console.log('world domain: compatibility, allocation, windows, and leases passed')
+console.log('world domain: compatibility, spiral settlement, allocation, windows, and leases passed')

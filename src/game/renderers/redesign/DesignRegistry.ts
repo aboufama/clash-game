@@ -11,13 +11,13 @@ import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
  * original vector art was restored as canonical — mortar no longer routes
  * through this registry.)
  *
- * LIVE ROUND (2026-07-18): `deadwood` — the wilderness archetype — is a
- * 2-variant redesign (slots A/B). Its old composition is stubbed out of
- * WildernessRenderer's ARCHETYPES table, which now delegates to
- * activeDesign('deadwood') and paints a neutral placeholder while no slot is
- * filled. Isolated artist agents fill only the slots requested for a round.
- * An A-first fallback is only a deterministic preview choice, never a winner
- * designation. Rules:
+ * The deadwood round is FINISHED (2026-07-18): design A "The Wind Road" won
+ * the 2-variant wilderness-archetype round and was promoted to canonical —
+ * WildernessRenderer's 'deadwood' ARCHETYPES entry calls deadwoodDesignA
+ * directly (see ./DeadwoodA.ts); design B was rejected and removed. No round
+ * is currently live. Isolated artist agents fill only the slots requested
+ * for a round. An A-first fallback is only a deterministic preview choice,
+ * never a winner designation. Rules:
  *  - Each artist inserts EXACTLY ONE import on their pre-seeded
  *    `// IMPORT <unit> <slot>` anchor line below, and replaces EXACTLY ONE
  *    `null` on their `// SLOT <unit> <slot>` anchor line with the imported fn.
@@ -38,8 +38,9 @@ import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
 // (cannon was PROMOTED: design B won the tournament and is now the canonical
 //  implementation, called directly by BuildingRenderer.drawCannon* — see
 //  ./CannonB.ts. It no longer routes through this registry.)
-import { deadwoodDesignA } from './DeadwoodA'; // IMPORT deadwood A
-import { drawDeadwoodB } from './DeadwoodB'; // IMPORT deadwood B
+// (deadwood was PROMOTED: design A "The Wind Road" won and is called
+//  directly by WildernessRenderer's ARCHETYPES entry — see ./DeadwoodA.ts.
+//  It no longer routes through this registry.)
 // ===== PARAMS namespace imports — the per-slot bake-param override channel =====
 // (see DesignBakeParams below). The optional `PARAMS` export is read lazily
 // off these namespace objects at designBakeParams() call time, so a module
@@ -97,19 +98,12 @@ export type WildernessDesignFn = (ctx: WildernessPlotCtx, put: WildernessPut) =>
 
 export type DesignSlotId = 'A' | 'B' | 'C';
 
-/** Extend this interface when a new unresolved tournament begins. */
-export interface DesignSlots {
-    /** 2-variant wilderness-archetype redesign round (A/B). */
-    deadwood: Partial<Record<DesignSlotId, WildernessDesignFn | null>>;
-}
+/** Extend this interface when a new unresolved tournament begins.
+ *  (Empty: no live round — deadwood resolved with A promoted.) */
+export interface DesignSlots {}
 export type DesignUnit = keyof DesignSlots;
 
-export const DESIGN_SLOTS: DesignSlots = {
-    deadwood: {
-        A: deadwoodDesignA, // SLOT deadwood A
-        B: drawDeadwoodB, // SLOT deadwood B
-    },
-};
+export const DESIGN_SLOTS: DesignSlots = {};
 
 /** Death slots are separate so ordinary troop designs cannot accidentally
  * claim terminal art. No current unit has tournament-specific death art. */
@@ -219,7 +213,6 @@ export function designBakeParams(unit: string, slot: DesignSlotId): DesignBakePa
  * slot is filled. SSR/test safe: any environment without a usable
  * `window.localStorage` just uses the fallback order.
  */
-export function activeDesign(unit: 'deadwood'): WildernessDesignFn | null;
 export function activeDesign(unit: string): AnyDesignFn | null;
 export function activeDesign(unit: string): AnyDesignFn | null {
     const slots = designSlotsFor(unit);
