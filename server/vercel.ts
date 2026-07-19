@@ -1,3 +1,4 @@
+// Build this entrypoint to api/[...path].mjs for Vercel's Node runtime.
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createApiMiddleware } from '../server/node-adapter'
 import {
