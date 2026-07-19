@@ -16,11 +16,12 @@ import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
  * WildernessRenderer's 'deadwood' ARCHETYPES entry calls deadwoodDesignA
  * directly (see ./DeadwoodA.ts); design B was rejected and removed.
  *
- * LIVE ROUND (2026-07-19): the owner reopened BOTH faction barracks as a
- * 2-variant redesign tournament — units `barracks` (Mechanica) and
- * `mystic_barracks`, slots A/B, shape BuildingDesignFn. The old canonical
- * bodies were stubbed out of FactionBarracksRenderer (clean-room); the
- * delegator there resolves activeDesign(unit) per draw.
+ * The faction-barracks round is FINISHED (2026-07-19): the owner approved
+ * both clean-room rebuilds — 'Foundry Bastion' (`barracks` A, see
+ * ./BarracksA.ts) and 'Athenaeum of War' (`mystic_barracks` A, see
+ * ./Mystic_barracksA.ts) — and both were promoted to canonical:
+ * FactionBarracksRenderer calls the winners directly, and neither unit
+ * routes through this registry anymore.
  *
  * Isolated artist agents fill only the slots requested
  * for a round. An A-first fallback is only a deterministic preview choice,
@@ -48,11 +49,10 @@ import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
 // (deadwood was PROMOTED: design A "The Wind Road" won and is called
 //  directly by WildernessRenderer's ARCHETYPES entry — see ./DeadwoodA.ts.
 //  It no longer routes through this registry.)
-import { drawBarracksA } from './BarracksA'; // IMPORT barracks A
-// IMPORT barracks B — retired: the owner wants ONE design per barracks; the
-// half-finished B draft (its designer was killed by a session limit) was removed.
-import { drawMysticBarracksA } from './Mystic_barracksA'; // IMPORT mystic_barracks A
-// IMPORT mystic_barracks B
+// (barracks and mystic_barracks were PROMOTED: designs A won — 'Foundry
+//  Bastion' (./BarracksA.ts) and 'Athenaeum of War' (./Mystic_barracksA.ts) —
+//  and are called directly by FactionBarracksRenderer.drawFactionBarracks.
+//  They no longer route through this registry.)
 // ===== PARAMS namespace imports — the per-slot bake-param override channel =====
 // (see DesignBakeParams below). The optional `PARAMS` export is read lazily
 // off these namespace objects at designBakeParams() call time, so a module
@@ -137,23 +137,11 @@ export type WildernessDesignFn = (ctx: WildernessPlotCtx, put: WildernessPut) =>
 
 export type DesignSlotId = 'A' | 'B' | 'C';
 
-/** Extend this interface when a new unresolved tournament begins.
- *  (Live: the 2-variant faction-barracks redesign round, slots A/B.) */
-export interface DesignSlots {
-    barracks: { A: BuildingDesignFn | null; B: BuildingDesignFn | null };
-    mystic_barracks: { A: BuildingDesignFn | null; B: BuildingDesignFn | null };
-}
+/** Extend this interface when a new unresolved tournament begins. */
+export interface DesignSlots {}
 export type DesignUnit = keyof DesignSlots;
 
 export const DESIGN_SLOTS: DesignSlots = {
-    barracks: {
-        A: drawBarracksA, // SLOT barracks A
-        B: null, // SLOT barracks B (intentionally empty — one design per unit)
-    },
-    mystic_barracks: {
-        A: drawMysticBarracksA, // SLOT mystic_barracks A
-        B: null, // SLOT mystic_barracks B
-    },
 };
 
 /** Death slots are separate so ordinary troop designs cannot accidentally

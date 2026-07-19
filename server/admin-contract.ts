@@ -1,4 +1,5 @@
 import type { Awaitable } from './runtime/contracts'
+import type { PublicWorldSnapshot } from './protocol'
 
 /** Shared, secret-free transport contract for the operator portal. */
 export type AdminAccessState = 'active' | 'suspended' | 'banned'
@@ -48,6 +49,11 @@ export interface AdminPlayerSummary {
   world: { worldId: string; x: number; y: number; plotVersion: number } | null
 }
 
+/** Read-only village presentation safe to render in the operator portal. */
+export interface AdminVillageSnapshot extends PublicWorldSnapshot {
+  stoneMaturity: number
+}
+
 export interface AdminPlayerDetail extends AdminPlayerSummary {
   resources: { gold: number; ore: number; food: number }
   revisions: { profile: number; economy: number; layout: number; appearance: number }
@@ -59,6 +65,8 @@ export interface AdminPlayerDetail extends AdminPlayerSummary {
   activeAttacks: number
   moderationReason: string | null
   moderationUpdatedAt: number | null
+  /** Null only when the account has no complete authoritative village row. */
+  village: AdminVillageSnapshot | null
 }
 
 export interface AdminBotSummary {

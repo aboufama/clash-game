@@ -363,7 +363,7 @@ contract — never a global renderer setting:
 
 ### Canonical roster gate (2026-07-18)
 
-The committed normal bank is exactly **33,443 frames / 94 manifests**:
+The committed normal bank is exactly **33,483 frames / 94 manifests**:
 
 - 7,913 building frames across 19 manifests
 - 21,168 troop frames across 20 manifests
@@ -380,7 +380,7 @@ are canonical plain-unit bakes. Quartermaster, Frostfall, the Biopunk faction
 and Barracks, Needleback, Razorwing Harpy, Vat Brute, Apex Chimera, Rift Djinn,
 Spore Lobber, and Mantis Stalker are fully removed. A separately counted death
 bank contributes 3,888 frames across six canonical large-troop manifests. The
-strict full gate is **37,331 frames / 100 manifests**. The regression pins
+strict full gate is **37,371 frames / 100 manifests**. The regression pins
 counts and presence/absence rules.
 
 ## Keep, don't touch

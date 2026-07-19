@@ -12,22 +12,24 @@ import type Phaser from 'phaser';
  * the door onto the lawn (sibling DNA with the Mechanica barracks: tall-keep
  * proportions, door-apron muster strip, west-corner banner mount).
  *
- * LEVEL LANGUAGE (9 distinct steps):
+ * LEVEL LANGUAGE (9 distinct steps). THE SIZE CAP: L5 is the LARGEST the
+ * building ever gets — every mass term clamps at its L5 value (sz below) and
+ * L6-9 evolve through material, palette and finish quality only:
  *   L1  plastered limestone shell, corner pilasters, low-floating capstone
  *   L2  fluted tetrastyle columns on the door face + meander frieze
  *   L3  second tier (the scriptorium drum) w/ glowing spell-slits + oculus
  *   L4  flames & runes turn VIOLET; full broken pediment + floating gem
- *   L5  colonnade wraps the SE face; laurel course on the tier edge
- *   L6  taller drum, third window, outer halo ring joins the rune-ring
- *   L7  third tier (the tholos) — flames & runes burn WHITE-GOLD
- *   L8  Mastery: warm sandstone toning, gold meander line, acroteria
+ *   L5  colonnade wraps the SE face — MAX MASS
+ *   L6  polished veined marble (brighter toned palette), burnished bronze door
+ *   L7  flames, runes & gem burn WHITE-GOLD
+ *   L8  Mastery: warm sandstone toning + gold meander line
  *   L9  Mastery max: sandstone + gold/white ACCENTS only — gilded rakes,
- *       gold orb, laurel roundel, gilded capitals. Marble stays toned.
+ *       gold orb + roundel, gilded capitals. Marble stays toned.
  *
  * AMBIENT CONTRACT — ONE exact period P = 2000 ms (250 ms multiple):
  *   - rune-ring advances exactly 2π/8 per P (8 identical runes → the frame
  *     at t+P is pixel-identical to t: a hard-closed loop)
- *   - capstone bob: sin(2π·t/P), ±(1.7..2.7) px  (≥1.5 px everywhere)
+ *   - capstone bob: sin(2π·t/P), ±(1.7..2.2) px  (≥1.5 px everywhere)
  *   - brazier flames: k=2 and k=3 harmonics, lick amplitude ≥1.6 px
  *   - rune/band/window glows: k=2 harmonic, ≥16/255 RGB swing
  *   - rising "training pulse" glint: sawtooth over P whose alpha is 0 at
@@ -68,6 +70,8 @@ export function drawMysticBarracksA(
 ): void {
     const level = Math.max(1, Math.min(9, Math.round(Number(building?.level) || 1)));
     const doorOpen = Math.max(0, Math.min(1, Number(building?.doorOpen) || 0));
+    // THE SIZE CAP — L5 is the largest envelope; L6-9 clamp every mass term.
+    const sz = Math.min(level, 5);
 
     // ---- the pulse clock -------------------------------------------------
     const P = PULSE_MS;
@@ -102,10 +106,16 @@ export function drawMysticBarracksA(
     const sandstone = level >= 8;
     const M = sandstone
         ? { lit: 0xc9c2ae, dark: 0xa2977c, top: 0xdcd3ba, colLit: 0xd4cbb4, colDark: 0xb0a488, seam: 0x8a8068, frieze: 0xb5aa8e }
-        : level >= 3
-            ? { lit: 0xc2b9a4, dark: 0x9a9280, top: 0xd4ccb8, colLit: 0xcdc5b0, colDark: 0xa79f8c, seam: 0x807868, frieze: 0xaba28e }
-            : { lit: 0xb3ab99, dark: 0x8f8778, top: 0xc4bcab, colLit: 0xbeb6a4, colDark: 0x9a9280, seam: 0x767061, frieze: 0xa0977f };
-    const BR = { face: 0x7c5a2c, lit: 0x9a7438, band: 0x54401e, shade: 0x6a4c24 };
+        : level >= 6
+            // L6-7 finish step: polished veined marble — brighter but TONED.
+            ? { lit: 0xcfc8b6, dark: 0xa7a08e, top: 0xe1dbcb, colLit: 0xdad4c2, colDark: 0xb5ad99, seam: 0x8b8475, frieze: 0xb8af99 }
+            : level >= 3
+                ? { lit: 0xc2b9a4, dark: 0x9a9280, top: 0xd4ccb8, colLit: 0xcdc5b0, colDark: 0xa79f8c, seam: 0x807868, frieze: 0xaba28e }
+                : { lit: 0xb3ab99, dark: 0x8f8778, top: 0xc4bcab, colLit: 0xbeb6a4, colDark: 0x9a9280, seam: 0x767061, frieze: 0xa0977f };
+    // Bronze door: burnished (brighter) finish from L6.
+    const BR = level >= 6
+        ? { face: 0x8d6a34, lit: 0xb18a46, band: 0x5c4622, shade: 0x785a2c }
+        : { face: 0x7c5a2c, lit: 0x9a7438, band: 0x54401e, shade: 0x6a4c24 };
     const gold = 0xdaa520;
     const goldLite = 0xffd700;
     // Flame tier: blue → violet → white-gold.
@@ -115,33 +125,29 @@ export function drawMysticBarracksA(
             ? { core: 0xf1e9ff, body: 0x9f7dff, deep: 0x6644cc, glow: 0xb79bff }
             : { core: 0xe2f6ff, body: 0x59c2ff, deep: 0x2a6fd6, glow: 0x7fd4ff };
 
-    // ---- massing (TALL and compact) --------------------------------------
+    // ---- massing (TALL and compact; every term clamps at its L5 value) ----
     const S = 0.52;                                   // tier-1 inset (narrow!)
     const b3 = lerp(c3, S);
     const b4 = lerp(c4, S);
     const baseH = 3.2;                                // two-step stylobate
-    const t1H = 38 + level * 1.3;                     // the tall shaft
+    const t1H = 38 + sz * 1.3;                        // the tall shaft
     const hasT2 = level >= 3;
     const t2s = 0.38;
-    const t2H = hasT2 ? 7 + (level - 3) * 1.5 : 0;
-    const hasT3 = level >= 7;
-    const t3s = 0.27;
-    const t3H = hasT3 ? 6 + (level - 7) * 1.8 : 0;
+    const t2H = hasT2 ? 7 + (sz - 3) * 1.5 : 0;
     const t1top = baseH + t1H;
     const t2top = t1top + t2H;
-    const t3top = t2top + t3H;
-    const topSc = hasT3 ? t3s : hasT2 ? t2s : S;
+    const topSc = hasT2 ? t2s : S;
     const crownH = 1.8;                               // small pad under the gap
-    const stackTop = (hasT3 ? t3top : hasT2 ? t2top : t1top) + crownH;
-    const gap = 6.5 + level * 0.9;                    // levitation air gap
-    const bob = (1.6 + level * 0.12) * ph(1);         // ±1.7 .. ±2.7 px
-    const capS = hasT3 ? 0.28 : hasT2 ? 0.32 : 0.36;  // capstone slab inset
+    const stackTop = (hasT2 ? t2top : t1top) + crownH;
+    const gap = 6.5 + sz * 0.9;                       // levitation air gap
+    const bob = (1.6 + sz * 0.12) * ph(1);            // ±1.7 .. ±2.2 px
+    const capS = hasT2 ? 0.32 : 0.36;                 // capstone slab inset
     const capW = 64 * capS;                           // capstone half-width px
     const Rr = capW + 4.5;                            // rune-ring radius
 
     // Door metrics (used by base apron too). A TALL bronze portal.
-    const doorHw = 5.2 + level * 0.1;
-    const doorH = 15.5 + level * 0.7;
+    const doorHw = 5.2 + sz * 0.1;
+    const doorH = 15.5 + sz * 0.7;
     const dX = (b3[0] + b4[0]) / 2;
     const dY = (b3[1] + b4[1]) / 2;
     const sk = (b3[1] - b4[1]) / (b3[0] - b4[0]);     // SW face slope (~0.5)
@@ -190,14 +196,6 @@ export function drawMysticBarracksA(
         g.moveTo(ap1[0], ap1[1]);
         g.lineTo(ap2[0], ap2[1]);
         g.strokePath();
-        // A worn mid-line — feet have crossed it ten thousand times.
-        g.lineStyle(1, 0x8f8774, alpha * 0.5);
-        const am1 = dpOut(-10.4, 0, 7.5);
-        const am2 = dpOut(10.4, 0, 7.5);
-        g.beginPath();
-        g.moveTo(am1[0], am1[1]);
-        g.lineTo(am2[0], am2[1]);
-        g.strokePath();
     }
     if (onlyBase) return;
 
@@ -224,9 +222,10 @@ export function drawMysticBarracksA(
         const e4 = lerp(c4, sc);
         quad(graphics, [up(e2, y0), up(e3, y0), up(e3, y0 + h), up(e2, y0 + h)], M.dark, alpha);
         quad(graphics, [up(e3, y0), up(e4, y0), up(e4, y0 + h), up(e3, y0 + h)], M.lit, alpha);
-        // Marble coursing seams.
-        graphics.lineStyle(1, M.seam, alpha * 0.32);
-        for (const f of [0.30, 0.58, 0.82]) {
+        // Marble coursing seams (kept sparse — two courses read as scale
+        // without turning the shaft noisy).
+        graphics.lineStyle(1, M.seam, alpha * 0.28);
+        for (const f of [0.36, 0.68]) {
             const hh = y0 + h * f;
             graphics.lineBetween(e4[0], e4[1] - hh, e3[0], e3[1] - hh);
             graphics.lineBetween(e3[0], e3[1] - hh, e2[0], e2[1] - hh);
@@ -264,7 +263,7 @@ export function drawMysticBarracksA(
     const frieze = (A: Pt, B: Pt, yTop: number): void => {
         const hBand = 4.2;
         quad(graphics, [up(A, yTop - hBand), up(B, yTop - hBand), up(B, yTop), up(A, yTop)], M.frieze, alpha);
-        const n = 9;
+        const n = 7;
         for (let i = 0; i < n; i++) {
             const t = (i + 0.5) / n;
             const q = mixPt(A, B, t);
@@ -272,8 +271,10 @@ export function drawMysticBarracksA(
             graphics.fillStyle(i % 2 === 0 ? M.seam : M.top, alpha * 0.85);
             graphics.fillRect(q[0] - 0.9, q[1] - y - 0.9, 1.8, 1.8);
         }
-        if (sandstone) {
-            graphics.lineStyle(1, gold, alpha * 0.9);
+        // Accent line under the band — the finish ladder: none → burnished
+        // bronze (L6-7) → gold (Mastery).
+        if (sandstone || level >= 6) {
+            graphics.lineStyle(1, sandstone ? gold : BR.lit, alpha * 0.9);
             graphics.lineBetween(A[0], A[1] - yTop + 0.7, B[0], B[1] - yTop + 0.7);
         }
     };
@@ -300,27 +301,11 @@ export function drawMysticBarracksA(
         column(b2, b3, 0.52, 1.6, colY, colH, false);
         column(b2, b3, 0.82, 1.6, colY, colH, false);
     }
-    // SE spell-slit window (glows faintly) from L3.
-    if (level >= 3) {
-        const wq = mixPt(b2, b3, 0.68);
-        const wy = baseH + t1H * 0.55;
-        quad(graphics, [up([wq[0] - 1, wq[1]], wy), up([wq[0] + 1, wq[1]], wy), up([wq[0] + 1, wq[1]], wy + 7), up([wq[0] - 1, wq[1]], wy + 7)], 0x1a1626, alpha);
-        graphics.fillStyle(F.glow, alpha * (0.38 + 0.11 * ph(2, 0.6)));
-        graphics.fillRect(wq[0] - 0.5, wq[1] - wy - 6.5, 1, 6);
-    }
-    // Meander frieze above the columns (from L2).
+    // Meander frieze above the columns (from L2) — THE signature band; the
+    // tower's glow-slits live on tier 2 only, keeping the shaft calm.
     if (level >= 2) {
         frieze(b4, b3, baseH + t1H - 0.8);
         frieze(b3, b2, baseH + t1H - 0.8);
-    }
-    // Laurel course dots along the tier-1 SW eave from L5.
-    if (level >= 5) {
-        const lc = level >= 9 ? gold : 0x74936c;
-        for (let k = 0; k <= 10; k++) {
-            const q = mixPt(up(b4, t1top + 0.8), up(b3, t1top + 0.8), k / 10);
-            graphics.fillStyle(lc, alpha * 0.9);
-            graphics.fillCircle(q[0], q[1] + (k % 2 === 0 ? 0 : 0.7), 0.9);
-        }
     }
     tierTop(S, t1top);
 
@@ -330,16 +315,8 @@ export function drawMysticBarracksA(
     // Marble surround + architrave.
     quad(graphics, [dp(-(doorHw + 1.6), doorB - 0.4), dp(doorHw + 1.6, doorB - 0.4), dp(doorHw + 1.6, doorT + 1.0), dp(-(doorHw + 1.6), doorT + 1.0)], M.colLit, alpha);
     quad(graphics, [dp(-(doorHw + 2.6), doorT + 1.0), dp(doorHw + 2.6, doorT + 1.0), dp(doorHw + 2.6, doorT + 3.4), dp(-(doorHw + 2.6), doorT + 3.4)], M.frieze, alpha);
-    // Mini meander dots across the door architrave (from L2 — the Greek-key
-    // lintel of the brief; sandstone tiers gild the line above it).
-    if (level >= 2) {
-        for (let i = 0; i < 5; i++) {
-            const t = (i + 0.5) / 5;
-            const q = dp(-(doorHw + 2.0) + t * (doorHw + 2.0) * 2, doorT + 2.2);
-            graphics.fillStyle(i % 2 === 0 ? M.seam : M.top, alpha * 0.9);
-            graphics.fillRect(q[0] - 0.8, q[1] - 0.8, 1.6, 1.6);
-        }
-    }
+    // (The architrave stays plain — the big meander frieze above owns the
+    // Greek-key motif; duplicating it here read as noise.)
     if (sandstone) {
         graphics.lineStyle(1, gold, alpha * 0.9);
         const ga = dp(-(doorHw + 2.6), doorT + 3.2);
@@ -432,17 +409,17 @@ export function drawMysticBarracksA(
         graphics.fillCircle(pex + 1.6 + sway * 0.35, pey + 4.6, 0.8);
     }
 
-    // ---- TIER 2 — the scriptorium drum (L3+) -----------------------------
+    // ---- TIER 2 — the scriptorium drum (L3+; growth frozen at L5) --------
     if (hasT2) {
         tierWalls(t2s, t1top, t2H);
-        const q2 = lerp(c2, t2s);
         const q3 = lerp(c3, t2s);
         const q4 = lerp(c4, t2s);
         // Corner pilasters.
         column(q4, q3, 0.09, 1.3, t1top + 0.8, t2H - 2.2, true);
         column(q4, q3, 0.91, 1.3, t1top + 0.8, t2H - 2.2, true);
-        // Spell-slit windows, glowing with the pulse.
-        const slits = level >= 6 ? [0.30, 0.50, 0.70] : [0.34, 0.66];
+        // TWO spell-slit windows, glowing with the pulse — the drum's only
+        // ornament (the SE slit and the L6 third slit were noise).
+        const slits = [0.34, 0.66];
         for (let i = 0; i < slits.length; i++) {
             const q = mixPt(q4, q3, slits[i]);
             const wy = t1top + 2.2;
@@ -451,27 +428,7 @@ export function drawMysticBarracksA(
             graphics.fillStyle(F.glow, alpha * (0.4 + 0.13 * ph(2, 0.6 + i)));
             graphics.fillRect(q[0] - 0.5, q[1] - wy - wh + 0.5, 1, wh - 1);
         }
-        // SE face slit.
-        const qe = mixPt(q2, q3, 0.5);
-        const wy2 = t1top + 2.2;
-        const wh2 = Math.max(3.5, t2H - 4.8);
-        quad(graphics, [up([qe[0] - 1, qe[1]], wy2), up([qe[0] + 1, qe[1]], wy2), up([qe[0] + 1, qe[1]], wy2 + wh2), up([qe[0] - 1, qe[1]], wy2 + wh2)], 0x161222, alpha);
-        graphics.fillStyle(F.glow, alpha * (0.3 + 0.1 * ph(2, 2.1)));
-        graphics.fillRect(qe[0] - 0.5, qe[1] - wy2 - wh2 + 0.5, 1, wh2 - 1);
         tierTop(t2s, t2top);
-    }
-
-    // ---- TIER 3 — the tholos (L7+) ---------------------------------------
-    if (hasT3) {
-        tierWalls(t3s, t2top, t3H);
-        const r3a = lerp(c4, t3s);
-        const r3b = lerp(c3, t3s);
-        const r3c = lerp(c2, t3s);
-        column(r3a, r3b, 0.14, 1.1, t2top + 0.6, t3H - 1.4, true);
-        column(r3a, r3b, 0.86, 1.1, t2top + 0.6, t3H - 1.4, true);
-        column(r3c, r3b, 0.20, 1.1, t2top + 0.6, t3H - 1.4, false);
-        column(r3c, r3b, 0.80, 1.1, t2top + 0.6, t3H - 1.4, false);
-        tierTop(t3s * 1.1, t3top);                    // slight cornice overhang
     }
 
     // ---- crown pad + levitation shadow -----------------------------------
@@ -492,13 +449,9 @@ export function drawMysticBarracksA(
         graphics.strokeEllipse(center.x, center.y - gy, Rr * 2 * sqz, Rr * sqz);
     }
     const ringY = center.y - (stackTop + gap * 0.55);
-    // Band (and the outer halo from L6).
+    // ONE band — the rune-ring itself (the L6 outer halo was clutter).
     graphics.lineStyle(2.2, F.body, alpha * (0.6 + 0.15 * ph(2, 0.3)));
     graphics.strokeEllipse(center.x, ringY, Rr * 2, Rr);
-    if (level >= 6) {
-        graphics.lineStyle(1.1, F.glow, alpha * (0.28 + 0.09 * ph(2, 1.4)));
-        graphics.strokeEllipse(center.x, ringY, Rr * 2 + 7, Rr + 3.5);
-    }
     // Eight identical runes advancing exactly one slot (2π/8) per pulse —
     // the frame at t+P is identical to t, so the loop is hard-closed.
     const rot = u01 * (Math.PI / 4);
@@ -555,7 +508,7 @@ export function drawMysticBarracksA(
         // gem arrive at L4.
         const aFrac = level >= 4 ? 0.38 : 0.44;       // prism share of the edge
         const lowH = 2.2;                             // outer-corner height
-        const pedH = level >= 4 ? 6.5 + (level - 4) * 0.6 : 4.2 + level * 0.4;
+        const pedH = level >= 4 ? 6.5 + (sz - 4) * 0.6 : 4.2 + level * 0.4;
         const hiH = lowH + pedH;                      // peak height at the slot
         const m1 = mixPt(k4, k3, aFrac);              // left prism inner edge
         const m1n = mixPt(k1, k2, aFrac);
@@ -570,8 +523,9 @@ export function drawMysticBarracksA(
         quad(graphics, [PT(k3, 0), PT(k2, 0), PT(k2, lowH), PT(k3, lowH)], M.dark, alpha);
         quad(graphics, [PT(m2, hiH), PT(k3, lowH), PT(k2, lowH), PT(m2n, hiH)], M.top, alpha);
         quad(graphics, [PT(m2, 0), PT(k3, 0), PT(k3, lowH), PT(m2, hiH)], M.lit, alpha);
-        // Raking cornices up the SW faces (gilded on the Mastery tiers).
-        graphics.lineStyle(1.1, sandstone ? gold : M.seam, alpha * 0.95);
+        // Raking cornices up the SW faces — the crown's material ladder:
+        // stone → burnished bronze (L6-7) → gold (Mastery).
+        graphics.lineStyle(1.1, sandstone ? gold : level >= 6 ? BR.lit : M.seam, alpha * 0.95);
         graphics.lineBetween(k4[0], k4[1] - capTop - lowH, m1[0], m1[1] - capTop - hiH);
         graphics.lineBetween(m2[0], m2[1] - capTop - hiH, k3[0], k3[1] - capTop - lowH);
         // Inner cut edges of the slot.
@@ -597,17 +551,11 @@ export function drawMysticBarracksA(
                 graphics.fillCircle(gm[0], gemY, 0.9);
             }
         }
-        // Acroteria on the twin peaks (Mastery tiers).
-        if (level >= 8) {
-            graphics.fillStyle(goldLite, alpha);
-            graphics.fillCircle(m1[0], m1[1] - capTop - hiH - 0.8, 1.1);
-            graphics.fillCircle(m2[0], m2[1] - capTop - hiH - 0.8, 1.1);
-        }
     }
 
     // ---- BRAZIERS — arcane flames flanking the door ----------------------
     const brazier = (side: number, phase: number): void => {
-        const s = 0.82 + level * 0.045;
+        const s = 0.82 + sz * 0.045;
         const base = dpOut(side * (doorHw + 8), 0, 8);
         const bx = base[0];
         const by = base[1];

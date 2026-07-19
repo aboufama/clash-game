@@ -179,9 +179,10 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   Quartermaster and Frostfall were removed end-to-end; the earlier
   ward/recursion/giant/sharpshooter, pavisebearer/hawkeyeassassin and
   musket_ball deletions remain self-cleaning for old saves/replays. The
-  packed normal bank is now exactly **33,443 frames / 94 manifests**. The
-  death bank contributes another 3,888 frames / 6 manifests, bringing the
-  strict full gate to **37,331 / 100**.
+  packed normal bank is now exactly **33,483 frames / 94 manifests** (after
+  the promoted 'Foundry Bastion' barracks rebake, +36 frames, and the mortar
+  wreck redesign, +4). The death bank contributes another 3,888 frames /
+  6 manifests, bringing the strict full gate to **37,371 / 100**.
 - **DONE — Army Camp Core + two troop paths (2026-07-18):** the trainable
   roster is **18 troops**. Core unlocks from the highest completed online Army
   Camp: `warrior` (displayed as Barbarian) L1, `archer` L2,
@@ -206,11 +207,20 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   fuse (stored v5 keeps 1,000 ms). See
   `src/game/config/TROOP_FACTION_ARCHITECTURE.md`.
 - **DONE — persistent procedural bot villages (2026-07-19):** bot layouts are
-  never synthesized by a client or reconstructed at attack start. The fresh
-  server-only generator (`server/domain/world/procedural-village.ts`) drafts
-  3–4 closed, separately leveled wall compartments and heterogeneous defenses
-  across established/strong/elite/fortress/extreme bands; only 8% are the
-  lowest band. Provisioning commits the complete village to `bot_villages`
+  never synthesized by a client or reconstructed at attack start. The
+  server-only generator (`server/domain/world/procedural-village.ts`, v2
+  2026-07-19) rolls CoC-style wall COMPLEXES per seed — 1–3 rectangular
+  loops sized from the band's wants-inside footprint, optional open
+  curtain-wall runs stitching loops together, full internal dividing walls
+  (sealed cells) at high bands, per-loop/per-side wall levels — then derives
+  compartments by flood fill and sites defenses by marginal range coverage
+  (real `range`/`minRange`, mortar blind spots respected), storages as
+  guarded shields, and the economy/military skirt hugging the walls outside,
+  spread by angle. NO symmetry — deliberately. Bands scale topology +
+  placement discipline (established sloppy/small, extreme tight/subdivided)
+  across established/strong/elite/fortress/extreme; only 8% are the
+  lowest band. A version bump regenerates persisted camps in place
+  (`ensurePersistedBotVillage`). Provisioning commits the complete village to `bot_villages`
   (PostgreSQL migration 13) or `bot-villages/` (legacy JSON) before map/attack
   consumers can see it. Player claims hide rather than erase the durable bot;
   it resurfaces with the same ID/revision when the plot is released. Map

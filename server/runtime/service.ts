@@ -24,6 +24,7 @@ import {
   type VillageBanner
 } from '../../src/game/data/Models'
 import {
+  VILLAGE_SIMULATION_VERSION,
   VillageRuleError,
   populationCapacity,
   priceVillageMutation,
@@ -53,7 +54,8 @@ import type {
   AdminOverview,
   AdminPlayerActionRequest,
   AdminPlayerDetail,
-  AdminPlayerSummary
+  AdminPlayerSummary,
+  AdminVillageSnapshot
 } from '../admin-contract'
 import type {
   AccountRecord,
@@ -86,6 +88,8 @@ import type {
 import { randomId } from './ids'
 import {
   MAX_PLAYER_GOLD,
+  hasUnsupportedVillageArmy,
+  hasUnsupportedVillageBuildings,
   materializeVillage,
   publicWorldOf,
   serializedWorldOf,
@@ -370,7 +374,22 @@ function adminPlayerSummaryOf(row: AdminPlayerRecord, now: Date): AdminPlayerSum
   }
 }
 
-function adminPlayerDetailOf(row: AdminPlayerRecord, now: Date): AdminPlayerDetail {
+function adminVillageSnapshotOf(
+  account: AccountRecord,
+  village: VillageRecord,
+  now: Date
+): AdminVillageSnapshot {
+  return {
+    ...publicWorldOf(account, village),
+    stoneMaturity: stoneMaturityOf(account, now)
+  }
+}
+
+function adminPlayerDetailOf(
+  row: AdminPlayerRecord,
+  now: Date,
+  village: AdminVillageSnapshot | null
+): AdminPlayerDetail {
   const summary = adminPlayerSummaryOf(row, now)
   const army: Record<string, number> = {}
   for (const [type, count] of Object.entries(row.army)) {
@@ -395,7 +414,8 @@ function adminPlayerDetailOf(row: AdminPlayerRecord, now: Date): AdminPlayerDeta
     activeSessions: row.activeSessions,
     activeAttacks: row.activeAttacks,
     moderationReason: row.accessReason,
-    moderationUpdatedAt: row.moderationUpdatedAt?.getTime() ?? null
+    moderationUpdatedAt: row.moderationUpdatedAt?.getTime() ?? null,
+    village
   }
 }
 
@@ -1408,8 +1428,30 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     return this.persistence.transaction(async tx => {
       const player = await tx.admin.getPlayer(id, now)
       if (!player) throw new ApiError(404, 'Player not found', 'ADMIN_PLAYER_NOT_FOUND')
-      return adminPlayerDetailOf(player, now)
-    }, { isolation: 'read committed' })
+      // Fetch the authority rows inside this same read transaction so the
+      // public postcard cannot be paired with a different account revision.
+      // Only publicWorldOf crosses the transport boundary; hashes, sessions,
+      // private economy state and other account internals remain server-only.
+      const account = await tx.accounts.getById(id)
+      const village = account ? await tx.villages.get(id) : null
+      const previewVillage = village ? cloneJson(village) : null
+      if (account && previewVillage && (
+        previewVillage.simulatedThrough.getTime() < now.getTime()
+        || previewVillage.simulationVersion !== VILLAGE_SIMULATION_VERSION
+        || hasUnsupportedVillageBuildings(previewVillage)
+        || hasUnsupportedVillageArmy(previewVillage)
+      )) {
+        materializeVillage(previewVillage, now, {
+          populationLocked: await this.authority.hasActiveIncoming(tx, id),
+          preserveOverCapacity: this.allowDebugGrants
+        })
+      }
+      return adminPlayerDetailOf(
+        player,
+        now,
+        account && previewVillage ? adminVillageSnapshotOf(account, previewVillage, now) : null
+      )
+    }, { isolation: 'repeatable read' })
   }
 
   async adminBots(

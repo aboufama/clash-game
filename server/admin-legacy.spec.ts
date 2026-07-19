@@ -18,6 +18,13 @@ test('legacy JSON runtime provides durable, audited admin parity', () => {
     assert.equal(service.adminOverview().players.total, 1)
     assert.equal(service.adminPlayers('AdminSpec', 10)[0]?.id, playerId)
     assert.deepEqual(service.adminBots(undefined, undefined, 10), [], 'admin reads never synthesize bot villages')
+    const villagePreview = service.adminPlayer(playerId).village
+    assert.ok(villagePreview)
+    assert.equal(villagePreview.ownerId, playerId)
+    assert.equal(villagePreview.username, 'AdminSpecPlayer')
+    assert.equal(villagePreview.buildings.length, session.world.buildings.length)
+    assert.ok(villagePreview.stoneMaturity >= 0 && villagePreview.stoneMaturity <= 1)
+    assert.equal(JSON.stringify(villagePreview).includes('gold'), false)
 
     assert.throws(
       () => service.adminPlayerAction(playerId, { type: 'set_trophies', trophies: 25, reason: 'x' }),

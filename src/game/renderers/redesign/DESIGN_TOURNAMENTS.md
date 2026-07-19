@@ -101,17 +101,22 @@ support:
   removal also deleted Needleback, Razorwing, Vat Brute, Apex Chimera, their
   A/B/C sources and death atlases, plus Rift Djinn's A/B round.
 - The two surviving faction Barracks were canonical single designs by explicit
-  owner direction until 2026-07-19, when the owner reopened BOTH as a live
-  2-variant redesign round: units `barracks` and `mystic_barracks`, slots A/B,
-  shape `BuildingDesignFn`. Their old canonical bodies were stubbed out of
-  `FactionBarracksRenderer.ts` (clean-room; git history holds them for
-  revert-to-old), and the registry carries their A/B anchors.
+  owner direction until 2026-07-19, when the owner reopened BOTH as a
+  2-variant redesign round (units `barracks` and `mystic_barracks`, slots A/B,
+  shape `BuildingDesignFn`; the old canonical bodies were stubbed out of
+  `FactionBarracksRenderer.ts` clean-room, with git history holding them for
+  revert-to-old). The round RESOLVED the same day: the owner approved both
+  A designs from the post-bake showcases — 'Foundry Bastion' (`barracks`,
+  `BarracksA.ts`) and 'Athenaeum of War' (`mystic_barracks`,
+  `Mystic_barracksA.ts`) — and both were promoted to canonical:
+  `FactionBarracksRenderer` calls the winners directly and the round left the
+  registry (the cannon/golem/deadwood precedent).
 
-Apart from the live barracks round above, no unresolved tournament is live in
+No unresolved tournament is live in
 the Design Lab. The resulting
-committed normal sprite bank is exactly **33,443 frames across 94 manifests**.
+committed normal sprite bank is exactly **33,483 frames across 94 manifests**.
 The death bank is **3,888 frames across 6 manifests**, and the strict full gate
-is **37,331 frames across 100 manifests**. `scripts/render-quality-regression.mjs`
+is **37,371 frames across 100 manifests**. `scripts/render-quality-regression.mjs`
 pins both parts exactly.
 
 ## Per-slot bake params — the `PARAMS` export

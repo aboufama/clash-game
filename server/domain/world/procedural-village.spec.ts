@@ -14,12 +14,14 @@ import {
   type ProceduralVillageDifficulty
 } from './procedural-village'
 
-const EXPECTED_ROOMS: Readonly<Record<ProceduralVillageDifficulty, number>> = {
-  established: 3,
+// The wall complex is procedural: 1-3 loops, optionally merged by curtain
+// runs, optionally subdivided. Components are bounded per band, not pinned.
+const EXPECTED_MAX_COMPONENTS: Readonly<Record<ProceduralVillageDifficulty, number>> = {
+  established: 2,
   strong: 3,
   elite: 3,
-  fortress: 4,
-  extreme: 4
+  fortress: 3,
+  extreme: 3
 }
 
 const TROPHY_RANGES: Readonly<Record<ProceduralVillageDifficulty, readonly [number, number]>> = {
@@ -30,7 +32,7 @@ const TROPHY_RANGES: Readonly<Record<ProceduralVillageDifficulty, readonly [numb
   extreme: [3_350, 4_500]
 }
 
-const DIFFICULTIES = Object.keys(EXPECTED_ROOMS) as ProceduralVillageDifficulty[]
+const DIFFICULTIES = Object.keys(EXPECTED_MAX_COMPONENTS) as ProceduralVillageDifficulty[]
 
 function tileKey(x: number, y: number): string {
   return `${x},${y}`
@@ -78,6 +80,66 @@ function wallComponents(walls: readonly SerializedBuilding[]): Array<Array<{ x: 
     components.push(component)
   }
   return components
+}
+
+function componentIsClosedRectangle(component: ReadonlyArray<{ x: number; y: number }>): boolean {
+  const minX = Math.min(...component.map(cell => cell.x))
+  const maxX = Math.max(...component.map(cell => cell.x))
+  const minY = Math.min(...component.map(cell => cell.y))
+  const maxY = Math.max(...component.map(cell => cell.y))
+  const width = maxX - minX + 1
+  const height = maxY - minY + 1
+  return component.length === 2 * width + 2 * height - 4
+    && component.every(cell => cell.x === minX || cell.x === maxX || cell.y === minY || cell.y === maxY)
+}
+
+interface RegionScan {
+  /** tile index -> region id; -1 for exterior, -2 for wall cells */
+  regionOf: Int16Array
+  regionCount: number
+}
+
+/**
+ * Independent geometry oracle: flood the exterior from the border with wall
+ * cells blocking; every pocket that remains is an enclosed region, whether
+ * it came from a loop, an internal dividing wall or a curtain courtyard.
+ */
+function enclosedRegions(wallSet: ReadonlySet<string>): RegionScan {
+  const regionOf = new Int16Array(MAP_SIZE * MAP_SIZE).fill(-3)
+  for (let y = 0; y < MAP_SIZE; y += 1) {
+    for (let x = 0; x < MAP_SIZE; x += 1) {
+      if (wallSet.has(tileKey(x, y))) regionOf[y * MAP_SIZE + x] = -2
+    }
+  }
+  const queue = new Int32Array(MAP_SIZE * MAP_SIZE)
+  const flood = (startIndex: number, mark: number) => {
+    let head = 0
+    let tail = 0
+    regionOf[startIndex] = mark
+    queue[tail++] = startIndex
+    while (head < tail) {
+      const index = queue[head++]
+      const x = index % MAP_SIZE
+      const y = Math.floor(index / MAP_SIZE)
+      const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]] as const
+      for (const [nx, ny] of neighbors) {
+        if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue
+        const neighborIndex = ny * MAP_SIZE + nx
+        if (regionOf[neighborIndex] !== -3) continue
+        regionOf[neighborIndex] = mark
+        queue[tail++] = neighborIndex
+      }
+    }
+  }
+  flood(0, -1)
+  let regionCount = 0
+  for (let index = 0; index < regionOf.length; index += 1) {
+    if (regionOf[index] === -3) {
+      flood(index, regionCount)
+      regionCount += 1
+    }
+  }
+  return { regionOf, regionCount }
 }
 
 function assertFiniteWallPaths(
@@ -199,45 +261,77 @@ function assertWorld(world: SerializedWorld, difficulty: ProceduralVillageDiffic
 
   const walls = world.buildings.filter(building => building.type === 'wall')
   assert.ok(walls.length <= BUILDING_DEFINITIONS.wall.maxCount)
+  assert.ok(walls.length >= 24, `wall complex is too sparse: ${walls.length}`)
   const components = wallComponents(walls)
-  assert.equal(components.length, EXPECTED_ROOMS[difficulty])
-  for (const component of components) {
-    const minX = Math.min(...component.map(cell => cell.x))
-    const maxX = Math.max(...component.map(cell => cell.x))
-    const minY = Math.min(...component.map(cell => cell.y))
-    const maxY = Math.max(...component.map(cell => cell.y))
-    const width = maxX - minX + 1
-    const height = maxY - minY + 1
-    assert.ok(width >= 6 && height >= 6)
-    assert.equal(component.length, 2 * width + 2 * height - 4, 'wall section is not a closed rectangle')
-    assert.ok(component.every(cell => cell.x === minX || cell.x === maxX || cell.y === minY || cell.y === maxY))
-    const guards = world.buildings.filter(building => {
-      if (building.type === 'wall' || BUILDING_DEFINITIONS[building.type].category !== 'defense') return false
-      const definition = BUILDING_DEFINITIONS[building.type]
-      return building.gridX > minX && building.gridY > minY
-        && building.gridX + definition.width - 1 < maxX
-        && building.gridY + definition.height - 1 < maxY
-    })
-    assert.ok(guards.length > 0, `closed compartment ${minX},${minY} has no defense`)
+  assert.ok(
+    components.length >= 1 && components.length <= EXPECTED_MAX_COMPONENTS[difficulty],
+    `unexpected wall component count ${components.length} for ${difficulty}`
+  )
 
-    const clearBreachLane = component.some(cell => {
-      if (cell.x === minX && cell.y > minY && cell.y < maxY) {
-        return !hardBlockers.has(tileKey(cell.x - 1, cell.y)) && !hardBlockers.has(tileKey(cell.x + 1, cell.y))
-      }
-      if (cell.x === maxX && cell.y > minY && cell.y < maxY) {
-        return !hardBlockers.has(tileKey(cell.x + 1, cell.y)) && !hardBlockers.has(tileKey(cell.x - 1, cell.y))
-      }
-      if (cell.y === minY && cell.x > minX && cell.x < maxX) {
-        return !hardBlockers.has(tileKey(cell.x, cell.y - 1)) && !hardBlockers.has(tileKey(cell.x, cell.y + 1))
-      }
-      if (cell.y === maxY && cell.x > minX && cell.x < maxX) {
-        return !hardBlockers.has(tileKey(cell.x, cell.y + 1)) && !hardBlockers.has(tileKey(cell.x, cell.y - 1))
-      }
-      return false
-    })
-    assert.ok(clearBreachLane, `closed compartment ${minX},${minY} has no clear breach lane`)
+  const wallSet = new Set(walls.map(wall => tileKey(wall.gridX, wall.gridY)))
+  const scan = enclosedRegions(wallSet)
+  assert.ok(scan.regionCount >= 1, 'wall complex encloses nothing')
+
+  // The town hall is always behind walls, in exactly one enclosed region.
+  const townHall = world.buildings.find(building => building.type === 'town_hall')
+  assert.ok(townHall)
+  const townHallRegions = new Set(
+    footprint(
+      townHall.gridX,
+      townHall.gridY,
+      BUILDING_DEFINITIONS.town_hall.width,
+      BUILDING_DEFINITIONS.town_hall.height
+    ).map(cell => scan.regionOf[cell.y * MAP_SIZE + cell.x])
+  )
+  assert.equal(townHallRegions.size, 1)
+  assert.ok([...townHallRegions][0] >= 0, 'town hall is outside every enclosed region')
+
+  // No building straddles regions, unguarded pockets hold no civil buildings,
+  // and every enclosed region can be breached through a clear lane.
+  const regionDefenses = new Array<number>(scan.regionCount).fill(0)
+  const regionCivil = new Array<number>(scan.regionCount).fill(0)
+  for (const building of world.buildings) {
+    if (building.type === 'wall') continue
+    const definition = BUILDING_DEFINITIONS[building.type]
+    const regions = new Set(
+      footprint(building.gridX, building.gridY, definition.width, definition.height)
+        .map(cell => scan.regionOf[cell.y * MAP_SIZE + cell.x])
+    )
+    assert.equal(regions.size, 1, `${building.id} straddles a wall`)
+    const region = [...regions][0]
+    if (region < 0) continue
+    if (definition.category === 'defense') regionDefenses[region] += 1
+    else regionCivil[region] += 1
   }
-  assert.ok(new Set(walls.map(wall => wall.level)).size >= 2, 'wall compartments should have heterogeneous levels')
+  for (let region = 0; region < scan.regionCount; region += 1) {
+    if (regionCivil[region] > 0) {
+      assert.ok(regionDefenses[region] > 0, `enclosed region ${region} holds buildings but no defense`)
+    }
+  }
+  for (let region = 0; region < scan.regionCount; region += 1) {
+    let breachable = false
+    for (const wall of walls) {
+      if (breachable) break
+      const pairs = [
+        [[wall.gridX - 1, wall.gridY], [wall.gridX + 1, wall.gridY]],
+        [[wall.gridX, wall.gridY - 1], [wall.gridX, wall.gridY + 1]]
+      ] as const
+      for (const [[aX, aY], [bX, bY]] of pairs) {
+        if (aX < 0 || aY < 0 || aX >= MAP_SIZE || aY >= MAP_SIZE) continue
+        if (bX < 0 || bY < 0 || bX >= MAP_SIZE || bY >= MAP_SIZE) continue
+        const sideA = scan.regionOf[aY * MAP_SIZE + aX]
+        const sideB = scan.regionOf[bY * MAP_SIZE + bX]
+        if (sideA !== region && sideB !== region) continue
+        if (sideA === -2 || sideB === -2) continue
+        if (hardBlockers.has(tileKey(aX, aY)) || hardBlockers.has(tileKey(bX, bY))) continue
+        breachable = true
+        break
+      }
+    }
+    assert.ok(breachable, `enclosed region ${region} has no clear breach lane`)
+  }
+
+  assert.ok(new Set(walls.map(wall => wall.level)).size >= 2, 'wall works should have heterogeneous levels')
   assert.equal(Math.max(...walls.map(wall => wall.level)), world.wallLevel)
 
   const defenses = world.buildings.filter(building => building.type !== 'wall'
@@ -252,7 +346,7 @@ function assertWorld(world: SerializedWorld, difficulty: ProceduralVillageDiffic
   assert.equal(JSON.stringify(roundTrip), JSON.stringify(world))
 }
 
-assert.equal(PROCEDURAL_VILLAGE_GENERATOR_VERSION, 1)
+assert.equal(PROCEDURAL_VILLAGE_GENERATOR_VERSION, 2)
 assert.throws(() => generateProceduralVillage(Number.NaN), /32-bit integer/)
 assert.throws(() => generateProceduralVillage(0x1_0000_0000), /32-bit integer/)
 assert.deepEqual(generateProceduralVillage(-1), generateProceduralVillage(0xffff_ffff))
@@ -274,7 +368,7 @@ const custom = generateProceduralVillage(42, {
 assert.equal(custom.id, 'coordinate:7,-3')
 assert.equal(custom.ownerId, 'bot-owner:7,-3')
 assert.equal(custom.username, 'Test Castellan')
-assert.equal(custom.life?.identity, 'pv1:bot-owner:7,-3')
+assert.equal(custom.life?.identity, 'pv2:bot-owner:7,-3')
 
 const distribution: Record<ProceduralVillageDifficulty, number> = {
   established: 0,
@@ -315,6 +409,26 @@ for (let seed = 100; seed < 164; seed += 1) {
 }
 assert.ok(fingerprints.size >= 62, `insufficient layout diversity: ${fingerprints.size}/64`)
 
+// Topology diversity: over a natural-difficulty sweep the roll space must
+// actually produce single keeps, multi-loop works, curtain/subdivided
+// complexes and multi-region compartmentalization — not one shape family.
+const shapeTallies = { singleKeep: 0, multiWork: 0, complexWork: 0, compartmentalized: 0 }
+for (let seed = 300; seed < 500; seed += 1) {
+  const world = generateProceduralVillage(seed)
+  const walls = world.buildings.filter(building => building.type === 'wall')
+  const components = wallComponents(walls)
+  const rectangular = components.map(componentIsClosedRectangle)
+  if (components.length === 1 && rectangular[0]) shapeTallies.singleKeep += 1
+  if (components.length >= 2) shapeTallies.multiWork += 1
+  if (rectangular.some(isRect => !isRect)) shapeTallies.complexWork += 1
+  const scan = enclosedRegions(new Set(walls.map(wall => tileKey(wall.gridX, wall.gridY))))
+  if (scan.regionCount >= 2) shapeTallies.compartmentalized += 1
+}
+assert.ok(shapeTallies.singleKeep >= 8, `single-keep bases too rare: ${shapeTallies.singleKeep}/200`)
+assert.ok(shapeTallies.multiWork >= 30, `multi-loop bases too rare: ${shapeTallies.multiWork}/200`)
+assert.ok(shapeTallies.complexWork >= 30, `curtain/subdivided complexes too rare: ${shapeTallies.complexWork}/200`)
+assert.ok(shapeTallies.compartmentalized >= 30, `compartmentalized bases too rare: ${shapeTallies.compartmentalized}/200`)
+
 for (let seed = 200; seed < 264; seed += 1) {
   const world = generateProceduralVillage(seed, { difficulty: 'extreme' })
   for (const type of Object.keys(BUILDING_DEFINITIONS) as BuildingType[]) {
@@ -334,4 +448,5 @@ for (let seed = 200; seed < 264; seed += 1) {
   assert.ok(normalizedStrength >= 0.78, `extreme fortress seed ${seed} is underleveled: ${normalizedStrength}`)
 }
 
-console.log(`procedural village regression: ${fingerprints.size}/64 unique layouts; distribution ${JSON.stringify(distribution)}`)
+console.log(`procedural village regression: ${fingerprints.size}/64 unique layouts; `
+  + `shapes ${JSON.stringify(shapeTallies)}; distribution ${JSON.stringify(distribution)}`)

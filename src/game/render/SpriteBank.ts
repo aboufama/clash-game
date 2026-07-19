@@ -1345,10 +1345,19 @@ class SpriteBankImpl {
      * cell, center-sampled, grid anchored to the RT itself. Zero per-frame
      * cost; the quantized texture pans rigidly with the world.
      */
-    quantizeRenderTexture(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderTexture, cell = 1.35, epoch = 0): void {
+    quantizeRenderTexture(
+        scene: Phaser.Scene,
+        rt: Phaser.GameObjects.RenderTexture,
+        cell = 1.35,
+        epoch = 0,
+        onComplete?: () => void
+    ): void {
         const stampKey = `__pixelBaked` as const;
         const record = rt as unknown as Record<string, number | undefined>;
-        if (record[stampKey] === epoch) return;
+        if (record[stampKey] === epoch) {
+            onComplete?.();
+            return;
+        }
         record[stampKey] = epoch;
         // Quantize a FULL-RT capture and write it back in place. Runs after
         // capture so the guards below can discard a pass that went stale
@@ -1420,7 +1429,10 @@ class SpriteBankImpl {
             // capture-at-call timing — and apply on a microtask to keep the
             // async contract callers rely on.
             const src = dt.context.getImageData(0, 0, dt.canvas.width, dt.canvas.height);
-            queueMicrotask(() => apply(src));
+            queueMicrotask(() => {
+                apply(src);
+                onComplete?.();
+            });
             return;
         }
         // WEBGL renderer: rt.snapshot reads the RT's OWN framebuffer and
@@ -1429,14 +1441,18 @@ class SpriteBankImpl {
         // size. Do NOT tile via snapshotArea instead: partial framebuffer
         // grabs mis-address rows (verified live against Phaser 3.90).
         rt.snapshot((img) => {
-            if (!rt.scene || !(img instanceof HTMLImageElement)) return;
-            if (record[stampKey] !== epoch) return;
-            const cap = document.createElement('canvas');
-            cap.width = img.width; cap.height = img.height;
-            const cctx = cap.getContext('2d', { willReadFrequently: true });
-            if (!cctx) return;
-            cctx.drawImage(img, 0, 0);
-            apply(cctx.getImageData(0, 0, img.width, img.height));
+            try {
+                if (!rt.scene || !(img instanceof HTMLImageElement)) return;
+                if (record[stampKey] !== epoch) return;
+                const cap = document.createElement('canvas');
+                cap.width = img.width; cap.height = img.height;
+                const cctx = cap.getContext('2d', { willReadFrequently: true });
+                if (!cctx) return;
+                cctx.drawImage(img, 0, 0);
+                apply(cctx.getImageData(0, 0, img.width, img.height));
+            } finally {
+                onComplete?.();
+            }
         });
     }
 

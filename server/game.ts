@@ -4980,6 +4980,22 @@ export class GameService implements AdminApiService {
     const now = Date.now()
     const moderation = this.effectiveModeration(id, now)
     const revision = Math.max(0, toInt(player.revision, 0))
+    const previewPlayer = structuredClone(player)
+    const previewAdvance = advanceVillage(previewPlayer, now, {
+      maxBalance: MAX_BALANCE,
+      populationLocked: (this.liveByVictim.get(id)?.size ?? 0) > 0,
+      preserveOverCapacity: debugGrantsEnabled()
+    })
+    const previewRevisionDelta = appearanceRevisionDelta(previewAdvance)
+    if (previewRevisionDelta > 0) {
+      previewPlayer.appearanceRevision = appearanceRevisionOf(previewPlayer) + previewRevisionDelta
+      if (previewAdvance.appearanceChanged) {
+        previewPlayer.lastMutationAt = Math.max(
+          previewPlayer.lastMutationAt,
+          ...previewPlayer.buildings.map(building => building.builtAt ?? 0)
+        )
+      }
+    }
     return {
       ...this.adminPlayerSummaryOf(player, now),
       resources: {
@@ -5000,7 +5016,11 @@ export class GameService implements AdminApiService {
       activeSessions: player.tokenHashes.length,
       activeAttacks: this.adminActiveAttackCount(id),
       moderationReason: moderation.reason,
-      moderationUpdatedAt: moderation.updatedAt
+      moderationUpdatedAt: moderation.updatedAt,
+      village: {
+        ...publicWorldOf(previewPlayer),
+        stoneMaturity: this.stoneMaturityOf(previewPlayer)
+      }
     }
   }
 

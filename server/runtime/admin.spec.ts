@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { MemoryPersistence, type AccountRecord, type VillageRecord } from '../persistence'
+import { VILLAGE_SIMULATION_VERSION } from '../domain/village'
 import { PersistenceGameService } from './service'
 
 const NOW = new Date('2026-07-19T18:00:00.000Z')
@@ -40,7 +41,7 @@ function village(): VillageRecord {
     layoutRevision: 1,
     appearanceRevision: 1,
     economyRevision: 1,
-    simulationVersion: 1,
+    simulationVersion: VILLAGE_SIMULATION_VERSION,
     nextEventAt: null
   }
 }
@@ -73,7 +74,26 @@ test('normalized admin service keeps reads bounded/secret-free and audits every 
   assert.deepEqual(detail.resources, { gold: 500, ore: 200, food: 100 })
   assert.equal(detail.activeSessions, 1)
   assert.deepEqual(detail.army, { warrior: 3 })
+  assert.deepEqual(detail.village, {
+    id: 'world_player_admin_test',
+    ownerId: 'player_admin_test',
+    username: 'OriginalChief',
+    buildings: [],
+    obstacles: [],
+    wallLevel: 1,
+    lastSaveTime: NOW.getTime(),
+    revision: 1,
+    life: {
+      version: 1,
+      identity: 'player_admin_test',
+      population: 5,
+      bornAt: [],
+      simulatedThrough: NOW.getTime()
+    },
+    stoneMaturity: 1
+  })
   assert.equal(JSON.stringify(detail).includes('tokenHash'), false)
+  assert.equal(JSON.stringify(detail.village).includes('gold'), false)
 
   await service.adminPlayerAction('player_admin_test', {
     type: 'adjust_resources', gold: 250, ore: -50, reason: 'support correction'
@@ -126,6 +146,54 @@ test('normalized admin service keeps reads bounded/secret-free and audits every 
   await assert.rejects(service.adminPlayers('', 101), /limit/i)
   await assert.rejects(service.adminBots({}, 128, 1), /radius/i)
   await assert.rejects(service.adminAudit(251), /limit/i)
+  await service.close()
+})
+
+test('normalized admin player detail reports a missing authoritative village as null', async () => {
+  const persistence = new MemoryPersistence()
+  await persistence.transaction(tx => tx.accounts.insert(account()))
+  const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+
+  const detail = await service.adminPlayer('player_admin_test')
+  assert.equal(detail.village, null)
+  assert.equal(detail.buildingCount, 0)
+  assert.equal(detail.obstacleCount, 0)
+
+  await service.close()
+})
+
+test('normalized admin player detail materializes a read-only current village preview', async () => {
+  const persistence = new MemoryPersistence()
+  const pending = village()
+  pending.buildings = [
+    { id: 'hall', type: 'town_hall', gridX: 0, gridY: 0, level: 1 },
+    {
+      id: 'cannon', type: 'cannon', gridX: 4, gridY: 4, level: 1,
+      upgradingTo: 2,
+      upgradeStartedAt: NOW.getTime() - 2_000,
+      upgradeEndsAt: NOW.getTime() - 1_000
+    }
+  ]
+  pending.simulatedThrough = new Date(NOW.getTime() - 2_000)
+  await persistence.transaction(async tx => {
+    await tx.accounts.insert(account())
+    await tx.villages.insert(pending)
+  })
+  const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+
+  const detail = await service.adminPlayer('player_admin_test')
+  const cannon = detail.village?.buildings.find(building => building.id === 'cannon')
+  assert.equal(cannon?.level, 2)
+  assert.equal(cannon?.upgradingTo, undefined)
+  assert.equal(detail.buildingCount, 2)
+
+  const persisted = await persistence.transaction(tx => tx.villages.get('player_admin_test'))
+  const persistedCannon = persisted?.buildings.find(building => (
+    typeof building === 'object' && building !== null && !Array.isArray(building) && building.id === 'cannon'
+  )) as { level?: number; upgradingTo?: number } | undefined
+  assert.equal(persistedCannon?.level, 1, 'an admin preview must not mutate the stored village')
+  assert.equal(persistedCannon?.upgradingTo, 2)
+
   await service.close()
 })
 
