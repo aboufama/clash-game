@@ -28,15 +28,13 @@ type UIHandlers = {
     updateBattleStats: (destruction: number, gold: number, ore?: number, food?: number) => void;
     onBuildingSelected: (data: BuildingSelection) => void;
     onPlacementCancelled: () => void;
-    /** `applied` carries the SERVER-applied ore/food from the attack
-     *  settlement when one landed — the raid report must show what was
-     *  banked, not the client-inflated battle counters. `settlementDelayed`
-     *  means the settlement request failed in transport: the payout is NOT
-     *  zero, it just hasn't been confirmed yet. */
+    /** `applied` carries authoritative settlement metadata. A
+     *  `settlementDelayed` result must not animate a false zero payout; the
+     *  server will reconcile the resource chips when banking completes. */
     onRaidEnded: (goldLooted: number, applied?: { ore?: number; food?: number; settlementDelayed?: boolean }) => void | Promise<void>;
-    /** A mid-raid retreat settled: queue the raid report ("Retreated"
-     *  variant) for when the clouds open on home. Never triggers its own
-     *  home transition — goHome is already running inside one. */
+    /** A mid-raid retreat settled: pass confirmed partial loot to the home
+     *  resource-chip animation. Never starts another transition — goHome is
+     *  already running inside one. */
     onRetreatEnded: (results: {
         destruction: number;
         goldLooted: number;

@@ -76,13 +76,13 @@ interface LightDef {
 const LIGHT_SOURCES: Partial<Record<BuildingType, LightDef>> = {
     // Fire: hearths, torches and camp flames — warm, restless.
     town_hall: { kind: 'fire', tint: 0xff9028, hot: 0xffc46a, radius: 130, ox: -30, oy: 15, h: 10, shaft: 26 },
-    barracks: { kind: 'fire', tint: 0xff8c2e, hot: 0xffbe5e, radius: 105, ox: -2, oy: 22, h: 6, shaft: 30, minLevel: 3 },
+    barracks: { kind: 'fire', tint: 0xff8c2e, hot: 0xffbe5e, radius: 105, ox: 24, oy: 10, h: 5, shaft: 26 },
     army_camp: { kind: 'fire', tint: 0xff8324, hot: 0xffc06a, radius: 125, ox: 0, oy: 8, h: 6, shaft: 34 },
     // Energy: arcane and electric glow — smooth breathing, two-tone.
     lab: { kind: 'energy', tint: 0x7fe7c9, tint2: 0x9a7cff, radius: 100, ox: -2, oy: -30, h: 0, shaft: 20 },
+    mystic_barracks: { kind: 'energy', tint: 0x83ddff, tint2: 0x9d8bdd, radius: 112, ox: 0, oy: -45, h: 0, shaft: 28 },
     prism: { kind: 'energy', tint: 0x9a6cff, tint2: 0x6ce4ff, radius: 130, ox: 0, oy: -38, h: 0, shaft: 40 },
     tesla: { kind: 'energy', tint: 0x7fd4ff, tint2: 0xd8f2ff, radius: 90, ox: 0, oy: -26, h: 0, shaft: 30, surge: true },
-    frostfall: { kind: 'energy', tint: 0xaee6ff, tint2: 0x8fd0ff, radius: 70, ox: 0, oy: -18, h: 0 },
     // Molten: the dragon's furnace — deep, slow, alive.
     dragons_breath: { kind: 'molten', tint: 0xff4a1e, hot: 0xff9a4e, radius: 165, ox: 0, oy: -4, h: 6, shaft: 24 },
     // Lamps: small steady work lights.

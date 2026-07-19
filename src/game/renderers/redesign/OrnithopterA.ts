@@ -14,7 +14,7 @@ type V3 = readonly [number, number, number];
  * linen tail rudder trailing on its boom; an under-slung bomb rack (bombs are
  * engine projectiles — the rack only has to READ, there is no attack pose).
  *
- * FIRST AIR UNIT: the craft is rendered at ALT world-px above its tile with a
+ * FIRST AIR UNIT: the craft is rendered at ALT authoring-px above its tile with a
  * small detached ground-shadow ellipse on the ground line — the two never
  * fuse (lowest bomb tip stays > 20 px above the shadow at full bob).
  *
@@ -26,7 +26,7 @@ type V3 = readonly [number, number, number];
  *  - HOVER (idle): declared period 2000 ms (a 250 ms multiple). Terms are
  *    exact harmonics: whole-body bob ±1.6 px on the 2000 ms fundamental
  *    (≥1.5 world px — survives the ambient probe's quantize threshold),
- *    shallow flap + rudder sway on the exact 1000 ms second harmonic.
+ *    sustaining flap + rudder sway on the exact 1000 ms second harmonic.
  *
  * PAINT: every body texel is OPAQUE (alpha 1) — baked frames must not carry
  * translucency. The only translucent paint is the detached ground-shadow
@@ -42,8 +42,14 @@ type V3 = readonly [number, number, number];
  */
 
 const SPAN = 24; // half wingspan, world px
-const ALT = 26; // hull altitude above the tile's ground line
-const GROUND_Y = 9.5; // the troop ground line (villager scale contract)
+// Runtime presents this deliberately fine-lined machine at 1.2x on every
+// world surface (live, replay, camp, and vector fallback). 21 * 1.2 = 25.2,
+// so its hull sits 0.8 world px LOWER than the former ALT=26 silhouette while
+// the enlarged pilot/rig remains clear of an ordinary max-level wall run.
+const ALT = 21;
+// The runtime multiplier must not drag the detached shadow off its tile:
+// 7.9167 * 1.2 = the shared 9.5 px troop ground line.
+const GROUND_Y = 7.9167;
 const DIHEDRAL = 1.4; // resting upward wing angle (h px at the tip)
 const FLAP_AMP = 6.5; // wing-tip vertical throw at full flap
 const STRIDE_MS = 500; // flight flap period — TROOP_PARAMS stride
@@ -90,14 +96,6 @@ function poly(g: G, color: number, pts: Array<readonly [number, number]>): void 
     g.fillPath();
 }
 
-/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): the flap
- *  stride 500 matches the TROOP_PARAMS row, but THIS slot's hover idles on
- *  the declared IDLE_MS = 2000 loop — not the table's 500 ms hover clock
- *  (slots B/C share one 500 ms clock for both axes; A does not). */
-export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
-    ornithopter: { idleMs: 2000 },
-};
-
 export function drawOrnithopterA(
     g: G,
     isPlayer: boolean,
@@ -141,7 +139,12 @@ export function drawOrnithopterA(
     } else {
         const ph = (((time % IDLE_MS) + IDLE_MS) % IDLE_MS) / IDLE_MS;
         const w1 = ph * Math.PI * 2; // 2000 ms fundamental
-        flapH = Math.sin(w1 * 2) * 0.4; // exact 1000 ms harmonic — shallow flap
+        // A hover still has to generate lift. At 0.4 the wing tip moved only
+        // ~2 baked texels and the 1.6 px hull bob visually swallowed it, so
+        // the craft read as a rigid sprite floating in place. Keep the exact
+        // 1000 ms harmonic, but give the sustaining flap an unmistakable
+        // ±5.2 authoring-px tip throw (still gentler than flight's ±6.5).
+        flapH = Math.sin(w1 * 2) * 0.8;
         surge = Math.sin(w1); // 2000 ms whole-body bob
         sway = Math.sin(w1 * 2 - 0.9) * 1.0;
     }

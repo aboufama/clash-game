@@ -14,6 +14,7 @@ import { IsoUtils, TILE_WIDTH, TILE_HEIGHT } from '../utils/IsoUtils';
 import { bannerDesignFor, drawFlagBearer, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
 import { gameManager, type PlotPanelAction } from '../GameManager';
 import { soundSystem } from './SoundSystem';
+import { musicSystem } from './MusicSystem';
 import { DayNightSystem, type PostcardLightAnchor } from './DayNightSystem';
 import { NeighborLifeSim } from './NeighborLifeSim';
 import { computeStoneRoutes, drawStoneLane } from '../renderers/StonePathRenderer';
@@ -310,6 +311,20 @@ export class WorldMapSystem {
     }
     private fogRadius = -1;
     private nextFogEdgeAt = 0;
+    // ---- watchtower reveal transition (the clouds pull back over ~3 s) ----
+    private fogReveal: {
+        fromBound: { min: number; max: number };
+        toBound: { min: number; max: number };
+        startTime: number;
+        durationMs: number;
+    } | null = null;
+    /** Animated inner square while a reveal runs; drawFogEdge mirrors it. */
+    private fogRevealBoundary: { min: number; max: number } | null = null;
+    private nextFogRevealRebuildAt = 0;
+    private lastUpdateTime = 0;
+    /** Scene time of the FIRST sight computation: gains inside the settle
+     *  window are boot/load hydration and snap instantly, never animate. */
+    private firstSightComputeAt = -1;
     private nextRefreshAt = 0;
     private refreshing = false;
     private refreshInFlight: Promise<void> | null = null;
@@ -451,6 +466,7 @@ export class WorldMapSystem {
 
     /** Poll cadence + visibility gating; call from the scene's update. */
     update(time: number) {
+        this.lastUpdateTime = time;
         const home = this.scene.mode === 'HOME';
         // Battles fought IN PLACE keep the whole world on screen; every other
         // non-HOME mode (replays, cloud-transition raids) clears the map.
@@ -459,7 +475,11 @@ export class WorldMapSystem {
             return;
         }
         if (home && !this.focusPlot) {
-            this.ensureFog(this.computeViewRadius());
+            // computeViewRadius may START a reveal this very frame; while one
+            // runs, the transition owns fogStatic instead of the cached path.
+            const radius = this.computeViewRadius();
+            if (this.fogReveal) this.updateFogReveal(time);
+            else this.ensureFog(radius);
             if (time >= this.nextRefreshAt && !this.refreshing) {
                 this.nextRefreshAt = time + REFRESH_MS;
                 void this.refresh();
@@ -1533,11 +1553,22 @@ export class WorldMapSystem {
                 && !(b.type === 'watchtower' && underConstruction(b.id)));
             const next = watchtowerSightOf(standing as never);
             if (next !== this.viewRadiusValue) {
+                const prev = this.viewRadiusValue;
                 this.viewRadiusValue = next;
                 // Pulling the fog back without postcards underneath produces a
                 // blank meadow for the remainder of the normal 25 s cadence.
                 this.nextRefreshAt = 0;
+                // A real in-session sight GAIN (a watchtower finished while
+                // the player watches) earns the animated cloud pull-back.
+                // The first computations after boot/load hydrate buildings
+                // asynchronously — anything inside the settle window snaps
+                // instantly, exactly like the old path. Shrinks always snap.
+                const settled = this.firstSightComputeAt >= 0
+                    && this.lastUpdateTime > this.firstSightComputeAt + 2000;
+                if (next > prev && settled) this.beginFogReveal(prev, next);
+                else this.cancelFogReveal();
             }
+            if (this.firstSightComputeAt < 0) this.firstSightComputeAt = this.lastUpdateTime;
         }
         // A battle frame prepares EXACTLY the one-ring context (prepareFocus's
         // focusRadius) — never the home exploration horizon. Sizing the fog
@@ -3682,6 +3713,10 @@ export class WorldMapSystem {
         this.fogEdge?.destroy();
         this.fogEdge = null;
         this.fogRadius = -1;
+        // A reveal caught mid-animation dies with the fog it was driving;
+        // the next mode-appropriate ensureFog rebuilds the final state.
+        this.fogReveal = null;
+        this.fogRevealBoundary = null;
     }
 
 
@@ -3739,28 +3774,43 @@ export class WorldMapSystem {
         }
     }
 
+    /** The revealed inner square a given sight radius earns. */
+    private static fogSquareOf(radius: number): { min: number; max: number } {
+        return { min: -radius * PLOT_PITCH - PLOT_GAP - 0.4, max: (radius + 1) * PLOT_PITCH + 0.4 };
+    }
+
     private ensureFog(radius: number) {
+        // A live reveal owns fogStatic; any direct ensureFog call while one
+        // runs (focus swap, wilderness fallback, home relocation) is an
+        // interruption and must snap straight to the caller's final state —
+        // cancelFogReveal invalidates fogRadius so the cache check below can
+        // never keep a half-faded transition frame alive.
+        this.cancelFogReveal();
         if (radius === this.fogRadius && this.fogStatic) return;
         this.fogRadius = radius;
         this.fogStatic?.destroy();
         const g = this.scene.add.graphics();
         g.setDepth(28_500); // above every postcard, below the day/night grade
-        const inner = { min: -radius * PLOT_PITCH - PLOT_GAP - 0.4, max: (radius + 1) * PLOT_PITCH + 0.4 };
+        const inner = WorldMapSystem.fogSquareOf(radius);
         // Roaming lights (edge-camp bonfires, the caravan lantern) must never
         // wash over the cloud bank: hand the discovered square to the light
         // system so it hems pools in as they near this boundary.
         this.scene.dayNight?.setSightBound?.({ min: inner.min, max: inner.max });
+        this.paintFogFloor(g, inner);
+        this.paintFogRows(g, inner, inner, 0, 1);
+        // Deep cloud bank: every puff already lands as pixel cells via
+        // WorldMapSystem.puff → PixelDraw.
+        this.fogStatic = g;
+    }
+
+    /**
+     * 1. The floor: one flat, near-white frame from `inner` out to the
+     * horizon. Past the edge line the sky is deliberately EMPTY — the bank
+     * silhouette does all the talking.
+     */
+    private paintFogFloor(g: Phaser.GameObjects.Graphics, inner: { min: number; max: number }) {
         const far = 7 * PLOT_PITCH;
         const P = (x: number, y: number) => IsoUtils.cartToIso(x, y);
-        let seedState = 131;
-        const rand = () => {
-            seedState = (seedState * 1103515245 + 12345) & 0x7fffffff;
-            return seedState / 0x7fffffff;
-        };
-
-        // 1. The floor: one flat, near-white frame out to the horizon. Past
-        // the edge line the sky is deliberately EMPTY — the bank silhouette
-        // does all the talking.
         const HAZE = 0xeaf0f6;
         g.fillStyle(HAZE, 1);
         const lo = inner.min - far;
@@ -3780,14 +3830,38 @@ export class WorldMapSystem {
         frame(lo, inner.max - 1, hi, inner.max - 1, hi, hi, lo, hi);
         frame(lo, inner.min, inner.min + 1, inner.min, inner.min + 1, inner.max, lo, inner.max);
         frame(inner.max - 1, inner.min, hi, inner.min, hi, inner.max, inner.max - 1, inner.max);
+    }
 
-        // 2. Two packed rows just behind the living edge — the whole of the
-        // visible bank. Row A shoulders right up against the front masses;
-        // row B is bigger, paler, half a step deeper, dissolving into the
-        // flat floor behind it.
-        // Shadow tones sit near the neighbour layer's body tone so overlap
-        // rims read as soft creases, not outlines; row B tucks close behind
-        // row A instead of drifting half-detached into the haze floor.
+    /**
+     * 2. Two packed rows just behind the living edge — the whole of the
+     * visible bank. Row A shoulders right up against the front masses;
+     * row B is bigger, paler, half a step deeper, dissolving into the
+     * flat floor behind it.
+     * Shadow tones sit near the neighbour layer's body tone so overlap
+     * rims read as soft creases, not outlines; row B tucks close behind
+     * row A instead of drifting half-detached into the haze floor.
+     *
+     * `drawInner` anchors the puff bases; `sampleInner` owns the t-lattice —
+     * and with it every puff's seed and the deterministic rand() jitter — so
+     * a reveal transition can march the bank outward while each puff keeps
+     * ONE identity for the whole animation (the steady state passes the same
+     * square for both, byte-identical to the old inline loop). `drift`
+     * pushes bases outward along their side's normal, in world units;
+     * `alpha` rides the existing puff alpha param.
+     */
+    private paintFogRows(
+        g: Phaser.GameObjects.Graphics,
+        drawInner: { min: number; max: number },
+        sampleInner: { min: number; max: number },
+        drift: number,
+        alpha: number
+    ) {
+        const P = (x: number, y: number) => IsoUtils.cartToIso(x, y);
+        let seedState = 131;
+        const rand = () => {
+            seedState = (seedState * 1103515245 + 12345) & 0x7fffffff;
+            return seedState / 0x7fffffff;
+        };
         const ROWS: Array<{ d: number; w: number; step: number; shadow: number; body: number; crown: number }> = [
             { d: 3.4, w: 215, step: 3.4, shadow: 0xc3d1e0, body: 0xe5ecf3, crown: 0xf3f7fb },
             { d: 6.4, w: 255, step: 4.2, shadow: 0xc0cddb, body: 0xd8e2ec, crown: 0xe9eff5 }
@@ -3806,23 +3880,132 @@ export class WorldMapSystem {
             for (let side = 0; side < 4; side++) {
                 // A 2-tile corner wrap only — the old ±(d+8) overshoot left
                 // stray puffs floating detached past the corners.
-                for (let t = inner.min - 2; t <= inner.max + 2; t += row.step * (0.82 + rand() * 0.36)) {
-                    const d = row.d + (rand() - 0.5) * 2.6;
+                for (let t = sampleInner.min - 2; t <= sampleInner.max + 2; t += row.step * (0.82 + rand() * 0.36)) {
+                    const d = row.d + (rand() - 0.5) * 2.6 + drift;
                     let gx: number;
                     let gy: number;
-                    if (side === 0) { gx = t; gy = inner.min - d + TOP_TUCK; }
-                    else if (side === 1) { gx = t; gy = inner.max + d; }
-                    else if (side === 2) { gx = inner.min - d + TOP_TUCK; gy = t; }
-                    else { gx = inner.max + d; gy = t; }
+                    if (side === 0) { gx = t; gy = drawInner.min - d + TOP_TUCK; }
+                    else if (side === 1) { gx = t; gy = drawInner.max + d; }
+                    else if (side === 2) { gx = drawInner.min - d + TOP_TUCK; gy = t; }
+                    else { gx = drawInner.max + d; gy = t; }
                     const c = P(gx, gy);
                     const seed = (Math.imul((Math.round(t * 7) + side * 7919 + row.d * 131) | 0, 2654435761) >>> 0) % 100000;
                     WorldMapSystem.puff(g, c.x, c.y, row.w + (seed % 55), seed,
-                        row.shadow, row.body, row.crown, (seed % 100) / 100);
+                        row.shadow, row.body, row.crown, (seed % 100) / 100, alpha);
                 }
             }
         }
-        // Deep cloud bank: every puff already lands as pixel cells via
-        // WorldMapSystem.puff → PixelDraw.
+    }
+
+    /**
+     * Dissolving haze over the band the clouds have vacated mid-reveal: the
+     * region between the OLD inner square and the animated boundary, at one
+     * of the same discrete alpha steps the remnant puffs use. Four
+     * NON-overlapping quads — a translucent fill double-darkens anywhere two
+     * overlap (the opaque steady-state floor can afford its seam overlaps;
+     * this veil cannot).
+     */
+    private paintFogVeil(
+        g: Phaser.GameObjects.Graphics,
+        oldInner: { min: number; max: number },
+        anim: { min: number; max: number },
+        alpha: number
+    ) {
+        if (anim.min >= oldInner.min - 0.01) return;
+        const P = (x: number, y: number) => IsoUtils.cartToIso(x, y);
+        g.fillStyle(0xeaf0f6, alpha);
+        const quad = (ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number) => {
+            const a = P(ax, ay), b = P(bx, by), c = P(cx, cy), d = P(dx, dy);
+            g.fillPoints([
+                new Phaser.Math.Vector2(a.x, a.y),
+                new Phaser.Math.Vector2(b.x, b.y),
+                new Phaser.Math.Vector2(c.x, c.y),
+                new Phaser.Math.Vector2(d.x, d.y)
+            ], true);
+        };
+        quad(anim.min, anim.min, anim.max, anim.min, anim.max, oldInner.min, anim.min, oldInner.min);
+        quad(anim.min, oldInner.max, anim.max, oldInner.max, anim.max, anim.max, anim.min, anim.max);
+        quad(anim.min, oldInner.min, oldInner.min, oldInner.min, oldInner.min, oldInner.max, anim.min, oldInner.max);
+        quad(oldInner.max, oldInner.min, anim.max, oldInner.min, anim.max, oldInner.max, oldInner.max, oldInner.max);
+    }
+
+    /**
+     * An in-session watchtower sight gain: instead of swapping the cloud
+     * bank in one frame, pull it back over ~3 s with the musical flourish
+     * and the neighborhood camera framing (500 ms Sine zoom-out overlapping
+     * the reveal). Every animation frame is a pure function of
+     * (transition state, time) — no per-frame randomness anywhere.
+     */
+    private beginFogReveal(fromRadius: number, toRadius: number) {
+        // A second gain landing mid-reveal chains from wherever the clouds
+        // are RIGHT NOW instead of teleporting back to the old square.
+        const fromBound = this.fogRevealBoundary
+            ? { ...this.fogRevealBoundary }
+            : WorldMapSystem.fogSquareOf(fromRadius);
+        this.fogReveal = {
+            fromBound,
+            toBound: WorldMapSystem.fogSquareOf(toRadius),
+            startTime: this.lastUpdateTime,
+            durationMs: 3000
+        };
+        this.nextFogRevealRebuildAt = 0;
+        musicSystem.stinger('reveal');
+        gameManager.showNeighborhood();
+        gameManager.showToast('The clouds pull back — new lands revealed!');
+    }
+
+    /** Drop a live reveal; the next ensureFog snaps to the final state. */
+    private cancelFogReveal() {
+        if (!this.fogReveal) return;
+        this.fogReveal = null;
+        this.fogRevealBoundary = null;
+        // fogStatic currently holds a mid-transition frame — it must never
+        // satisfy ensureFog's `radius === fogRadius` cache check.
+        this.fogRadius = -1;
+    }
+
+    /** One reveal animation frame: deep bank + haze at the eased boundary. */
+    private updateFogReveal(time: number) {
+        const tr = this.fogReveal;
+        if (!tr) return;
+        const t = Phaser.Math.Clamp((time - tr.startTime) / tr.durationMs, 0, 1);
+        if (t >= 1) {
+            // Land EXACTLY in the instant path's final state: fogStatic at
+            // the new radius, fogRadius set, setSightBound final.
+            this.fogReveal = null;
+            this.fogRevealBoundary = null;
+            this.ensureFog(this.computeViewRadius());
+            return;
+        }
+        // The living edge redraws at 15 Hz; the marching bank matches it —
+        // rebuilding a few hundred puffs faster buys nothing visible.
+        if (time < this.nextFogRevealRebuildAt) return;
+        this.nextFogRevealRebuildAt = time + 66;
+        const e = 0.5 - 0.5 * Math.cos(Math.PI * t); // easeInOutSine
+        const anim = {
+            min: Phaser.Math.Linear(tr.fromBound.min, tr.toBound.min, e),
+            max: Phaser.Math.Linear(tr.fromBound.max, tr.toBound.max, e)
+        };
+        this.fogRevealBoundary = anim;
+        // Lighting expands with the clouds, not behind them.
+        this.scene.dayNight?.setSightBound?.({ min: anim.min, max: anim.max });
+        this.fogStatic?.destroy();
+        const g = this.scene.add.graphics();
+        g.setDepth(28_500);
+        // Quantized dissolve — 5 chunky alpha steps, never a smooth AA fade.
+        const fade = Math.round((1 - e) * 5) / 5;
+        this.paintFogFloor(g, anim);
+        if (fade > 0) {
+            this.paintFogVeil(g, tr.fromBound, anim, fade);
+            // The OLD bank's own puffs (same seeds as the pre-reveal frame)
+            // drift a few world units along their outward normals and
+            // dissolve where they stood.
+            this.paintFogRows(g, tr.fromBound, tr.fromBound, e * 4, fade);
+        }
+        // The reformed bank marches outward with the boundary; sampled on
+        // the FINAL lattice so every puff keeps one identity all reveal long
+        // and the last frame is texel-identical to ensureFog(toRadius).
+        this.paintFogRows(g, anim, tr.toBound, 0, 1);
         this.fogStatic = g;
     }
 
@@ -3845,7 +4028,10 @@ export class WorldMapSystem {
         }
         const g = this.fogEdge;
         g.clear();
-        const inner = { min: -this.fogRadius * PLOT_PITCH - PLOT_GAP - 0.4, max: (this.fogRadius + 1) * PLOT_PITCH + 0.4 };
+        // A live reveal drives the rampart at the animated boundary, so the
+        // living edge marches out in step with the deep bank behind it.
+        const inner = this.fogRevealBoundary
+            ?? { min: -this.fogRadius * PLOT_PITCH - PLOT_GAP - 0.4, max: (this.fogRadius + 1) * PLOT_PITCH + 0.4 };
         const T = time * 0.001;
         const wv = this.scene.cameras.main.worldView;
         const CULL = 420;
@@ -3861,7 +4047,11 @@ export class WorldMapSystem {
 
         const step = 2.0;
         for (let side = 0; side < 4; side++) {
-            for (let t = inner.min - 4; t <= inner.max + 4; t += step) {
+            // Absolute t-lattice (multiples of `step`), NOT anchored on
+            // inner.min: while a reveal animates the boundary every mass
+            // keeps its seed — anchoring on the moving edge re-rolled every
+            // silhouette ~15×/s into a boiling wall.
+            for (let t = Math.ceil((inner.min - 4) / step) * step; t <= inner.max + 4; t += step) {
                 const ix = Math.round((t + 10_000) * 7) + side * 7919;
                 const h = (Math.imul(ix, 2654435761) >>> 0) % 1000;
                 // Big masses swell slowly — compress the breath so the bank

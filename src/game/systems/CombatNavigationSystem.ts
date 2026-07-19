@@ -56,8 +56,8 @@ interface TraversalContext {
     wallAt: Array<PlacedBuilding | null>;
     canBypassStructures: boolean;
     /** Enemy wall ids a parked allied siege tower has turned into ramps:
-     *  crossable at COST_OPEN+12 (never free), never a goal/attack slot,
-     *  never a blocker. The deliberate, scoped exception to invariant 1. */
+     *  omitted from the traversal grid and solid geometry exactly like a
+     *  destroyed wall. The tower animation is presentation only once open. */
     rampWalls?: ReadonlySet<string>;
     /** Every live, defined structure — straight-charge ray geometry needs
      * the full set even where the cost grid abstracts it away. */
@@ -156,6 +156,9 @@ export class CombatNavigationSystem {
             building.owner !== troop.owner
             && building.health > 0
             && !building.isDestroyed
+            // A deployed allied Siege Tower is a real breach for its owner:
+            // the covered wall is no longer a legal objective either.
+            && !(building.type === 'wall' && rampWallIds?.has(building.id))
             && !!BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS]
         );
         if (enemies.length === 0) {
@@ -224,7 +227,8 @@ export class CombatNavigationSystem {
                     context,
                     topologyRevision,
                     plannedAt,
-                    stats
+                    stats,
+                    false
                 );
                 if (preferredPlan) {
                     bestTarget = preferredInTier;
@@ -250,7 +254,8 @@ export class CombatNavigationSystem {
                     context,
                     topologyRevision,
                     plannedAt,
-                    stats
+                    stats,
+                    false
                 );
                 evaluated++;
                 if (!plan) continue;
@@ -267,6 +272,20 @@ export class CombatNavigationSystem {
         if (!bestTarget || !bestPlan) {
             return { strategicTarget: null, activeTarget: null, plan: null };
         }
+        // Candidate comparison is based only on traversal cost. Cohort goal
+        // claims and per-id approach angles choose a slot AFTER the strategic
+        // building wins; otherwise a busy near rim can incorrectly redirect a
+        // fresh troop to a farther building. Re-plan the winner with spreading
+        // enabled for the plan that will actually be followed.
+        bestPlan = this.planToBuildingWithContext(
+            troop,
+            bestTarget,
+            context,
+            topologyRevision,
+            plannedAt,
+            stats,
+            true
+        ) ?? bestPlan;
         const activeTarget = buildings.find(building => building.id === bestPlan.activeTargetId) ?? null;
         return { strategicTarget: bestTarget, activeTarget, plan: bestPlan };
     }
@@ -415,10 +434,12 @@ export class CombatNavigationSystem {
         context: TraversalContext,
         topologyRevision: number,
         plannedAt: number,
-        stats: TroopDef
+        stats: TroopDef,
+        spreadGoalSlots = true
     ): CombatNavigationPlan | null {
         const info = BUILDING_DEFINITIONS[target.type as keyof typeof BUILDING_DEFINITIONS];
         if (!info || target.health <= 0 || target.isDestroyed) return null;
+        if (target.type === 'wall' && context.rampWalls?.has(target.id)) return null;
         // Straight-charge units ray-cast the objective and fight the first
         // structure standing on the line. A* remains their fallback whenever
         // the ray has no legal stop (friendly geometry, a corner-clipped stop
@@ -447,7 +468,8 @@ export class CombatNavigationSystem {
             context,
             topologyRevision,
             plannedAt,
-            stats
+            stats,
+            spreadGoalSlots
         );
     }
 
@@ -627,7 +649,8 @@ export class CombatNavigationSystem {
         context: TraversalContext,
         topologyRevision: number,
         plannedAt: number,
-        stats: TroopDef
+        stats: TroopDef,
+        spreadGoalSlots = true
     ): CombatNavigationPlan | null {
         const exactDistance = this.distanceToRect(
             troop.gridX,
@@ -657,7 +680,7 @@ export class CombatNavigationSystem {
         // approach preference are folded into goal-cell costs, so a cohort
         // deployed at one point fans across the rim instead of stacking on
         // the first in-range cell of a shared corridor.
-        const claims = context.goalClaims.get(region.id);
+        const claims = spreadGoalSlots ? context.goalClaims.get(region.id) : undefined;
         const spreadGoals = !!claims && claims.size > 0;
         const startClaims = claims?.get(startIndex) ?? 0;
         const inRangeNow = exactDistance <= region.range + 0.08;
@@ -820,6 +843,7 @@ export class CombatNavigationSystem {
         const canBypassStructures = stats.movementType === 'air' || stats.movementType === 'ghost';
         const solids = buildings.filter(building =>
             building.health > 0 && !building.isDestroyed
+            && !rampWallIds?.has(building.id)
             && !!BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS]
         );
         const breachAffinity = new Map<string, string>();
@@ -834,18 +858,15 @@ export class CombatNavigationSystem {
                 if (!info) continue;
 
                 const enemyWall = building.type === 'wall' && building.owner !== troop.owner;
-                // Ally ramp (parked siege tower): the wall is crossable at a
-                // small toll — COST_OPEN+12, never free or ramps would beat
-                // open ground. occupied stays 1 (never a goal/attack slot);
-                // wallAt stays null (never a blocker, so the physical route
-                // is NOT truncated at it).
+                // Once deployment completes, an allied Siege Tower is exact
+                // open-breach geometry. Leave the default COST_OPEN,
+                // occupied=0, and wallAt=null just as if the wall were gone.
                 const isRamp = enemyWall && !!rampWallIds?.has(building.id);
+                if (isRamp) continue;
                 const baseWallCost = stats.wallTraversalCost ?? 220;
-                const wallCost = isRamp
-                    ? this.COST_OPEN + 12
-                    : enemyWall
-                        ? this.COST_OPEN + baseWallCost + (building.health / wallDps) * 35
-                        : this.COST_IMPASSABLE;
+                const wallCost = enemyWall
+                    ? this.COST_OPEN + baseWallCost + (building.health / wallDps) * 35
+                    : this.COST_IMPASSABLE;
 
                 for (let x = building.gridX; x < building.gridX + info.width; x++) {
                     for (let y = building.gridY; y < building.gridY + info.height; y++) {
@@ -855,7 +876,7 @@ export class CombatNavigationSystem {
                         const index = gridY * this.GRID_SIZE + gridX;
                         occupied[index] = 1;
                         grid[index] = Math.max(grid[index], wallCost);
-                        if (enemyWall && !isRamp) wallAt[index] = building;
+                        if (enemyWall) wallAt[index] = building;
                     }
                 }
             }
@@ -876,7 +897,10 @@ export class CombatNavigationSystem {
             // between independent fronts while making the choice stable once
             // a cohort starts working on a breach.
             const liveWallIds = new Set(buildings
-                .filter(building => building.type === 'wall' && building.health > 0 && !building.isDestroyed)
+                .filter(building => building.type === 'wall'
+                    && building.health > 0
+                    && !building.isDestroyed
+                    && !rampWallIds?.has(building.id))
                 .map(building => building.id));
             const votesByTarget = new Map<string, Map<string, { votes: number; distance: number }>>();
             for (const other of allTroops) {
@@ -1071,9 +1095,8 @@ export class CombatNavigationSystem {
         const radius = this.agentRadius(troop);
         for (const building of buildings) {
             if (building.health <= 0 || building.isDestroyed) continue;
-            // Ramped wall (parked allied siege tower): physically crossable —
-            // the cost model above keeps it priced, this keeps it passable.
-            // Both layers must agree or troops plan through and bounce off.
+            // Ramped wall (parked allied siege tower): physically absent for
+            // this owner, matching the open traversal grid above.
             if (rampWallIds?.has(building.id)) continue;
             const info = BUILDING_DEFINITIONS[building.type as keyof typeof BUILDING_DEFINITIONS];
             if (!info) continue;

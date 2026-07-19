@@ -89,14 +89,6 @@ function palFor(level: number, isPlayer: boolean): SiegePal {
     };
 }
 
-/** Per-slot bake-param overrides (DesignRegistry.designBakeParams): stride
- *  700 matches the TROOP_PARAMS row, but the idle loop closes on the exact
- *  2000 ms period (pennant 2000/1000, wheel-glint 1000, hull breath 2000) —
- *  not the default 4021 ms breath window. */
-export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
-    siegetower: { idleMs: 2000 },
-};
-
 export function drawSiegetowerC(
     g: G,
     isPlayer: boolean,
@@ -113,6 +105,13 @@ export function drawSiegetowerC(
     const p = clamp01(driver);
     const a = facingAngle;
     const ca = Math.cos(a), sa = Math.sin(a);
+    // The exact d6 / -PI/2 heading looks straight into the rear of the
+    // belfry.  Pure projection makes the folded stair leaves overlap there,
+    // erasing the machine's strongest front/back tell.  Fade a dedicated
+    // rear-read layer in only around that end-on heading; the neighbouring
+    // baked d5/d7 angles sit well outside both gates and remain untouched.
+    const rearEndOn = clamp01((-sa - 0.84) / 0.16)
+        * clamp01((0.42 - Math.abs(ca)) / 0.22);
     const GY = 8; // screen y of ground level (h = 0) at the carrier origin
 
     // ---------------- animation drivers (all deterministic in time / p) ----
@@ -252,7 +251,9 @@ export function drawSiegetowerC(
     // ============================== 3. the mantlet tongue (front gangway) ==
     const drawTongue = () => {
         body();
-        const TLen = 16, hD = 11.5, hH = DECK_T;
+        // Two extra world pixels put the deployed lip perceptibly farther
+        // over the wall without moving the collision-safe parked chassis.
+        const TLen = 18, hD = 11.5, hH = DECK_T;
         const u: V3 = [Math.cos(thT), 0, Math.sin(thT)];
         const nT: V3 = [-Math.sin(thT), 0, Math.cos(thT)];
         const tip: V3 = [hD + TLen * u[0], 0, hH + TLen * u[2]];
@@ -280,12 +281,24 @@ export function drawSiegetowerC(
             seg([hD, -6, hH], [tip[0], 5.4, tip[2]], 1.2, P.line, 0.7);
             seg([hD, 6, hH], [tip[0], -5.4, tip[2]], 1.2, P.line, 0.7);
         }
-        // crenel teeth on the free edge (gold-tipped at L3)
+        // crenel teeth on the free edge (gold-tipped at L3).  From the exact
+        // rear angle the raised mantlet is otherwise almost wholly hidden by
+        // the roof, so its crown grows into a bold, symmetric three-tooth
+        // tell while raised; the deployed tongue keeps its original size.
+        const raisedRearCue = rearEndOn * (1 - clamp01(p / 0.45));
+        const toothHalfW = 1.3 + raisedRearCue * 0.35;
+        const toothLen = 3 + raisedRearCue * 2.2;
         for (const wc of [-4.6, 0, 4.6]) {
-            fface([[tip[0], wc - 1.3, tip[2]], [tip[0], wc + 1.3, tip[2]],
-                [tip[0] + u[0] * 3, wc + 1.3, tip[2] + u[2] * 3],
-                [tip[0] + u[0] * 3, wc - 1.3, tip[2] + u[2] * 3]],
+            fface([[tip[0], wc - toothHalfW, tip[2]], [tip[0], wc + toothHalfW, tip[2]],
+                [tip[0] + u[0] * toothLen, wc + toothHalfW, tip[2] + u[2] * toothLen],
+                [tip[0] + u[0] * toothLen, wc - toothHalfW, tip[2] + u[2] * toothLen]],
             topSide ? nT : [-nT[0], -nT[1], -nT[2]], P.gold ?? P.body);
+        }
+        if (raisedRearCue > 0.01) {
+            const railD = tip[0] - u[0] * 0.6;
+            const railH = tip[2] - u[2] * 0.6;
+            seg([railD, -6.7, railH], [railD, 6.7, railH],
+                1.5 + raisedRearCue * 0.8, lv >= 2 ? P.metal : P.line, raisedRearCue);
         }
         if (lv >= 2) { // iron grapple claws at the tip corners
             for (const s of [-1, 1] as const) {
@@ -324,8 +337,7 @@ export function drawSiegetowerC(
             seg(A, B, 1, P.gold, 0.9);
         }
     };
-    const drawStair = () => {
-        body();
+    const stairGeometry = () => {
         const H1: V3 = [-11.5, 0, HULL_T];
         const uU: V3 = [-Math.cos(thU), 0, -Math.sin(thU)];
         const nU: V3 = [uU[2], 0, -uU[0]];
@@ -335,6 +347,11 @@ export function drawSiegetowerC(
         const uL: V3 = [-Math.cos(thL), 0, -Math.sin(thL)];
         const nL: V3 = [uL[2], 0, -uL[0]];
         const endL: V3 = [SL[0] + uL[0] * 20, 0, SL[2] + uL[2] * 20];
+        return { H1, endU, nU, SL, endL, nL };
+    };
+    const drawStair = () => {
+        body();
+        const { H1, endU, nU, SL, endL, nL } = stairGeometry();
         if (stairFar) { // painter's order flips with the heading
             stairPiece(H1, endU, nU, true);
             stairPiece(SL, endL, nL, true);
@@ -345,6 +362,58 @@ export function drawSiegetowerC(
         if (tL > 0.92) { // ground foot pad
             fface([[endL[0] - 2.5, -6.8, 0.9], [endL[0] - 2.5, 6.8, 0.9],
                 [endL[0] + 2, 6.8, 0.9], [endL[0] + 2, -6.8, 0.9]], [0, 0, 1], P.dark);
+        }
+    };
+    const drawRearEndOnStairCues = () => {
+        if (rearEndOn <= 0.01) return;
+        body();
+        const { H1, endU, SL, endL } = stairGeometry();
+        const railCol = lv === 1 ? P.line : P.metal;
+        const treadCol = lv === 3 ? P.deckTop : P.tread;
+        const stowed = 1 - easeOut(clamp01(p / 0.28));
+        const deployed = easeOut(clamp01(p / 0.28));
+        const rails = (A: V3, B: V3, alpha: number) => {
+            if (alpha <= 0.01) return;
+            for (const w of [-6.15, 6.15]) {
+                seg([A[0], w, A[2]], [B[0], w, B[2]], 2.15, railCol, alpha);
+            }
+        };
+        const treads = (A: V3, B: V3, count: number, alpha: number) => {
+            if (alpha <= 0.01) return;
+            for (let k = 1; k <= count; k++) {
+                const f = k / (count + 1);
+                const d = A[0] + (B[0] - A[0]) * f;
+                const h = A[2] + (B[2] - A[2]) * f;
+                seg([d, -5.65, h], [d, 5.65, h], 1.65, treadCol, alpha * 0.96);
+            }
+        };
+
+        // Rolling: read as one deliberately strapped ladder, not two
+        // coincident brown panels.  Deployed: preserve both articulated
+        // leaves and make the climb path continuous through the hinge.
+        const stowedAlpha = rearEndOn * stowed;
+        rails(endU, H1, stowedAlpha);
+        treads(endU, H1, 5, stowedAlpha);
+        if (stowedAlpha > 0.01) {
+            seg([endU[0], -6.7, endU[2]], [endU[0], 6.7, endU[2]], 2.3,
+                railCol, stowedAlpha);
+            seg([H1[0], -6.7, H1[2]], [H1[0], 6.7, H1[2]], 2.3,
+                railCol, stowedAlpha);
+        }
+
+        const deployedAlpha = rearEndOn * deployed;
+        rails(H1, endU, deployedAlpha);
+        rails(SL, endL, deployedAlpha);
+        treads(H1, endU, 4, deployedAlpha);
+        treads(SL, endL, 4, deployedAlpha);
+        if (deployedAlpha > 0.01) {
+            seg([endU[0], -6.7, endU[2]], [endU[0], 6.7, endU[2]], 2.45,
+                railCol, deployedAlpha);
+            for (const w of [-6.25, 6.25]) {
+                const hinge = pt(endU[0], w, endU[2]);
+                g.fillStyle(P.gold ?? shade(P.metal, 1.2), deployedAlpha);
+                g.fillCircle(hinge[0], hinge[1], 1.45);
+            }
         }
     };
 
@@ -415,6 +484,19 @@ export function drawSiegetowerC(
     };
     const frontDoor = door(9);
     const rearDoor = door(-9);
+    if (rearDoor && rearEndOn > 0.01) {
+        // Bold rear access hatch: the frame and threshold survive the baked
+        // texel scale and explain where the stair leads.  The frame stays
+        // dark iron; gold is only the small L3 sill accent.
+        const frameCol = lv >= 2 ? shade(P.metal, 1.18) : P.line;
+        const frameAlpha = rearEndOn;
+        seg([-9.08, -3.35, 36.4], [-9.08, -3.35, 43.9], 1.8, frameCol, frameAlpha);
+        seg([-9.08, 3.35, 36.4], [-9.08, 3.35, 43.9], 1.8, frameCol, frameAlpha);
+        seg([-9.08, -3.35, 43.9], [-9.08, 0, 46.1], 1.8, frameCol, frameAlpha);
+        seg([-9.08, 3.35, 43.9], [-9.08, 0, 46.1], 1.8, frameCol, frameAlpha);
+        seg([-9.08, -3.55, 36.3], [-9.08, 3.55, 36.3], 2.2,
+            P.gold ?? frameCol, frameAlpha);
+    }
     if (p < 0.6) { // a lookout mans whichever doorway faces the player
         if (frontDoor) helm(9.4, 0, 39.6 + helmBob);
         else if (rearDoor) helm(-9.4, 0, 39.6 - helmBob);
@@ -480,6 +562,7 @@ export function drawSiegetowerC(
 
     // ================================================= 7. near-side piece ==
     if (stairFar) drawTongue(); else drawStair();
+    if (!stairFar) drawRearEndOnStairCues();
 
     // ================================================== 8. near wheels =====
     ground();

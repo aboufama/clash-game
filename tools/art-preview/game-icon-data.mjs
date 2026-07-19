@@ -236,7 +236,7 @@ export const ICONS = [
   },
   {
     classes: ["icegolem-icon"],
-    note: "ICE GOLEM - Icy recolor of the golem silhouette (same gap-free cell layout); placeholder until the icy redesign ships its own icon",
+    note: "ICE GOLEM - legacy network-fallback glyph; live troop UI uses the exact baked portrait",
     base: "#6FB2D0",
     px: `
         /* Boxy head */
@@ -496,38 +496,6 @@ export const ICONS = [
         -2px 6px #5A3E1E, 0 6px #6B4A24, 2px 6px #5A3E1E`
   },
   {
-    classes: ["quartermaster-icon"],
-    note: "QUARTERMASTER - Barrel-chested drummer, gold-laced war drum, both sticks raised, banner pole",
-    base: "#D4A017",
-    px: `
-        /* Banner pole + gold pennant */
-        8px -24px #F0C040, 10px -24px #F0C040, 8px -22px #D4A017,
-        6px -24px #6B4226, 6px -22px #6B4226, 6px -20px #6B4226, 6px -18px #6B4226, 6px -16px #6B4226, 6px -14px #6B4226,
-        /* Raised drumsticks */
-        -14px -20px #E8D8A8, -12px -18px #C9A96A, -10px -16px #DEB887, -8px -14px #8B2222,
-        14px -20px #E8D8A8, 12px -18px #C9A96A, 10px -16px #DEB887, 8px -14px #8B2222,
-        /* Cap with plume */
-        4px -20px #F0E0B0,
-        -4px -18px #8B2222, -2px -18px #A03030, 0 -18px #A03030, 2px -18px #A03030, 4px -18px #8B2222,
-        /* Face + mustache */
-        -2px -16px #DEB887, 0 -16px #F5DEB3, 2px -16px #DEB887,
-        -2px -14px #DEB887, 0 -14px #6B4226, 2px -14px #DEB887,
-        /* Barrel chest, crossed gold belts */
-        -6px -12px #8B2222, -4px -12px #B03030, -2px -12px #B03030, 0 -12px #B03030, 2px -12px #B03030, 4px -12px #B03030, 6px -12px #8B2222,
-        -6px -10px #8B2222, -4px -10px #B03030, -2px -10px #D4A017, 0 -10px #B03030, 2px -10px #D4A017, 4px -10px #B03030, 6px -10px #8B2222,
-        -4px -8px #B03030, -2px -8px #B03030, 0 -8px #D4A017, 2px -8px #B03030, 4px -8px #B03030,
-        /* War drum: gold rim */
-        -6px -6px #D4A017, -4px -6px #F0C040, -2px -6px #F0C040, 0 -6px #F0C040, 2px -6px #F0C040, 4px -6px #F0C040, 6px -6px #D4A017,
-        /* Shell with zigzag lacing */
-        -6px -4px #B03030, -4px -4px #D4A017, -2px -4px #B03030, 0 -4px #D4A017, 2px -4px #B03030, 4px -4px #D4A017, 6px -4px #B03030,
-        -6px -2px #8B2222, -4px -2px #B03030, -2px -2px #8B2222, 0 -2px #B03030, 2px -2px #8B2222, 4px -2px #B03030, 6px -2px #8B2222,
-        /* Bottom rim */
-        -6px 0 #B8860B, -4px 0 #D4A017, -2px 0 #D4A017, 2px 0 #D4A017, 4px 0 #D4A017, 6px 0 #B8860B,
-        /* Legs + boots */
-        -4px 2px #5C3317, 4px 2px #5C3317,
-        -6px 4px #3E2723, -4px 4px #3E2723, 4px 4px #3E2723, 6px 4px #3E2723`
-  },
-  {
     classes: ["siegetower-icon"],
     note: "SIEGE TOWER - Tall three-tier timber belfry, hide panels, raised drop-ramp at the crown, wheels",
     base: "#9A7B4F",
@@ -784,32 +752,6 @@ export const ICONS = [
         -12px -14px #d8a8ff, -12px -12px #d8a8ff, -10px -11px #d8a8ff`
   },
   {
-    classes: ["frostfall-icon"],
-    note: "FROSTFALL MONOLITH - Towering ice crystal on a frosted stone base",
-    base: "#9fd8f2",
-    px: `
-        /* Crystal tip */
-        0 -16px #e8f6ff,
-        -2px -14px #bfe6f8, 0 -14px #e8f6ff, 2px -14px #bfe6f8,
-        /* Upper shaft */
-        -2px -12px #9fd8f2, 0 -12px #d4eefc, 2px -12px #9fd8f2,
-        -4px -10px #7fc4e8, -2px -10px #bfe6f8, 0 -10px #e8f6ff, 2px -10px #9fd8f2, 4px -10px #7fc4e8,
-        -4px -8px #7fc4e8, -2px -8px #9fd8f2, 0 -8px #d4eefc, 2px -8px #9fd8f2, 4px -8px #6ab0d8,
-        /* Mid shaft with inner glow */
-        -6px -6px #5a9cc8, -4px -6px #7fc4e8, -2px -6px #bfe6f8, 0 -6px #e8f6ff, 2px -6px #9fd8f2, 4px -6px #7fc4e8, 6px -6px #5a9cc8,
-        -6px -4px #5a9cc8, -4px -4px #7fc4e8, -2px -4px #9fd8f2, 0 -4px #d4eefc, 2px -4px #7fc4e8, 4px -4px #6ab0d8, 6px -4px #4a88b4,
-        -6px -2px #4a88b4, -4px -2px #6ab0d8, -2px -2px #9fd8f2, 0 -2px #bfe6f8, 2px -2px #7fc4e8, 4px -2px #5a9cc8, 6px -2px #4a88b4,
-        /* Base of the crystal */
-        -4px 0 #4a88b4, -2px 0 #6ab0d8, 0 0 #7fc4e8, 2px 0 #5a9cc8, 4px 0 #4a88b4,
-        /* Frosted stone plinth */
-        -8px 2px #8a97a4, -6px 2px #a8b4c0, -4px 2px #c4ccd6, -2px 2px #c4ccd6, 0 2px #c4ccd6, 2px 2px #a8b4c0, 4px 2px #a8b4c0, 6px 2px #8a97a4, 8px 2px #8a97a4,
-        -10px 4px #6d7884, -8px 4px #8a97a4, -6px 4px #a8b4c0, -4px 4px #a8b4c0, -2px 4px #a8b4c0, 0 4px #a8b4c0, 2px 4px #8a97a4, 4px 4px #8a97a4, 6px 4px #8a97a4, 8px 4px #6d7884, 10px 4px #6d7884,
-        -8px 6px #545e68, -6px 6px #6d7884, -4px 6px #6d7884, -2px 6px #6d7884, 0 6px #6d7884, 2px 6px #6d7884, 4px 6px #6d7884, 6px 6px #545e68, 8px 6px #545e68,
-        /* Ice shards + sparkle */
-        -8px 0 #bfe6f8, -10px 2px #9fd8f2, 8px 0 #bfe6f8, 10px 2px #9fd8f2,
-        6px -12px #ffffff, -6px -9px #ffffff`
-  },
-  {
     classes: ["mine-icon"],
     note: "ORE MINE - Rock face with a timbered entrance and glinting ore",
     base: "#6b6e78",
@@ -1057,30 +999,66 @@ export const ICONS = [
   },
   {
     classes: ["barracks-icon"],
-    note: "BARRACKS - Military training building with red roof, door, and crossed swords",
-    base: "#DC143C",
+    note: "MECHANICA BARRACKS - Slate drill hall with copper ridge, smokestack, furnace door, and exposed gear",
+    base: "#5E6065",
     px: `
-        /* Sword crossed on roof (left) */
-        -8px -18px #C0C0C0, -6px -16px #A9A9A9, -4px -14px #C0C0C0,
-        /* Sword crossed on roof (right) */
-        8px -18px #C0C0C0, 6px -16px #A9A9A9, 4px -14px #C0C0C0,
-        /* Red peaked roof */
-        -2px -16px #8B0000, 0 -16px #DC143C, 2px -16px #8B0000,
-        -6px -14px #8B0000, -4px -14px #B22222, -2px -14px #DC143C, 0 -14px #FF4500, 2px -14px #DC143C, 4px -14px #B22222, 6px -14px #8B0000,
-        -10px -12px #660000, -8px -12px #8B0000, -6px -12px #B22222, -4px -12px #DC143C, -2px -12px #DC143C, 0 -12px #DC143C, 2px -12px #DC143C, 4px -12px #DC143C, 6px -12px #B22222, 8px -12px #8B0000, 10px -12px #660000,
-        /* Stone building walls */
-        -10px -10px #8B4513, -8px -10px #A0522D, -6px -10px #D2691E, -4px -10px #CD853F, -2px -10px #D2691E, 0 -10px #CD853F, 2px -10px #D2691E, 4px -10px #CD853F, 6px -10px #D2691E, 8px -10px #A0522D, 10px -10px #8B4513,
-        -10px -8px #654321, -8px -8px #8B4513, -6px -8px #A0522D, -4px -8px #8B4513, -2px -8px #A0522D, 0 -8px #8B4513, 2px -8px #A0522D, 4px -8px #8B4513, 6px -8px #A0522D, 8px -8px #8B4513, 10px -8px #654321,
-        /* Windows */
-        -6px -8px #4169E1, -4px -8px #87CEEB, 4px -8px #4169E1, 6px -8px #87CEEB,
-        /* More walls */
-        -10px -6px #5C3317, -8px -6px #654321, -6px -6px #8B4513, -4px -6px #654321, -2px -6px #8B4513, 0 -6px #654321, 2px -6px #8B4513, 4px -6px #654321, 6px -6px #8B4513, 8px -6px #654321, 10px -6px #5C3317,
-        /* Door (center) */
-        -10px -4px #5C3317, -8px -4px #654321, -6px -4px #8B4513, -4px -4px #3E2723, -2px -4px #2A1A0A, 0 -4px #2A1A0A, 2px -4px #2A1A0A, 4px -4px #3E2723, 6px -4px #8B4513, 8px -4px #654321, 10px -4px #5C3317,
-        -10px -2px #3E2723, -8px -2px #5C3317, -6px -2px #654321, -4px -2px #3E2723, -2px -2px #1A0A00, 0 -2px #1A0A00, 2px -2px #1A0A00, 4px -2px #3E2723, 6px -2px #654321, 8px -2px #5C3317, 10px -2px #3E2723,
-        /* Foundation */
-        -12px 0 #404040, -10px 0 #505050, -8px 0 #606060, -6px 0 #505050, -4px 0 #606060, -2px 0 #505050, 0 0 #606060, 2px 0 #505050, 4px 0 #606060, 6px 0 #505050, 8px 0 #606060, 10px 0 #505050, 12px 0 #404040,
-        -10px 2px #303030, -8px 2px #404040, -6px 2px #505050, -4px 2px #404040, -2px 2px #505050, 0 2px #404040, 2px 2px #505050, 4px 2px #404040, 6px 2px #505050, 8px 2px #404040, 10px 2px #303030`
+        /* Smoke and capped iron stack */
+        10px -20px rgba(145,135,125,0.45), 12px -18px rgba(115,108,105,0.6),
+        8px -18px #282A2E, 10px -18px #414348,
+        8px -16px #35373C, 10px -16px #55575D,
+        8px -14px #35373C, 10px -14px #4A4C52,
+        /* Copper ridge and dark hipped roof */
+        -2px -18px #8C5A2D, 0 -18px #D08A42, 2px -18px #8C5A2D,
+        -6px -16px #34373D, -4px -16px #4B4E55, -2px -16px #B87333, 0 -16px #D59A58, 2px -16px #B87333, 4px -16px #43464C, 6px -16px #303238,
+        -10px -14px #292C31, -8px -14px #3B3E44, -6px -14px #4E5158, -4px -14px #55585F, -2px -14px #4C4F56, 0 -14px #4F5259, 2px -14px #474A51, 4px -14px #41444A, 6px -14px #383B41, 8px -14px #303238, 10px -14px #24262B,
+        -12px -12px #202227, -10px -12px #303238, -8px -12px #41444A, -6px -12px #4B4E55, -4px -12px #55585F, -2px -12px #4B4E55, 0 -12px #50535A, 2px -12px #474A51, 4px -12px #41444A, 6px -12px #383B41, 8px -12px #303238, 10px -12px #292B30, 12px -12px #202227,
+        /* Riveted stone-and-iron drill hall */
+        -10px -10px #6B645A, -8px -10px #7D7468, -6px -10px #8E8374, -4px -10px #7D7468, -2px -10px #8E8374, 0 -10px #7D7468, 2px -10px #8E8374, 4px -10px #776F66, 6px -10px #68635D, 8px -10px #59565A, 10px -10px #494A50,
+        -10px -8px #5A554E, -8px -8px #6F675C, -6px -8px #7E7467, -4px -8px #6B645A, -2px -8px #7E7467, 0 -8px #6B645A, 2px -8px #777066, 4px -8px #64605A, 6px -8px #56545A, 8px -8px #4A4B50, 10px -8px #3E4146,
+        -10px -6px #4C4945, -8px -6px #605A52, -6px -6px #6F675C, -4px -6px #57524D, -2px -6px #665F56, 0 -6px #57524D, 2px -6px #686159, 4px -6px #57534F, 6px -6px #4D4D50, 8px -6px #43454A, 10px -6px #373A3F,
+        /* Furnace-lit door */
+        -10px -4px #494641, -8px -4px #57514A, -6px -4px #625B53, -4px -4px #3A2B20, -2px -4px #FF9D32, 0 -4px #FFC05A, 2px -4px #3A2B20, 4px -4px #5D5750, 6px -4px #4F4D4B, 8px -4px #45464A, 10px -4px #393C41,
+        -10px -2px #3D3B38, -8px -2px #4A4641, -6px -2px #514B45, -4px -2px #2A211B, -2px -2px #C65E22, 0 -2px #FF8B2A, 2px -2px #2A211B, 4px -2px #4C4843, 6px -2px #454442, 8px -2px #3D3E42, 10px -2px #31343A,
+        /* Exposed copper gear at the right wall */
+        8px -12px #7A4B25, 2px -10px #7A4B25, 12px -10px #7A4B25, 14px -6px #7A4B25, 12px -2px #7A4B25, 8px 0 #7A4B25,
+        4px -8px #8F5B2C, 6px -10px #B87333, 8px -10px #D08A42, 10px -10px #A76830, 12px -8px #8F5B2C,
+        4px -6px #A76830, 6px -8px #D08A42, 8px -8px #3A3030, 10px -8px #D08A42, 12px -6px #A76830,
+        4px -4px #8F5B2C, 6px -4px #D08A42, 8px -4px #2A2729, 10px -4px #B87333, 12px -4px #7A4B25,
+        6px -2px #8F5B2C, 8px -2px #A76830, 10px -2px #7A4B25,
+        /* Dark stone sill */
+        -12px 0 #303238, -10px 0 #3C3E43, -8px 0 #4B4D51, -6px 0 #55575C, -4px 0 #4A4C51, -2px 0 #56585D, 2px 0 #55575A, 4px 0 #494B4F, 6px 0 #414348, 10px 0 #34363B, 12px 0 #2A2C31,
+        -10px 2px #26282D, -8px 2px #303238, -6px 2px #3A3C41, -4px 2px #42444A, -2px 2px #383A3F, 0 2px #42444A, 2px 2px #383A3F, 4px 2px #34363B, 6px 2px #303238, 8px 2px #292B30, 10px 2px #222429`
+  },
+  {
+    classes: ["mystic_barracks-icon"],
+    note: "MYSTIC BARRACKS - Violet-roofed rune hall with floating cyan crystal, arcane door, spires, and tablet",
+    base: "#615E70",
+    px: `
+        /* Floating faceted crystal and its separated glow point */
+        0 -22px #E7FCFF,
+        -2px -20px #88E9FF, 0 -20px #C6F7FF, 2px -20px #6ECDEB,
+        -4px -18px #5BB8DC, -2px -18px #86E4F8, 0 -18px #B7F4FF, 2px -18px #72D3EE, 4px -18px #478FB9,
+        -2px -16px #4F9FC5, 0 -16px #84DFF5, 2px -16px #397BA7,
+        0 -14px #9AF0FF,
+        /* Twin violet spires and hipped roof */
+        -8px -16px #8D79C8, -8px -14px #55467F, 8px -16px #8D79C8, 8px -14px #55467F,
+        -6px -14px #4D3E77, -4px -14px #69558F, -2px -14px #826CB0, 0 -14px #947CC6, 2px -14px #8068AC, 4px -14px #65538B, 6px -14px #493B70,
+        -10px -12px #3E3262, -8px -12px #514171, -6px -12px #69558F, -4px -12px #8069A8, -2px -12px #9279BC, 0 -12px #A18ACC, 2px -12px #8A73B4, 4px -12px #735F9B, 6px -12px #5E4C83, 8px -12px #493B6B, 10px -12px #352B55,
+        -12px -10px #30274B, -10px -10px #40335E, -8px -10px #51416F, -6px -10px #66528A, -4px -10px #7C66A2, -2px -10px #8C75B5, 0 -10px #9B84C5, 2px -10px #846EAA, 4px -10px #705C94, 6px -10px #5B4A7C, 8px -10px #483A67, 10px -10px #392F56, 12px -10px #2B2345,
+        /* Pale arcane masonry */
+        -10px -8px #817D88, -8px -8px #96919D, -6px -8px #AAA4AF, -4px -8px #96919D, -2px -8px #AAA4AF, 0 -8px #96919D, 2px -8px #A7A1AC, 4px -8px #8F8A96, 6px -8px #807C88, 8px -8px #706D7A, 10px -8px #5E5D6B,
+        -10px -6px #706C79, -8px -6px #837F8B, -6px -6px #96919D, -4px -6px #817D89, -2px -6px #96919D, 0 -6px #817D89, 2px -6px #928D99, 4px -6px #797582, 6px -6px #6D6A77, 8px -6px #5F5D6B, 10px -6px #4F4E5D,
+        -10px -4px #615E6A, -8px -4px #716D7A, -6px -4px #817D89, -4px -4px #493E61, -2px -4px #8C7BD5, 0 -4px #B6A9F3, 2px -4px #493E61, 4px -4px #74707D, 6px -4px #656270, 8px -4px #575665, 10px -4px #494857,
+        /* Star-lit doorway */
+        -10px -2px #53505C, -8px -2px #605D69, -6px -2px #696571, -4px -2px #332942, -2px -2px #56478A, 0 -2px #8FEAFF, 2px -2px #332942, 4px -2px #62606B, 6px -2px #595663, 8px -2px #4B4A58, 10px -2px #3E3D4B,
+        /* Rune tablet on the right facade */
+        8px -8px #4B4756, 10px -8px #767184, 12px -8px #4B4756,
+        8px -6px #5B5668, 10px -6px #8FEAFF, 12px -6px #454250,
+        8px -4px #4C4859, 10px -4px #7669B5, 12px -4px #3E3B49,
+        10px -2px #3A3744,
+        /* Moonstone foundation with violet runes */
+        -12px 0 #3D3B48, -10px 0 #4B4956, -8px 0 #5B5865, -6px 0 #666370, -4px 0 #5A5764, -2px 0 #676471, 2px 0 #63606E, 4px 0 #575461, 6px 0 #4C4A57, 8px 0 #42414E, 10px 0 #3A3946, 12px 0 #302F3C,
+        -10px 2px #302F3B, -8px 2px #3B3947, -6px 2px #464451, -4px 2px #514E5B, -2px 2px #7566B1, 0 2px #A18BE0, 2px 2px #7061AB, 4px 2px #41404D, 6px 2px #393845, 8px 2px #32313D, 10px 2px #2A2935`
   },
   {
     classes: ["lab-icon"],

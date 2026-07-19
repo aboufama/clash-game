@@ -3,10 +3,10 @@ import Phaser from 'phaser';
 import { windLoopAtScreen, windSwayLoopAtScreen } from '../systems/Wind';
 import { IsoUtils, TILE_HEIGHT } from '../utils/IsoUtils';
 import { BUILDING_DEFINITIONS } from '../config/GameDefinitions';
-import { activeDesign } from './redesign/DesignRegistry';
 // Cannon: design B ("Bulldog Bombard") won the clean-room tournament and is
 // the SHIPPED canonical cannon — called directly, no registry indirection.
 import { drawCannonB } from './redesign/CannonB';
+import { drawFactionBarracks } from './FactionBarracksRenderer';
 
 export class BuildingRenderer {
 
@@ -299,6 +299,16 @@ export class BuildingRenderer {
         graphics.fillCircle(peak[0], peak[1] - 1, 2.4);
     }
 
+    static drawMechanicaBarracks(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: { level?: number; doorOpen?: number }, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        drawFactionBarracks(graphics, c1, c2, c3, c4, center, alpha, building, baseGraphics, skipBase, onlyBase, time, 'mechanica');
+    }
+
+    static drawMysticBarracks(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: { level?: number; doorOpen?: number }, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
+        drawFactionBarracks(graphics, c1, c2, c3, c4, center, alpha, building, baseGraphics, skipBase, onlyBase, time, 'mystic');
+    }
+
+    /** @deprecated Kept as an authoring reference while old screenshots are
+     * compared; the live Mechanica route uses drawMechanicaBarracks. */
     static drawBarracks(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
         const g = baseGraphics || graphics;
         const level = Math.max(1, Math.min(13, Number(building?.level) || 1));
@@ -1103,23 +1113,6 @@ export class BuildingRenderer {
         }
     }
 
-    /** Neutral flat placeholder drawn while a unit's art is redesigned in the
-     *  clean room. Keeps the base/elevated split contract intact; carries no
-     *  visual design information. */
-    private static drawRedesignPlaceholder(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
-        const g = baseGraphics || graphics;
-        if (!skipBase) {
-            BuildingRenderer.groundShadow(g, c1, c2, c3, c4, center, alpha, 0.8, 0.78);
-        }
-        if (onlyBase) return;
-        const w = Math.max(18, (c2.x - c4.x) * 0.4);
-        const h = w * 0.55;
-        graphics.fillStyle(0x8a8a8a, alpha);
-        graphics.fillRect(center.x - w / 2, center.y - h, w, h);
-        graphics.fillStyle(0x6f6f6f, alpha);
-        graphics.fillRect(center.x - w / 2, center.y - 2, w, 2);
-    }
-
     static drawCannon(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
         // Canonical cannon = tournament winner B (see redesign/CannonB.ts).
         drawCannonB(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
@@ -1472,9 +1465,9 @@ export class BuildingRenderer {
         }
         drawStringAndBolt();
 
-        // Muzzle glint right after firing
-        const sinceFire = building?.lastFireTime ? (time - building.lastFireTime) : Infinity;
-        if (sinceFire < 130 && time > 0) {
+        // lastFireTime is stamped at the START of the 400 ms wind-up. Key the
+        // flash to the actual release pose so it cannot precede the bolt.
+        if (!boltLoaded && tension > 0.15 && time > 0) {
             const m = P(railFront + 2, 0, H - 2);
             graphics.fillStyle(0xffffcc, alpha * 0.85);
             graphics.fillCircle(m[0], m[1], 3);
@@ -2243,15 +2236,6 @@ export class BuildingRenderer {
         }
     }
 
-    static drawFrostfall(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, tint: number | null, building?: any, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {
-        const design = activeDesign('frostfall');
-        if (design) {
-            design(graphics, c1, c2, c3, c4, center, alpha, tint, building, baseGraphics, skipBase, onlyBase, time);
-            return;
-        }
-        // CLEAN-ROOM REDESIGN IN PROGRESS
-        BuildingRenderer.drawRedesignPlaceholder(graphics, c1, c2, c3, c4, center, alpha, baseGraphics, skipBase, onlyBase);
-    }
     /**
      * PRISM TOWER — the Suspended Prism.
      *

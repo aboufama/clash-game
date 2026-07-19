@@ -73,6 +73,7 @@ export interface ReplayTroopState {
   owner: 'PLAYER' | 'ENEMY'
   gridX: number
   gridY: number
+  visualOffsetY?: number
   health: number
   maxHealth: number
   facingAngle?: number

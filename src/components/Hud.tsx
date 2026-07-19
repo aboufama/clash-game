@@ -6,6 +6,7 @@ import type { GameMode } from '../game/types/GameMode';
 import { formatGold } from '../game/economy/Currency';
 import { soundSystem } from '../game/systems/SoundSystem';
 import { InfoPanel } from './InfoPanel';
+import { TroopIcon } from './TroopIcon';
 
 const INFINITE_RESOURCE_DISPLAY = '999,999';
 
@@ -370,7 +371,7 @@ export function Hud({
                       disabled={count <= 0}
                       onClick={() => count > 0 && onSelectTroop(t)}
                     >
-                      <div className={`icon ${t}-icon`}></div>
+                      <TroopIcon type={t} />
                       <span className="troop-count-badge">{count}</span>
                       {troopLevel > 1 && <span className="troop-level-badge">Lv{troopLevel}</span>}
                       {isMobile && selectedTroopType === t && (

@@ -45,27 +45,6 @@
     },
     {
       "kind": "buildings",
-      "unit": "frostfall@A",
-      "atlas": "buildings/frostfall@A/atlas.png",
-      "frames": "buildings/frostfall@A/atlas.json",
-      "manifest": "buildings/frostfall@A/manifest.json"
-    },
-    {
-      "kind": "buildings",
-      "unit": "frostfall@B",
-      "atlas": "buildings/frostfall@B/atlas.png",
-      "frames": "buildings/frostfall@B/atlas.json",
-      "manifest": "buildings/frostfall@B/manifest.json"
-    },
-    {
-      "kind": "buildings",
-      "unit": "frostfall@C",
-      "atlas": "buildings/frostfall@C/atlas.png",
-      "frames": "buildings/frostfall@C/atlas.json",
-      "manifest": "buildings/frostfall@C/manifest.json"
-    },
-    {
-      "kind": "buildings",
       "unit": "jukebox",
       "atlas": "buildings/jukebox/atlas.png",
       "frames": "buildings/jukebox/atlas.json",
@@ -91,6 +70,13 @@
       "atlas": "buildings/mortar/atlas.png",
       "frames": "buildings/mortar/atlas.json",
       "manifest": "buildings/mortar/manifest.json"
+    },
+    {
+      "kind": "buildings",
+      "unit": "mystic_barracks",
+      "atlas": "buildings/mystic_barracks/atlas.png",
+      "frames": "buildings/mystic_barracks/atlas.json",
+      "manifest": "buildings/mystic_barracks/manifest.json"
     },
     {
       "kind": "buildings",
@@ -157,24 +143,10 @@
     },
     {
       "kind": "troops",
-      "unit": "clockworkbeetle@A",
-      "atlas": "troops/clockworkbeetle@A/atlas.png",
-      "frames": "troops/clockworkbeetle@A/atlas.json",
-      "manifest": "troops/clockworkbeetle@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "clockworkbeetle@B",
-      "atlas": "troops/clockworkbeetle@B/atlas.png",
-      "frames": "troops/clockworkbeetle@B/atlas.json",
-      "manifest": "troops/clockworkbeetle@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "clockworkbeetle@C",
-      "atlas": "troops/clockworkbeetle@C/atlas.png",
-      "frames": "troops/clockworkbeetle@C/atlas.json",
-      "manifest": "troops/clockworkbeetle@C/manifest.json"
+      "unit": "clockworkbeetle",
+      "atlas": "troops/clockworkbeetle/atlas.png",
+      "frames": "troops/clockworkbeetle/atlas.json",
+      "manifest": "troops/clockworkbeetle/manifest.json"
     },
     {
       "kind": "troops",
@@ -185,24 +157,10 @@
     },
     {
       "kind": "troops",
-      "unit": "goblinplunderer@A",
-      "atlas": "troops/goblinplunderer@A/atlas.png",
-      "frames": "troops/goblinplunderer@A/atlas.json",
-      "manifest": "troops/goblinplunderer@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "goblinplunderer@B",
-      "atlas": "troops/goblinplunderer@B/atlas.png",
-      "frames": "troops/goblinplunderer@B/atlas.json",
-      "manifest": "troops/goblinplunderer@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "goblinplunderer@C",
-      "atlas": "troops/goblinplunderer@C/atlas.png",
-      "frames": "troops/goblinplunderer@C/atlas.json",
-      "manifest": "troops/goblinplunderer@C/manifest.json"
+      "unit": "goblinplunderer",
+      "atlas": "troops/goblinplunderer/atlas.png",
+      "frames": "troops/goblinplunderer/atlas.json",
+      "manifest": "troops/goblinplunderer/manifest.json"
     },
     {
       "kind": "troops",
@@ -227,45 +185,17 @@
     },
     {
       "kind": "troops",
-      "unit": "necromancer@A",
-      "atlas": "troops/necromancer@A/atlas.png",
-      "frames": "troops/necromancer@A/atlas.json",
-      "manifest": "troops/necromancer@A/manifest.json"
+      "unit": "necromancer",
+      "atlas": "troops/necromancer/atlas.png",
+      "frames": "troops/necromancer/atlas.json",
+      "manifest": "troops/necromancer/manifest.json"
     },
     {
       "kind": "troops",
-      "unit": "necromancer@B",
-      "atlas": "troops/necromancer@B/atlas.png",
-      "frames": "troops/necromancer@B/atlas.json",
-      "manifest": "troops/necromancer@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "necromancer@C",
-      "atlas": "troops/necromancer@C/atlas.png",
-      "frames": "troops/necromancer@C/atlas.json",
-      "manifest": "troops/necromancer@C/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "ornithopter@A",
-      "atlas": "troops/ornithopter@A/atlas.png",
-      "frames": "troops/ornithopter@A/atlas.json",
-      "manifest": "troops/ornithopter@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "ornithopter@B",
-      "atlas": "troops/ornithopter@B/atlas.png",
-      "frames": "troops/ornithopter@B/atlas.json",
-      "manifest": "troops/ornithopter@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "ornithopter@C",
-      "atlas": "troops/ornithopter@C/atlas.png",
-      "frames": "troops/ornithopter@C/atlas.json",
-      "manifest": "troops/ornithopter@C/manifest.json"
+      "unit": "ornithopter",
+      "atlas": "troops/ornithopter/atlas.png",
+      "frames": "troops/ornithopter/atlas.json",
+      "manifest": "troops/ornithopter/manifest.json"
     },
     {
       "kind": "troops",
@@ -276,45 +206,10 @@
     },
     {
       "kind": "troops",
-      "unit": "physicianscart@A",
-      "atlas": "troops/physicianscart@A/atlas.png",
-      "frames": "troops/physicianscart@A/atlas.json",
-      "manifest": "troops/physicianscart@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "physicianscart@B",
-      "atlas": "troops/physicianscart@B/atlas.png",
-      "frames": "troops/physicianscart@B/atlas.json",
-      "manifest": "troops/physicianscart@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "physicianscart@C",
-      "atlas": "troops/physicianscart@C/atlas.png",
-      "frames": "troops/physicianscart@C/atlas.json",
-      "manifest": "troops/physicianscart@C/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "quartermaster@A",
-      "atlas": "troops/quartermaster@A/atlas.png",
-      "frames": "troops/quartermaster@A/atlas.json",
-      "manifest": "troops/quartermaster@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "quartermaster@B",
-      "atlas": "troops/quartermaster@B/atlas.png",
-      "frames": "troops/quartermaster@B/atlas.json",
-      "manifest": "troops/quartermaster@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "quartermaster@C",
-      "atlas": "troops/quartermaster@C/atlas.png",
-      "frames": "troops/quartermaster@C/atlas.json",
-      "manifest": "troops/quartermaster@C/manifest.json"
+      "unit": "physicianscart",
+      "atlas": "troops/physicianscart/atlas.png",
+      "frames": "troops/physicianscart/atlas.json",
+      "manifest": "troops/physicianscart/manifest.json"
     },
     {
       "kind": "troops",
@@ -332,45 +227,17 @@
     },
     {
       "kind": "troops",
-      "unit": "siegetower@A",
-      "atlas": "troops/siegetower@A/atlas.png",
-      "frames": "troops/siegetower@A/atlas.json",
-      "manifest": "troops/siegetower@A/manifest.json"
+      "unit": "siegetower",
+      "atlas": "troops/siegetower/atlas.png",
+      "frames": "troops/siegetower/atlas.json",
+      "manifest": "troops/siegetower/manifest.json"
     },
     {
       "kind": "troops",
-      "unit": "siegetower@B",
-      "atlas": "troops/siegetower@B/atlas.png",
-      "frames": "troops/siegetower@B/atlas.json",
-      "manifest": "troops/siegetower@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "siegetower@C",
-      "atlas": "troops/siegetower@C/atlas.png",
-      "frames": "troops/siegetower@C/atlas.json",
-      "manifest": "troops/siegetower@C/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "skeleton@A",
-      "atlas": "troops/skeleton@A/atlas.png",
-      "frames": "troops/skeleton@A/atlas.json",
-      "manifest": "troops/skeleton@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "skeleton@B",
-      "atlas": "troops/skeleton@B/atlas.png",
-      "frames": "troops/skeleton@B/atlas.json",
-      "manifest": "troops/skeleton@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "skeleton@C",
-      "atlas": "troops/skeleton@C/atlas.png",
-      "frames": "troops/skeleton@C/atlas.json",
-      "manifest": "troops/skeleton@C/manifest.json"
+      "unit": "skeleton",
+      "atlas": "troops/skeleton/atlas.png",
+      "frames": "troops/skeleton/atlas.json",
+      "manifest": "troops/skeleton/manifest.json"
     },
     {
       "kind": "troops",
@@ -381,24 +248,10 @@
     },
     {
       "kind": "troops",
-      "unit": "trebuchet@A",
-      "atlas": "troops/trebuchet@A/atlas.png",
-      "frames": "troops/trebuchet@A/atlas.json",
-      "manifest": "troops/trebuchet@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "trebuchet@B",
-      "atlas": "troops/trebuchet@B/atlas.png",
-      "frames": "troops/trebuchet@B/atlas.json",
-      "manifest": "troops/trebuchet@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "trebuchet@C",
-      "atlas": "troops/trebuchet@C/atlas.png",
-      "frames": "troops/trebuchet@C/atlas.json",
-      "manifest": "troops/trebuchet@C/manifest.json"
+      "unit": "trebuchet",
+      "atlas": "troops/trebuchet/atlas.png",
+      "frames": "troops/trebuchet/atlas.json",
+      "manifest": "troops/trebuchet/manifest.json"
     },
     {
       "kind": "troops",
@@ -409,24 +262,10 @@
     },
     {
       "kind": "troops",
-      "unit": "warelephant@A",
-      "atlas": "troops/warelephant@A/atlas.png",
-      "frames": "troops/warelephant@A/atlas.json",
-      "manifest": "troops/warelephant@A/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "warelephant@B",
-      "atlas": "troops/warelephant@B/atlas.png",
-      "frames": "troops/warelephant@B/atlas.json",
-      "manifest": "troops/warelephant@B/manifest.json"
-    },
-    {
-      "kind": "troops",
-      "unit": "warelephant@C",
-      "atlas": "troops/warelephant@C/atlas.png",
-      "frames": "troops/warelephant@C/atlas.json",
-      "manifest": "troops/warelephant@C/manifest.json"
+      "unit": "warelephant",
+      "atlas": "troops/warelephant/atlas.png",
+      "frames": "troops/warelephant/atlas.json",
+      "manifest": "troops/warelephant/manifest.json"
     },
     {
       "kind": "troops",
@@ -434,6 +273,48 @@
       "atlas": "troops/warrior/atlas.png",
       "frames": "troops/warrior/atlas.json",
       "manifest": "troops/warrior/manifest.json"
+    },
+    {
+      "kind": "troop_deaths",
+      "unit": "davincitank",
+      "atlas": "troop_deaths/davincitank/atlas.png",
+      "frames": "troop_deaths/davincitank/atlas.json",
+      "manifest": "troop_deaths/davincitank/manifest.json"
+    },
+    {
+      "kind": "troop_deaths",
+      "unit": "golem",
+      "atlas": "troop_deaths/golem/atlas.png",
+      "frames": "troop_deaths/golem/atlas.json",
+      "manifest": "troop_deaths/golem/manifest.json"
+    },
+    {
+      "kind": "troop_deaths",
+      "unit": "icegolem",
+      "atlas": "troop_deaths/icegolem/atlas.png",
+      "frames": "troop_deaths/icegolem/atlas.json",
+      "manifest": "troop_deaths/icegolem/manifest.json"
+    },
+    {
+      "kind": "troop_deaths",
+      "unit": "siegetower",
+      "atlas": "troop_deaths/siegetower/atlas.png",
+      "frames": "troop_deaths/siegetower/atlas.json",
+      "manifest": "troop_deaths/siegetower/manifest.json"
+    },
+    {
+      "kind": "troop_deaths",
+      "unit": "trebuchet",
+      "atlas": "troop_deaths/trebuchet/atlas.png",
+      "frames": "troop_deaths/trebuchet/atlas.json",
+      "manifest": "troop_deaths/trebuchet/manifest.json"
+    },
+    {
+      "kind": "troop_deaths",
+      "unit": "warelephant",
+      "atlas": "troop_deaths/warelephant/atlas.png",
+      "frames": "troop_deaths/warelephant/atlas.json",
+      "manifest": "troop_deaths/warelephant/manifest.json"
     },
     {
       "kind": "wrecks",
@@ -479,13 +360,6 @@
     },
     {
       "kind": "wrecks",
-      "unit": "frostfall",
-      "atlas": "wrecks/frostfall/atlas.png",
-      "frames": "wrecks/frostfall/atlas.json",
-      "manifest": "wrecks/frostfall/manifest.json"
-    },
-    {
-      "kind": "wrecks",
       "unit": "jukebox",
       "atlas": "wrecks/jukebox/atlas.png",
       "frames": "wrecks/jukebox/atlas.json",
@@ -511,6 +385,13 @@
       "atlas": "wrecks/mortar/atlas.png",
       "frames": "wrecks/mortar/atlas.json",
       "manifest": "wrecks/mortar/manifest.json"
+    },
+    {
+      "kind": "wrecks",
+      "unit": "mystic_barracks",
+      "atlas": "wrecks/mystic_barracks/atlas.png",
+      "frames": "wrecks/mystic_barracks/atlas.json",
+      "manifest": "wrecks/mystic_barracks/manifest.json"
     },
     {
       "kind": "wrecks",
@@ -777,13 +658,6 @@
       "atlas": "projectiles/dragon_rocket/atlas.png",
       "frames": "projectiles/dragon_rocket/atlas.json",
       "manifest": "projectiles/dragon_rocket/manifest.json"
-    },
-    {
-      "kind": "projectiles",
-      "unit": "frostfall_shard",
-      "atlas": "projectiles/frostfall_shard/atlas.png",
-      "frames": "projectiles/frostfall_shard/atlas.json",
-      "manifest": "projectiles/frostfall_shard/manifest.json"
     },
     {
       "kind": "projectiles",

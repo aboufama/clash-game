@@ -219,6 +219,18 @@ async function main() {
   // newly protected cell forever.
   legacyPlayer.plotX = 2
   legacyPlayer.plotY = 2
+  // The restored Golem remains valid owned inventory, while removed,
+  // generated, and unknown ids are scrubbed by startup sanitation.
+  legacyPlayer.army = {
+    sporelobber: 1,
+    mantisstalker: 1,
+    needleback: 1,
+    riftdjinn: 1,
+    golem: 1,
+    skeleton: 4,
+    romanwarrior: 4,
+    removed_troop: 4
+  }
   writeFileSync(legacyPlayerPath, JSON.stringify(legacyPlayer), 'utf8')
   const legacyEdgePath = path.join(dataDir, 'players', `${legacyEdgeOwner.player.id}.json`)
   const legacyEdgePlayer = JSON.parse(readFileSync(legacyEdgePath, 'utf8'))
@@ -234,6 +246,29 @@ async function main() {
   })).json
   ok(migratedLegacySession.player.plotX !== 2 || migratedLegacySession.player.plotY !== 2,
     'startup migration frees legacy villages from permanent wilderness preserves')
+  ok(JSON.stringify(migratedLegacySession.world.army) === JSON.stringify({ golem: 1 }),
+    `startup sanitation preserves the restored Golem while dropping removed/generated/unknown ids (${JSON.stringify(migratedLegacySession.world.army)})`)
+  for (const type of ['sporelobber', 'mantisstalker', 'needleback', 'riftdjinn']) {
+    const removedTrain = await api('POST', '/army/train', {
+      token: legacyLayoutOwner.token,
+      body: { type, count: 1, requestId: `removed-${type}-train-rejected` }
+    })
+    ok(removedTrain.status === 404, `${type} cannot be trained after its end-to-end removal (${removedTrain.status})`)
+  }
+  const lockedGolemTrain = await api('POST', '/army/train', {
+    token: legacyLayoutOwner.token,
+    body: { type: 'golem', count: 1, requestId: 'restored-golem-needs-mystic-six' }
+  })
+  ok(lockedGolemTrain.status === 403,
+    `the restored Golem requires its Mystic L6 unlock (${lockedGolemTrain.status})`)
+  const golemDismiss = await api('POST', '/army/untrain', {
+    token: legacyLayoutOwner.token,
+    body: { type: 'golem', count: 1, requestId: 'restored-golem-dismiss' }
+  })
+  ok(golemDismiss.status === 200 && golemDismiss.json.army?.golem === undefined,
+    `an existing restored Golem remains dismissible (${golemDismiss.status})`)
+  ok(Object.keys((await api('GET', '/world', { token: legacyLayoutOwner.token })).json.world.army).length === 0,
+    'dismissing the migrated Golem leaves a clean authoritative army')
   const migratedEdgeSession = (await api('POST', '/auth/session', {
     body: { token: legacyEdgeOwner.token }
   })).json
@@ -539,8 +574,15 @@ async function main() {
   const aNotifsAfter = targetAccount ? (await api('GET', '/notifications', { token: targetAccount.token })).json.items.length : 0
   ok(aNotifsAfter === aNotifsBefore, 'no-op abort does not spam the defender with a false raid notification')
   ok((await api('GET', `/replays/${targeted.attackId}`, { token: stranger.token })).status === 404, 'no-op abort discards the junk replay')
-  const afterAbortMatch = (await api('POST', '/attacks/matchmake', { token: stranger.token, body: { requestId: 'after-noop-matchmake' } })).json
-  ok(afterAbortMatch.attackId, 'matchmaking is immediately available again after a no-op abort')
+  const afterAbortMatch = (await api('POST', '/attacks/matchmake', {
+    token: stranger.token,
+    body: {
+      requestId: 'after-noop-matchmake',
+      excludeTargetId: targeted.world.ownerId
+    }
+  })).json
+  ok(afterAbortMatch.attackId && afterAbortMatch.world.ownerId !== targeted.world.ownerId,
+    'matchmaking is immediately available after a no-op abort and skips the previous target')
   await api('POST', '/attacks/end', { token: stranger.token, body: { attackId: afterAbortMatch.attackId, status: 'aborted' } })
 
   // Regression: rejected overdraft must not consume its idempotency key.
@@ -1125,13 +1167,16 @@ async function main() {
   await api('POST', '/resources/apply', { token: mechanics.token, body: { delta: 700, resource: 'ore', reason: 'debug_grant', requestId: 'mechanics-ore-3' } })
   await stepUpgrade(mechanics.token, building => building.id === 'mechanics-store', 3, 'mechanics-store-up3')
   await api('POST', '/resources/apply', { token: mechanics.token, body: { delta: 1_000, resource: 'ore', reason: 'debug_grant', requestId: 'mechanics-ore-4' } })
-  await stepUpgrade(mechanics.token, building => building.type === 'barracks', 4, 'mechanics-barracks-up')
+  mechanicsWorld = (await api('GET', '/world', { token: mechanics.token })).json.world
+  mechanicsWorld.buildings.push({ id: 'mechanics-mystic-barracks', type: 'mystic_barracks', gridX: 18, gridY: 3, level: 1 })
+  mechanicsWorld = (await api('POST', '/world/save', { token: mechanics.token, body: { world: mechanicsWorld, requestId: 'mechanics-mystic-barracks-place' } })).json.world
+  await stepUpgrade(mechanics.token, building => building.id === 'mechanics-mystic-barracks', 3, 'mechanics-mystic-barracks-up')
   mechanicsWorld = (await api('GET', '/world', { token: mechanics.token })).json.world
   mechanicsWorld.buildings.push({ id: 'mechanics-lab', type: 'lab', gridX: 5, gridY: 2, level: 3 })
   const mechanicsSaved = await api('POST', '/world/save', { token: mechanics.token, body: { world: mechanicsWorld, requestId: 'mechanics-lab-save' } })
   ok(mechanicsSaved.status === 200, 'a researched army setup is persisted for combat authority')
   const stormmageTrain = await api('POST', '/army/train', { token: mechanics.token, body: { type: 'stormmage', count: 3, requestId: 'mechanics-stormmage-train' } })
-  ok(stormmageTrain.status === 200, 'three researched Storm Mages train at the level-4 barracks')
+  ok(stormmageTrain.status === 200, 'three researched Storm Mages train at the level-3 Mystic Barracks')
   const mechanicsAttack = (await api('POST', '/attacks/matchmake', { token: mechanics.token, body: { requestId: 'mechanics-attack' } })).json
   const mechanicsTarget = mechanicsAttack.world.buildings.find(building => building.type !== 'wall')
   const stormmageSquad = Array.from({ length: 3 }, (_, i) => ({
@@ -1404,57 +1449,140 @@ async function main() {
   const armyAfterForge = (await api('GET', '/world', { token: eco.token })).json.world.army
   ok(Object.keys(armyAfterForge).length === 0, 'a forged army in a world save is ignored (server army untouched)')
 
-  // Training is a server transaction: charges gold + food, enforces the barracks unlock.
+  // Training is a server transaction: charges gold + food. The L1 Army Camp
+  // unlocks the Barbarian; specialist troops enforce their matching barracks.
   const beforeTrain = await ecoGold()
   const trained = (await api('POST', '/army/train', { token: eco.token, body: { type: 'warrior', count: 2, requestId: 'eco-train-1' } })).json
   ok(trained.army.warrior === 2 && trained.gold === beforeTrain.gold - 50 && trained.food === beforeTrain.food - 4,
     `training 2 warriors charges 50 gold + 4 food (army=${trained.army.warrior})`)
-  const ecoLocked = await api('POST', '/army/train', { token: eco.token, body: { type: 'golem', count: 1 } })
-  ok(ecoLocked.status === 403, `a locked troop cannot be trained past the barracks level (${ecoLocked.status})`)
+  const ecoRetired = await api('POST', '/army/train', { token: eco.token, body: { type: 'needleback', count: 1 } })
+  ok(ecoRetired.status === 404, `a removed troop cannot be newly trained (${ecoRetired.status})`)
   const untrained = (await api('POST', '/army/untrain', { token: eco.token, body: { type: 'warrior', count: 1, requestId: 'eco-untrain-1' } })).json
   ok(untrained.army.warrior === 1 && untrained.gold === trained.gold + 25 && untrained.food === trained.food + 2,
     'untraining refunds the full bill')
 
-  // NEW TROOP ACCEPTANCE — every troop introduced by the 2-per-level unlock
-  // rework, plus icegolem (the original acceptance precedent). Each is:
-  // locked below its barracks unlock (403 on the level-1 starter barracks),
-  // then trains as a server transaction on a funded fresh-id barracks at the
-  // exact unlock level (levels only step one at a time on an EXISTING
-  // building, but a fresh id is a charged placement at any level — the
-  // mechanics-lab pattern), and deploys through the authoritative command
-  // machine via a bot raid (no real victim to perturb). Isolated on fresh
-  // sessions so the eco/battle flows above and below stay undisturbed.
-  // Unlock levels follow getTroopUnlockLevel = floor(index / 2) + 1 over the
-  // 19-troop order (two troops per barracks level, barracks maxLevel 10).
-  const troopAcceptance = [
-    { type: 'goblinplunderer', unlock: 2 },
-    { type: 'clockworkbeetle', unlock: 3 },
-    { type: 'physicianscart', unlock: 3 },
-    { type: 'quartermaster', unlock: 6 },
-    { type: 'siegetower', unlock: 6 },
-    { type: 'icegolem', unlock: 7 },
-    { type: 'necromancer', unlock: 8 },
-    { type: 'trebuchet', unlock: 8 },
-    { type: 'warelephant', unlock: 9 },
-    { type: 'ornithopter', unlock: 10 }
+  // ARMY CAMP CORE — remove both faction barracks from a fresh village. The
+  // L1-L4 Camp curve unlocks exactly one foundational troop per completed
+  // level, while a faction starter remains locked.
+  const core = (await api('POST', '/auth/session')).json
+  await api('POST', '/resources/apply', { token: core.token, body: { delta: 1000, reason: 'debug_grant', requestId: 'core-gold' } })
+  await api('POST', '/resources/apply', { token: core.token, body: { delta: 100, resource: 'food', reason: 'debug_grant', requestId: 'core-food' } })
+  const coreWorld = (await api('GET', '/world', { token: core.token })).json.world
+  const factionBarracksTypes = new Set(['barracks', 'mystic_barracks'])
+  coreWorld.buildings = coreWorld.buildings.filter(building => !factionBarracksTypes.has(building.type))
+  const coreSaved = await api('POST', '/world/save', {
+    token: core.token,
+    body: { world: coreWorld, requestId: 'core-remove-all-barracks' }
+  })
+  ok(coreSaved.status === 200 && !coreSaved.json.world.buildings.some(building => factionBarracksTypes.has(building.type)),
+    'a test village has every faction barracks removed')
+  const campProgression = [
+    { type: 'warrior', level: 1 },
+    { type: 'archer', level: 2 },
+    { type: 'physicianscart', level: 3 },
+    { type: 'phalanx', level: 4 }
   ]
-  for (const { type, unlock } of troopAcceptance) {
+  const l1Core = await api('POST', '/army/train', {
+    token: core.token,
+    body: { type: 'warrior', count: 1, requestId: 'core-warrior-train' }
+  })
+  ok(l1Core.status === 200 && l1Core.json.army?.warrior === 1,
+    `the Barbarian trains at Army Camp level 1 (${l1Core.status})`)
+  for (const { type, level } of campProgression.slice(1)) {
+    const early = await api('POST', '/army/train', {
+      token: core.token,
+      body: { type, count: 1, requestId: `core-${type}-too-early` }
+    })
+    ok(early.status === 403,
+      `${type} stays locked below Army Camp level ${level} (${early.status})`)
+  }
+  await api('POST', '/resources/apply', { token: core.token, body: { delta: 5000, reason: 'debug_grant', requestId: 'core-camp-upgrade-gold' } })
+  await api('POST', '/resources/apply', { token: core.token, body: { delta: 2000, resource: 'ore', reason: 'debug_grant', requestId: 'core-camp-upgrade-ore' } })
+  for (const { type, level } of campProgression.slice(1)) {
+    const beforeCampUpgrade = (await api('GET', '/world', { token: core.token })).json.world
+    const camp = beforeCampUpgrade.buildings.find(building => building.type === 'army_camp')
+    beforeCampUpgrade.buildings = beforeCampUpgrade.buildings.map(building => building.id === camp.id
+      ? { ...building, level }
+      : building)
+    const campUpgrade = await api('POST', '/world/save', {
+      token: core.token,
+      body: { world: beforeCampUpgrade, requestId: `core-camp-level-${level}` }
+    })
+    ok(campUpgrade.status === 200,
+      `the Army Camp level-${level} upgrade starts (${campUpgrade.status})`)
+    await new Promise(resolve => setTimeout(resolve, 350))
+    const completedCampWorld = (await api('GET', '/world', { token: core.token })).json.world
+    ok(completedCampWorld.buildings.some(building => building.type === 'army_camp' && building.level === level && !building.upgradingTo),
+      `the Army Camp level-${level} upgrade completes before its troop unlocks`)
+    const coreTrain = await api('POST', '/army/train', {
+      token: core.token,
+      body: { type, count: 1, requestId: `core-${type}-train` }
+    })
+    ok(coreTrain.status === 200 && coreTrain.json.army?.[type] === 1,
+      `${type} trains at Army Camp level ${level} (${coreTrain.status})`)
+  }
+  const coreFactionLocked = await api('POST', '/army/train', {
+    token: core.token,
+    body: { type: 'goblinplunderer', count: 1, requestId: 'core-faction-still-locked' }
+  })
+  ok(coreFactionLocked.status === 403,
+    `a faction troop remains locked when all faction barracks are absent (${coreFactionLocked.status})`)
+
+  // TWO-PATH TROOP ACCEPTANCE — a high barracks in the wrong faction never
+  // unlocks a troop. The exact matching faction barracks does, one node per
+  // level through the level-7 flagship. Each accepted troop also deploys
+  // through the authoritative command machine via an isolated bot raid.
+  const troopAcceptance = [
+    { type: 'goblinplunderer', faction: 'mystic', barracksType: 'mystic_barracks', unlock: 1 },
+    { type: 'wallbreaker', faction: 'mystic', barracksType: 'mystic_barracks', unlock: 2 },
+    { type: 'stormmage', faction: 'mystic', barracksType: 'mystic_barracks', unlock: 3 },
+    { type: 'necromancer', faction: 'mystic', barracksType: 'mystic_barracks', unlock: 4 },
+    { type: 'warelephant', faction: 'mystic', barracksType: 'mystic_barracks', unlock: 5 },
+    { type: 'golem', faction: 'mystic', barracksType: 'mystic_barracks', unlock: 6 },
+    { type: 'icegolem', faction: 'mystic', barracksType: 'mystic_barracks', unlock: 7 },
+    { type: 'clockworkbeetle', faction: 'mechanica', barracksType: 'barracks', unlock: 1 },
+    { type: 'ram', faction: 'mechanica', barracksType: 'barracks', unlock: 2 },
+    { type: 'mobilemortar', faction: 'mechanica', barracksType: 'barracks', unlock: 3 },
+    { type: 'siegetower', faction: 'mechanica', barracksType: 'barracks', unlock: 4 },
+    { type: 'trebuchet', faction: 'mechanica', barracksType: 'barracks', unlock: 5 },
+    { type: 'ornithopter', faction: 'mechanica', barracksType: 'barracks', unlock: 6 },
+    { type: 'davincitank', faction: 'mechanica', barracksType: 'barracks', unlock: 7 }
+  ]
+  for (const { type, faction, barracksType, unlock } of troopAcceptance) {
     const tag = `nta-${type}`
     const session = (await api('POST', '/auth/session')).json
+    const initiallyLockedWorld = (await api('GET', '/world', { token: session.token })).json.world
+    if (initiallyLockedWorld.buildings.some(building => building.type === barracksType)) {
+      initiallyLockedWorld.buildings = initiallyLockedWorld.buildings.filter(building => building.type !== barracksType)
+      const withoutMatchingBarracks = await api('POST', '/world/save', {
+        token: session.token,
+        body: { world: initiallyLockedWorld, requestId: `${tag}-remove-matching-barracks` }
+      })
+      ok(withoutMatchingBarracks.status === 200,
+        `the ${type} authority check starts without a matching ${faction} barracks`)
+    }
     const lockedTrain = await api('POST', '/army/train', { token: session.token, body: { type, count: 1, requestId: `${tag}-locked` } })
-    ok(lockedTrain.status === 403, `${type} stays locked below barracks level ${unlock} (${lockedTrain.status})`)
+    ok(lockedTrain.status === 403, `${type} stays locked without its level-${unlock} ${faction} barracks (${lockedTrain.status})`)
     await api('POST', '/resources/apply', { token: session.token, body: { delta: 40000, reason: 'debug_grant', requestId: `${tag}-gold` } })
     await api('POST', '/resources/apply', { token: session.token, body: { delta: 5000, resource: 'ore', reason: 'debug_grant', requestId: `${tag}-ore` } })
     await api('POST', '/resources/apply', { token: session.token, body: { delta: 2000, resource: 'food', reason: 'debug_grant', requestId: `${tag}-food` } })
     const troopWorld = (await api('GET', '/world', { token: session.token })).json.world
-    troopWorld.buildings = troopWorld.buildings.map(bl => bl.type === 'barracks' ? { ...bl, id: `${tag}-barracks-${unlock}`, level: unlock } : bl)
+    const matchingBarracks = troopWorld.buildings.find(bl => bl.type === barracksType)
+    if (matchingBarracks) {
+      troopWorld.buildings = troopWorld.buildings.map(bl => bl.id === matchingBarracks.id
+        ? { ...bl, id: `${tag}-${barracksType}-${unlock}`, level: unlock }
+        : bl)
+    } else {
+      const spot = barracksType === 'mystic_barracks' ? { gridX: 3, gridY: 3 } : { gridX: 18, gridY: 3 }
+      troopWorld.buildings.push({ id: `${tag}-${barracksType}-${unlock}`, type: barracksType, ...spot, level: unlock })
+    }
     // A watchtower opens the map sight the bot raid below needs (the eco
     // flow's pattern). Level 2 (5x5 horizon): with many guest plots allocated
     // by earlier checks, the immediate 3x3 ring can fill up with players.
     troopWorld.buildings.push({ id: `${tag}-watch`, type: 'watchtower', gridX: 2, gridY: 18, level: 2 })
     const troopSaved = await api('POST', '/world/save', { token: session.token, body: { world: troopWorld, requestId: `${tag}-barracks` } })
-    ok(troopSaved.status === 200 && troopSaved.json.world.buildings.some(bl => bl.id === `${tag}-barracks-${unlock}` && bl.level === unlock),
-      `a funded level-${unlock} barracks placement is accepted for ${type} (${troopSaved.status})`)
+    ok(troopSaved.status === 200 && troopSaved.json.world.buildings.some(bl => bl.id === `${tag}-${barracksType}-${unlock}` && bl.level === unlock),
+      `a funded level-${unlock} ${faction} barracks placement is accepted for ${type} (${troopSaved.status})`)
     const troopTrained = await api('POST', '/army/train', { token: session.token, body: { type, count: 1, requestId: `${tag}-train` } })
     ok(troopTrained.status === 200 && troopTrained.json.army?.[type] === 1,
       `a ${type} trains once the barracks reaches level ${unlock} (${troopTrained.status})`)
@@ -1475,8 +1603,14 @@ async function main() {
   // romanwarrior rules: never trainable, dropped by sanitizeArmy, and a
   // direct deploy is rejected because it can never be reserved.
   const sk = (await api('POST', '/auth/session')).json
-  const skTrain = await api('POST', '/army/train', { token: sk.token, body: { type: 'skeleton', count: 1, requestId: 'sk-train' } })
-  ok(skTrain.status === 404, `skeleton is generated-only and cannot be trained (${skTrain.status})`)
+  for (const type of ['romanwarrior', 'skeleton']) {
+    const generatedTrain = await api('POST', '/army/train', {
+      token: sk.token,
+      body: { type, count: 1, requestId: `${type}-generated-train` }
+    })
+    ok(generatedTrain.status === 404,
+      `${type} is generated-only and cannot be trained (${generatedTrain.status})`)
+  }
   await api('POST', '/resources/apply', { token: sk.token, body: { delta: 5000, reason: 'debug_grant', requestId: 'sk-gold' } })
   await api('POST', '/resources/apply', { token: sk.token, body: { delta: 1000, resource: 'ore', reason: 'debug_grant', requestId: 'sk-ore' } })
   await api('POST', '/resources/apply', { token: sk.token, body: { delta: 100, resource: 'food', reason: 'debug_grant', requestId: 'sk-food' } })

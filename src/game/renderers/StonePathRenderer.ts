@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitions';
+import { BUILDING_DEFINITIONS, FACTION_BARRACKS_TYPES, type BuildingType } from '../config/GameDefinitions';
 import { PathfindingSystem } from './../systems/PathfindingSystem';
 import { IsoUtils } from '../utils/IsoUtils';
 import type { PlacedBuilding } from '../types/GameTypes';
@@ -45,7 +45,7 @@ export function computeStoneRoutes(
     const routes: Array<{ key: string; points: Phaser.Math.Vector2[] }> = [];
     const hallInfo = BUILDING_DEFINITIONS.town_hall;
     const from = { x: hall.gridX + (hallInfo?.width ?? 3) / 2, y: hall.gridY + (hallInfo?.height ?? 3) + 0.4 };
-    for (const type of ['barracks', 'storage', 'mine', 'farm'] as const) {
+    for (const type of [...FACTION_BARRACKS_TYPES, 'storage', 'mine', 'farm'] as const) {
         let best: (typeof buildings)[number] | null = null;
         let bestD = Infinity;
         for (const b of buildings) {

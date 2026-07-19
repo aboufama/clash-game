@@ -39,9 +39,90 @@ const spriteBankSource = readSource('src/game/render/SpriteBank.ts');
 assert.match(spriteBankSource, /registerPixelSurface\(/,
   'bank atlases must follow PixelMode via registerPixelSurface');
 
+// Colossal troop presentation scale is a runtime-only seam: the committed
+// bake stays at authoring scale, then SpriteBank and vector fallback apply the
+// same exact multiplier. Pin the Elephant entry so later presentation work on
+// other explicitly-listed troops cannot silently shrink it.
+const troopScaleSource = readSource('src/game/renderers/TroopVisualScale.ts');
+const troopScaleTable = troopScaleSource.match(/TROOP_WORLD_VISUAL_SCALE\s*=\s*\{([\s\S]*?)\}\s*as const/)?.[1] ?? '';
+const troopScaleEntries = [...troopScaleTable.matchAll(/^\s*([a-z0-9_]+):\s*([0-9.]+),?\s*$/gm)]
+  .map(([, type, scale]) => [type, Number(scale)]);
+assert.equal(new Map(troopScaleEntries).get('warelephant'), 1.5,
+  'the War Elephant must retain the exact 1.5x world-presentation scale');
+const troopRendererSource = readSource('src/game/renderers/TroopRenderer.ts');
+assert.match(troopRendererSource, /drawWorldTroopVisual[\s\S]*?scaleCanvas\(scale,\s*scale\)/,
+  'vector fallback must apply the declarative troop world scale around its local anchor');
+assert.match(spriteBankSource, /syncTroop\([\s\S]*?scaleMul:\s*troopWorldVisualScale\(troop\.type\)/,
+  'live baked troops must apply the declarative world scale');
+assert.match(spriteBankSource, /syncLooseTroop\([\s\S]*?scaleMul:\s*troopWorldVisualScale\(type\)/,
+  'spawn, replay and camp baked troops must apply the declarative world scale');
+assert.match(spriteBankSource, /syncTroopDeath\([\s\S]*?kind:\s*'troop_deaths',\s*scaleMul:\s*troopWorldVisualScale\(type\)/,
+  'baked death and remnant art must retain the troop world scale');
+assert.match(spriteBankSource, /type\s*===\s*'siegetower'\s*\?\s*`_\$\{siegePose\}`/,
+  'Siege Tower C deaths must resolve separate rolling and parked terminal atlases');
+assert.match(spriteBankSource, /troopTopOffset\([\s\S]*?authoredTop\s*\*\s*visualScale/,
+  'scaled colossal troop silhouettes must expose a scale-aware health-bar bound');
+
 const mainSceneSource = readSource('src/game/scenes/MainScene.ts');
 assert.match(mainSceneSource, /registerPixelSurface\(/,
   'the ground render texture must follow PixelMode via registerPixelSurface');
+assert.doesNotMatch(mainSceneSource, /TroopRenderer\.drawTroopVisual\(/,
+  'runtime battle/spawn/replay vector fallback must use drawWorldTroopVisual');
+assert.match(mainSceneSource, /TroopDeathRenderer\.drawWorld\(/,
+  'runtime death/remnant vector fallback must retain the troop world scale');
+assert.match(mainSceneSource, /const spriteTop\s*=\s*SpriteBank\.troopTopOffset\([\s\S]*?if \(spriteTop != null\) yOffset\s*=\s*Math\.ceil\([\s\S]*?troop\.type\s*===\s*'warelephant'\) yOffset\s*=\s*49/,
+  'every baked troop health bar must use its silhouette bound while War Elephant retains its measured scaled vector fallback');
+
+// Animation subtleties that are easy to erase during a later rebake: the
+// Ornithopter must visibly flap while idle, Siege Tower C must reach over its
+// parked wall and lock to the projected wall-center heading, and the tank's
+// post-shot turn must remain an explicit baked driver in live + replay paths.
+const ornithopterASource = readSource('src/game/renderers/redesign/OrnithopterA.ts');
+const siegetowerCSource = readSource('src/game/renderers/redesign/SiegetowerC.ts');
+assert.match(ornithopterASource, /flapH\s*=\s*Math\.sin\(w1\s*\*\s*2\)\s*\*\s*0\.8/,
+  'Ornithopter A idle wings must retain their sustaining flap amplitude');
+assert.match(siegetowerCSource, /const TLen\s*=\s*18/,
+  'Siege Tower C deployed tongue must retain its extra wall overlap');
+assert.match(mainSceneSource, /const towerPos\s*=\s*IsoUtils\.cartToIso\([\s\S]*?const wallPos\s*=\s*IsoUtils\.cartToIso\([\s\S]*?troop\.facingAngle\s*=\s*Math\.atan2/,
+  'a parked siege tower must commit its exact projected wall-center heading');
+assert.match(mainSceneSource, /troop\.type\s*===\s*'siegetower'\s*&&\s*\(troop\.parked01\s*\?\?\s*0\)\s*>=\s*0\.999[\s\S]*?syncTroopPose\([\s\S]*?'deactivated'/,
+  'the Siege Tower deploy atlas must own the full tween before its terminal-pose handoff');
+assert.match(mainSceneSource, /const prevScreen\s*=\s*IsoUtils\.cartToIso\(prevRenderX,\s*prevRenderY\)[\s\S]*?const nextScreen\s*=\s*IsoUtils\.cartToIso\(troop\.gridX,\s*troop\.gridY\)/,
+  'replay headings must convert grid motion through the isometric projection');
+assert.match(troopRendererSource, /drawDaVinciTank\([\s\S]*?tankSpin01[\s\S]*?Phaser\.Math\.Angle\.Normalize\([\s\S]*?Phaser\.Math\.Clamp\(tankSpin01,\s*0,\s*1\)/,
+  'Da Vinci Tank art must expose a normalized one-bay spin driver');
+assert.match(mainSceneSource, /troop\.tankSpin01\s*=\s*rotationTarget\.spin01[\s\S]*?troop\.facingAngle\s*=\s*Phaser\.Math\.Angle\.Normalize\(newAngle\)[\s\S]*?troop\.tankSpin01\s*=\s*0/,
+  'live tank attacks must drive intermediate poses before committing the next bay');
+assert.match(mainSceneSource, /aimAngleToTarget\s*=\s*Math\.atan2\([\s\S]*?targetPos\.y\s*-\s*tankPos\.y\)\s*\*\s*2[\s\S]*?relativeAim[\s\S]*?muzzleOffset\s*=\s*38/,
+  'Da Vinci shots must choose a cannon in unprojected aim space and leave from its 38 px barrel tip');
+assert.match(mainSceneSource, /nextFacing[\s\S]*?angleStep[\s\S]*?nextT\s*-\s*baySteps\s*\*\s*200[\s\S]*?troop\.tankSpin01\s*=\s*turns\s*-\s*completedTurns/,
+  'replay playback must reconstruct every 200 ms tank spin between coarse heading samples');
+assert.match(spriteBankSource, /if \(!meta\s*&&\s*!driver\s*&&\s*attackAge\s*>=\s*0/,
+  'externally-driven attack manifests must not fall through to attackAge');
+assert.match(spriteBankSource, /parked01:\s*troop\.parked01/,
+  'live and replay Siege Towers must pass their deployment driver into SpriteBank');
+assert.match(spriteBankSource, /type\s*===\s*'ballista'[\s\S]*?ballistaStringTension[\s\S]*?ballistaBoltLoaded[\s\S]*?frameLoaded\s*===\s*loaded/,
+  'Ballista fire playback must select baked frames from the live tension/loaded pose');
+assert.match(mainSceneSource, /troop\.type\s*===\s*'necromancer'[\s\S]*?showNecromancerOrb\(troop,\s*troop\.target,\s*stats\.damage\)/,
+  'Necromancer attacks must route through the visible orb instead of the generic tracer');
+assert.match(mainSceneSource, /showNecromancerOrb\([\s\S]*?sourceX\s*=\s*start\.x\s*\+\s*7\.2[\s\S]*?duration:\s*420[\s\S]*?applyDeclarativeTroopHit/,
+  'Necromancer orb must release from the baked fingertips and apply damage on impact');
+
+const troopDeathRendererSource = readSource('src/game/renderers/TroopDeathRenderer.ts');
+const machineDeathSource = readSource('src/game/renderers/troopDeaths/MachineDeaths.ts');
+const curatedDeathTypes = [...troopDeathRendererSource.matchAll(/^\s*'(golem|icegolem|siegetower|davincitank|trebuchet|warelephant)'[,]?$/gm)]
+  .map(match => match[1]);
+assert.deepEqual(curatedDeathTypes,
+  ['golem', 'icegolem', 'siegetower', 'davincitank', 'trebuchet', 'warelephant'],
+  'the bespoke death roster is owner-curated; never infer or widen it');
+assert.match(mainSceneSource, /playLargeTroopDeath\(/,
+  'curated large troops must use their persistent death/remnant path');
+assert.match(mainSceneSource, /deathType\s*===\s*'siegetower'[\s\S]*?t\.parked01[\s\S]*?siegePose/,
+  'Siege Tower C death presentation must preserve whether the live belfry was rolling or deployed');
+assert.match(machineDeathSource, /drawSiegetowerC\([\s\S]*?terminalPose\s*===\s*'parked'\s*\?\s*1\s*:\s*0/,
+  'Siege Tower death frame zero must remain the literal selected C body in both terminal poses');
+assert.doesNotMatch(machineDeathSource, /Ox of the Line|drawHideArmor|drawOxRamp/,
+  'retired Siege Tower A death language must not return');
 
 const gatePurgeSources = [
   ...collectFiles(path.join(root, 'src'), '.ts'),
@@ -62,6 +143,10 @@ assert.match(particleSource, /registerPixelSurface\(/,
 // baked frames before its vector fallback (villagers, neighbors, travellers).
 const villageLifeSource = readSource('src/game/systems/VillageLifeSystem.ts');
 assert.match(villageLifeSource, /syncEntitySprite\(/, 'village life entities must route through the baked-figure path');
+assert.match(villageLifeSource, /const continuousIdle\s*=\s*f\.type\s*===\s*'ornithopter'[\s\S]*?this\.drawCampFigure\(f,\s*false\)/,
+  'Army Camp Ornithopters must keep repainting their baked idle wing cycle');
+assert.doesNotMatch(villageLifeSource, /TroopRenderer\.drawTroopVisual\(/,
+  'army-camp vector fallback must retain the declarative troop world scale');
 assert.match(villageLifeSource, /syncFigure\(this\.scene,\s*g,\s*'merchant'/, 'the merchant must try its baked frames');
 assert.match(villageLifeSource, /syncFigure\(this\.scene,\s*t\.gfx,\s*'thief'/, 'the thief must try its baked frames');
 assert.match(villageLifeSource, /syncFigure\(this\.scene,\s*g,\s*'owl'/, 'the owl must try its baked frames');
@@ -143,14 +228,304 @@ const spriteRoot = path.join(root, 'public/assets/sprites');
 const manifestFiles = collectFiles(spriteRoot, 'manifest.json').sort();
 const kindOf = manifestFile => path.relative(spriteRoot, manifestFile).split(path.sep)[0];
 
+const tankRoot = path.join(spriteRoot, 'troops', 'davincitank');
+const tankManifest = JSON.parse(readFileSync(path.join(tankRoot, 'manifest.json'), 'utf8'));
+const tankDriverValues = [0.12, 0.28, 0.44, 0.6, 0.8, 1];
+assert.equal(tankManifest.params?.delay, 1800,
+  'Da Vinci Tank bake cadence must match its 1800 ms combat cadence');
+assert.deepEqual(tankManifest.params?.attackDriver,
+  { key: 'tankSpin01', values: tankDriverValues },
+  'Da Vinci Tank manifest must expose the six normalized spin poses');
+for (let level = 1; level <= 3; level++) for (const owner of ['P', 'E']) for (let dir = 0; dir < 8; dir++) {
+  const frames = tankManifest.levels?.[level]?.[owner]?.[dir]?.frames ?? [];
+  const attack = frames.filter(frame => frame.state === 'attack');
+  assert.equal(attack.length, tankDriverValues.length,
+    `davincitank L${level} ${owner} d${dir} must have six attack-spin frames`);
+  assert.deepEqual(attack.map(frame => frame.tankSpin01), tankDriverValues,
+    `davincitank L${level} ${owner} d${dir} spin drivers are stale or out of order`);
+  const distinctAttackPngs = new Set(attack.map(frame =>
+    readFileSync(path.join(tankRoot, frame.file)).toString('base64')));
+  assert.ok(distinctAttackPngs.size >= 4,
+    `davincitank L${level} ${owner} d${dir} has only ${distinctAttackPngs.size} distinct spin poses`);
+  const nextDirFrames = tankManifest.levels?.[level]?.[owner]?.[(dir + 1) % 8]?.frames ?? [];
+  const nextIdle = nextDirFrames.find(frame => frame.state === 'idle' && frame.frame === 0);
+  assert.ok(nextIdle, `davincitank L${level} ${owner} d${dir} is missing its next-direction idle seam`);
+  assert.deepEqual(
+    readFileSync(path.join(tankRoot, attack.at(-1).file)),
+    readFileSync(path.join(tankRoot, nextIdle.file)),
+    `davincitank L${level} ${owner} d${dir} final spin is not pixel-identical to next idle`
+  );
+}
+
+const ballistaManifest = JSON.parse(readSource('public/assets/sprites/buildings/ballista/manifest.json'));
+const ballistaFirePoses = [
+  { fireAge: 0, tension: 0, bolt: true },
+  { fireAge: 120, tension: 0.5, bolt: true },
+  { fireAge: 260, tension: 0.85, bolt: true },
+  { fireAge: 390, tension: 1, bolt: true },
+  { fireAge: 410, tension: 1, bolt: false },
+  { fireAge: 455, tension: 0.5, bolt: false },
+  { fireAge: 510, tension: 0, bolt: false }
+];
+for (let level = 1; level <= 3; level++) {
+  const fire = ballistaManifest.levels?.[level]?.states?.fire;
+  assert.equal(fire?.angles, 16, `ballista L${level} fire sequence must retain all 16 aim angles`);
+  for (let angle = 0; angle < 16; angle++) {
+    assert.deepEqual((fire?.frames?.[angle] ?? []).map(frame => frame.ov), ballistaFirePoses,
+      `ballista L${level} a${angle} fire poses do not match the live wind/release/reload contract`);
+  }
+}
+
+const siegeRoot = path.join(spriteRoot, 'troops', 'siegetower');
+const siegeManifest = JSON.parse(readFileSync(path.join(siegeRoot, 'manifest.json'), 'utf8'));
+const siegeDeployValues = [0.05, 0.2, 0.38, 0.56, 0.71, 0.83, 0.92, 1];
+assert.deepEqual(siegeManifest.params?.attackDriver,
+  { key: 'parked01', values: siegeDeployValues },
+  'Siege Tower manifest must expose the complete normalized deploy sequence');
+for (let level = 1; level <= 3; level++) for (const owner of ['P', 'E']) for (let dir = 0; dir < 8; dir++) {
+  const frames = siegeManifest.levels?.[level]?.[owner]?.[dir]?.frames ?? [];
+  const attack = frames.filter(frame => frame.state === 'attack');
+  assert.equal(attack.length, siegeDeployValues.length,
+    `siegetower L${level} ${owner} d${dir} must have eight deploy frames`);
+  assert.deepEqual(attack.map(frame => frame.parked01), siegeDeployValues,
+    `siegetower L${level} ${owner} d${dir} deploy drivers are stale or out of order`);
+  const distinctAttackPngs = new Set(attack.map(frame =>
+    readFileSync(path.join(siegeRoot, frame.file)).toString('base64')));
+  // The authored mechanism is visually settled by 0.92, so the explicit 1.0
+  // sample may repeat it; keep at least seven distinct poses while preserving
+  // the required pixel-exact terminal handoff below.
+  assert.ok(distinctAttackPngs.size >= 7,
+    `siegetower L${level} ${owner} d${dir} has only ${distinctAttackPngs.size} distinct deploy poses`);
+  const deactivated = frames.find(frame => frame.state === 'deactivated' && frame.frame === 0);
+  assert.ok(deactivated,
+    `siegetower L${level} ${owner} d${dir} is missing its deployed terminal pose`);
+  assert.deepEqual(
+    readFileSync(path.join(siegeRoot, attack.at(-1).file)),
+    readFileSync(path.join(siegeRoot, deactivated.file)),
+    `siegetower L${level} ${owner} d${dir} final deploy frame is not pixel-identical to deactivated`
+  );
+}
+
 const manifestsByKind = {};
 for (const manifestFile of manifestFiles) {
   manifestsByKind[kindOf(manifestFile)] = (manifestsByKind[kindOf(manifestFile)] ?? 0) + 1;
 }
-assert.deepEqual(manifestsByKind,
-  { buildings: 21, figures: 10, obstacles: 5, projectiles: 11, troops: 41, villagers: 11, wrecks: 19 },
-  'expected manifests for 21 buildings (tournament resolved: plain cannon + plain mortar; frostfall pending as @A/@B/@C variant slots), 41 troops (11 plain — golem + icegolem; ward/recursion/giant/sharpshooter deleted with their musket_ball projectile; pavisebearer + hawkeyeassassin deleted 2026-07 with all their variant dirs — plus 30 tournament variant dirs: 10 units × @A/@B/@C incl. skeleton), 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 11 projectiles (trebuchet_stone + ornithopter_bomb joined 2026-07)');
-assert.equal(manifestFiles.length, 118, 'the baked unit roster changed size');
+const normalManifestsByKind = { ...manifestsByKind };
+delete normalManifestsByKind.troop_deaths;
+assert.deepEqual(normalManifestsByKind,
+  { buildings: 19, figures: 10, obstacles: 5, projectiles: 10, troops: 20, villagers: 11, wrecks: 19 },
+  'expected the 94-manifest normal bank: 19 buildings, 20 troop atlases, 19 wrecks, 5 obstacles, 11 villagers, 10 figures and 10 projectiles');
+assert.equal(manifestFiles.filter(file => kindOf(file) !== 'troop_deaths').length, 94,
+  'the packed normal sprite bank changed size');
+assert.equal(manifestsByKind.troop_deaths, 6,
+  'the death bank must contain the six canonical large-troop atlases');
+assert.equal(manifestFiles.length, 100, 'the baked unit roster changed size');
+
+// SpriteBank discovers assets only through index.json. Keep it in exact lockstep
+// with every emitted manifest so a successful bake cannot remain invisible at
+// runtime (or leave a removed atlas addressable).
+const spriteIndex = JSON.parse(readSource('public/assets/sprites/index.json'));
+const indexedManifests = (spriteIndex.units ?? []).map(entry => entry.manifest).sort();
+const emittedManifests = manifestFiles
+  .map(file => path.relative(spriteRoot, file).split(path.sep).join('/'))
+  .sort();
+assert.deepEqual(indexedManifests, emittedManifests,
+  'public/assets/sprites/index.json must enumerate every manifest exactly once');
+
+// Every baked troop atlas gets an exact portrait generated from its real idle
+// frame.  Keeping this set in lockstep prevents the training UI from silently
+// falling back to an unrelated legacy CSS silhouette after a roster change.
+const troopIconRoot = path.join(root, 'public/assets/icons/troops');
+const expectedTroopIcons = manifestFiles
+  .filter(file => kindOf(file) === 'troops')
+  .map(file => `${path.basename(path.dirname(file))}.png`)
+  .sort();
+const emittedTroopIcons = readdirSync(troopIconRoot, { withFileTypes: true })
+  .filter(entry => entry.isFile() && entry.name.endsWith('.png'))
+  .map(entry => entry.name)
+  .sort();
+assert.deepEqual(emittedTroopIcons, expectedTroopIcons,
+  'exact troop portraits must match the baked troop atlas set one-for-one');
+for (const icon of emittedTroopIcons) {
+  assert.deepEqual(pngDimensions(path.join(troopIconRoot, icon)), { width: 64, height: 64 },
+    `${icon} must remain a normalized 64x64 exact troop portrait`);
+}
+const troopIconSource = readSource('src/components/TroopIcon.tsx');
+assert.match(troopIconSource, /listVariantUnits\(\)/,
+  'troop portraits must discover unresolved tournament units from the shared registry');
+assert.match(troopIconSource, /activeSlot\(type\)/,
+  'troop portraits must follow the same active A\/B\/C slot as battlefield art');
+assert.match(troopIconSource, /assets\/icons\/troops\/\$\{type\}\$\{suffix\}\.png/,
+  'troop portraits must resolve the exact baked-unit icon path');
+for (const surface of ['src/components/TrainingModal.tsx', 'src/components/Hud.tsx']) {
+  const source = readSource(surface);
+  assert.match(source, /import\s*\{\s*TroopIcon\s*\}/,
+    `${surface} must use exact troop portraits`);
+  assert.match(source, /<TroopIcon\s+type=/,
+    `${surface} must render exact troop portraits at its troop-selection surface`);
+}
+const accurateIconSource = readSource('src/icons/accurate-icons.css');
+assert.doesNotMatch(accurateIconSource, /\.(?:sporelobber|mantisstalker|biopunk_barracks)-icon::before/,
+  'retired Biopunk selectors must not survive in the shipped icon catalog');
+
+// The faction split has one canonical L1-L9 barracks progression per path.
+// L9 is structural mastery (not a ninth troop), but still needs complete idle,
+// door and ground coverage in both the building and wreck banks.
+for (const type of ['barracks', 'mystic_barracks']) {
+  const buildingManifest = JSON.parse(readSource(`public/assets/sprites/buildings/${type}/manifest.json`));
+  const wreckManifest = JSON.parse(readSource(`public/assets/sprites/wrecks/${type}/manifest.json`));
+  const expectedLevels = Array.from({ length: 9 }, (_, index) => String(index + 1));
+  assert.deepEqual(Object.keys(buildingManifest.levels ?? {}), expectedLevels,
+    `${type} building bake must cover exactly L1-L9`);
+  assert.deepEqual(Object.keys(wreckManifest.levels ?? {}), expectedLevels,
+    `${type} wreck bake must cover exactly L1-L9`);
+  for (const level of expectedLevels) {
+    const states = buildingManifest.levels[level]?.states;
+    assert.ok((states?.idle?.frames?.flat()?.length ?? 0) > 1, `${type} L${level} needs an ambient idle loop`);
+    assert.equal(states?.door?.frames?.flat()?.length, 2, `${type} L${level} needs closed/open door frames`);
+    assert.ok(buildingManifest.levels[level]?.ground?.file, `${type} L${level} needs its compact ground patch`);
+  }
+}
+
+// Large-troop deaths are a deliberately exact roster: 3 levels x 2 owner
+// palettes x every heading, with eight collapse poses plus one timeless
+// remnant. This gate prevents both accidental scope creep and a partial bake.
+const troopDeathRoot = path.join(spriteRoot, 'troop_deaths');
+const expectedTroopDeaths = [
+  'davincitank', 'golem', 'icegolem', 'siegetower', 'trebuchet', 'warelephant'
+];
+const emittedTroopDeaths = readdirSync(troopDeathRoot, { withFileTypes: true })
+  .filter(entry => entry.isDirectory() && existsSync(path.join(troopDeathRoot, entry.name, 'manifest.json')))
+  .map(entry => entry.name)
+  .sort();
+assert.deepEqual(emittedTroopDeaths, expectedTroopDeaths,
+  'death bank must contain exactly the six canonical large troops');
+for (const unit of expectedTroopDeaths) {
+  const manifest = JSON.parse(readFileSync(path.join(troopDeathRoot, unit, 'manifest.json'), 'utf8'));
+  const baseUnit = unit.split('@')[0];
+  const dirs = baseUnit === 'golem' || baseUnit === 'icegolem' ? 16 : 8;
+  const terminalPoses = baseUnit === 'siegetower' ? ['rolling', 'parked'] : [null];
+  assert.equal(Object.keys(manifest.variants ?? {}).length, 3 * 2 * dirs * terminalPoses.length,
+    `${unit} death bake must cover every level, owner palette, heading and required terminal pose`);
+  for (let level = 1; level <= 3; level++) for (const owner of ['P', 'E']) for (let dir = 0; dir < dirs; dir++) {
+    for (const terminalPose of terminalPoses) {
+      const poseTag = terminalPose ? `_${terminalPose}` : '';
+      const key = `l${level}_${owner}_d${String(dir).padStart(2, '0')}${poseTag}`;
+      const states = manifest.variants?.[key]?.states;
+      assert.deepEqual(Object.keys(states ?? {}).sort(), ['death', 'remnant'], `${unit}:${key} has incomplete death states`);
+      assert.equal(states.death.frames.length, 8, `${unit}:${key} must have eight collapse frames`);
+      assert.equal(states.remnant.frames.length, 1, `${unit}:${key} must have one persistent remnant frame`);
+    }
+  }
+}
+
+// Resolved/rejected tournament art must not linger in the shipped asset bank.
+for (const relative of [
+  'buildings/frostfall@A', 'buildings/frostfall@B', 'buildings/frostfall@C',
+  'projectiles/frostfall_shard', 'wrecks/frostfall',
+  'troops/quartermaster@A', 'troops/quartermaster@B', 'troops/quartermaster@C',
+  'troops/skeleton@A', 'troops/skeleton@B', 'troops/skeleton@C',
+  'troops/necromancer@A', 'troops/necromancer@B', 'troops/necromancer@C',
+  'troops/siegetower@A', 'troops/siegetower@B', 'troops/siegetower@C',
+  'troops/goblinplunderer@A', 'troops/goblinplunderer@B', 'troops/goblinplunderer@C',
+  'troops/clockworkbeetle@A', 'troops/clockworkbeetle@B', 'troops/clockworkbeetle@C',
+  'troops/physicianscart@A', 'troops/physicianscart@B', 'troops/physicianscart@C',
+  'troops/trebuchet@A', 'troops/trebuchet@B', 'troops/trebuchet@C',
+  'troops/warelephant@A', 'troops/warelephant@B', 'troops/warelephant@C',
+  'troops/ornithopter@A', 'troops/ornithopter@B', 'troops/ornithopter@C',
+]) {
+  assert.equal(existsSync(path.join(spriteRoot, relative)), false,
+    `${relative} is retired tournament/game art and must stay deleted`);
+}
+for (const removed of [
+  'graftling', 'runesentinel', 'rivetguard', 'hexling', 'genedragon',
+  'needleback', 'razorwing', 'vatbrute', 'apexchimera', 'riftdjinn',
+  'sporelobber', 'mantisstalker'
+]) {
+  for (const suffix of ['', '@A', '@B', '@C']) {
+    assert.equal(existsSync(path.join(spriteRoot, 'troops', `${removed}${suffix}`)), false,
+      `${removed}${suffix} was removed from the game and must not remain addressable`);
+  }
+}
+for (const removedBuilding of ['biopunk_barracks']) {
+  for (const kind of ['buildings', 'wrecks']) {
+    assert.equal(existsSync(path.join(spriteRoot, kind, removedBuilding)), false,
+      `${kind}/${removedBuilding} was removed from the game and must not remain addressable`);
+  }
+}
+for (const winner of [
+  'goblinplunderer', 'clockworkbeetle', 'physicianscart',
+  'siegetower', 'necromancer', 'skeleton',
+  'trebuchet', 'warelephant', 'ornithopter',
+]) {
+  assert.ok(existsSync(path.join(spriteRoot, 'troops', winner, 'manifest.json')),
+    `${winner} winner must ship under its canonical unversioned asset directory`);
+}
+
+const designRegistrySource = readSource('src/game/renderers/redesign/DesignRegistry.ts');
+const liveSlotsBody = designRegistrySource.slice(
+  designRegistrySource.indexOf('export const DESIGN_SLOTS'),
+  designRegistrySource.indexOf('// ===================== judged default slots')
+);
+const defaultSlotsBody = designRegistrySource.match(/DEFAULT_DESIGN_SLOTS[^=]*=\s*\{([\s\S]*?)\n\};/)?.[1] ?? '';
+assert.doesNotMatch(liveSlotsBody, /^\s*[a-z0-9_]+:\s*\{/gm,
+  'there are no unresolved troop design rounds after the Biopunk purge');
+assert.equal(defaultSlotsBody.trim(), '', 'the empty design registry cannot have a judged default');
+for (const relative of [
+  'src/game/renderers/redesign/FrostfallA.ts',
+  'src/game/renderers/redesign/FrostfallB.ts',
+  'src/game/renderers/redesign/FrostfallC.ts',
+  'src/game/renderers/redesign/QuartermasterA.ts',
+  'src/game/renderers/redesign/QuartermasterB.ts',
+  'src/game/renderers/redesign/QuartermasterC.ts',
+  'src/game/renderers/redesign/GoblinplundererB.ts',
+  'src/game/renderers/redesign/GoblinplundererC.ts',
+  'src/game/renderers/redesign/ClockworkbeetleA.ts',
+  'src/game/renderers/redesign/ClockworkbeetleC.ts',
+  'src/game/renderers/redesign/PhysicianscartA.ts',
+  'src/game/renderers/redesign/PhysicianscartC.ts',
+  'src/game/renderers/redesign/SiegetowerA.ts',
+  'src/game/renderers/redesign/SiegetowerB.ts',
+  'src/game/renderers/redesign/NecromancerA.ts',
+  'src/game/renderers/redesign/TrebuchetA.ts',
+  'src/game/renderers/redesign/TrebuchetC.ts',
+  'src/game/renderers/redesign/WarelephantB.ts',
+  'src/game/renderers/redesign/WarelephantC.ts',
+  'src/game/renderers/redesign/OrnithopterB.ts',
+  'src/game/renderers/redesign/OrnithopterC.ts',
+  'tools/art-preview/shoot-clockworkbeetle-a.mjs',
+  'tools/art-preview/shoot-clockworkbeetle-c.mjs',
+  'tools/art-preview/shoot-necromancer-c.mjs',
+  'src/game/renderers/redesign/NeedlebackA.ts',
+  'src/game/renderers/redesign/NeedlebackB.ts',
+  'src/game/renderers/redesign/NeedlebackC.ts',
+  'src/game/renderers/redesign/RazorwingA.ts',
+  'src/game/renderers/redesign/RazorwingB.ts',
+  'src/game/renderers/redesign/RazorwingC.ts',
+  'src/game/renderers/redesign/VatbruteA.ts',
+  'src/game/renderers/redesign/VatbruteB.ts',
+  'src/game/renderers/redesign/VatbruteC.ts',
+  'src/game/renderers/redesign/ApexchimeraA.ts',
+  'src/game/renderers/redesign/ApexchimeraB.ts',
+  'src/game/renderers/redesign/ApexchimeraC.ts',
+  'src/game/renderers/redesign/RiftdjinnA.ts',
+  'src/game/renderers/redesign/RiftdjinnB.ts',
+  'tools/art-preview/shoot-biopunk-quality-A.mjs',
+  'tools/art-preview/shoot-biopunk-quality-B.mjs',
+  'tools/art-preview/shoot-biopunk-quality-c.mjs',
+]) {
+  assert.equal(existsSync(path.join(root, relative)), false, `${relative} must stay deleted`);
+}
+const necromancerBSource = readSource('src/game/renderers/redesign/NecromancerB.ts');
+const skeletonCSource = readSource('src/game/renderers/redesign/NecromancerC.ts');
+assert.match(necromancerBSource, /drawNecromancerB\b/,
+  'promoted Necromancer option B must remain the canonical authoring source');
+assert.doesNotMatch(necromancerBSource, /drawSkeletonB\b/,
+  'rejected Skeleton option B must not remain inside the Necromancer B winner module');
+assert.match(skeletonCSource, /drawSkeletonC\b/,
+  'promoted Skeleton option C must remain the canonical authoring source');
+assert.doesNotMatch(skeletonCSource, /drawNecromancerC\b/,
+  'rejected Necromancer option C must not remain inside the Skeleton C winner module');
 
 const referencedPngs = new Set();
 const framesByKind = {};
@@ -165,15 +540,20 @@ for (const manifestFile of manifestFiles) {
     assert.ok(Number.isSafeInteger(frame.texelW) && frame.texelW > 0, `${label} has invalid texelW`);
     assert.ok(Number.isSafeInteger(frame.texelH) && frame.texelH > 0, `${label} has invalid texelH`);
     // Origins are frame-relative; anchors may overhang a trimmed frame slightly
-    // (obstacle bases), but anything past +/-0.5 of the frame is bake garbage.
+    // (obstacle bases), but anything past +/-0.5 of the frame is usually bake garbage.
     // EXCEPTION: flying troops (ornithopter) anchor at the GROUND point below
     // the airborne body, so a trimmed hover frame legitimately carries an
     // originY well past 1.5 (observed max 2.815 at hover apex) — SpriteBank
     // feeds it to setOrigin verbatim and Phaser handles out-of-frame origins.
-    const maxOriginY = kindOf(manifestFile) === 'troops' ? 3.0 : 1.5;
+    // Death remnants are anchored at the troop's original ground-contact point;
+    // wide, collapsed rubble can legitimately extend almost a full trimmed frame
+    // below it (War Elephant's authored minimum is -0.9778).
+    const manifestKind = kindOf(manifestFile);
+    const minOriginY = manifestKind === 'troop_deaths' ? -1.0 : -0.5;
+    const maxOriginY = manifestKind === 'troops' ? 3.0 : 1.5;
     assert.ok(Number.isFinite(frame.originX) && frame.originX >= -0.5 && frame.originX <= 1.5,
       `${label} has invalid originX`);
-    assert.ok(Number.isFinite(frame.originY) && frame.originY >= -0.5 && frame.originY <= maxOriginY,
+    assert.ok(Number.isFinite(frame.originY) && frame.originY >= minOriginY && frame.originY <= maxOriginY,
       `${label} has invalid originY`);
     assert.equal(frame.cellWorldPx, manifestScale, `${label} disagrees with its manifest scale`);
 
@@ -216,13 +596,19 @@ assert.equal(Object.keys(wallAtlas.frames).some(name => /_gate_/.test(name)), fa
   'the packed wall atlas still contains a removed gate frame');
 assert.equal(emittedPngs.some(file => /^buildings\/wall\/.*_gate_/.test(file)), false,
   'a removed loose wall-gate PNG is still committed');
-assert.deepEqual(framesByKind,
-  { buildings: 8_224, figures: 180, obstacles: 872, projectiles: 374, troops: 38_484, villagers: 2_924, wrecks: 71 },
-  'the baked roster is incomplete');
-assert.equal(frameCount, 51_129,
-  '8,224 building (incl. frostfall@A/B/C tournament variants, 208 frames each, old frostfall retired) + 38,484 troop (11,664 plain — ward/recursion/giant/sharpshooter deleted 2026-07 — plus 26,820 tournament @-variant frames: goblinplunderer/clockworkbeetle/physicianscart/quartermaster/siegetower/necromancer/trebuchet/warelephant/ornithopter/skeleton slots; pavisebearer + hawkeyeassassin variant dirs deleted 2026-07, 6,912 frames) + 71 wreck + 872 obstacle (16 hash buckets; grass_patch look-keyed at 6 variants + 4 eggs) + 2,924 villager (carry states for all adult roles, elder work, child sleep; stall assembly stages) + 180 figure (caravan_soldier escort palettes refreshed by the 2026-07 figures re-bake) + 374 projectile frames (trebuchet_stone 48 + ornithopter_bomb 1 joined) '
-  + '(dense ambient/idle loops; every defense idles — turrets bake per-angle idle loops; tournament finals resolved the @-variant slots: plain cannon (ex-@B) and reverted plain mortar rebaked, plain golem (ex-@C) plus the new icegolem troop; '
-  + 'walls carry a per-topology GROUND decal now — the contact shadow stamped under the body by SpriteBank\'s wall-ground slot, 64 frames)');
+const normalFramesByKind = { ...framesByKind };
+delete normalFramesByKind.troop_deaths;
+assert.deepEqual(normalFramesByKind,
+  { buildings: 7_913, figures: 168, obstacles: 872, projectiles: 326, troops: 21_168, villagers: 2_924, wrecks: 72 },
+  'the 33,443-frame normal sprite bank is incomplete');
+assert.equal(Object.entries(framesByKind)
+  .filter(([kind]) => kind !== 'troop_deaths')
+  .reduce((total, [, frames]) => total + frames, 0), 33_443,
+  'the packed normal sprite bank changed frame count');
+assert.equal(framesByKind.troop_deaths, 3_888,
+  'death bank must include exactly the six canonical large-troop atlases');
+assert.equal(frameCount, 37_331,
+  '7,913 building + 21,168 troop + 3,888 death + 72 wreck + 872 obstacle + 2,924 villager + 168 figure + 326 projectile frames');
 assert.deepEqual(emittedPngs.sort(), [...atlasPackedPngs].sort(),
   'every emitted sprite PNG must be packed into exactly one unit atlas');
 for (const png of referencedPngs) {

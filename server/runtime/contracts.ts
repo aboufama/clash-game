@@ -42,6 +42,12 @@ export interface AttackStartRequest {
   requestId?: unknown
 }
 
+export interface MatchmakeRequest {
+  requestId?: unknown
+  /** Previously presented defender; skipped when another candidate exists. */
+  excludeTargetId?: unknown
+}
+
 export interface AttackCommandRequest {
   attackId?: unknown
   raidId?: unknown
@@ -105,7 +111,7 @@ export interface ApiService<Principal> {
     matchmade?: boolean,
     rawToken?: unknown
   ): Awaitable<unknown>
-  matchmake(player: Principal, body?: { requestId?: unknown }, rawToken?: unknown): Awaitable<unknown>
+  matchmake(player: Principal, body?: MatchmakeRequest, rawToken?: unknown): Awaitable<unknown>
   pushFrames(player: Principal, body: AttackFrameRequest): Awaitable<unknown>
   pushCommands(player: Principal, body: AttackCommandRequest): Awaitable<unknown>
   endAttack(player: Principal, body: AttackEndRequest): Awaitable<unknown>

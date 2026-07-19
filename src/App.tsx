@@ -4,8 +4,8 @@ import Phaser from 'phaser';
 import { createGameConfig } from './game/GameConfig';
 import { installDisplayResolution } from './game/utils/DisplayResolution';
 import type { GameMode } from './game/types/GameMode';
-import { BUILDING_DEFINITIONS, PLAYER_TROOP_TYPES, TROOP_DEFINITIONS, type BuildingType, type PlayerTroopType, type TroopType, getBuildingStats, upgradeOreCostOf, troopFoodCostOf } from './game/config/GameDefinitions';
-import { armySpaceUsed, campCapacityOf, campHousingAtLevel, effectiveTroopLevel, labUpgradeInFlight, maxBarracksLevel, placementCharge, productionRatesPerSecond, resourceCapacity } from './game/config/Economy';
+import { BUILDING_DEFINITIONS, FACTION_BARRACKS, PLAYER_TROOP_TYPES, TROOP_DEFINITIONS, TROOP_FACTIONS, type ArmyCampUnlockProgress, type BuildingType, type PlayerTroopType, type TroopFaction, type TroopType, armyCampUnlockProgress, getBuildingStats, upgradeOreCostOf, troopFoodCostOf } from './game/config/GameDefinitions';
+import { armySpaceUsed, campCapacityOf, campHousingAtLevel, effectiveTroopLevel, factionBarracksLevels, labUpgradeInFlight, placementCharge, productionRatesPerSecond, resourceCapacity, type FactionBarracksLevels } from './game/config/Economy';
 import { Backend, type IncomingAttackSession } from './game/backend/GameBackend';
 import type { SerializedWorld } from './game/data/Models';
 import { Auth } from './game/backend/Auth';
@@ -17,7 +17,6 @@ import { MobileUtils } from './game/utils/MobileUtils';
 import { CloudOverlay, CLOUD_OPEN_TOTAL_MS } from './components/CloudOverlay';
 import { TrainingModal } from './components/TrainingModal';
 import { BuildingShopModal } from './components/BuildingShopModal';
-import { BattleResultsModal, type RaidReportStats } from './components/BattleResultsModal';
 import { Hud } from './components/Hud';
 import { DebugMenu } from './components/DebugMenu';
 import { NotificationsPanel } from './components/NotificationsPanel';
@@ -27,6 +26,7 @@ import { JukeboxModal } from './components/JukeboxModal';
 import { BannerPickerModal } from './components/BannerPickerModal';
 import { MerchantModal } from './components/MerchantModal';
 import { soundSystem } from './game/systems/SoundSystem';
+import { musicSystem } from './game/systems/MusicSystem';
 import type { MerchantOffer } from './game/systems/VillageLifeSystem';
 import './App.css';
 
@@ -42,7 +42,7 @@ function hasRenderableWorldPayload(world: unknown): world is { buildings: unknow
 
 // Static shop/troop catalogs — derived once from the definitions instead of being
 // rebuilt (and re-sorted) on every App render.
-const DEFENSE_SHOP_ORDER: BuildingType[] = ['wall', 'cannon', 'ballista', 'mortar', 'tesla', 'xbow', 'prism', 'frostfall', 'spike_launcher', 'dragons_breath'];
+const DEFENSE_SHOP_ORDER: BuildingType[] = ['wall', 'cannon', 'ballista', 'mortar', 'tesla', 'xbow', 'prism', 'spike_launcher', 'dragons_breath'];
 const DEFENSE_ORDER_INDEX = new Map(DEFENSE_SHOP_ORDER.map((type, index) => [type, index]));
 const CATEGORY_ORDER: Record<string, number> = {
   defense: 0,
@@ -68,6 +68,17 @@ const buildingList = Object.values(BUILDING_DEFINITIONS).sort((a, b) => {
 });
 // Canonical training order (scenario-only units excluded by construction).
 const troopList = PLAYER_TROOP_TYPES.map(id => TROOP_DEFINITIONS[id]);
+const emptyFactionBarracksLevels = (): FactionBarracksLevels => Object.fromEntries(
+  TROOP_FACTIONS.map(faction => [faction, 0])
+) as FactionBarracksLevels;
+const emptyFactionUpgradeState = (): Record<TroopFaction, boolean> => Object.fromEntries(
+  TROOP_FACTIONS.map(faction => [faction, false])
+) as Record<TroopFaction, boolean>;
+const EMPTY_ARMY_CAMP_PROGRESS: ArmyCampUnlockProgress = Object.freeze({
+  completedLevel: 0,
+  upgradingToLevel: null,
+  upgrading: false
+});
 const INFINITE_SPENDABLE_RESOURCES = Object.freeze({
   gold: Number.MAX_SAFE_INTEGER,
   ore: Number.MAX_SAFE_INTEGER,
@@ -126,10 +137,6 @@ function App() {
   useEffect(() => {
     cloudTransitionRewardRef.current = cloudTransitionReward;
   }, [cloudTransitionReward]);
-  // Raid report queued while the clouds carry us home; shown once they open.
-  const pendingBattleResultsRef = useRef<RaidReportStats | null>(null);
-  // Loot count-up held back while the raid report is up; released on dismiss.
-  const heldLootRef = useRef<number | null>(null);
   const cloudOpenTimerRef = useRef<number | null>(null);
   const cloudHideTimerRef = useRef<number | null>(null);
   const [resources, setResources] = useState({ gold: 0, ore: 0, food: 0 });
@@ -329,6 +336,7 @@ function App() {
     setCloudOpening(false);
     setCloudOverlayLoading(true);
     setCloudLoadingProgress(Math.max(0, Math.min(100, Math.floor(progress))));
+    cloudTransitionRewardRef.current = null;
     setCloudTransitionReward(null);
     setShowCloudOverlay(true);
   }, [clearCloudTimers]);
@@ -563,17 +571,19 @@ function App() {
   const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<{ id: string; type: BuildingType; level: number; gridX?: number; gridY?: number; upgradeEndsAt?: number } | null>(null);
   const [showAtlas, setShowAtlas] = useState(false);
   const [showTheatre, setShowTheatre] = useState(false);
-  const [battleStats, setBattleStats] = useState<RaidReportStats>({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
+  const [battleStats, setBattleStats] = useState({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
   const [battleStarted, setBattleStarted] = useState(false); // Track if first troop deployed
   const [isExiting, setIsExiting] = useState(false);
-  const [showBattleResults, setShowBattleResults] = useState(false);
   const [buildingCounts, setBuildingCounts] = useState<Record<BuildingType, number>>({} as Record<BuildingType, number>);
   const [shopWallLevel, setShopWallLevel] = useState(1);
   const [troopLevel, setTroopLevel] = useState(1);
-  const [barracksLevel, setBarracksLevel] = useState(1);
-  // True when barracks exist but none can train (all mid-upgrade) — the
-  // training grid shows the real reason instead of offering refused troops.
-  const [barracksUpgrading, setBarracksUpgrading] = useState(false);
+  const [barracksLevels, setBarracksLevels] = useState<FactionBarracksLevels>(emptyFactionBarracksLevels);
+  // Per path: a present barracks under upgrade cannot train, while unrelated
+  // faction trees remain independently available.
+  const [barracksUpgrading, setBarracksUpgrading] = useState<Record<TroopFaction, boolean>>(emptyFactionUpgradeState);
+  // Core troop access follows the highest completed Army Camp. A camp under
+  // upgrade is offline until the server finishes the shared upgrade clock.
+  const [armyCampProgress, setArmyCampProgress] = useState<ArmyCampUnlockProgress>(EMPTY_ARMY_CAMP_PROGRESS);
   // True while a lab upgrade is running: the server treats troops as level 1
   // for the duration, so the UI must show that (with an upgrading hint).
   const [troopLevelUpgrading, setTroopLevelUpgrading] = useState(false);
@@ -585,7 +595,6 @@ function App() {
   const selectedInMapRef = useRef<string | null>(null);
   const armyRef = useRef(army);
   const selectedTroopTypeRef = useRef(selectedTroopType);
-  const battleStatsRef = useRef(battleStats);
   const populationRef = useRef(population);
   // Army orders (train/untrain) queue instead of rejecting while one is in
   // flight: rapid clicks each land optimistically and their server calls run
@@ -734,7 +743,6 @@ function App() {
       setIsBannerPickerOpen(false);
       setMerchantOffers(null);
       setIsDebugOpen(false);
-      setShowBattleResults(false);
       setIncomingAttack(null);
       setSelectedInMap(null);
       setSelectedBuildingInfo(null);
@@ -834,9 +842,8 @@ function App() {
     selectedInMapRef.current = selectedInMap;
     armyRef.current = army;
     selectedTroopTypeRef.current = selectedTroopType;
-    battleStatsRef.current = battleStats;
     resourcesRef.current = resources;
-  }, [selectedInMap, army, selectedTroopType, battleStats, resources]);
+  }, [selectedInMap, army, selectedTroopType, resources]);
 
   const handleRenameAccount = async (name: string) => {
     await Backend.flushPendingSave();
@@ -945,19 +952,13 @@ function App() {
         cloudHideTimerRef.current = window.setTimeout(() => {
           setShowCloudOverlay(false);
           setCloudOpening(false);
-          // The clouds have parted on home. Show the raid report first when
-          // one is queued (its dismiss releases the loot count-up); plain
-          // transitions start the count-up straight away. Side effects live
-          // here, not inside a state updater (StrictMode double-fires those).
+          // The clouds have parted on home. Release any confirmed raid payout
+          // directly into the resource-chip count-up; there is intentionally
+          // no separate end-of-battle results screen.
           const reward = cloudTransitionRewardRef.current;
+          cloudTransitionRewardRef.current = null;
           setCloudTransitionReward(null);
-          const results = pendingBattleResultsRef.current;
-          if (results) {
-            pendingBattleResultsRef.current = null;
-            heldLootRef.current = reward && reward > 0 ? reward : null;
-            setBattleStats(results);
-            setShowBattleResults(true);
-          } else if (reward && reward > 0) {
+          if (reward && reward > 0) {
             setLootAnimating({ amount: reward });
           }
         }, CLOUD_OPEN_TOTAL_MS + 40); // slowest cloud layer finishes at OPEN_MS × 1.2; hiding earlier strands a haze band on wide windows
@@ -1052,7 +1053,6 @@ function App() {
           // MainScene owns the one authoritative settlement request and passes
           // its applied payout here. Issuing /attacks/end again doubled finish
           // traffic and let a second network failure hide a successful payout.
-          setBattleStats(prev => ({ ...prev, goldLooted: lootWon }));
         } else if (enemyWorld?.isBot) {
           // Bot raids settle server-side in MainScene (world-map camps pay on
           // a cooldown; practice drills pay nothing). The number arriving here
@@ -1068,28 +1068,31 @@ function App() {
           lootWon = 0;
         }
 
-        // Queue the raid report for when the clouds open on home, then
-        // auto-trigger the "Return Home" flow. Like gold, ore/food show the
-        // SERVER-applied amounts when the settlement provided them — the
-        // client battle counters over-count against the loot caps. The local
-        // counters remain the fallback (offline sandbox, bot raids). A
-        // transport-failed settlement is flagged, never shown as a false 0.
-        pendingBattleResultsRef.current = {
-          destruction: battleStatsRef.current.destruction,
-          goldLooted: lootWon,
-          oreLooted: Math.max(0, applied?.ore ?? battleStatsRef.current.oreLooted ?? 0),
-          foodLooted: Math.max(0, applied?.food ?? battleStatsRef.current.foodLooted ?? 0),
-          settlementDelayed: applied?.settlementDelayed
-        };
-        setShowBattleResults(false);
+        // Return home immediately. Confirmed loot animates beside the resource
+        // icon after the clouds open; a transport-delayed settlement never
+        // pretends that the payout was zero.
+        if (applied?.settlementDelayed) {
+          gameManager.showToast('Raid settlement is still pending — your loot will appear when it is banked.');
+        }
+        // The loot chip lands with the barrows chime — confirmed loot only.
+        if (!applied?.settlementDelayed && lootWon > 0) musicSystem.stinger('loot');
         transitionHome(applied?.settlementDelayed ? 0 : lootWon);
       },
-      onRetreatEnded: (results: RaidReportStats) => {
-        // A mid-raid retreat settled inside goHome (already behind the
-        // clouds): queue the "Retreated" report for when they open. No
-        // transitionHome here — one is already running.
-        pendingBattleResultsRef.current = { ...results, retreated: true };
-        setShowBattleResults(false);
+      onRetreatEnded: (results) => {
+        // goHome is already running behind the clouds. Feed confirmed partial
+        // loot into the same resource-chip animation used by natural endings.
+        if (results.settlementDelayed) {
+          cloudTransitionRewardRef.current = null;
+          setCloudTransitionReward(null);
+          gameManager.showToast('Raid settlement is still pending — your loot will appear when it is banked.');
+        } else if (results.goldLooted > 0) {
+          const reward = Math.floor(results.goldLooted);
+          // The cloud-open callback runs from a timer, so write the mirror
+          // synchronously as well as state; it must never observe the zero
+          // reward that started a retreat transition.
+          cloudTransitionRewardRef.current = reward;
+          setCloudTransitionReward(reward);
+        }
       },
       getArmy: () => armyRef.current,
       getResources: () => resourcesRef.current,
@@ -1250,14 +1253,19 @@ function App() {
       try {
         const world = await Backend.getWorld(user.id || 'default_player');
         if (!world || cancelled) return;
-        // Mirror the server's training gate exactly (shared Economy helper):
-        // a mid-upgrade barracks is a construction site and an absent
-        // barracks trains nothing — both come back as level 0.
-        const trainableBarracksLvl = maxBarracksLevel(world.buildings);
-        const hasAnyBarracks = world.buildings.some((b: any) => b.type === 'barracks');
+        // Mirror the server's faction-specific gate exactly. Each path reads
+        // only its matching completed barracks; another path may upgrade or
+        // remain absent without locking this one.
+        const trainableBarracksLevels = factionBarracksLevels(world.buildings);
+        const upgradingByFaction = Object.fromEntries(TROOP_FACTIONS.map(faction => {
+          const matching = world.buildings.filter((b: any) => b.type === FACTION_BARRACKS[faction]);
+          return [faction, trainableBarracksLevels[faction] === 0 && matching.some((b: any) => Boolean(b.upgradingTo))];
+        })) as Record<TroopFaction, boolean>;
+        const campProgress = armyCampUnlockProgress(world.buildings);
         if (!cancelled) {
-          setBarracksLevel(trainableBarracksLvl);
-          setBarracksUpgrading(trainableBarracksLvl === 0 && hasAnyBarracks);
+          setBarracksLevels(trainableBarracksLevels);
+          setBarracksUpgrading(upgradingByFaction);
+          setArmyCampProgress(campProgress);
           // Server-effective level (shared rule): a lab mid-upgrade is offline
           // and troops read as level 1 until the work lands.
           setTroopLevel(effectiveTroopLevel(world.buildings));
@@ -1466,7 +1474,9 @@ function App() {
     const scene = gameRef.current?.scene.getScene('MainScene') as any;
     // Every retreat — battles-in-place included — goes home behind the
     // clouds: end battle, clouds close, clouds open on the home village.
-    setCloudTransitionReward(rewardAmount > 0 ? Math.floor(rewardAmount) : null);
+    const reward = rewardAmount > 0 ? Math.floor(rewardAmount) : null;
+    cloudTransitionRewardRef.current = reward;
+    setCloudTransitionReward(reward);
     if (scene) {
       scene.showCloudTransition(async () => {
         await scene.goHome();
@@ -1475,15 +1485,9 @@ function App() {
         setScoutTarget(null);
       });
     } else {
-      // No scene, no clouds: show any queued raid report immediately so it
-      // can't ambush a later, unrelated cloud transition.
-      const results = pendingBattleResultsRef.current;
-      if (results) {
-        pendingBattleResultsRef.current = null;
-        setBattleStats(results);
-        setShowBattleResults(true);
-      }
+      cloudTransitionRewardRef.current = null;
       setCloudTransitionReward(null);
+      if (reward) setLootAnimating({ amount: reward });
       setView('HOME');
       setSelectedInMap(null);
       setScoutTarget(null);
@@ -1578,18 +1582,6 @@ function App() {
     setActiveReplay({ attackId, attackerName, live: false });
     gameManager.watchReplay(attackId);
   }, []);
-
-  // Dismissing the raid report (we are already home behind it) releases the
-  // loot count-up that was held back so the modal's backdrop couldn't bury it.
-  const handleBattleResultsClose = () => {
-    setShowBattleResults(false);
-    const held = heldLootRef.current;
-    heldLootRef.current = null;
-    if (held && held > 0) {
-      setLootAnimating({ amount: held });
-    }
-  };
-
 
   const handleDeleteBuilding = () => {
     if (selectedInMap && selectedBuildingInfo) {
@@ -1903,8 +1895,11 @@ function App() {
         troops={troopList}
         troopLevel={troopLevel}
         troopLevelUpgrading={troopLevelUpgrading}
-        barracksLevel={barracksLevel}
+        barracksLevels={barracksLevels}
         barracksUpgrading={barracksUpgrading}
+        armyCampLevel={armyCampProgress.completedLevel}
+        armyCampUpgrading={armyCampProgress.upgrading}
+        armyCampUpgradingToLevel={armyCampProgress.upgradingToLevel}
         onClose={() => setIsTrainingOpen(false)}
         onStartPractice={handleStartPractice}
         onFindMatch={handleFindMatch}
@@ -1930,11 +1925,6 @@ function App() {
         loadingProgress={cloudLoadingProgress}
       />
 
-      <BattleResultsModal
-        isOpen={showBattleResults}
-        stats={battleStats}
-        onClose={handleBattleResultsClose}
-      />
     </div>
   );
 }

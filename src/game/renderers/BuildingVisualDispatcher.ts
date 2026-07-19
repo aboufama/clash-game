@@ -78,7 +78,11 @@ const DEDICATED_BUILDING_VISUALS = {
         c.graphics, c.gridX, c.gridY, c.time, c.alpha, c.tint,
         c.baseGraphics, c.skipBase, c.onlyBase, c.building?.doorOpen ?? 0
     ),
-    barracks: c => BuildingRenderer.drawBarracks(
+    barracks: c => BuildingRenderer.drawMechanicaBarracks(
+        c.graphics, c.c1, c.c2, c.c3, c.c4, c.center, c.alpha, c.tint,
+        c.building, c.baseGraphics, c.skipBase, c.onlyBase, c.time
+    ),
+    mysticBarracks: c => BuildingRenderer.drawMysticBarracks(
         c.graphics, c.c1, c.c2, c.c3, c.c4, c.center, c.alpha, c.tint,
         c.building, c.baseGraphics, c.skipBase, c.onlyBase, c.time
     ),
@@ -146,10 +150,6 @@ const DEDICATED_BUILDING_VISUALS = {
         }
     },
     prism: c => BuildingRenderer.drawPrismTower(
-        c.graphics, c.c1, c.c2, c.c3, c.c4, c.center, c.alpha, c.tint,
-        c.building, c.baseGraphics, c.skipBase, c.onlyBase, c.time
-    ),
-    frostfall: c => BuildingRenderer.drawFrostfall(
         c.graphics, c.c1, c.c2, c.c3, c.c4, c.center, c.alpha, c.tint,
         c.building, c.baseGraphics, c.skipBase, c.onlyBase, c.time
     ),

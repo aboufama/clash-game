@@ -1,8 +1,17 @@
 import Phaser from 'phaser';
-import { TROOP_DEFINITIONS, type TroopType } from '../config/GameDefinitions';
+import type { TroopType } from '../config/GameDefinitions';
 import { drawGolemC } from './redesign/GolemC';
 import { drawIceGolem as drawIceGolemArt } from './redesign/IceGolem';
-import { activeDesign, type DesignUnit } from './redesign/DesignRegistry';
+import { drawGoblinplundererA } from './redesign/GoblinplundererA';
+import { drawClockworkbeetleB } from './redesign/ClockworkbeetleB';
+import { drawPhysicianscartB } from './redesign/PhysicianscartB';
+import { drawSiegetowerC } from './redesign/SiegetowerC';
+import { drawTrebuchetB } from './redesign/TrebuchetB';
+import { drawWarelephantA } from './redesign/WarelephantA';
+import { drawOrnithopterA } from './redesign/OrnithopterA';
+import { drawNecromancerB } from './redesign/NecromancerB';
+import { drawSkeletonC } from './redesign/NecromancerC';
+import { troopWorldVisualScale } from './TroopVisualScale';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -64,7 +73,8 @@ export class TroopRenderer {
         // poisons bakes/postcards).
         time: number = 0,
         attackAge: number = -1,
-        attackDelay: number = 0
+        attackDelay: number = 0,
+        tankSpin01: number = 0
     ) {
         const isPlayer = owner === 'PLAYER';
 
@@ -91,7 +101,7 @@ export class TroopRenderer {
                 TroopRenderer.drawStormMage(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
             case 'davincitank':
-                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, !!isDeactivated, facingAngle, troopLevel, time);
+                TroopRenderer.drawDaVinciTank(graphics, isPlayer, isMoving, !!isDeactivated, facingAngle, troopLevel, time, tankSpin01);
                 break;
             case 'phalanx':
                 TroopRenderer.drawPhalanx(graphics, isPlayer, isMoving, facingAngle, phalanxSpearOffset, troopLevel, time);
@@ -102,122 +112,61 @@ export class TroopRenderer {
             case 'wallbreaker':
                 TroopRenderer.drawWallBreaker(graphics, isPlayer, isMoving, troopLevel, time, attackAge, attackDelay);
                 break;
-            // ===== 2026-07 troop-overhaul units: tournament slot when filled,
-            // neutral placeholder until then (art phase pending) =====
+            // Promoted tournament winners are canonical and bypass the live
+            // Design Lab registry.
             case 'goblinplunderer':
-                TroopRenderer.drawNewTroop(graphics, 'goblinplunderer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                drawGoblinplundererA(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'clockworkbeetle':
-                TroopRenderer.drawNewTroop(graphics, 'clockworkbeetle', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                drawClockworkbeetleB(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'physicianscart':
-                TroopRenderer.drawNewTroop(graphics, 'physicianscart', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
-                break;
-            case 'quartermaster':
-                TroopRenderer.drawNewTroop(graphics, 'quartermaster', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                drawPhysicianscartB(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'siegetower':
                 // driver = parked01 (the davincitank isDeactivated plumbing);
                 // MainScene tweens it 0→1 through the redraw path on parking.
-                TroopRenderer.drawNewTroop(graphics, 'siegetower', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay,
+                drawSiegetowerC(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay,
                     typeof isDeactivated === 'number' ? Math.max(0, Math.min(1, isDeactivated)) : (isDeactivated ? 1 : 0));
                 break;
             case 'necromancer':
-                TroopRenderer.drawNewTroop(graphics, 'necromancer', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                drawNecromancerB(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'trebuchet':
-                TroopRenderer.drawNewTroop(graphics, 'trebuchet', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                drawTrebuchetB(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'warelephant':
-                TroopRenderer.drawNewTroop(graphics, 'warelephant', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                drawWarelephantA(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
             case 'ornithopter':
-                TroopRenderer.drawNewTroop(graphics, 'ornithopter', isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
+                drawOrnithopterA(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
-            case 'skeleton': {
-                // Generated-only summon: art ships inside the winning
-                // necromancer design (skeleton slots mirror necromancer's).
-                const skeletonDesign = activeDesign('skeleton');
-                if (skeletonDesign) {
-                    skeletonDesign(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
-                } else {
-                    TroopRenderer.drawPlaceholder(graphics, 'skeleton', isPlayer, isMoving, time);
-                }
+            case 'skeleton':
+                drawSkeletonC(graphics, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, 0);
                 break;
-            }
         }
-    }
-
-    /** New-troop dispatch: the live tournament design when a slot is filled,
-     *  else the neutral placeholder. `driver` = the unit's bespoke tweened
-     *  driver (parked01 for siegetower), 0 when unused. */
-    private static drawNewTroop(
-        g: G,
-        unit: Exclude<DesignUnit, 'frostfall'>,
-        isPlayer: boolean,
-        isMoving: boolean,
-        facingAngle: number,
-        troopLevel: number,
-        time: number,
-        attackAge: number,
-        attackDelay: number,
-        driver: number
-    ): void {
-        const design = activeDesign(unit);
-        if (design) {
-            design(g, isPlayer, isMoving, facingAngle, troopLevel, time, attackAge, attackDelay, driver);
-            return;
-        }
-        TroopRenderer.drawPlaceholder(g, unit, isPlayer, isMoving, time);
-    }
-
-    /** Multiply a 0xRRGGBB colour toward dark (m<1) or light (m>1). */
-    private static shade(c: number, m: number): number {
-        const r = Math.max(0, Math.min(255, Math.round(((c >> 16) & 0xff) * m)));
-        const g = Math.max(0, Math.min(255, Math.round(((c >> 8) & 0xff) * m)));
-        const b = Math.max(0, Math.min(255, Math.round((c & 0xff) * m)));
-        return (r << 16) | (g << 8) | b;
     }
 
     /**
-     * Neutral tournament placeholder — a readable capsule figure in the
-     * troop's definition colour, bulk scaled by housing space (space 1 ≈ the
-     * villager-scale humanoid) so battle silhouettes stay honest before the
-     * real art lands. All motion is a deterministic f(time): the walk bounce
-     * closes on a 500 ms stride and the idle bob on an exact 2000 ms period
-     * (250 ms harmonics — bake-safe, iron rule 3). Air units hover with a
-     * detached ground shadow. Safe at every level and for both owners.
+     * Runtime vector-fallback surface. The raw draw method above deliberately
+     * remains at authoring scale for the bake bridge; this wrapper applies the
+     * same presentation-only multiplier that SpriteBank applies to baked
+     * shadows, around the troop's local ground-contact anchor.
      */
-    private static drawPlaceholder(g: G, type: TroopType, isPlayer: boolean, isMoving: boolean, time: number): void {
-        const def = TROOP_DEFINITIONS[type];
-        const color = def?.color ?? 0x9a9a9a;
-        const space = def?.space ?? 1;
-        const air = def?.movementType === 'air';
-        const s = 0.85 + Math.sqrt(space) * 0.32; // space 1 ≈ ~19 px tall
-        const bodyW = 6.6 * s;
-        const bodyH = 13.5 * s;
-        const bob = isMoving
-            ? Math.abs(Math.sin(((time % 500) / 500) * Math.PI * 2)) * 1.1
-            : (Math.sin(((time % 2000) / 2000) * Math.PI * 2) * 0.5 + 0.5) * 0.8;
-        const hover = air ? 7 + Math.sin(((time % 2000) / 2000) * Math.PI * 2) * 1.2 : 0;
-        const groundY = 9.5;
-        const top = groundY - bodyH - bob - hover;
-        const owner = isPlayer ? 1 : 0.7; // enemies darken (palette convention)
-
-        // Contact shadow stays on the ground (air units cast it detached).
-        g.fillStyle(0x000000, air ? 0.14 : 0.22);
-        g.fillEllipse(0, groundY + 0.1, bodyW * (air ? 0.9 : 1.25), bodyW * 0.45);
-
-        // Capsule body with a darker rim for silhouette read.
-        g.fillStyle(TroopRenderer.shade(color, 0.55 * owner), 1);
-        g.fillRoundedRect(-bodyW / 2 - 0.7, top - 0.7, bodyW + 1.4, bodyH + 1.4, (bodyW + 1.4) / 2);
-        g.fillStyle(TroopRenderer.shade(color, owner), 1);
-        g.fillRoundedRect(-bodyW / 2, top, bodyW, bodyH, bodyW / 2);
-        // NW-light cap highlight + visor band so the figure reads as a unit.
-        g.fillStyle(TroopRenderer.shade(color, 1.35 * owner), 1);
-        g.fillEllipse(-bodyW * 0.14, top + bodyH * 0.18, bodyW * 0.52, bodyH * 0.2);
-        g.fillStyle(TroopRenderer.shade(color, 0.4 * owner), 1);
-        g.fillRect(-bodyW * 0.32, top + bodyH * 0.32, bodyW * 0.64, 1.4);
+    static drawWorldTroopVisual(...args: Parameters<typeof TroopRenderer.drawTroopVisual>): void {
+        const [graphics, type] = args;
+        const scale = troopWorldVisualScale(type);
+        if (scale === 1) {
+            TroopRenderer.drawTroopVisual(...args);
+            return;
+        }
+        graphics.save();
+        graphics.scaleCanvas(scale, scale);
+        try {
+            TroopRenderer.drawTroopVisual(...args);
+        } finally {
+            graphics.restore();
+        }
     }
 
     // ================= villager-scale humanoid toolkit =================
@@ -1529,13 +1478,20 @@ export class TroopRenderer {
     private static drawIceGolem(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, isMoving: boolean, slamOffset: number, troopLevel: number = 1, time: number = 0) {
         drawIceGolemArt(graphics, isPlayer, isMoving, slamOffset, troopLevel, time);
     }
-    static drawDaVinciTank(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, _isMoving: boolean, isDeactivated: boolean = false, facingAngle: number = 0, troopLevel: number = 1, time: number = 0) {
+    static drawDaVinciTank(graphics: Phaser.GameObjects.Graphics, isPlayer: boolean, _isMoving: boolean, isDeactivated: boolean = false, facingAngle: number = 0, troopLevel: number = 1, time: number = 0, tankSpin01: number = 0) {
         // LEONARDO DA VINCI'S ARMORED WAR MACHINE
         // Conical wooden tank with cannons all around the base - NO rotation when moving
         // Rotation only happens after each shot (controlled by facingAngle from MainScene)
 
-        // Use facingAngle for rotation - only changes when shooting
-        const rotation = facingAngle;
+        // The tank has eight cannon bays, so a completed 45-degree turn is
+        // visually equivalent to the next facing bucket. The old bake only
+        // sampled those equivalent endpoints and reduced the 200 ms spin to
+        // one frame-pop. `tankSpin01` exposes the in-between bay rotation as
+        // a first-class baked attack driver; committing facingAngle at 1 then
+        // resetting this to 0 is pixel-seamless.
+        const rotation = Phaser.Math.Angle.Normalize(
+            facingAngle + Phaser.Math.Clamp(tankSpin01, 0, 1) * (Math.PI / 4)
+        );
 
         // Colors - warm wood tones
         const woodMain = isDeactivated ? 0x6a5040 : (isPlayer ? 0xc9a07a : 0xb8956e);

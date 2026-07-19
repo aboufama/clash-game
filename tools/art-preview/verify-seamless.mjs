@@ -1,7 +1,7 @@
 // Battery for the seamless batch: zoomed-out rain, stone paths, per-village
 // grass in postcards AND in-place battles, night+rain persisting through a
-// neighbour raid, hidden name UI, new road cast, and the rebuilt dragons
-// breath / frostfall impacts.
+// neighbour raid, hidden name UI, new road cast, and the rebuilt dragon's
+// breath impact.
 import puppeteer from 'puppeteer-core'
 import { mkdirSync } from 'node:fs'
 
@@ -102,7 +102,7 @@ try {
   console.log('seamless state:', JSON.stringify(seamless))
   await page.screenshot({ path: `${OUT}/w-battle-night-rain.png` })
 
-  // E. Impacts on this battlefield: dragons breath pod + frostfall shard.
+  // E. Dragon's Breath impact on this battlefield.
   await page.evaluate(() => {
     const s = window.__clashGame.scene.keys.MainScene
     s.dayNight.setPhaseOverride(0.3)
@@ -117,17 +117,6 @@ try {
   })
   await sleep(1180)
   await page.screenshot({ path: `${OUT}/x-dragon-impact.png` })
-  await sleep(500)
-
-  await page.evaluate(() => {
-    const s = window.__clashGame.scene.keys.MainScene
-    const fakeFrost = { id: 'vf_frost', type: 'frostfall', owner: 'ENEMY', health: 500, gridX: 10, gridY: 14, level: 2, lastFireTime: 0 }
-    s['shootFrostfallShard'](fakeFrost, s.time.now)
-  })
-  await sleep(5150) // 4200 rise + 600 flight + settle
-  await page.screenshot({ path: `${OUT}/y-frost-impact.png` })
-  await sleep(3200) // half-melted
-  await page.screenshot({ path: `${OUT}/z-frost-melting.png` })
 
   // F. Home again — lawn, label and plates restored.
   await page.evaluate(async () => {

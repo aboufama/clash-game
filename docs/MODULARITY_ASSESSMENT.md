@@ -77,7 +77,7 @@ private shootAt(defense: PlacedBuilding, target: Troop, time: number) {
 
 Plus per-defense **aim state** on the runtime struct (`types/GameTypes.ts`):
 `ballistaAngle`, `ballistaTargetAngle`, `ballistaStringTension`, `cannonRecoilOffset`,
-`teslaCharging`, `frostfallProjectileActive`, … The turret is rotated by writing
+`teslaCharging`, … The turret is rotated by writing
 `cos/sin(angle)` into vector geometry every frame.
 
 Buildings that aren't defenses are the same minus steps 3 and 6. Troops mirror

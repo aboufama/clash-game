@@ -1,9 +1,13 @@
 import {
     BUILDING_DEFINITIONS,
     TROOP_DEFINITIONS,
+    TROOP_FACTIONS,
+    FACTION_BARRACKS,
+    getTroopFaction,
     buildOreCostOf,
     upgradeOreCostOf,
     type BuildingType,
+    type TroopFaction,
     type TroopType
 } from './GameDefinitions';
 import type { SerializedBuilding } from '../data/Models';
@@ -110,16 +114,41 @@ export function armySpaceUsed(army: Record<string, number>): number {
     return used;
 }
 
-export function maxBarracksLevel(buildings: SerializedBuilding[]): number {
-    let max = 0;
-    for (const building of buildings) {
-        if (building.type !== 'barracks') continue;
-        // Mid-upgrade the yard is a construction site: it can't train.
-        if (building.upgradingTo) continue;
-        max = Math.max(max, Math.floor(Number(building.level) || 1));
+export type FactionBarracksLevels = Record<TroopFaction, number>;
+// Keep the progression helpers available from this existing economy surface
+// while their canonical definitions remain in the troop catalog barrel.
+export {
+    armyCampUnlockProgress,
+    maxCompletedArmyCampLevel,
+    type ArmyCampUnlockProgress
+} from './definitions/TroopDefinitions';
+
+/**
+ * Highest ONLINE barracks level for every troop path. A building under
+ * upgrade is a construction site and cannot train until the server completes
+ * the shared upgrade interval.
+ */
+export function factionBarracksLevels(buildings: SerializedBuilding[]): FactionBarracksLevels {
+    const levels: FactionBarracksLevels = { mystic: 0, mechanica: 0 };
+    for (const faction of TROOP_FACTIONS) {
+        const barracksType = FACTION_BARRACKS[faction];
+        for (const building of buildings) {
+            if (building.type !== barracksType || building.upgradingTo) continue;
+            levels[faction] = Math.max(levels[faction], Math.floor(Number(building.level) || 1));
+        }
     }
-    return max;
+    return levels;
 }
+
+export function maxFactionBarracksLevel(buildings: SerializedBuilding[], faction: TroopFaction): number {
+    return factionBarracksLevels(buildings)[faction];
+}
+
+export function barracksLevelForTroop(buildings: SerializedBuilding[], troopType: TroopType): number {
+    const faction = getTroopFaction(troopType);
+    return faction ? maxFactionBarracksLevel(buildings, faction) : 0;
+}
+
 
 /**
  * Troop level granted by the lab, mirroring the server rule (troopLevelOf in

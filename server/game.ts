@@ -1,12 +1,13 @@
 import { randomBytes } from 'node:crypto'
-import { BUILDING_DEFINITIONS, GENERATED_ONLY, TROOP_DEFINITIONS, getTroopStats, getTroopUnlockLevel, normalizeTroopLevel, troopFoodCostOf, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
+import { BUILDING_DEFINITIONS, GENERATED_ONLY, TROOP_DEFINITIONS, getTroopStats, isTrainableTroopType, normalizeTroopLevel, troopFoodCostOf, troopTrainingRequirement, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
 import {
   BOT_RAID_COOLDOWN_MS,
   RAIDABLE_SHARE,
   armySpaceUsed,
   botNameFor,
   campCapacityOf,
-  maxBarracksLevel,
+  barracksLevelForTroop,
+  maxCompletedArmyCampLevel,
   merchantOffersFor,
   isWildernessPreserveAt,
   resourceCapacity,
@@ -29,6 +30,7 @@ import type {
   SessionResponse,
   StartedAttackResponse
 } from './protocol'
+import type { MatchmakeRequest } from './runtime/contracts'
 import { JsonCollection } from './store'
 import {
   applyAttackCommand,
@@ -59,6 +61,7 @@ import {
   sanitizeArmy,
   sanitizeBuildings,
   sanitizeObstacles,
+  normalizePersistedBuildings,
   staffingFactor,
   troopLevelOf,
   validateVillageLayout,
@@ -414,8 +417,29 @@ function hasOwn(record: object, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(record, key)
 }
 
+/** Whether a presentation-only generated troop has evidence of its trained
+ * root in this attack. Roman Warriors are released by a Phalanx on death;
+ * summoned types use the declarative summonType relationship. Exported so a
+ * narrow regression can pin replay filtering and lease-refresh authority. */
+export function generatedTroopHasRootDeployment(
+  type: string,
+  deployedCounts: Readonly<Record<string, number>>
+): boolean {
+  if (!GENERATED_ONLY.has(type)) return false
+  if (type === 'romanwarrior') return (deployedCounts.phalanx ?? 0) > 0
+  return Object.values(TROOP_DEFINITIONS).some(definition =>
+    definition.summonType === type && (deployedCounts[definition.id] ?? 0) > 0)
+}
+
 function sanitizeId(value: unknown): string {
   return String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 96)
+}
+
+function strictSafeId(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9_-]{1,120}$/.test(value)) {
+    throw new ApiError(400, `${label} must be a safe identifier`)
+  }
+  return value
 }
 
 function sanitizeFrame(raw: unknown): ReplayFrame | null {
@@ -446,6 +470,9 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
           owner: troop.owner === 'ENEMY' ? 'ENEMY' as const : 'PLAYER' as const,
           gridX: Number(troop.gridX) || 0,
           gridY: Number(troop.gridY) || 0,
+          ...(Number.isFinite(Number(troop.visualOffsetY))
+            ? { visualOffsetY: clamp(Number(troop.visualOffsetY), -100, 100) }
+            : {}),
           health: Math.max(0, Number(troop.health) || 0),
           maxHealth: Math.max(1, Number(troop.maxHealth) || 1),
           ...(Number.isFinite(facing) ? { facingAngle: facing } : {}),
@@ -715,8 +742,21 @@ export class GameService {
       const armyChanged = JSON.stringify(safeArmy) !== JSON.stringify(player.army ?? {})
       player.army = safeArmy
       if (armyChanged) this.players.markDirty(id)
+      const normalizedBuildings = normalizePersistedBuildings(player.buildings)
+      const safeBuildings = normalizedBuildings.buildings
+      if (normalizedBuildings.changed) {
+        const revision = Math.max(0, toInt(player.revision, 0))
+        const layoutRevision = Math.max(0, toInt(player.layoutRevision, revision))
+        const appearanceRevision = Math.max(0, toInt(player.appearanceRevision, revision))
+        player.buildings = safeBuildings
+        player.revision = revision + 1
+        player.layoutRevision = layoutRevision + 1
+        player.appearanceRevision = appearanceRevision + 1
+        player.lastMutationAt = Date.now()
+        this.players.markDirty(id)
+      }
       const currentObstacles = Array.isArray(player.obstacles) ? player.obstacles : []
-      const safeObstacles = withoutCollidingObstacles(Array.isArray(player.buildings) ? player.buildings : [], currentObstacles)
+      const safeObstacles = withoutCollidingObstacles(safeBuildings, currentObstacles)
       if (safeObstacles.length !== currentObstacles.length || !Array.isArray(player.obstacles)) {
         player.obstacles = safeObstacles
         player.revision = Math.max(0, toInt(player.revision, 0)) + 1
@@ -1984,7 +2024,7 @@ export class GameService {
   trainTroop(player: PlayerRecord, body: { type?: unknown; count?: unknown; requestId?: unknown }): { army: Record<string, number>; gold: number; ore: number; food: number; revision: number } {
     const type = sanitizeId(body?.type) as TroopType
     const def = hasOwn(TROOP_DEFINITIONS, type) ? TROOP_DEFINITIONS[type] : undefined
-    if (!def || GENERATED_ONLY.has(type)) throw new ApiError(404, 'Unknown troop type')
+    if (!def || !isTrainableTroopType(type)) throw new ApiError(404, 'Unknown troop type')
     const count = clamp(toInt(body?.count, 1), 1, 50)
 
     const key = this.normalizeKey(body?.requestId)
@@ -1997,8 +2037,14 @@ export class GameService {
     this.assertBaseEconomyUnlocked(player)
 
     this.accrue(player)
-    if (maxBarracksLevel(player.buildings) < getTroopUnlockLevel(type)) {
-      throw new ApiError(403, `${def.name} needs a level ${getTroopUnlockLevel(type)} barracks`)
+    const trainingRequirement = troopTrainingRequirement(type)
+    if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
+    if (trainingRequirement.kind === 'core') {
+      if (maxCompletedArmyCampLevel(player.buildings) < trainingRequirement.unlockLevel) {
+        throw new ApiError(403, `${def.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+      }
+    } else if (barracksLevelForTroop(player.buildings, type) < trainingRequirement.unlockLevel) {
+      throw new ApiError(403, `${def.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
     }
     if (armySpaceUsed(player.army) + def.space * count > campCapacityOf(player.buildings)) {
       throw new ApiError(409, 'Not enough housing space in the camps')
@@ -3002,6 +3048,7 @@ export class GameService {
     const stats = getTroopStats(type, level)
     const elapsed = clamp(activeMs, 0, MAX_COMBAT_CREDIT_MS)
     const firstDelay = Math.max(0, stats.firstAttackDelay ?? 0)
+      + Math.max(0, stats.detonationDelayMs ?? 0)
     if (elapsed < firstDelay) return 0
     // Most troops may strike on their first client combat tick. Suicide
     // detonators (wall breaker, clockwork beetle) can do so only once; every
@@ -3035,34 +3082,34 @@ export class GameService {
     }
 
     let perVolley = stats.damage
-    if (type === 'stormmage') {
+    if (type === 'golem' || type === 'icegolem') {
+      // The two slam golems predate the declarative splash field and retain
+      // their authored full-damage, radius-three ceiling.
+      perVolley *= this.splashTargetCeiling(world, 3, false)
+    } else if ((stats.chainCount ?? 0) > 0) {
+      // Chain damage is a declarative kit, not a Storm Mage identity check.
+      // Keep the legacy validator's intentionally-generous interpretation of
+      // chainCount as extra hops so already-open attacks cannot be clipped.
       const targets = this.destructibleTargets(world).length
       const extraChains = Math.min(Math.max(0, stats.chainCount ?? 0), Math.max(0, targets - 1))
       let chainMultiplier = 1
       for (let hop = 1; hop <= extraChains; hop++) chainMultiplier += 0.8 ** hop
       perVolley *= chainMultiplier
-    } else if (type === 'mobilemortar') {
-      const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2, true)
+    } else if ((stats.splashRadius ?? 0) > 0) {
+      // Every declarative splash kit gets the same full-primary / 60%-nearby
+      // ceiling as the local adapter. Detonators can burst from any contact
+      // point; ordinary attacks center their hit on a struck building.
+      const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 0, !stats.detonateOnAttack)
       perVolley *= 1 + Math.max(0, hits - 1) * 0.6
-    } else if (type === 'golem' || type === 'icegolem') {
-      perVolley *= this.splashTargetCeiling(world, 3, false)
-    } else if (stats.detonateOnAttack) {
-      // Wall breaker and clockwork beetle: one detonation with splash reach.
-      const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2.5, false)
-      perVolley *= 1 + Math.max(0, hits - 1) * 0.6
-    } else if (type === 'trebuchet' || type === 'ornithopter') {
-      // Arcing shot / dropped bomb: splash centers on a struck building
-      // (mobile-mortar pattern).
-      const hits = this.splashTargetCeiling(world, stats.splashRadius ?? 2, true)
-      perVolley *= 1 + Math.max(0, hits - 1) * 0.6
-    } else if ((stats.resourceDamageMultiplier ?? 1) > 1) {
+    }
+    if ((stats.resourceDamageMultiplier ?? 1) > 1) {
       // Resource raider (goblin plunderer): worst honest case lands every
-      // strike on a resource building at the full multiplier.
+      // strike on a resource building at the full multiplier. Keep this
+      // independent of area-kit credit for future declarative combinations.
       perVolley *= stats.resourceDamageMultiplier ?? 1
     }
-    // Pure supports (physician's cart, quartermaster, siege tower) declare
-    // damage 0, so their own ceiling contribution is intentionally zero; the
-    // quartermaster's aura is credited army-wide in timedCombatPowerCeiling.
+    // Pure supports (physician's cart and siege tower) declare damage 0, so
+    // their own ceiling contribution is intentionally zero.
     return perVolley * attacks
   }
 
@@ -3119,17 +3166,6 @@ export class GameService {
       const contribution = this.rootDamageCeiling(replay.enemyWorld, type, level, now - deployedAt + DEPLOYMENT_RECEIPT_ALLOWANCE_MS)
       if (Number.isFinite(contribution) && contribution > 0) damage += contribution
     }
-    // A deployed quartermaster's war drums let every ally strike at a faster
-    // cadence (−boostCadence effective attack delay); the honest ceiling
-    // grows by the full-aura uplift, capped at one aura.
-    let cadence = 0
-    for (const rawType of Object.values(replay.validatedDeployments ?? {})) {
-      const type = rawType as TroopType
-      if (!hasOwn(TROOP_DEFINITIONS, type)) continue
-      const boost = getTroopStats(type, level).boostCadence ?? 0
-      if (boost > cadence && boost < 1) cadence = boost
-    }
-    if (cadence > 0) damage /= 1 - cadence
     return this.destructionCeilingFromDamage(replay.enemyWorld, damage)
   }
 
@@ -3396,8 +3432,11 @@ export class GameService {
   }
 
   /** Random matchmaking: pick another player's base that isn't already under attack. */
-  matchmake(attacker: PlayerRecord, body: { requestId?: unknown } = {}, rawToken?: unknown): StartedAttackResponse {
+  matchmake(attacker: PlayerRecord, body: MatchmakeRequest = {}, rawToken?: unknown): StartedAttackResponse {
     const requestId = this.normalizeKey(body?.requestId)
+    const excludeTargetId = body.excludeTargetId === undefined
+      ? undefined
+      : strictSafeId(body.excludeTargetId, 'excludeTargetId')
     const retry = this.retryAttackStart(attacker, requestId)
     if (retry) return retry
     const candidates: PlayerRecord[] = []
@@ -3414,7 +3453,11 @@ export class GameService {
       candidates.push(player)
     }
     if (candidates.length === 0) throw new ApiError(404, 'No opponents available')
-    const victim = candidates[Math.floor(Math.random() * candidates.length)]
+    const alternatives = excludeTargetId
+      ? candidates.filter(candidate => candidate.id !== excludeTargetId)
+      : candidates
+    const selectionPool = alternatives.length > 0 ? alternatives : candidates
+    const victim = selectionPool[Math.floor(Math.random() * selectionPool.length)]
     return this.startAttack(attacker, { targetId: victim.id, requestId }, true, rawToken)
   }
 
@@ -3645,15 +3688,10 @@ export class GameService {
         if (seenTroops.has(troop.id)) return false
         seenTroops.add(troop.id)
         if (troop.owner !== 'PLAYER') return true
-        if (troop.type === 'romanwarrior') {
-          if ((deployedCounts.phalanx ?? 0) <= 0) return false
-          troop.level = normalizeTroopLevel(replay.troopLevel ?? 1)
-          return true
-        }
-        if (troop.type === 'skeleton') {
-          // Generated-only summon: allowed in presentation frames only while
-          // a necromancer was actually deployed (romanwarrior pattern).
-          if ((deployedCounts.necromancer ?? 0) <= 0) return false
+        if (GENERATED_ONLY.has(troop.type)) {
+          // Generated-only presentation rows are valid only when the trained
+          // root that can create them was deployed in this attack.
+          if (!generatedTroopHasRootDeployment(troop.type, deployedCounts)) return false
           troop.level = normalizeTroopLevel(replay.troopLevel ?? 1)
           return true
         }
@@ -3779,7 +3817,7 @@ export class GameService {
       const validPlayerTroop = frame.troops.some(troop =>
         troop.owner === 'PLAYER' && (
           hasOwn(validated, troop.id) ||
-          (troop.type === 'romanwarrior' && (deployedCounts.phalanx ?? 0) > 0)
+          generatedTroopHasRootDeployment(troop.type, deployedCounts)
         )
       )
       const damagedBuilding = frame.buildings.some(state => {

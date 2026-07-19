@@ -133,6 +133,7 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
   try {
     const first = await service.ensureSession('', 'pglite-a')
     const second = await service.ensureSession('', 'pglite-b')
+    const third = await service.ensureSession('', 'pglite-c')
     const attacker = { playerId: first.player.id }
 
     // This path exercises region creation and PgWorld.assign. In particular,
@@ -149,9 +150,14 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
     })
     await service.trainTroop(attacker, { type: 'warrior', count: 2, requestId: 'pglite-train' })
 
-    const started = await service.matchmake(attacker, { requestId: 'pglite-match' }, first.token) as {
+    const started = await service.matchmake(attacker, {
+      requestId: 'pglite-match',
+      excludeTargetId: second.player.id
+    }, first.token) as {
       attackId: string
+      world: { ownerId: string }
     }
+    assert.equal(started.world.ownerId, third.player.id)
     const command = await service.pushCommands(attacker, {
       attackId: started.attackId,
       commands: [{
@@ -426,9 +432,13 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
       '/attacks/matchmake',
       {
         method: 'POST', token: attacker.token,
-        body: { requestId: 'http-pglite-match' }
+        body: {
+          requestId: 'http-pglite-match',
+          excludeTargetId: defender.player.id
+        }
       }
     )
+    // NEXT prefers a different target, but a one-opponent world remains playable.
     assert.equal(started.world.ownerId, defender.player.id)
     const commanded = await requestJson<{ phase: string }>(origin, '/attacks/commands', {
       method: 'POST', token: attacker.token,

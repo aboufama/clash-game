@@ -1,0 +1,95 @@
+{
+  "cellWorldPx": 1.35,
+  "levels": {
+    "1": {
+      "body": {
+        "file": "mystic_barracks_L1_wreck_body.png",
+        "texelW": 53,
+        "texelH": 34,
+        "cellWorldPx": 1.35,
+        "originX": 0.46121593291404606,
+        "originY": 0.5087145969498909
+      }
+    },
+    "2": {
+      "body": {
+        "file": "mystic_barracks_L2_wreck_body.png",
+        "texelW": 54,
+        "texelH": 34,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5087145969498909
+      }
+    },
+    "3": {
+      "body": {
+        "file": "mystic_barracks_L3_wreck_body.png",
+        "texelW": 54,
+        "texelH": 34,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5087145969498909
+      }
+    },
+    "4": {
+      "body": {
+        "file": "mystic_barracks_L4_wreck_body.png",
+        "texelW": 54,
+        "texelH": 34,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5087145969498909
+      }
+    },
+    "5": {
+      "body": {
+        "file": "mystic_barracks_L5_wreck_body.png",
+        "texelW": 54,
+        "texelH": 35,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5227513227513225
+      }
+    },
+    "6": {
+      "body": {
+        "file": "mystic_barracks_L6_wreck_body.png",
+        "texelW": 54,
+        "texelH": 36,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5082304526748969
+      }
+    },
+    "7": {
+      "body": {
+        "file": "mystic_barracks_L7_wreck_body.png",
+        "texelW": 54,
+        "texelH": 37,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5215215215215212
+      }
+    },
+    "8": {
+      "body": {
+        "file": "mystic_barracks_L8_wreck_body.png",
+        "texelW": 54,
+        "texelH": 38,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5077972709551654
+      }
+    },
+    "9": {
+      "body": {
+        "file": "mystic_barracks_L9_wreck_body.png",
+        "texelW": 54,
+        "texelH": 39,
+        "cellWorldPx": 1.35,
+        "originX": 0.47119341563786,
+        "originY": 0.5204178537511865
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
-// Scene pass 2 for the five-slot sign-off: fixes the night-grade rect (it only
+// Scene pass 2 for the remaining sign-off slots: fixes the night-grade rect (it only
 // re-stretches on live frames — so run a short live window per row AFTER the
 // camera move), freezes troops (speedMult=0 + repin) so heal-seekers and
 // summons don't drift, and moves the trebuchet row out of the edge cloud bank.
@@ -25,12 +25,6 @@ try {
   await page.evaluateOnNewDocument(tok => {
     localStorage.setItem('clash.device.token', tok)
     localStorage.setItem('clash.sprites.off', '1')
-    localStorage.setItem('clash.design.clockworkbeetle', 'A')
-    localStorage.setItem('clash.design.necromancer', 'A')
-    localStorage.setItem('clash.design.skeleton', 'A')
-    localStorage.setItem('clash.design.quartermaster', 'A')
-    localStorage.setItem('clash.design.physicianscart', 'C')
-    localStorage.setItem('clash.design.trebuchet', 'C')
   }, token)
   page.on('pageerror', e => console.log('PAGE ERROR:', String(e.message).slice(0, 240)))
   await page.goto(`${BASE}/game`, { waitUntil: 'domcontentloaded', timeout: 90000 })
@@ -48,8 +42,6 @@ try {
       ['skeleton', 12.7, 15, 'ENEMY', 2],
       ['necromancer', 16.5, 13.5, 'PLAYER', 1], ['necromancer', 18.2, 13.5, 'PLAYER', 2], ['necromancer', 19.9, 13.5, 'PLAYER', 3],
       ['necromancer', 18.2, 15.3, 'ENEMY', 2],
-      ['quartermaster', 5.5, 9.5, 'PLAYER', 1], ['quartermaster', 7.7, 9.5, 'PLAYER', 2], ['quartermaster', 9.9, 9.5, 'PLAYER', 3],
-      ['quartermaster', 7.7, 11.2, 'ENEMY', 2],
       ['physicianscart', 14, 9.3, 'PLAYER', 1], ['physicianscart', 17, 9.3, 'PLAYER', 2], ['physicianscart', 20, 9.3, 'PLAYER', 3],
       ['physicianscart', 17, 11.6, 'ENEMY', 2],
       ['trebuchet', 6, 18, 'PLAYER', 1], ['trebuchet', 10.5, 18, 'PLAYER', 2],
@@ -99,7 +91,6 @@ try {
     ['beetle-row', 7.5, 14.2, 3.6, -4],
     ['skeleton-row', 12.7, 14.2, 3.6, -4],
     ['necro-row', 18.2, 14.4, 3.2, -6],
-    ['quartermaster-row', 7.7, 10.3, 3.2, -6],
     ['cart-row', 17, 10.4, 2.4, -6],
     ['trebuchet-row', 8.3, 19.5, 1.9, -8]
   ]

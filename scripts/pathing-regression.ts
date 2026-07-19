@@ -204,20 +204,16 @@ const cornerMove = CombatNavigationSystem.resolveMovement(cornerTroop, 2, 2, 2, 
 assert(cornerMove.blocked, 'perpendicular walls should block diagonal corner cutting');
 assert(cornerMove.x < 8 && cornerMove.y < 8, 'troop escaped through a closed diagonal corner');
 
-// No live troop is airborne yet, so temporarily exercise the configured
-// mobility contract through the memoized profile and restore it immediately.
-const syntheticAirStats = getTroopStats('warrior', 1);
-const originalMovement = syntheticAirStats.movementType;
-try {
-    syntheticAirStats.movementType = 'air';
-    const airTroop = troop('synthetic-air', 'warrior', 4.5, 11.5);
+// The live airborne faction troop must use the declarative air-mobility
+// contract: it may not acquire a wall blocker or collide with ground structures.
+for (const airType of ['ornithopter'] as const) {
+    assert.equal(getTroopStats(airType, 1).movementType, 'air', `${airType} lost its air profile`);
+    const airTroop = troop(`air-${airType}`, airType, 4.5, 11.5);
     const airPlan = CombatNavigationSystem.planToBuilding(airTroop, inside, closed, [airTroop], 1, 0);
     assert(airPlan);
-    assert.equal(airPlan.blockerId, undefined, 'air mobility incorrectly acquired a wall blocker');
+    assert.equal(airPlan.blockerId, undefined, `${airType} incorrectly acquired a wall blocker`);
     const airMove = CombatNavigationSystem.resolveMovement(airTroop, 6, 0, 6, 0, closed, 25);
-    assert(!airMove.blocked && airMove.x > 8, 'air mobility did not bypass ground structures');
-} finally {
-    syntheticAirStats.movementType = originalMovement;
+    assert(!airMove.blocked && airMove.x > 8, `${airType} did not bypass ground structures`);
 }
 
 const cannon = building('priority-cannon', 'cannon', 18, 18);
@@ -259,6 +255,36 @@ const townHallCenter = { x: 11.5, y: 11.5 };
 assert.equal(ramSelection.plan.blockerId, 'wall-w-11', 'ram did not attack the wall on its charge line');
 assert.equal(ramSelection.plan.activeTargetId, 'wall-w-11');
 assertOnChargeLine(ramSelection.plan, { x: ram.gridX, y: ram.gridY }, townHallCenter, closed);
+
+// The siege tower should park almost flush with the first wall on its charge
+// line. Keep the authored 0.20-tile range and the measured collision-limited
+// 0.20-tile stop pinned so the old half-tile visual gap cannot return.
+const siegeTower = troop('siege-tight-stop', 'siegetower', 4.5, 11.5);
+const siegeTowerStats = getTroopStats('siegetower', 1);
+assert.equal(siegeTowerStats.range, 0.2, 'siege tower attack range drifted from its tight wall stop');
+const siegeTowerSelection = CombatNavigationSystem.selectTargetAndPlan(
+    siegeTower,
+    closed,
+    [siegeTower],
+    1,
+    0
+);
+assert.equal(siegeTowerSelection.plan?.blockerId, 'wall-w-11',
+    'siege tower did not park against the first wall on its charge line');
+assert(siegeTowerSelection.plan, 'siege tower produced no straight-charge wall plan');
+const siegeTowerWallGap = CombatNavigationSystem.edgeDistance(
+    siegeTowerSelection.plan.goal.x,
+    siegeTowerSelection.plan.goal.y,
+    closed.find(item => item.id === 'wall-w-11')!
+);
+assert(siegeTowerWallGap <= 0.201,
+    `siege tower stopped too far from the wall (${siegeTowerWallGap.toFixed(3)} tiles)`);
+assertOnChargeLine(
+    siegeTowerSelection.plan,
+    { x: siegeTower.gridX, y: siegeTower.gridY },
+    townHallCenter,
+    closed
+);
 
 // Identical inputs must produce the byte-identical charge plan.
 const ramSignature = JSON.stringify({
@@ -341,6 +367,78 @@ const stickySelection = CombatNavigationSystem.selectTargetAndPlan(
 assert.equal(stickySelection.strategicTarget?.id, stickyPreferred.id,
     'preferred target was pruned before route hysteresis could be evaluated');
 
+// A completed Siege Tower opening must behave exactly like deleting its wall
+// when target lock is compared. This fixture used to keep the outside storage:
+// the ramp carried a hidden toll, then the old target's 16% lock won.
+const rampChoiceTroop = troop('ramp-choice-unit', 'warrior', 4.5, 11.5);
+const rampChoiceInside = building('ramp-choice-inside', 'storage', 9, 9);
+const rampChoiceOutside = building('ramp-choice-outside', 'storage', 2, 3);
+const rampChoiceLoop = wallLoop(8, 14);
+const rampChoiceWall = rampChoiceLoop.find(item => item.id === 'wall-w-11');
+assert(rampChoiceWall, 'ramp-choice fixture lost west wall 11');
+const rampChoiceClosed = [rampChoiceInside, rampChoiceOutside, ...rampChoiceLoop];
+const closedChoice = CombatNavigationSystem.selectTargetAndPlan(
+    rampChoiceTroop, rampChoiceClosed, [rampChoiceTroop], 1, 0);
+assert.equal(closedChoice.strategicTarget?.id, rampChoiceOutside.id,
+    'closed fixture no longer requires the outside objective');
+const rampChoiceSet = new Set([rampChoiceWall.id]);
+const rampChoice = CombatNavigationSystem.selectTargetAndPlan(
+    rampChoiceTroop,
+    rampChoiceClosed,
+    [rampChoiceTroop],
+    2,
+    1,
+    rampChoiceOutside,
+    rampChoiceSet
+);
+const removedChoice = CombatNavigationSystem.selectTargetAndPlan(
+    rampChoiceTroop,
+    rampChoiceClosed.filter(item => item.id !== rampChoiceWall.id),
+    [rampChoiceTroop],
+    2,
+    1,
+    rampChoiceOutside
+);
+assert.equal(rampChoice.strategicTarget?.id, rampChoiceInside.id,
+    'open ramp did not retarget to the closer interior building');
+assert.equal(removedChoice.strategicTarget?.id, rampChoiceInside.id);
+assert.equal(rampChoice.plan?.routeCost, removedChoice.plan?.routeCost,
+    'ramp target choice diverged from the physically removed wall');
+
+// Attack-slot claims spread troops only AFTER a building wins. They must not
+// inflate the near building's strategic score and redirect a fresh troop to a
+// farther objective.
+const claimTroop = troop('claim-choice-unit', 'warrior', 0.5, 6.5);
+const claimNear = building('claim-near', 'storage', 5, 5);
+const claimFar = building('claim-far', 'storage', 7, 6);
+const claimedGoals = [
+    [4.5, 5.5], [4.5, 6.5], [5.5, 4.5], [6.5, 4.5],
+    [7.5, 5.5], [7.5, 6.5], [5.5, 7.5], [6.5, 7.5],
+    [5.5, 5.5], [5.5, 6.5], [6.5, 5.5], [6.5, 6.5]
+] as const;
+const claimants = claimedGoals.map(([x, y], index) => {
+    const ally = troop(`claim-ally-${index}`, 'warrior', 24.2, 24.2);
+    ally.navigationPlan = {
+        strategicTargetId: claimNear.id,
+        activeTargetId: claimNear.id,
+        topologyRevision: 1,
+        routeCost: 0,
+        goal: { x, y },
+        waypoints: [],
+        plannedAt: 0
+    };
+    return ally;
+});
+const claimedChoice = CombatNavigationSystem.selectTargetAndPlan(
+    claimTroop,
+    [claimNear, claimFar],
+    [claimTroop, ...claimants],
+    1,
+    0
+);
+assert.equal(claimedChoice.strategicTarget?.id, claimNear.id,
+    'attack-slot crowd spreading overrode the closer strategic building');
+
 // Cohorts should converge on a small number of nearby useful breaches, then
 // abandon all wall work quickly once any selected gap becomes genuinely open.
 const cohort = Array.from({ length: 24 }, (_, index) =>
@@ -373,10 +471,10 @@ for (const unit of cohort) {
 assert(routesThroughGap >= Math.ceil(cohort.length * 0.9),
     'cohort kept attacking adjacent walls after a shared gap opened');
 
-// SIEGE-TOWER ALLY RAMP: a ramped wall becomes crossable for allied plans at
-// a TOLL (COST_OPEN+12, never free), is never a blocker or an attack slot,
-// and both layers (cost model + collision) agree so nothing plans through
-// and then bounces. Without the set the wall stays fully solid.
+// SIEGE-TOWER ALLY RAMP: a fully deployed ramp is indistinguishable from a
+// destroyed wall to same-owner navigation — open cost, unoccupied, not a
+// blocker or objective — while the untouched wall stays solid for everyone
+// else. Cost model, target selection, straight-charge, and collision agree.
 const rampWallId = closedPlan.blockerId!;
 const rampWall = closed.find(item => item.id === rampWallId)!;
 const rampSet = new Set([rampWallId]);
@@ -418,11 +516,31 @@ assert(!rampMove.blocked && rampMove.x > rampWall.gridX + 0.2,
 const solidMove = CombatNavigationSystem.resolveMovement(rampWalker, 1.6, 0, 1.6, 0, closed, 25);
 assert(solidMove.blocked && solidMove.x < rampWall.gridX,
     'movement without the ramp set must still stop at the wall');
-// The toll: strictly costlier than the same route through a genuinely open gap.
+// Exact destroyed-wall parity: same route cost through the same physical gap.
 const rampGapPlan = CombatNavigationSystem.planToBuilding(
     warrior, inside, closed.filter(item => item.id !== rampWallId), [warrior], 4, 3);
-assert(rampGapPlan && rampPlan.routeCost > rampGapPlan.routeCost,
-    'ramp crossing must carry a toll over genuinely open ground');
+assert(rampGapPlan && rampPlan.routeCost === rampGapPlan.routeCost,
+    'ramp crossing must cost exactly the same as a destroyed wall gap');
+
+// Ramped walls disappear from every target/solid path, including special
+// troop logic that does not use the ordinary A* wall blocker lane.
+const rampedWallbreaker = CombatNavigationSystem.selectTargetAndPlan(
+    wallbreaker, [rampWall], [wallbreaker], 4, 3, undefined, rampSet);
+assert.equal(rampedWallbreaker.strategicTarget, null,
+    'wallbreaker still selected the wall hidden under an allied ramp');
+const chargeRampId = ramSelection.plan?.blockerId;
+assert(chargeRampId, 'ram fixture produced no charge-line wall');
+const chargeRampSet = new Set([chargeRampId]);
+const rampedRam = CombatNavigationSystem.selectTargetAndPlan(
+    ram, closed, [ram], 4, 3, undefined, chargeRampSet);
+assert.equal(rampedRam.strategicTarget?.id, inside.id);
+assert.equal(rampedRam.plan?.blockerId, undefined,
+    'straight-charge ray still treated the ramp as a live solid');
+const secondTower = troop('siege-tower-second', 'siegetower', 4.5, 11.5);
+const rampedSecondTower = CombatNavigationSystem.selectTargetAndPlan(
+    secondTower, closed, [secondTower], 4, 3, undefined, chargeRampSet);
+assert.equal(rampedSecondTower.plan?.blockerId, undefined,
+    'a second Siege Tower tried to deploy onto an already-open ramp wall');
 
 // WAR ELEPHANT: plans into the wall on its route, one trample strike fells
 // up to an L4 wall (data invariant), and the very next plan after the wall

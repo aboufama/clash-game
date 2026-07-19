@@ -3,6 +3,7 @@ export * from './BuildingTypes';
 export * from './CostDefinitions';
 export * from './MapDefinitions';
 export * from './ObstacleDefinitions';
+export * from './TroopFactions';
 export * from './TroopDefinitions';
 
 export { DEFENSE_BUILDING_DEFINITIONS } from './buildings/DefenseBuildings';

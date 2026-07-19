@@ -90,6 +90,7 @@ function attackCountInWindow(
 function snapshotDefenseDps(attack: AttackAggregate): number {
   let total = 0
   for (const building of attack.snapshot.buildings) {
+    if (!Object.prototype.hasOwnProperty.call(BUILDING_DEFINITIONS, building.type)) continue
     if (BUILDING_DEFINITIONS[building.type].category !== 'defense') continue
     const dps = defenseDps(building.type, getBuildingStats(building.type, building.level))
     if (dps && dps > 0) total += dps
@@ -143,14 +144,12 @@ interface CreditWindow {
   endMs: number
 }
 
-/** Quartermaster war-drum aura: cadence uplift while its window is open. */
-interface CadenceWindow extends CreditWindow {
-  cadence: number
-}
-
 /** Flat lifetime credit for allies of a parked siege tower: the ramp spares
  *  them the walk (and the fire taken) around the wall line. */
 const SIEGE_TOWER_PATHING_CREDIT_MS = 2_000
+/** v5 pinned the promoted beetle's original one-second contact fuse. Keep
+ *  that value here rather than reading today's shared troop definition. */
+const LEGACY_V5_CLOCKWORK_BEETLE_FUSE_MS = 1_000
 
 function baseCreditWindowsV4(
   attack: AttackAggregate,
@@ -164,23 +163,6 @@ function baseCreditWindowsV4(
     const lifetime = attritionLifetimeMs(attack, deploy, totalDefenseDps, deployedCount)
     const endMs = Math.min(durationMs, deploy.atMs + Math.min(attack.rules.maxDamageCreditMs, lifetime))
     windows.set(deploy.troopInstanceId, { startMs: deploy.atMs, endMs: Math.max(deploy.atMs, endMs) })
-  }
-  return windows
-}
-
-function quartermasterWindowsV4(
-  attack: AttackAggregate,
-  deploys: TroopDeployedEvent[],
-  baseWindows: Map<string, CreditWindow>
-): CadenceWindow[] {
-  const windows: CadenceWindow[] = []
-  for (const deploy of deploys) {
-    if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) continue
-    const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
-    const cadence = stats.boostCadence ?? 0
-    if (cadence <= 0 || cadence >= 1) continue
-    const window = baseWindows.get(deploy.troopInstanceId)
-    if (window && window.endMs > window.startMs) windows.push({ ...window, cadence })
   }
   return windows
 }
@@ -239,8 +221,7 @@ function troopDamage(
   deploy: TroopDeployedEvent,
   durationMs: number,
   boosts: AbilityUsedEvent[],
-  lifetimeMs: number,
-  cadenceWindows: CadenceWindow[] = []
+  lifetimeMs: number
 ): number {
   // A troop type deleted after this aggregate was stored settles to zero
   // credit instead of NaN-corrupting (level 1) or throwing (level 2+) in
@@ -248,10 +229,20 @@ function troopDamage(
   if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return 0
   const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
   const delay = Math.max(150, Math.floor(stats.attackDelay ?? 1_000))
-  const firstDelay = Math.max(0, Math.floor(stats.firstAttackDelay ?? 0))
+  const detonationDelay = attack.rules.simulationVersion >= 6
+    ? Math.max(0, Math.floor(stats.detonationDelayMs ?? 0))
+    : attack.rules.simulationVersion === 5 && deploy.troopType === 'clockworkbeetle'
+      ? LEGACY_V5_CLOCKWORK_BEETLE_FUSE_MS
+      : 0
+  const firstDelay = Math.max(0, Math.floor(stats.firstAttackDelay ?? 0)) + detonationDelay
   const creditEnd = Math.min(durationMs, deploy.atMs + Math.min(attack.rules.maxDamageCreditMs, lifetimeMs))
   const activeMs = Math.max(0, creditEnd - deploy.atMs)
-  const strikes = attackCount(activeMs, firstDelay, delay)
+  // v5+ delayed detonators are one-shot by definition. Older aggregates keep
+  // the historical cadence credit byte-for-byte; undelayed Wall Breakers do
+  // too, since these versions only change the beetle's explicit fuse.
+  const strikes = detonationDelay > 0
+    ? (activeMs >= firstDelay ? 1 : 0)
+    : attackCount(activeMs, firstDelay, delay)
   if (strikes <= 0) return 0
 
   const perStrike = Math.max(0, Math.floor(stats.damage))
@@ -262,27 +253,6 @@ function troopDamage(
     const end = Math.min(creditEnd, ability.atMs + ability.effect.durationMs)
     const boostedStrikes = attackCountInWindow(deploy.atMs, firstDelay, delay, start, end)
     damage += Math.floor(boostedStrikes * perStrike * ability.effect.bonusBasisPoints / 10_000)
-  }
-
-  // Rules v4 quartermaster war drums: a strike landed while any
-  // quartermaster's credit window is open comes cadence-boosted — the
-  // effective attack delay shrinks by boostCadence, worth
-  // cadence / (1 - cadence) extra damage per boosted strike. Total boosted
-  // strikes are capped at the troop's own strike count, so stacked
-  // quartermasters never exceed one full aura.
-  if (attack.rules.simulationVersion >= 4 && cadenceWindows.length > 0 && perStrike > 0) {
-    let boostedStrikes = 0
-    let cadence = 0
-    for (const window of cadenceWindows) {
-      const start = Math.max(deploy.atMs, window.startMs)
-      const end = Math.min(creditEnd, window.endMs)
-      boostedStrikes += attackCountInWindow(deploy.atMs, firstDelay, delay, start, end)
-      cadence = Math.max(cadence, window.cadence)
-    }
-    boostedStrikes = Math.min(strikes, boostedStrikes)
-    if (boostedStrikes > 0 && cadence > 0 && cadence < 1) {
-      damage += Math.floor(boostedStrikes * perStrike * cadence / (1 - cadence))
-    }
   }
 
   // Preserve the broad power profile of chain/splash units without accepting
@@ -366,11 +336,16 @@ function emptyResources(): ResourceAmounts {
  */
 export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): DeterministicCombatResult {
   const durationMs = Math.max(0, Math.min(Math.floor(rawDurationMs), attack.rules.maxCombatDurationMs))
-  const states: MutableBuildingState[] = attack.snapshot.buildings.map(building => {
+  // A stored attack can outlive a catalog deletion. Unknown snapshot rows are
+  // inert and omitted, matching the village self-clean path instead of
+  // throwing while a pre-deletion replay settles.
+  const states: MutableBuildingState[] = attack.snapshot.buildings
+    .filter(building => Object.prototype.hasOwnProperty.call(BUILDING_DEFINITIONS, building.type))
+    .map(building => {
     const stats = getBuildingStats(building.type, building.level)
     const hp = Math.max(1, Math.floor(stats.maxHealth))
     return { id: building.id, type: building.type, maxHitPoints: hp, remainingHitPoints: hp }
-  })
+    })
   const boosts = attack.events.filter((event): event is AbilityUsedEvent => event.type === 'ABILITY_USED' && event.effect.kind === 'DAMAGE_BOOST')
   const totalDefenseDps = snapshotDefenseDps(attack)
   const deployedCount = attack.events.filter(event => event.type === 'TROOP_DEPLOYED').length
@@ -382,7 +357,6 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   const baseWindows = versionAtLeast4
     ? baseCreditWindowsV4(attack, troopDeploys, durationMs, totalDefenseDps, deployedCount)
     : new Map<string, CreditWindow>()
-  const cadenceWindows = versionAtLeast4 ? quartermasterWindowsV4(attack, troopDeploys, baseWindows) : []
   const actions: DamageAction[] = []
 
   for (const event of attack.events) {
@@ -394,7 +368,7 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
       actions.push({
         atMs: event.atMs,
         eventIndex: event.eventIndex,
-        damage: troopDamage(attack, event, durationMs, boosts, lifetime, cadenceWindows),
+        damage: troopDamage(attack, event, durationMs, boosts, lifetime),
         troop: event
       })
     } else if (event.type === 'ABILITY_USED' && event.effect.kind === 'DIRECT_DAMAGE') {
@@ -448,8 +422,8 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   // by its deterministic expected survival time (see attritionLifetimeMs), so
   // an army that gets wiped in seconds no longer banks the full credit window.
   // Version 4 keeps the v3 scoring and attrition but credits the declarative
-  // troop kits: resource-raider multipliers/tiering, summoner waves,
-  // quartermaster cadence auras and support window extensions (see the
+  // troop kits: resource-raider multipliers/tiering, summoner waves and
+  // support window extensions (see the
   // "Rules v4" helpers above).
   const destruction = attack.rules.simulationVersion <= 1
     ? (scoring.length > 0

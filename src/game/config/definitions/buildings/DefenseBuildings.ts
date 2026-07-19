@@ -192,27 +192,5 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
             { hp: 1800, damage: 70, fireRate: 3400, cost: 2800, range: 10.5 },
             { hp: 2200, damage: 90, fireRate: 3000, cost: 3800, range: 11.0 }
         ]
-    },
-    frostfall: {
-        id: 'frostfall',
-        name: 'Frostfall Monolith',
-        cost: 1200,
-        desc: 'An ancient ice well tended by a Frost Keeper who cranks up devastating ice crystals from the frozen depths.',
-        width: 2,
-        height: 2,
-        maxHealth: 1050,
-        range: 6.0,
-        category: 'defense',
-        maxCount: 2,
-        color: 0x88ccff,
-        fireRate: 5000,
-        damage: 15,
-        maxLevel: 4,
-        levels: [
-            { hp: 1050, damage: 15, fireRate: 5000, cost: 1200, range: 6.0 },
-            { hp: 1300, damage: 25, fireRate: 4800, cost: 1800, range: 6.5 },
-            { hp: 1650, damage: 38, fireRate: 4600, cost: 2600, range: 7.0 },
-            { hp: 2050, damage: 52, fireRate: 4400, cost: 3800, range: 7.5 }
-        ]
     }
 };

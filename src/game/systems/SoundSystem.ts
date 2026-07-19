@@ -17,6 +17,7 @@
  */
 
 import { gameManager } from '../GameManager';
+import { musicSystem } from './MusicSystem';
 
 const MUTE_KEY = 'clash.muted';
 
@@ -176,6 +177,9 @@ class SoundSystem {
     setBattleMusic(on: boolean) {
         if (this.battleMusic === on) return;
         this.battleMusic = on;
+        // The streamed soundtrack rides the same switch: war camp planted /
+        // struck bridges straight into the battle music context.
+        musicSystem.forceContext(on ? 'battle' : null);
         // The drums earn their songbook page the first time the horns sound:
         // every battle entry point funnels through here, so the rare track
         // can't be missed and needs no other trigger.
@@ -237,6 +241,7 @@ class SoundSystem {
     attach() {
         const unlock = () => {
             this.start();
+            musicSystem.unlock(); // the streamed soundtrack shares the gesture
             document.removeEventListener('pointerdown', unlock);
             document.removeEventListener('keydown', unlock);
         };
@@ -246,6 +251,7 @@ class SoundSystem {
 
     setMuted(muted: boolean) {
         this.muted = muted;
+        musicSystem.setMuted(muted); // one mute switch for both audio systems
         try {
             localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
         } catch {
@@ -553,6 +559,14 @@ class SoundSystem {
         if (nf > 0.6 && now >= this.nextCricketAt) {
             this.nextCricketAt = now + 1.2 + Math.random() * 1.6;
             this.cricket(now + 0.05);
+        }
+
+        // The streamed RuneScape soundtrack (MusicSystem) owns the music layer
+        // unless its kill switch keeps this procedural songbook alive. The
+        // clock still advances so a live toggle can't burst catch-up notes.
+        if (musicSystem.enabled) {
+            this.nextNoteAt = now + 0.7;
+            return;
         }
 
         // Melody: schedule up to ~0.7s ahead on the active track's grid.

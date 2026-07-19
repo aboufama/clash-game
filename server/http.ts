@@ -8,6 +8,7 @@ import type {
   AttackStartRequest,
   BotSettleRequest,
   BotStartRequest,
+  MatchmakeRequest,
   MerchantTradeRequest,
   ResourceMutationRequest,
   SaveWorldRequest
@@ -143,7 +144,7 @@ export function createApiHandler<Principal>(game: ApiService<Principal>) {
         return { status: 200, body: await game.startAttack(player, body as AttackStartRequest, false, token) }
       }
       if (method === 'POST' && path === '/attacks/matchmake') {
-        return { status: 200, body: await game.matchmake(player, body, token) }
+        return { status: 200, body: await game.matchmake(player, body as MatchmakeRequest, token) }
       }
       if (method === 'POST' && path === '/attacks/frames') {
         return { status: 200, body: await game.pushFrames(player, body as AttackFrameRequest) }

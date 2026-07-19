@@ -1,14 +1,14 @@
-// Necromancer/Skeleton DESIGN B verification harness (clean-room designer B).
+// Canonical Necromancer B + Skeleton C verification harness.
 // Crib of shoot-troops.mjs, but: resumes the SHARED identity (never mints a
-// session), seeds clash.sprites.off + clash.design.necromancer/skeleton='B'
-// BEFORE boot, and never saves the world (spawn-only — zero side effects).
+// session), seeds clash.sprites.off BEFORE boot, and never saves the world
+// (spawn-only — zero side effects).
 //
 //   BASE=http://127.0.0.1:5173 node shoot-necromancer-b.mjs
 import puppeteer from 'puppeteer-core'
 import { mkdirSync, readFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5173'
-const OUT = (process.env.OUT ?? new URL('./shots/necromancer-B', import.meta.url).pathname).replace(/\/$/, '')
+const OUT = (process.env.OUT ?? new URL('./shots/necromancer-B-skeleton-C', import.meta.url).pathname).replace(/\/$/, '')
 mkdirSync(OUT, { recursive: true })
 
 // Shared identity — NEVER call /api/auth/session (rate-limited, junks the map).
@@ -27,8 +27,6 @@ try {
   await page.evaluateOnNewDocument(tok => {
     localStorage.setItem('clash.device.token', tok)
     localStorage.setItem('clash.sprites.off', '1')
-    localStorage.setItem('clash.design.necromancer', 'B')
-    localStorage.setItem('clash.design.skeleton', 'B')
   }, token)
   const errors = []
   page.on('pageerror', e => { errors.push(String(e.message).slice(0, 160)); console.log('PAGE ERROR:', String(e.message).slice(0, 160)) })
@@ -215,7 +213,7 @@ try {
   await nightShot(9.6, 17.5, 6, -12, () => setPose('skeleton', 'idle', 0, 0.45, 1), 's6-skel-night')
 
   await resume()
-  console.log('necromancer-B shots done →', OUT, 'errors:', errors.length ? errors : 'none')
+  console.log('necromancer-B + skeleton-C shots done →', OUT, 'errors:', errors.length ? errors : 'none')
 } finally {
   await browser.close()
 }

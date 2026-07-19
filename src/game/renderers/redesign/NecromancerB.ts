@@ -26,17 +26,6 @@ import type Phaser from 'phaser';
  * silver circlet; L3 gold ACCENTS only (crescent, one hem thread, circlet,
  * tome clasp) — the robe stays violet.
  *
- * DESIGN B — SKELETON: the FENCER-DUELIST (same file so the pair always
- * matches). Elegant upright fencing posture, off-arm folded behind the back,
- * a rusty swept-hilt rapier, grave-green eye points + pommel gem. dirs: 8 —
- * the rapier, the stance and the lunge all aim along `facingAngle`
- * (iso-squashed ground plane; blade draws BEFORE the body when aiming
- * up-screen). Walk = rattle-march, stride EXACTLY 300 ms (jaw jitters on h2
- * of the stride). Idle = ONE declared period 1000 ms: rib micro-shimmy = h1
- * (±0.8 px → 1.6 px travel), jaw rattle = h2 (drops 1.6 px), eye ember = h1.
- * Attack — delay 900: coil back on the wind-up (260 ms), full-extension
- * lunge on the tick (strike 150 ms) with a thin green streak off the tip.
- *
  * NW light everywhere: highlights ride the upper-left of every mass, shade
  * on the lower-right. No baked translucency: bodies are opaque; the only
  * sub-50%-alpha marks are glows whose blink IS the animation term.
@@ -49,8 +38,6 @@ const TAU = Math.PI * 2;
 // ---- exact declared periods (250 ms multiples / exact strides) ----
 const NECRO_STRIDE = 480;   // ms — measured glide
 const NECRO_IDLE_P = 2000;  // ms — breath h1, ember h2, page-flutter h4
-const SKEL_STRIDE = 300;    // ms — rattle-march
-const SKEL_IDLE_P = 1000;   // ms — rib shimmy h1, jaw h2, eye ember h1
 
 const GREEN = 0x63e0a0;       // grave green — thin clean lines only
 const GREEN_DEEP = 0x2f8f62;
@@ -65,7 +52,6 @@ function shade(c: number, m: number): number {
     const b = Math.max(0, Math.min(255, Math.round((c & 0xff) * m)));
     return (r << 16) | (g << 8) | b;
 }
-
 /** One limb segment as a thick quad from (x0,y0) to (x1,y1). */
 function limb(g: G, color: number, x0: number, y0: number, x1: number, y1: number, w: number = 1.9): void {
     const dx = x1 - x0, dy = y1 - y0;
@@ -96,18 +82,8 @@ function attackState(time: number, attackAge: number, attackDelay: number, windu
     return { windup, strike, age, inCombat: true };
 }
 
-// ============================ NECROMANCER B ============================
+// ======================= CANONICAL NECROMANCER B =======================
 
-/** Per-slot bake-param overrides (DesignRegistry.designBakeParams). delay
- *  1600 = the runtime TroopDefinitions attackDelay (the table's pinned 5000
- *  would bake windup ages runtime windup never reaches — nearest-value
- *  matching would display strike frames through the windup). This slot's
- *  attackState call authors windup 620 / strike 300 (table pins 700/400);
- *  idles close on NECRO_IDLE_P = 2000 / SKEL_IDLE_P = 1000. */
-export const PARAMS: import('./DesignRegistry').DesignParamsExport = {
-    necromancer: { delay: 1600, windup: 620, strike: 300, idleMs: 2000 },
-    skeleton: { idleMs: 1000 },
-};
 
 export function drawNecromancerB(
     g: G,
@@ -329,172 +305,4 @@ export function drawNecromancerB(
         g.fillStyle(0xeafff2, 0.85 * st);
         g.fillCircle(ox - 0.3, oy - 0.3, 0.55);
     }
-}
-
-// ============================= SKELETON B =============================
-
-export function drawSkeletonB(
-    g: G,
-    isPlayer: boolean,
-    isMoving: boolean,
-    facingAngle: number, // dirs: 8 — stance, rapier and lunge all aim here
-    troopLevel: number,
-    time: number,
-    attackAge: number,
-    attackDelay: number,
-    _driver: number
-): void {
-    const atk = attackState(time, attackAge, attackDelay || 900, 260, 150);
-    const wu = (!isMoving && atk.inCombat) ? easeOut(atk.windup) : 0;
-    const st = (!isMoving && atk.inCombat) ? atk.strike : 0;
-
-    const fa = facingAngle || 0;
-    const ax = Math.cos(fa);
-    const ay = Math.sin(fa) * 0.5;              // iso-squashed ground plane
-    const upScreen = Math.sin(fa) < 0;          // blade behind the body then
-
-    // ---- clocks: 300 ms rattle-march / 1000 ms idle micro-rattle ----
-    let swing = 0, lift = 0, jaw = 0, ribShift = 0, eyeA = 0.9;
-    if (isMoving) {
-        const ph = (time % SKEL_STRIDE) / SKEL_STRIDE;
-        const s = Math.sin(ph * TAU);
-        swing = s * 1.9;
-        lift = Math.abs(s) * 1.1;               // steppy — a rattle-march
-        jaw = Math.abs(Math.sin(ph * TAU * 2)) * 0.8;  // h2 of the stride
-        ribShift = Math.sin(ph * TAU * 2) * 0.4;
-    } else {
-        const em = Math.sin(((time % SKEL_IDLE_P) / SKEL_IDLE_P) * TAU);                  // h1
-        jaw = Math.max(0, Math.sin(((time % (SKEL_IDLE_P / 2)) / (SKEL_IDLE_P / 2)) * TAU)) * 1.6; // h2, 1.6 px
-        ribShift = em * 0.8;                    // ±0.8 px → 1.6 px travel
-        eyeA = 0.55 + 0.4 * em;                 // ember eyes breathe with it
-    }
-
-    // ---- palette ----
-    let bone = isPlayer ? 0xd8d8c8 : shade(0xd8d8c8, 0.8);
-    if (troopLevel >= 3) bone = shade(bone, 1.06);
-    const boneDark = shade(bone, 0.55);
-    const boneLight = shade(bone, 1.15);
-    const blade = troopLevel >= 3 ? 0xd9dee6 : (troopLevel >= 2 ? 0xc4cad2 : 0xa87b58);
-    const guardMetal = troopLevel >= 3 ? 0xdaa520 : (troopLevel >= 2 ? 0xb9bfc8 : 0x8a6a4c);
-    const rustDots = troopLevel >= 3 ? 0 : (troopLevel >= 2 ? 1 : 3);
-
-    // Lunge kinematics: coil back on wind-up, full extension on the tick.
-    const lean = st * 2.2 - wu * 1.1;           // body travel along the facing
-    const bx = ax * lean;                        // body offset x
-    const by = ay * lean;                        // body offset y
-
-    // ---- contact shadow ----
-    g.fillStyle(0x000000, 0.22);
-    g.fillEllipse(bx * 0.6, 9.6, 8, 3);
-
-    // ---- rapier (composed so it can draw behind the body up-screen) ----
-    const cx = bx + (isMoving ? 0 : ribShift);   // ribcage center x
-    const drawRapier = () => {
-        // The sword hand sits a touch OFF the facing axis (a right-handed
-        // fencer's blade side) so the rapier never collapses behind the body
-        // when aiming straight up/down-screen (ax → 0).
-        const pxo = -Math.sin(fa) * 1.6;
-        const pyo = Math.cos(fa) * 0.5 * 1.6;
-        // The BLADE draws along the normalized screen direction (constant
-        // screen length at every aim — the archer-bow readability convention);
-        // only stance/lean stay on the iso-squashed ground plane. A strictly
-        // projected rapier vanishes to 3.5 px pointing up/down-screen.
-        const n = Math.hypot(ax, ay) || 1;
-        const ux = ax / n, uy = ay / n;
-        const sx = cx + ax * 2.2, sy = -4.3 - lift * 0.3 + by;      // shoulder
-        const reach = 2.6 - 2.0 * wu + 5.0 * st;                    // coil → lunge
-        const hxp = sx + ax * reach + pxo;
-        const hyp = sy + ay * reach + pyo + 1.8 - 1.2 * wu - 0.6 * st; // guard height
-        limb(g, bone, sx, sy, hxp, hyp, 1.2);
-        g.fillStyle(boneLight, 1);
-        g.fillCircle(hxp, hyp, 0.8);                                // hand
-        // Swept bell guard + pommel (green gem from L2 — thin accent).
-        g.lineStyle(0.8, guardMetal, 1);
-        g.strokeCircle(hxp + ux * 0.7, hyp + uy * 0.7, 1.1);
-        g.fillStyle(guardMetal, 1);
-        g.fillCircle(hxp - ux * 1.1, hyp - uy * 1.1, 0.55);
-        if (troopLevel >= 2) {
-            g.fillStyle(GREEN, 0.95);
-            g.fillCircle(hxp - ux * 1.1, hyp - uy * 1.1, 0.35);
-        }
-        // Blade: angled up at guard, level at full lunge.
-        const upTilt = 2.4 + 1.2 * wu - (2.2 + 1.2 * wu) * st;
-        const len = 7.0 + 1.5 * st;
-        const bx0 = hxp + ux * 1.2, by0 = hyp + uy * 1.2;
-        const tx1 = bx0 + ux * len, ty1 = by0 + uy * len - upTilt;
-        g.lineStyle(0.9, blade, 1);
-        g.lineBetween(bx0, by0, tx1, ty1);
-        g.fillStyle(boneLight, 1);
-        g.fillCircle(tx1, ty1, 0.4);                                // tip glint
-        for (let i = 0; i < rustDots; i++) {                        // rust patches
-            const f = 0.3 + i * 0.22;
-            g.fillStyle(0x8a5a38, 1);
-            g.fillCircle(bx0 + (tx1 - bx0) * f, by0 + (ty1 - by0) * f, 0.45);
-        }
-        if (st > 0.35) {                                            // green streak
-            g.lineStyle(0.8, GREEN, 0.7 * st);
-            g.lineBetween(tx1, ty1, tx1 - ux * 3.2, ty1 - uy * 3.2 + upTilt * 0.4);
-        }
-    };
-    if (upScreen) drawRapier();
-
-    // ---- legs: fencing stance along the facing ----
-    const pelX = bx * 0.6, pelY = 3.2;
-    const dfF = 2.3 + st * 2.6;                  // front foot slides with the lunge
-    const dfB = -2.0 - wu * 1.2;                 // back foot digs in on the coil
-    const fFx = ax * dfF + (isMoving ? swing : 0), fFy = 9.2 + ay * dfF;
-    const fBx = ax * dfB - (isMoving ? swing : 0), fBy = 9.2 + ay * dfB;
-    limb(g, bone, pelX + ax * 0.6, pelY + 0.4, fFx, fFy - lift * 0.4, 1.2);
-    limb(g, boneDark, pelX - ax * 0.6, pelY + 0.4, fBx, fBy - lift * 0.4, 1.2);
-    g.fillStyle(bone, 1);
-    g.fillEllipse(fFx, fFy, 2.2, 1.1);
-    g.fillStyle(boneDark, 1);
-    g.fillEllipse(fBx, fBy, 2.2, 1.1);
-
-    // ---- pelvis + spine ----
-    g.fillStyle(bone, 1);
-    g.fillEllipse(pelX, pelY, 3.0, 1.7);
-    limb(g, bone, pelX, pelY - 0.3, cx, -0.8 + by * 0.5, 1.0);
-
-    // ---- ribcage: bone mass with dark rib gaps, NW sheen ----
-    const rcy = -2.6 - lift * 0.5 + by * 0.5;
-    g.fillStyle(bone, 1);
-    g.fillEllipse(cx, rcy, 5.0, 5.8);
-    g.lineStyle(0.7, boneDark, 1);
-    g.lineBetween(cx - 2.1, rcy - 1.4, cx + 2.1, rcy - 1.4);
-    g.lineBetween(cx - 2.3, rcy, cx + 2.3, rcy);
-    g.lineBetween(cx - 2.0, rcy + 1.4, cx + 2.0, rcy + 1.4);
-    g.fillStyle(boneLight, 1);
-    g.fillEllipse(cx - 1.3, rcy - 1.6, 1.6, 1.8); // NW light
-    g.fillStyle(bone, 1);                          // shoulder knobs
-    g.fillCircle(cx - 2.2, -4.4 - lift * 0.3 + by, 0.8);
-    g.fillCircle(cx + 2.2, -4.4 - lift * 0.3 + by, 0.8);
-
-    // ---- off-arm folded behind the back (the fencer's manner) ----
-    limb(g, boneDark, cx - ax * 2.2, -4.2 - lift * 0.3 + by, cx - ax * 3.3, -0.6 + by * 0.5, 1.1);
-    g.fillStyle(boneDark, 1);
-    g.fillCircle(cx - ax * 3.3, -0.6 + by * 0.5, 0.7);
-
-    // ---- skull: turned to the facing, jaw rattling on its harmonic ----
-    const skx = cx + ax * 0.6, sky = -7.6 - lift * 0.4 + by;
-    g.fillStyle(bone, 1);
-    g.fillCircle(skx, sky, 2.4);
-    g.lineStyle(0.8, boneLight, 1); // NW-lit rim of the cranium
-    g.beginPath();
-    g.arc(skx - 0.4, sky - 0.5, 2.1, Math.PI * 0.95, Math.PI * 1.7, false);
-    g.strokePath();
-    g.fillStyle(0x23211a, 1);                     // mouth gap opens with the jaw
-    g.fillRect(skx - 1.3, sky + 1.6, 2.6, 0.7 + jaw * 0.6);
-    g.fillStyle(bone, 1);                          // the jaw itself
-    g.fillRoundedRect(skx - 1.5, sky + 1.9 + jaw, 3.0, 1.3, 0.6);
-    g.fillStyle(0x23211a, 1);                     // eye sockets
-    g.fillCircle(skx - 0.95 + ax * 0.35, sky - 0.3, 0.75);
-    g.fillCircle(skx + 0.95 + ax * 0.35, sky - 0.3, 0.75);
-    g.fillStyle(GREEN, clamp01(eyeA));            // grave-green points
-    g.fillCircle(skx - 0.95 + ax * 0.35, sky - 0.3, 0.38);
-    g.fillCircle(skx + 0.95 + ax * 0.35, sky - 0.3, 0.38);
-    g.fillStyle(boneDark, 1);                     // nasal notch
-    g.fillRect(skx + ax * 0.35 - 0.25, sky + 0.5, 0.5, 0.7);
-
-    if (!upScreen) drawRapier();
 }

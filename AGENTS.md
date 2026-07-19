@@ -74,21 +74,20 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   `settleLogicalZoom` gives pixel-perfect zoom in `snap` mode. Particle
   emitters now emit chunky NEAREST textures.
 - **DONE — the figure + projectile bake (2026-07-12)**: three new sprite
-  kinds join the bank. `villagers/` (11 units, 2,124 frames): villagers
+  kinds join the bank. `villagers/` (11 units, 2,924 frames): villagers
   (5 palettes × 2 styles × 4 roles + elder/child, every state — walk, work,
   panic, cheer, sleep, lantern, rock/pack carries), dogs, chickens, all
   birds, the dragon shadow (16 headings), merchant, stall, thief, owl.
-  `figures/` (10 units): the 8 road-traveller kinds (walk + camp), caravan
-  soldiers (one palette per troop, refreshed by the 2026-07-16 figures
-  re-bake after the roster change; two are stale since the
-  pavisebearer/hawkeyeassassin deletion, pruned on the next figures
-  bake — a missing variant falls back to the vector column), the
-  postcard fish. `projectiles/`
-  (originally 10 units, 326 frames; now 11 units / 374 frames —
-  trebuchet_stone + ornithopter_bomb joined, musket_ball removed):
+  `figures/` (10 units, 168 frames): the 8 road-traveller kinds (80 frames),
+  caravan soldiers for the 20 live/generated troop types in `TROOP_PARAMS`
+  (including romanwarrior/skeleton), refreshed after the two-path roster
+  collapse (80 frames), and the postcard fish (8 frames). `projectiles/` (10 units / 326
+  frames — trebuchet_stone + ornithopter_bomb joined; musket_ball and
+  frostfall_shard were removed):
   every RIGID projectile at 16 rotation variants ×
-  material levels (arrow, bolts, shells, cannonball, crystal, rocket, spike
-  ball) — runtime picks the nearest baked angle, never rotates the sprite.
+  material levels (arrow, bolts, shells, cannonball, rocket, spike ball,
+  trebuchet stone, bomb) — runtime picks the nearest baked angle, never
+  rotates the sprite.
   Wiring: `SpriteBank.syncFigure`/`pickFigureFrame` (variant + state +
   caller-computed phase); call sites in VillageLifeSystem (drawEntity,
   merchant, stall, thief, owl), NeighborLifeSim, WorldMapSystem travellers,
@@ -156,36 +155,36 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   when :8788 is down. Idle terms in draw fns must be exact harmonics of a
   250 ms-multiple period and survive quantization (≥1.5 world px or
   ≥16/255 RGB over ≥1% of texels — see the probe thresholds).
-- **DONE — the troop overhaul + design tournaments (2026-07-16):** the
-  trainable roster is **19 troops** (`PLAYER_TROOP_TYPES` in
-  `src/game/config/definitions/TroopDefinitions.ts` — that tuple IS the
-  unlock and display order; consumers must not restate it). 9 new units
-  joined: goblinplunderer, clockworkbeetle, physicianscart,
-  quartermaster, siegetower, necromancer (whose skeleton summons are
-  generated-only, like phalanx's romanwarrior), trebuchet,
-  warelephant, ornithopter; ward/recursion/giant/sharpshooter were DELETED
-  end-to-end (with their musket_ball projectile — saves/replays
-  self-clean), and pavisebearer + hawkeyeassassin were DELETED the same
-  way on 2026-07-16 (owner disliked the redirect/stealth mechanics —
-  kits, variants, icons and baked dirs all removed; saves/replays
-  self-clean, a stale L11 barracks clamps to 10 on read). TWO troops
-  unlock per barracks level
-  (`getTroopUnlockLevel` = `floor(index/2)+1`; barracks maxLevel 10).
-  Client kits + server settlement shipped under ONE
-  `ATTACK_SIMULATION_VERSION` **3→4** bump (v3 replays preserved
-  verbatim). Tournament state: every tournament unit is baked AND
-  live-switchable in the Design Lab — frostfall@A/B/C building slots plus
-  30 troop variant dirs (10 units × @A/@B/@C incl. skeleton) — with
-  judge-panel defaults live in
-  `DEFAULT_DESIGN_SLOTS` (`src/game/renderers/redesign/DesignRegistry.ts`;
-  clockworkbeetle's verdict still in flight) and per-slot authored periods
-  baked via the `PARAMS` export (docs/DESIGN_TOURNAMENTS.md). AWAITING THE
-  OWNER: the frostfall A/B/C pick and per-troop winner confirmation vs the
-  judge defaults — never promote winners or delete variant dirs before
-  those picks (docs/TROOP_OVERHAUL_HANDOFF.md tracks the remainder).
-  Roster now **51,129 frames / 118 manifests** (~71 MB loose frames +
-  ~29 MB packed atlases; `scripts/render-quality-regression.mjs` enforces
-  the exact counts).
+- **DONE — the prior troop overhaul + resolved design tournaments
+  (2026-07-18):** canonical winners remain Goblin Plunderer **A**, Clockwork
+  Beetle **B**, Physician's Cart **B**, Siege Tower **C**, Necromancer **B**,
+  Skeleton **C**, Trebuchet **B**, War Elephant **A**, and Ornithopter **A**.
+  Quartermaster and Frostfall were removed end-to-end; the earlier
+  ward/recursion/giant/sharpshooter, pavisebearer/hawkeyeassassin and
+  musket_ball deletions remain self-cleaning for old saves/replays. The
+  packed normal bank is now exactly **33,443 frames / 94 manifests**. The
+  death bank contributes another 3,888 frames / 6 manifests, bringing the
+  strict full gate to **37,331 / 100**.
+- **DONE — Army Camp Core + two troop paths (2026-07-18):** the trainable
+  roster is **18 troops**. Core unlocks from the highest completed online Army
+  Camp: `warrior` (displayed as Barbarian) L1, `archer` L2,
+  `physicianscart` (displayed as Healer) L3, and `phalanx` L4. Two independent
+  seven-level paths are owned by `TROOP_TECH_TREES`: `mystic` =
+  goblinplunderer, wallbreaker, stormmage, necromancer, warelephant, golem,
+  icegolem; `mechanica` = clockworkbeetle, ram, mobilemortar, siegetower,
+  trebuchet, ornithopter, davincitank. Mystic uses `mystic_barracks` and
+  Mechanica retains `barracks`; L1-L7 unlock troops and L8-L9 are Mastery.
+  Biopunk and `biopunk_barracks` were purged together with needleback,
+  razorwing, vatbrute, apexchimera, riftdjinn, sporelobber, and mantisstalker;
+  old saves/replays self-clean unknown ids. Goblin Plunderer and War Elephant
+  moved to Mystic, Stone Golem returned to live training, and Battering Ram
+  moved to Mechanica. `romanwarrior` and `skeleton` remain generated-only.
+  The removed A/B/C and Rift design rounds, candidate deaths, icons, visual
+  routes, and packed assets are gone; exact portraits remain for all 20
+  live/generated troop manifests. Authoritative
+  settlement remains `ATTACK_SIMULATION_VERSION` **6** (Clockwork Beetle's
+  125 ms live fuse; stored v5 keeps 1,000 ms). See
+  `docs/TROOP_FACTION_ARCHITECTURE.md`.
 - The vector draw functions remain in the bundle as the AUTHORING source and
   per-unit fallback. Iron rules still govern them — they are what gets baked.
   See `docs/AGENTS_SPRITE_PIPELINE.md` for the full architecture and the

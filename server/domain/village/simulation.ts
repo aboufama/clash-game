@@ -16,6 +16,7 @@ export const FOOD_PER_GROWTH = 10
 const POPULATION_HOUSING: Partial<Record<BuildingType, number>> = {
   town_hall: 3,
   barracks: 1,
+  mystic_barracks: 1,
   lab: 1,
   army_camp: 1,
   mine: 1,

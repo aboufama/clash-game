@@ -576,88 +576,6 @@
         }
       }
     },
-    "pavisebearer": {
-      "states": {
-        "walk": {
-          "loopMs": 349,
-          "frames": [
-            {
-              "file": "caravan_soldier_pavisebearer_walk0.png",
-              "texelW": 13,
-              "texelH": 23,
-              "cellWorldPx": 1.35,
-              "originX": 0.4017094017094015,
-              "originY": 0.8518518518518519
-            },
-            {
-              "file": "caravan_soldier_pavisebearer_walk1.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            },
-            {
-              "file": "caravan_soldier_pavisebearer_walk2.png",
-              "texelW": 12,
-              "texelH": 25,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8637037037037036
-            },
-            {
-              "file": "caravan_soldier_pavisebearer_walk3.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            }
-          ]
-        }
-      }
-    },
-    "quartermaster": {
-      "states": {
-        "walk": {
-          "loopMs": 349,
-          "frames": [
-            {
-              "file": "caravan_soldier_quartermaster_walk0.png",
-              "texelW": 13,
-              "texelH": 23,
-              "cellWorldPx": 1.35,
-              "originX": 0.4017094017094015,
-              "originY": 0.8518518518518519
-            },
-            {
-              "file": "caravan_soldier_quartermaster_walk1.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            },
-            {
-              "file": "caravan_soldier_quartermaster_walk2.png",
-              "texelW": 12,
-              "texelH": 25,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8637037037037036
-            },
-            {
-              "file": "caravan_soldier_quartermaster_walk3.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            }
-          ]
-        }
-      }
-    },
     "siegetower": {
       "states": {
         "walk": {
@@ -771,47 +689,6 @@
             },
             {
               "file": "caravan_soldier_trebuchet_walk3.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            }
-          ]
-        }
-      }
-    },
-    "hawkeyeassassin": {
-      "states": {
-        "walk": {
-          "loopMs": 349,
-          "frames": [
-            {
-              "file": "caravan_soldier_hawkeyeassassin_walk0.png",
-              "texelW": 13,
-              "texelH": 23,
-              "cellWorldPx": 1.35,
-              "originX": 0.4017094017094015,
-              "originY": 0.8518518518518519
-            },
-            {
-              "file": "caravan_soldier_hawkeyeassassin_walk1.png",
-              "texelW": 12,
-              "texelH": 24,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8580246913580245
-            },
-            {
-              "file": "caravan_soldier_hawkeyeassassin_walk2.png",
-              "texelW": 12,
-              "texelH": 25,
-              "cellWorldPx": 1.35,
-              "originX": 0.43518518518518495,
-              "originY": 0.8637037037037036
-            },
-            {
-              "file": "caravan_soldier_hawkeyeassassin_walk3.png",
               "texelW": 12,
               "texelH": 24,
               "cellWorldPx": 1.35,

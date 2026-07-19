@@ -129,7 +129,7 @@ function deployGolem(engaged: AttackAggregate, now = T0 + 200): AttackAggregate 
 function run(): void {
   const prepared = prepareAttack(playerInput(), { reserveArmy })
   check(prepared.phase === 'PREPARING' && prepared.version === 1, 'preparation starts at PREPARING v1')
-  check(prepared.rules.simulationVersion === 4, 'new attacks pin the current combat simulation version')
+  check(prepared.rules.simulationVersion === 6, 'new attacks pin the current combat simulation version')
   check(prepared.reservation.state === 'HELD' && prepared.reservation.reserved.golem === 1, 'preparation holds an exact army reservation')
   check(prepared.target.kind === 'PLAYER' && prepared.target.plot.x === 7, 'matchmade PLAYER target retains its real world plot')
 
@@ -261,10 +261,32 @@ function run(): void {
     'simulation v3 attrition banks materially less for a wiped army while v2 replays keep full credit')
   check(simulateCombat(partialV3Pinned, 75_000).resultHash === longFightV3.resultHash,
     'v3 attrition stays a deterministic function of snapshot, seed and events')
-  const longFightV4 = simulateCombat(partialActive, 75_000)
+  const longFightV4 = simulateCombat(atVersion(partialActive, 4), 75_000)
   check(longFightV4.simulationVersion === 4 && longFightV4.damageDealt === longFightV3.damageDealt
     && longFightV4.destruction === longFightV3.destruction,
     'v4 credits troops without v4 kit fields exactly like v3 (only the pinned version differs)')
+  const longFightV5 = simulateCombat(atVersion(partialActive, 5), 75_000)
+  check(longFightV5.simulationVersion === 5 && longFightV5.damageDealt === longFightV4.damageDealt
+    && longFightV5.destruction === longFightV4.destruction,
+    'v5 preserves v4 combat for troops without an explicit detonation fuse')
+  const longFightV6 = simulateCombat(partialActive, 75_000)
+  check(longFightV6.simulationVersion === 6 && longFightV6.damageDealt === longFightV5.damageDealt
+    && longFightV6.destruction === longFightV5.destruction,
+    'v6 preserves v5 combat for troops without a changed detonation fuse')
+  const staleBuildingAttack: AttackAggregate = {
+    ...partialActive,
+    snapshot: {
+      ...partialActive.snapshot,
+      buildings: [
+        ...partialActive.snapshot.buildings,
+        { id: 'retired_defense', type: 'retired_catalog_defense' as never, level: 1, gridX: 8, gridY: 8 }
+      ]
+    }
+  }
+  const staleBuildingResult = simulateCombat(staleBuildingAttack, 75_000)
+  check(!staleBuildingResult.buildings.some(building => building.id === 'retired_defense')
+    && staleBuildingResult.totalHitPoints === longFightV6.totalHitPoints,
+    'stored snapshots self-clean a retired building type instead of crashing settlement')
   check(finalizedA.finalization?.settlement.resourceMode === 'TRANSFER' && Boolean(finalizedA.finalization.settlement.defender), 'PLAYER outcome creates one self-contained transfer plan')
   check(finalizedA.finalization?.settlement.consumeArmy.golem === 1 && finalizedA.finalization.settlement.releaseArmy.warrior === 2, 'settlement consumes deployed troops and releases unused reservation')
 
@@ -443,17 +465,7 @@ function run(): void {
       `v4 summoner credit adds exactly the documented wave formula (${label})`)
   }
 
-  // --- (c) quartermaster cadence aura --------------------------------------
-  const qmAttack = kitAttack('attack_kit_qm', defSnapshot, { quartermaster: 1, warrior: 1 }, [
-    { id: 'q1', type: 'quartermaster' },
-    { id: 'w1', type: 'warrior' }
-  ])
-  const qmV4 = simulateCombat(qmAttack, 75_000)
-  const qmV3 = simulateCombat(atVersion(qmAttack, 3), 75_000)
-  check(qmV4.damageDealt > qmV3.damageDealt,
-    'v4 quartermaster aura credits allied strikes inside its window at the faster cadence')
-
-  // --- (d) support window extensions ---------------------------------------
+  // --- (c) support window extensions ---------------------------------------
   const cartAttack = kitAttack('attack_kit_cart', defSnapshot, { physicianscart: 1, stormmage: 1 }, [
     { id: 'c1', type: 'physicianscart' },
     { id: 'm1', type: 'stormmage' }
@@ -472,6 +484,29 @@ function run(): void {
   check(towerV4.damageDealt > towerV3.damageDealt,
     'v4 siege tower grants overlapping allies the flat pathing-time credit')
 
+  // --- (d) clockwork beetle contact fuse (v5 pinned, v6 snap-fuse) ----------
+  const beetleStats = getTroopStats('clockworkbeetle', 1)
+  const beetleAttack = kitAttack('attack_kit_beetle', econSnapshot, { clockworkbeetle: 1 }, [
+    { id: 'b1', type: 'clockworkbeetle' }
+  ])
+  // The first deploy establishes combat t=0, so these durations expose the
+  // current 125 ms snap-fuse boundary exactly.
+  const beetleBeforeFuse = simulateCombat(beetleAttack, 124)
+  const beetleAtFuse = simulateCombat(beetleAttack, 125)
+  const beetleLater = simulateCombat(beetleAttack, 10_000)
+  const oneBeetleSplash = Math.floor(Math.max(0, beetleStats.damage) * 12_500 / 10_000)
+  check(beetleBeforeFuse.damageDealt === 0,
+    'v6 clockwork beetle earns no damage before its exact 125 ms snap-fuse')
+  check(beetleAtFuse.damageDealt === oneBeetleSplash && beetleLater.damageDealt === oneBeetleSplash,
+    'v6 clockwork beetle earns exactly one detonation at 125 ms and never repeats')
+  const beetlePinnedV5Before = simulateCombat(atVersion(beetleAttack, 5), 999)
+  const beetlePinnedV5AtFuse = simulateCombat(atVersion(beetleAttack, 5), 1_000)
+  check(beetlePinnedV5Before.damageDealt === 0 && beetlePinnedV5AtFuse.damageDealt === oneBeetleSplash,
+    'stored v5 beetle attacks retain their historical exact one-second fuse')
+  const beetlePinnedV4 = simulateCombat(atVersion(beetleAttack, 4), 1_000)
+  check(beetlePinnedV4.damageDealt > beetlePinnedV5AtFuse.damageDealt,
+    'stored v4 beetle attacks preserve their historical cadence credit')
+
   // --- v3-pinned aggregate with a v4-kit troop: rules stay pinned ----------
   const pinnedV3Attack = kitAttack('attack_kit_pinned3', econSnapshot, { goblinplunderer: 1 }, [
     { id: 'g1', type: 'goblinplunderer' }
@@ -482,7 +517,7 @@ function run(): void {
   check(pinnedV3Result.simulationVersion === 3 && pinnedV3Result.damageDealt === goblinBudget,
     'a stored v3 attack with a v4-kit troop still takes the v3 branches (no multiplier, no tiering)')
   check(simulateCombat(pinnedV3Attack, 10_000).resultHash === pinnedV3Result.resultHash,
-    'pinned v3 results regenerate hash-identically under the v4 code')
+    'pinned v3 results regenerate hash-identically under the v6 code')
 
   console.log(`attack-domain regression: ${checks} checks passed`)
 }

@@ -20,9 +20,9 @@ There are **two** combat directions, in different files — don't conflate them:
     This is the **seam**: the loop calls `effects.fire[type](defense, target, time)`
     with zero visual knowledge.
   - The actual `fire` implementations are bespoke `shoot*At` methods **in
-    MainScene** (~9 of them, 90–310 lines: `shootAt` cannon, `shootBallistaAt`,
+    MainScene** (~8 of them, 90–310 lines: `shootAt` cannon, `shootBallistaAt`,
     `shootMortarAt`+`createMortarExplosion`, `shootTeslaAt`, `shootPrismContinuousLaser`,
-    `shootFrostfallShard`, `shootDragonsBreathAt`, `shootSpikeLauncherAt`). They
+    `shootDragonsBreathAt`, `shootSpikeLauncherAt`). They
     spawn projectiles, apply splash, screenshake, and impact particles. Splash
     radius / projectile art / arc are hard-coded here, NOT in the registry.
 - **Troops → buildings:** `TargetingSystem.ts` (`findTarget`) picks a target from

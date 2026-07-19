@@ -728,6 +728,375 @@ button:disabled {
     padding: 8px;
 }
 
+/* Two independent troop paths. The army queue stays shared, while every
+   column communicates its own server-authoritative barracks level. */
+.faction-training-modal {
+    --training-card-width: 142px;
+    width: min(680px, 96vw);
+    max-width: 96vw;
+    max-height: 88vh;
+}
+
+.core-troop-section {
+    --faction-accent: #f0cf83;
+    margin: 0 2px 14px;
+    padding: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+}
+
+.core-troop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding-bottom: 3px;
+    border: 0;
+}
+
+.core-troop-header > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.core-troop-header strong {
+    color: #fff1cc;
+    font-size: 10px;
+    line-height: 1.2;
+    text-shadow: 1px 1px 0 #000;
+}
+
+.core-troop-access {
+    flex: 0 0 auto;
+    padding: 0;
+    color: var(--faction-accent);
+    background: none;
+    border: 0;
+    box-shadow: none;
+    font-size: 7px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.core-troop-access.offline {
+    color: #8f887d;
+    background: none;
+}
+
+.core-troop-description {
+    margin: 5px 0 8px;
+    color: #d5c9b2;
+    font-size: 7px;
+    line-height: 1.45;
+}
+
+.core-troop-grid {
+    display: grid;
+    grid-template-columns: repeat(4, var(--training-card-width));
+    justify-content: space-between;
+    gap: 0;
+}
+
+.troop-faction-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+}
+
+.troop-faction-column {
+    --faction-accent: var(--fantasy-gold);
+    min-width: 0;
+    padding: 0 6px;
+    background: none;
+    border: 0;
+    box-shadow: none;
+}
+
+.troop-faction-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding-bottom: 0;
+}
+
+.troop-faction-header > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.troop-faction-kicker {
+    color: var(--faction-accent);
+    font-size: 7px;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.troop-faction-header strong {
+    color: #fff1cc;
+    font-size: 9px;
+    line-height: 1.2;
+    text-shadow: 1px 1px 0 #000;
+}
+
+.troop-faction-summary span {
+    color: #bdb4a4;
+    font-size: 7px;
+    font-weight: 400;
+    text-shadow: none;
+}
+
+.troop-faction-level {
+    flex: 0 0 auto;
+    color: #16110c;
+    background: var(--faction-accent);
+    border: 2px solid #0d0906;
+    padding: 4px 5px;
+    font-size: 7px;
+    font-weight: 900;
+    box-shadow: 2px 2px 0 #000;
+}
+
+.troop-faction-level.offline {
+    background: #746e64;
+    color: #ded7c9;
+}
+
+.troop-tech-lane {
+    display: grid;
+    grid-template-columns: repeat(2, var(--training-card-width));
+    justify-content: start;
+    gap: 6px;
+    margin-top: 7px;
+}
+
+.faction-troop-card {
+    --card-edge: #6f5238;
+    --card-edge-light: #987251;
+    --card-edge-dark: #2b1d13;
+    --card-surface: rgba(40, 30, 22, 0.98);
+    appearance: none;
+    width: var(--training-card-width);
+    height: 58px;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 42px;
+    grid-template-rows: 30px 14px;
+    grid-template-areas:
+        "icon copy cost"
+        "level copy cost";
+    align-items: center;
+    gap: 2px 5px;
+    position: relative;
+    margin: 0;
+    padding: 4px;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    background: var(--card-surface);
+    border: 2px solid var(--card-edge);
+    box-shadow:
+        2px 2px 0 #0b0805,
+        inset 1px 1px 0 var(--card-edge-light),
+        inset -1px -1px 0 var(--card-edge-dark);
+}
+
+.faction-mystic .faction-troop-card {
+    --card-edge: #75558a;
+    --card-edge-light: #a27bb8;
+    --card-edge-dark: #2c2034;
+    --card-surface: rgba(29, 23, 33, 0.98);
+}
+
+.faction-mechanica .faction-troop-card {
+    --card-edge: #96612f;
+    --card-edge-light: #c18745;
+    --card-edge-dark: #34200f;
+    --card-surface: rgba(37, 28, 19, 0.98);
+}
+
+.faction-troop-card:hover:not(.locked):not(.disabled) {
+    border-color: var(--faction-accent);
+    filter: brightness(1.12);
+    transform: translate(1px, 1px);
+}
+
+.faction-troop-card.locked {
+    cursor: not-allowed;
+    filter: saturate(0.58) brightness(0.55);
+    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-areas:
+        "icon copy"
+        "lock lock";
+}
+
+.faction-troop-card.disabled:not(.locked) {
+    cursor: not-allowed;
+    filter: saturate(0.65) brightness(0.72);
+}
+
+.faction-troop-card.flagship {
+    border-color: color-mix(in srgb, var(--faction-accent) 70%, #ffd76a);
+    box-shadow:
+        2px 2px 0 #0b0805,
+        inset 1px 1px 0 var(--card-edge-light),
+        inset -1px -1px 0 var(--card-edge-dark),
+        inset 0 0 0 2px rgba(255, 215, 96, 0.12);
+}
+
+.faction-troop-icon {
+    grid-area: icon;
+    width: 30px !important;
+    height: 30px !important;
+    position: relative !important;
+    display: block;
+}
+
+/* Troop cards, queues, and battle selectors use portraits generated from the
+   real baked troop frames. The legacy hand-authored ::before glyph remains a
+   network-error fallback only. */
+.troop-sprite-icon::before {
+    display: none !important;
+}
+
+.troop-sprite-icon > img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    image-rendering: pixelated;
+    pointer-events: none;
+    filter: drop-shadow(1px 2px 0 rgba(0, 0, 0, 0.55));
+}
+
+.faction-troop-copy {
+    grid-area: copy;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.faction-troop-copy strong {
+    overflow: hidden;
+    color: #fff2d1;
+    font-size: 8px;
+    line-height: 1.3;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+.faction-troop-copy small {
+    color: var(--faction-accent);
+    font-size: 6px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+}
+
+.faction-troop-cost {
+    grid-area: cost;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1px;
+    color: #e5c985;
+    font-size: 7px;
+    line-height: 1.2;
+}
+
+.faction-troop-cost {
+    width: 100%;
+}
+
+.faction-troop-cost > span {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr);
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    white-space: nowrap;
+}
+
+.faction-troop-cost-value {
+    justify-self: end;
+}
+
+.faction-troop-cost .icon {
+    width: 14px !important;
+    height: 14px !important;
+    position: relative !important;
+}
+
+.faction-troop-cost .short,
+.faction-troop-cost em {
+    color: var(--warn-red);
+}
+
+.faction-troop-cost em,
+.faction-troop-level-badge {
+    font-size: 5px;
+    font-style: normal;
+}
+
+.faction-troop-level-badge {
+    grid-area: level;
+    align-self: end;
+    justify-self: start;
+    color: #a9a194;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.faction-troop-lock {
+    grid-area: lock;
+    display: block;
+    width: 100%;
+    color: #d7cfc1;
+    font-size: 6px;
+    font-weight: 900;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .troop-faction-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .core-troop-grid {
+        grid-template-columns: repeat(2, var(--training-card-width));
+        justify-content: start;
+        gap: 7px;
+    }
+
+    .core-troop-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .core-troop-access {
+        align-self: flex-start;
+    }
+
+}
+
+@media (max-width: 380px) {
+    .core-troop-grid,
+    .troop-tech-lane {
+        grid-template-columns: var(--training-card-width);
+        justify-content: start;
+    }
+}
+
 .troop-grid-item {
     background: var(--panel-accent);
     border: 3px solid var(--panel-border);
@@ -945,88 +1314,6 @@ button:disabled {
 
 .queue-item .remove-btn:hover {
     background: #333;
-}
-
-/* ============================================
-   BATTLE RESULTS - Victory Screen
-   ============================================ */
-
-.battle-results {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 2000;
-    background: var(--panel-bg);
-    border: 6px solid var(--panel-border);
-    box-shadow:
-        6px 6px 0 var(--panel-border-dark),
-        inset 4px 4px 0 var(--panel-border-light);
-    padding: 24px;
-    min-width: 400px;
-    text-align: center;
-}
-
-.battle-results-title {
-    font-size: 16px;
-    color: var(--fantasy-gold);
-    margin-bottom: 24px;
-    text-shadow: 3px 3px 0 #000;
-}
-
-.battle-results-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.battle-stat {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    background: rgba(0, 0, 0, 0.5);
-    border: 3px solid var(--panel-border-dark);
-    border-radius: 6px;
-}
-
-.battle-stat-label {
-    font-size: 8px;
-    color: var(--text-primary);
-}
-
-.battle-stat-value {
-    font-size: 10px;
-    color: var(--fantasy-gold);
-    text-shadow: 2px 2px 0 #000;
-}
-
-.battle-resource-value {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.battle-resource-value .icon {
-    width: 16px;
-    height: 16px;
-}
-
-.battle-stat-value.destruction {
-    color: var(--fantasy-red);
-}
-
-.battle-home-btn {
-    width: 100%;
-    padding: 16px;
-    font-size: 10px;
-    background: var(--fantasy-green);
-    border-color: #32CD32;
-}
-
-.battle-home-btn:hover {
-    background: #32CD32;
 }
 
 /* ============================================
@@ -2023,30 +2310,6 @@ body.is-touch {
         font-size: 9px;
     }
 
-    /* Battle Results */
-    .battle-results {
-        min-width: auto;
-        width: calc(100vw - 32px);
-        max-width: 360px;
-        padding: 16px;
-    }
-
-    .battle-results-title {
-        font-size: 12px;
-        margin-bottom: 16px;
-    }
-
-    .battle-stat {
-        padding: 8px;
-    }
-
-    .battle-stat-label {
-        font-size: 7px;
-    }
-
-    .battle-stat-value {
-        font-size: 9px;
-    }
 }
 
 /* Small phones */
@@ -2989,24 +3252,24 @@ body.is-touch {
    BUILDING SHOP — refreshed card layout
    ============================================ */
 .bshop-body {
-    max-height: 62vh;
+    max-height: 68vh;
     overflow-y: auto;
-    padding: 8px 14px 16px 14px;
+    padding: 5px 10px 12px;
 }
 
 .bshop-section {
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .bshop-section-title {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 7px;
     color: var(--fantasy-gold);
     font-size: 10px;
     letter-spacing: 2px;
     text-transform: uppercase;
-    margin: 12px 2px 10px 2px;
+    margin: 8px 2px 6px;
     text-shadow: 1px 1px 0 #000;
 }
 
@@ -3018,18 +3281,22 @@ body.is-touch {
 
 .bshop-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+    gap: 7px;
 }
 
 .bshop-card {
     background: var(--panel-accent);
     border: 3px solid var(--panel-border);
     border-radius: 8px;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
+    padding: 5px;
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    grid-template-rows: 54px 20px;
+    grid-template-areas:
+        "thumb info"
+        "cost cost";
+    gap: 4px 6px;
     cursor: pointer;
     position: relative;
     box-shadow:
@@ -3050,11 +3317,12 @@ body.is-touch {
 }
 
 .bshop-thumb {
+    grid-area: thumb;
     position: relative;
     background: #17110c;
     border: 2px solid var(--panel-border-dark);
     border-radius: 6px;
-    height: 84px;
+    height: 54px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3069,21 +3337,37 @@ body.is-touch {
     pointer-events: none;
 }
 
-.bshop-thumb .icon.large {
-    width: 64px;
-    height: 64px;
+.bshop-building-icon {
+    width: 50px !important;
+    height: 50px !important;
+    position: relative !important;
+    display: block;
+}
+
+.building-sprite-icon::before {
+    display: none !important;
+}
+
+.building-sprite-icon > img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    image-rendering: pixelated;
+    pointer-events: none;
+    filter: drop-shadow(1px 2px 0 rgba(0, 0, 0, 0.55));
 }
 
 .bshop-count {
     position: absolute;
-    top: 4px;
-    right: 5px;
+    top: 2px;
+    right: 2px;
     background: rgba(0, 0, 0, 0.75);
     border: 1px solid var(--panel-border);
-    border-radius: 4px;
+    border-radius: 2px;
     color: #ddd;
-    font-size: 8px;
-    padding: 2px 5px;
+    font-size: 6px;
+    padding: 1px 3px;
 }
 
 .bshop-count.full {
@@ -3093,52 +3377,63 @@ body.is-touch {
 
 .bshop-maxed-ribbon {
     position: absolute;
-    left: -26px;
-    top: 10px;
-    transform: rotate(-38deg);
+    left: 2px;
+    bottom: 2px;
     background: var(--fantasy-red);
     color: #fff;
-    font-size: 8px;
-    letter-spacing: 2px;
-    padding: 2px 28px;
+    font-size: 6px;
+    letter-spacing: 1px;
+    padding: 1px 3px;
     box-shadow: 0 1px 0 #000;
 }
 
 .bshop-info {
+    grid-area: info;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    min-height: 44px;
+    gap: 2px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .bshop-name {
-    font-size: 10px;
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 9px;
+    line-height: 1.25;
     color: var(--text-primary);
     text-shadow: 1px 1px 0 #000;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .bshop-desc {
-    font-size: 8px;
-    line-height: 1.45;
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 7px;
+    line-height: 1.25;
     color: #b9ac97;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
 }
 
 .bshop-cost {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 3px;
     background: rgba(0, 0, 0, 0.55);
     border: 2px solid var(--panel-border-dark);
-    border-radius: 6px;
-    padding: 4px 8px;
+    border-radius: 3px;
+    padding: 2px 4px;
     color: #ffd700;
-    font-size: 10px;
+    font-size: 8px;
 }
 
 .bshop-cost .icon {
-    width: 20px;
-    height: 20px;
+    width: 14px;
+    height: 14px;
 }
 
 .bshop-cost.short {
@@ -3180,8 +3475,10 @@ body.is-touch {
 }
 
 .bshop-cost-row {
+    grid-area: cost;
     display: flex;
-    gap: 6px;
+    gap: 4px;
+    min-width: 0;
 }
 
 .bshop-cost-row .bshop-cost {
@@ -3676,11 +3973,6 @@ body.is-touch {
     height: 20px;
 }
 
-.battle-home-btn .btn-icon.sym {
-    width: 20px;
-    height: 20px;
-}
-
 .tooltip-stats span {
     display: inline-flex;
     align-items: center;
@@ -4058,7 +4350,6 @@ body.is-touch {
 .notifications-dropdown,
 .leaderboard-dropdown,
 .training-modal,
-.battle-results,
 .settings-modal {
     background: none;
     border-style: solid;

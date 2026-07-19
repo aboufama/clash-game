@@ -8,6 +8,7 @@ import type { BuildingType } from '../config/definitions/BuildingTypes';
 export const DEDICATED_BUILDING_VISUAL_ROUTES = [
     'townHall',
     'barracks',
+    'mysticBarracks',
     'cannon',
     'ballista',
     'mortar',
@@ -16,7 +17,6 @@ export const DEDICATED_BUILDING_VISUAL_ROUTES = [
     'armyCamp',
     'xbow',
     'prism',
-    'frostfall',
     'dragonsBreath',
     'spikeLauncher',
     'jukebox',
@@ -44,6 +44,7 @@ export const BUILDING_VISUAL_CATALOG = {
     jukebox: { route: 'jukebox' },
     storage: { route: 'storage' },
     barracks: { route: 'barracks' },
+    mystic_barracks: { route: 'mysticBarracks' },
     lab: { route: 'lab' },
     cannon: { route: 'cannon' },
     ballista: { route: 'ballista' },
@@ -55,8 +56,7 @@ export const BUILDING_VISUAL_CATALOG = {
     prism: { route: 'prism' },
     dragons_breath: { route: 'dragonsBreath' },
     spike_launcher: { route: 'spikeLauncher' },
-    watchtower: { route: 'watchtower' },
-    frostfall: { route: 'frostfall' }
+    watchtower: { route: 'watchtower' }
 } as const satisfies Record<BuildingType, BuildingVisualDescriptor>;
 
 export function buildingVisualDescriptor(type: BuildingType): BuildingVisualDescriptor {

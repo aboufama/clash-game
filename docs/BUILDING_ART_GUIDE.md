@@ -9,7 +9,7 @@ conventions below were calibrated over many rounds of the owner's feedback — f
 art will land on the first or second try; ignore them and it will be rejected.
 
 **The quality bar** (look at these first, in the code and in game): spike
-launcher L4, frostfall, prism tower L4, dragons breath max, town hall. New art
+launcher L4, cannon L4, prism tower L4, dragons breath max, town hall. New art
 must feel like it belongs next to them.
 
 **The iron rule of iteration: never ship art you have not screenshotted.**

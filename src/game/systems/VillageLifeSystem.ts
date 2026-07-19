@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
 import {
     BUILDING_DEFINITIONS,
+    FACTION_BARRACKS,
+    FACTION_BARRACKS_TYPES,
     OBSTACLE_DEFINITIONS,
     PLAYER_TROOP_TYPES,
+    getTroopFaction,
+    isFactionBarracksType,
     type BuildingType,
     type TroopType
 } from '../config/GameDefinitions';
@@ -18,6 +22,7 @@ import { Backend } from '../backend/GameBackend';
 import { TroopRenderer } from '../renderers/TroopRenderer';
 import { gameManager } from '../GameManager';
 import { soundSystem } from './SoundSystem';
+import { musicSystem } from './MusicSystem';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { SpriteBank } from '../render/SpriteBank';
 import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
@@ -27,7 +32,7 @@ import { PixelFx } from './PixelFx';
 /**
  * Ambient village life: villagers, dogs and chickens that wander the base
  * using real pathfinding around buildings, plus army figures that march from
- * the barracks to the army camps and idle there (Clash-of-Clans style).
+ * their training building to the army camps and idle there (Clash-of-Clans style).
  *
  * When a raid begins (`panic()`), everyone drops what they're doing and rushes
  * into the town hall.
@@ -225,7 +230,7 @@ const CAMP_RENDERABLE = new Set<string>(PLAYER_TROOP_TYPES);
 const MAX_CAMP_FIGURES = 18;
 const ARMY_SYNC_MS = 1200;
 /** Buildings with an actual drawn door villagers can go in and out of. */
-const ENTERABLE = new Set<string>(['town_hall', 'barracks', 'lab', 'storage']);
+const ENTERABLE = new Set<string>(['town_hall', ...FACTION_BARRACKS_TYPES, 'lab', 'storage']);
 const DOOR_PULSE_MS = 1150;
 
 function isDefense(type: string): boolean {
@@ -2557,8 +2562,13 @@ export class VillageLifeSystem {
 
     private syncArmyFigures(time: number) {
         const camps = this.scene.buildings.filter(b => b.type === 'army_camp' && b.health > 0);
-        const barracks = this.scene.buildings.find(b => b.type === 'barracks' && b.health > 0);
-        const stations = camps.length > 0 ? camps : (barracks ? [barracks] : []);
+        const barracks = this.scene.buildings.filter(b => isFactionBarracksType(b.type) && b.health > 0);
+        const factionBarracksFor = (type: TroopType): PlacedBuilding | undefined => {
+            const faction = getTroopFaction(type);
+            if (!faction) return undefined;
+            return barracks.find(building => building.type === FACTION_BARRACKS[faction]);
+        };
+        const stations = camps.length > 0 ? camps : barracks;
         if (stations.length === 0) {
             for (const f of this.campFigures) f.gfx.destroy();
             this.campFigures = [];
@@ -2594,20 +2604,27 @@ export class VillageLifeSystem {
             haveByType.set(f.type, list);
         }
 
-        // Troops that no longer exist (deployed/untrained) march back into the
-        // barracks and leave through its door — nobody just fades into nothing.
+        // Troops that no longer exist (deployed/untrained) return to the
+        // building that trained them. Core troops belong to their Army Camp;
+        // faction troops use only their exact Barracks, never the other path.
         const wantByType = new Map(desired);
         for (const [type, figures] of haveByType) {
             const want = wantByType.get(type as TroopType) ?? 0;
             for (let i = figures.length - 1; i >= want; i--) {
-                this.dismissCampFigure(figures[i], barracks);
+                const figure = figures[i];
+                const coreCamp = camps.find(camp => camp.id === figure.campId);
+                const destination = getTroopFaction(type as TroopType)
+                    ? factionBarracksFor(type as TroopType)
+                    : coreCamp;
+                this.dismissCampFigure(figure, destination);
             }
         }
 
-        // Spawn missing ones at the barracks and march them to a camp — at most
-        // two per sync so a big training batch trickles out naturally. The
-        // first sync after load is the STANDING army, not fresh recruits:
-        // it appears already stationed at the camps, no barracks parade.
+        // Spawn missing faction troops at their exact Barracks and Core troops
+        // at their assigned Army Camp — at most two per sync so a big training
+        // batch trickles out naturally. The first sync after load is the
+        // STANDING army, not fresh recruits:
+        // it appears already stationed at the camps, with no arrival parade.
         const firstSync = !this.armySynced;
         this.armySynced = true;
         let spawnsLeft = firstSync ? Number.POSITIVE_INFINITY : 2;
@@ -2615,19 +2632,22 @@ export class VillageLifeSystem {
             if (spawnsLeft <= 0) break;
             const have = (haveByType.get(type) ?? []).filter(f => this.campFigures.includes(f)).length;
             for (let i = have; i < want && spawnsLeft > 0; i++, spawnsLeft--) {
-                this.spawnCampFigure(type, stations, barracks, time, firstSync);
+                this.spawnCampFigure(type, stations, factionBarracksFor(type), time, firstSync);
             }
         }
     }
 
-    private spawnCampFigure(type: TroopType, stations: PlacedBuilding[], barracks: PlacedBuilding | undefined, time: number, instant = false) {
+    private spawnCampFigure(type: TroopType, stations: PlacedBuilding[], factionBarracks: PlacedBuilding | undefined, time: number, instant = false) {
         const camp = stations[Math.floor(Math.random() * stations.length)];
         const figureId = this.nextId++;
         const spot = this.campStation(camp, figureId);
-        const origin = (!instant && barracks) ? this.doorOf(barracks) : spot;
+        const coreCamp = camp.type === 'army_camp' ? camp : undefined;
+        const trainingBuilding = getTroopFaction(type) ? factionBarracks : coreCamp;
+        const origin = (!instant && trainingBuilding) ? this.doorOf(trainingBuilding) : spot;
         if (!origin) return;
-        // Fresh recruit steps out through the barracks door.
-        if (!instant && barracks) barracks.doorOpenUntil = time + DOOR_PULSE_MS;
+        // Fresh faction recruits step out of their Barracks. Core recruits
+        // emerge locally from the Army Camp that unlocked and trained them.
+        if (!instant && trainingBuilding) trainingBuilding.doorOpenUntil = time + DOOR_PULSE_MS;
         const f: CampFigure = {
             id: figureId,
             type,
@@ -2667,19 +2687,19 @@ export class VillageLifeSystem {
         this.campFigures.push(f);
     }
 
-    /** Walk back to the barracks and step in through its door (fade fallback only if it's gone). */
-    private dismissCampFigure(f: CampFigure, barracks: PlacedBuilding | undefined) {
-        const door = barracks ? this.doorOf(barracks) : null;
+    /** Return to the training building (fade fallback only if it is gone). */
+    private dismissCampFigure(f: CampFigure, destination: PlacedBuilding | undefined) {
+        const door = destination ? this.doorOf(destination) : null;
         const path = door
             ? PathfindingSystem.findAmbientPath(f.x, f.y, { gridX: door.x, gridY: door.y }, this.scene.buildings)
             : null;
-        if (barracks && path && path.length > 0) {
+        if (destination && path && path.length > 0) {
             f.state = 'dismiss';
             f.path = path;
-            f.marchThroughId = barracks.id;
+            f.marchThroughId = destination.id;
             return;
         }
-        // No barracks to return to — the figure has nowhere real to go; quick fade.
+        // No training building to return to — the figure has nowhere real to go; quick fade.
         this.campFigures.splice(this.campFigures.indexOf(f), 1);
         this.scene.tweens.add({ targets: f.gfx, alpha: 0, duration: 350, onComplete: () => f.gfx.destroy() });
     }
@@ -2690,14 +2710,14 @@ export class VillageLifeSystem {
             this.placeCampGfx(f);
             if (arrived) {
                 if (f.state === 'dismiss') {
-                    // Step in through the barracks door and stand down.
-                    const barracks = this.scene.buildings.find(b => b.id === f.marchThroughId && b.health > 0);
-                    if (barracks) {
-                        barracks.doorOpenUntil = time + DOOR_PULSE_MS;
-                        const info = BUILDING_DEFINITIONS[barracks.type as BuildingType];
+                    // Step into the training building and stand down.
+                    const destination = this.scene.buildings.find(b => b.id === f.marchThroughId && b.health > 0);
+                    if (destination) {
+                        destination.doorOpenUntil = time + DOOR_PULSE_MS;
+                        const info = BUILDING_DEFINITIONS[destination.type as BuildingType];
                         const center = IsoUtils.cartToIso(
-                            barracks.gridX + (info?.width ?? 1) / 2,
-                            barracks.gridY + (info?.height ?? 1) / 2
+                            destination.gridX + (info?.width ?? 1) / 2,
+                            destination.gridY + (info?.height ?? 1) / 2
                         );
                         this.scene.tweens.add({
                             targets: f.gfx,
@@ -2723,8 +2743,12 @@ export class VillageLifeSystem {
             return;
         }
 
-        // Idle: fully static — drawn once, zero per-frame cost.
-        if (f.needsIdleDraw) {
+        // Grounded camp figures can keep their one-shot idle pose, but an
+        // airborne Ornithopter cannot: without repainting its baked idle loop
+        // the craft hangs in mid-air with frozen wings. drawCampFigure's
+        // shared figureTick gate keeps this at the global 24 Hz cadence.
+        const continuousIdle = f.type === 'ornithopter' && this.onScreenAt(f.x, f.y);
+        if (f.needsIdleDraw || continuousIdle) {
             f.needsIdleDraw = false;
             this.drawCampFigure(f, false);
         }
@@ -2773,7 +2797,7 @@ export class VillageLifeSystem {
             f.facing === -1 ? Math.PI : 0, moving, this.scene.time.now,
             f.facing === -1
         )) return;
-        TroopRenderer.drawTroopVisual(f.gfx, f.type as Parameters<typeof TroopRenderer.drawTroopVisual>[1], 'PLAYER', 0, moving, 0, 0, false, 0, 1, this.scene.time.now);
+        TroopRenderer.drawWorldTroopVisual(f.gfx, f.type as Parameters<typeof TroopRenderer.drawTroopVisual>[1], 'PLAYER', 0, moving, 0, 0, false, 0, 1, this.scene.time.now);
     }
 
     // ------------------------------------------------------------- helpers
@@ -4786,6 +4810,7 @@ export class VillageLifeSystem {
             depth: site.gfx.depth + 2
         });
         soundSystem.play('deposit');
+        musicSystem.stinger('build'); // level-up jingle over the confetti
         this.bubbles()?.clear(`construct_${site.buildingId}`);
         this.bubbles()?.raise({
             key: `built_${site.buildingId}`,
@@ -5132,7 +5157,7 @@ export class VillageLifeSystem {
 
     /** Someone can't sleep: the barracks glows and rings with hammer blows. */
     private startMidnightForge(time: number) {
-        const smithy = this.scene.buildings.find(b => b.owner === 'PLAYER' && b.health > 0 && (b.type === 'barracks' || b.type === 'lab'));
+        const smithy = this.scene.buildings.find(b => b.owner === 'PLAYER' && b.health > 0 && (isFactionBarracksType(b.type) || b.type === 'lab'));
         if (!smithy) return;
         const info = BUILDING_DEFINITIONS[smithy.type as BuildingType];
         const cx = smithy.gridX + (info?.width ?? 1) / 2;
@@ -5351,7 +5376,7 @@ export class VillageLifeSystem {
             return;
         }
         const targets: PlacedBuilding[] = [];
-        for (const type of ['barracks', 'storage', 'mine', 'farm'] as const) {
+        for (const type of [...FACTION_BARRACKS_TYPES, 'storage', 'mine', 'farm'] as const) {
             let best: PlacedBuilding | null = null;
             let bestD = Infinity;
             for (const b of this.scene.buildings) {

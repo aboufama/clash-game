@@ -1,0 +1,671 @@
+{
+  "attribution": "Music © Jagex Ltd (RuneScape / Old School RuneScape). Personal non-commercial fan use.",
+  "tracks": [
+    {
+      "name": "Army of Darkness",
+      "slug": "army_of_darkness",
+      "file": "army_of_darkness.ogg",
+      "context": "battle",
+      "duration": 156,
+      "bytes": 1986083,
+      "source": "https://oldschool.runescape.wiki/images/Army_of_Darkness.ogg"
+    },
+    {
+      "name": "Attention",
+      "slug": "attention",
+      "file": "attention.ogg",
+      "context": "battle",
+      "duration": 169.1,
+      "bytes": 2237934,
+      "source": "https://oldschool.runescape.wiki/images/Attention.ogg"
+    },
+    {
+      "name": "Barbarianism",
+      "slug": "barbarianism",
+      "file": "barbarianism.ogg",
+      "context": "battle",
+      "duration": 271,
+      "bytes": 3658730,
+      "source": "https://oldschool.runescape.wiki/images/Barbarianism.ogg"
+    },
+    {
+      "name": "Complication",
+      "slug": "complication",
+      "file": "complication.ogg",
+      "context": "battle",
+      "duration": 169.4,
+      "bytes": 2705040,
+      "source": "https://oldschool.runescape.wiki/images/Complication.ogg"
+    },
+    {
+      "name": "Dogs of War",
+      "slug": "dogs_of_war",
+      "file": "dogs_of_war.ogg",
+      "context": "battle",
+      "duration": 345.6,
+      "bytes": 4901269,
+      "source": "https://oldschool.runescape.wiki/images/Dogs_of_War.ogg"
+    },
+    {
+      "name": "Faithless",
+      "slug": "faithless",
+      "file": "faithless.ogg",
+      "context": "battle",
+      "duration": 196.7,
+      "bytes": 2717492,
+      "source": "https://oldschool.runescape.wiki/images/Faithless.ogg"
+    },
+    {
+      "name": "Fire and Brimstone",
+      "slug": "fire_and_brimstone",
+      "file": "fire_and_brimstone.ogg",
+      "context": "battle",
+      "duration": 260,
+      "bytes": 3759976,
+      "source": "https://oldschool.runescape.wiki/images/Fire_and_Brimstone.ogg"
+    },
+    {
+      "name": "Head to Head",
+      "slug": "head_to_head",
+      "file": "head_to_head.ogg",
+      "context": "battle",
+      "duration": 203.3,
+      "bytes": 2934597,
+      "source": "https://oldschool.runescape.wiki/images/Head_to_Head.ogg"
+    },
+    {
+      "name": "Inferno",
+      "slug": "inferno",
+      "file": "inferno.ogg",
+      "context": "battle",
+      "duration": 300,
+      "bytes": 4704455,
+      "source": "https://oldschool.runescape.wiki/images/Inferno.ogg"
+    },
+    {
+      "name": "Scape Wild",
+      "slug": "scape_wild",
+      "file": "scape_wild.ogg",
+      "context": "battle",
+      "duration": 141.9,
+      "bytes": 1863686,
+      "source": "https://oldschool.runescape.wiki/images/Scape_Wild.ogg"
+    },
+    {
+      "name": "TzHaar!",
+      "slug": "tzhaar",
+      "file": "tzhaar.ogg",
+      "context": "battle",
+      "duration": 220.5,
+      "bytes": 3222660,
+      "source": "https://oldschool.runescape.wiki/images/TzHaar%21.ogg"
+    },
+    {
+      "name": "Victory is Mine",
+      "slug": "victory_is_mine",
+      "file": "victory_is_mine.ogg",
+      "context": "battle",
+      "duration": 189.8,
+      "bytes": 2920952,
+      "source": "https://oldschool.runescape.wiki/images/Victory_is_Mine.ogg"
+    },
+    {
+      "name": "Warpath",
+      "slug": "warpath",
+      "file": "warpath.ogg",
+      "context": "battle",
+      "duration": 284,
+      "bytes": 3904527,
+      "source": "https://oldschool.runescape.wiki/images/Warpath.ogg"
+    },
+    {
+      "name": "Warrior",
+      "slug": "warrior",
+      "file": "warrior.ogg",
+      "context": "battle",
+      "duration": 197.6,
+      "bytes": 2850187,
+      "source": "https://oldschool.runescape.wiki/images/Warrior.ogg"
+    },
+    {
+      "name": "Forever",
+      "slug": "forever",
+      "file": "forever.ogg",
+      "context": "defeat",
+      "duration": 219.5,
+      "bytes": 2802921,
+      "source": "https://oldschool.runescape.wiki/images/Forever.ogg"
+    },
+    {
+      "name": "Tears of Guthix",
+      "slug": "tears_of_guthix",
+      "file": "tears_of_guthix.ogg",
+      "context": "defeat",
+      "duration": 399.5,
+      "bytes": 5335505,
+      "source": "https://oldschool.runescape.wiki/images/Tears_of_Guthix.ogg"
+    },
+    {
+      "name": "Autumn Voyage",
+      "slug": "autumn_voyage",
+      "file": "autumn_voyage.ogg",
+      "context": "home",
+      "duration": 136,
+      "bytes": 1873570,
+      "source": "https://oldschool.runescape.wiki/images/Autumn_Voyage.ogg"
+    },
+    {
+      "name": "Baroque",
+      "slug": "baroque",
+      "file": "baroque.ogg",
+      "context": "home",
+      "duration": 128,
+      "bytes": 1924333,
+      "source": "https://oldschool.runescape.wiki/images/Baroque.ogg"
+    },
+    {
+      "name": "Book of Spells",
+      "slug": "book_of_spells",
+      "file": "book_of_spells.ogg",
+      "context": "home",
+      "duration": 323.7,
+      "bytes": 4576618,
+      "source": "https://oldschool.runescape.wiki/images/Book_of_Spells.ogg"
+    },
+    {
+      "name": "Dream",
+      "slug": "dream",
+      "file": "dream.ogg",
+      "context": "home",
+      "duration": 153.6,
+      "bytes": 2072667,
+      "source": "https://oldschool.runescape.wiki/images/Dream.ogg"
+    },
+    {
+      "name": "Flute Salad",
+      "slug": "flute_salad",
+      "file": "flute_salad.ogg",
+      "context": "home",
+      "duration": 115.2,
+      "bytes": 1612452,
+      "source": "https://oldschool.runescape.wiki/images/Flute_Salad.ogg"
+    },
+    {
+      "name": "Garden",
+      "slug": "garden",
+      "file": "garden.ogg",
+      "context": "home",
+      "duration": 158.4,
+      "bytes": 2021134,
+      "source": "https://oldschool.runescape.wiki/images/Garden.ogg"
+    },
+    {
+      "name": "Greatness",
+      "slug": "greatness",
+      "file": "greatness.ogg",
+      "context": "home",
+      "duration": 221.5,
+      "bytes": 3015467,
+      "source": "https://oldschool.runescape.wiki/images/Greatness.ogg"
+    },
+    {
+      "name": "Harmony",
+      "slug": "harmony",
+      "file": "harmony.ogg",
+      "context": "home",
+      "duration": 216,
+      "bytes": 2961409,
+      "source": "https://oldschool.runescape.wiki/images/Harmony.ogg"
+    },
+    {
+      "name": "Harmony 2",
+      "slug": "harmony_2",
+      "file": "harmony_2.ogg",
+      "context": "home",
+      "duration": 258,
+      "bytes": 3363893,
+      "source": "https://oldschool.runescape.wiki/images/Harmony_2.ogg"
+    },
+    {
+      "name": "Home Sweet Home",
+      "slug": "home_sweet_home",
+      "file": "home_sweet_home.ogg",
+      "context": "home",
+      "duration": 321.6,
+      "bytes": 4471992,
+      "source": "https://oldschool.runescape.wiki/images/Home_Sweet_Home.ogg"
+    },
+    {
+      "name": "Medieval",
+      "slug": "medieval",
+      "file": "medieval.ogg",
+      "context": "home",
+      "duration": 240,
+      "bytes": 3377922,
+      "source": "https://oldschool.runescape.wiki/images/Medieval.ogg"
+    },
+    {
+      "name": "Parade",
+      "slug": "parade",
+      "file": "parade.ogg",
+      "context": "home",
+      "duration": 95.5,
+      "bytes": 1284048,
+      "source": "https://oldschool.runescape.wiki/images/Parade.ogg"
+    },
+    {
+      "name": "Yesteryear",
+      "slug": "yesteryear",
+      "file": "yesteryear.ogg",
+      "context": "home",
+      "duration": 237,
+      "bytes": 3326827,
+      "source": "https://oldschool.runescape.wiki/images/Yesteryear.ogg"
+    },
+    {
+      "name": "Construction Level Up!",
+      "slug": "construction_level_up",
+      "file": "construction_level_up.ogg",
+      "context": "jingle_build",
+      "duration": 6,
+      "bytes": 68749,
+      "source": "https://oldschool.runescape.wiki/images/Construction_Level_Up%21.ogg"
+    },
+    {
+      "name": "Crafting Level Up!",
+      "slug": "crafting_level_up",
+      "file": "crafting_level_up.ogg",
+      "context": "jingle_build",
+      "duration": 9.6,
+      "bytes": 103814,
+      "source": "https://oldschool.runescape.wiki/images/Crafting_Level_Up%21.ogg"
+    },
+    {
+      "name": "Smithing Level Up!",
+      "slug": "smithing_level_up",
+      "file": "smithing_level_up.ogg",
+      "context": "jingle_build",
+      "duration": 7.2,
+      "bytes": 79635,
+      "source": "https://oldschool.runescape.wiki/images/Smithing_Level_Up%21.ogg"
+    },
+    {
+      "name": "Defeated! (Soul Wars)",
+      "slug": "defeated_soul_wars",
+      "file": "defeated_soul_wars.ogg",
+      "context": "jingle_defeat",
+      "duration": 9,
+      "bytes": 123919,
+      "source": "https://oldschool.runescape.wiki/images/Defeated%21_%28Soul_Wars%29.ogg"
+    },
+    {
+      "name": "Oh Dear!",
+      "slug": "oh_dear",
+      "file": "oh_dear.ogg",
+      "context": "jingle_defeat",
+      "duration": 6,
+      "bytes": 76138,
+      "source": "https://oldschool.runescape.wiki/images/Oh_Dear%21.ogg"
+    },
+    {
+      "name": "Slaughtered... (Castle Wars)",
+      "slug": "slaughtered_castle_wars",
+      "file": "slaughtered_castle_wars.ogg",
+      "context": "jingle_defeat",
+      "duration": 7.3,
+      "bytes": 97217,
+      "source": "https://oldschool.runescape.wiki/images/Slaughtered..._%28Castle_Wars%29.ogg"
+    },
+    {
+      "name": "Void Knight Defeated... (Pest Control)",
+      "slug": "void_knight_defeated_pest_control",
+      "file": "void_knight_defeated_pest_control.ogg",
+      "context": "jingle_defeat",
+      "duration": 7.2,
+      "bytes": 99407,
+      "source": "https://oldschool.runescape.wiki/images/Void_Knight_Defeated..._%28Pest_Control%29.ogg"
+    },
+    {
+      "name": "Grave Robber (Barrows)",
+      "slug": "grave_robber_barrows",
+      "file": "grave_robber_barrows.ogg",
+      "context": "jingle_loot",
+      "duration": 48,
+      "bytes": 96593,
+      "source": "https://oldschool.runescape.wiki/images/Grave_Robber_%28Barrows%29.ogg"
+    },
+    {
+      "name": "Rune Casket Open! (Rouge Trader)",
+      "slug": "rune_casket_open_rouge_trader",
+      "file": "rune_casket_open_rouge_trader.ogg",
+      "context": "jingle_loot",
+      "duration": 8.8,
+      "bytes": 125665,
+      "source": "https://oldschool.runescape.wiki/images/Rune_Casket_Open%21_%28Rouge_Trader%29.ogg"
+    },
+    {
+      "name": "Dream World (Lunar Diplomacy)",
+      "slug": "dream_world_lunar_diplomacy",
+      "file": "dream_world_lunar_diplomacy.ogg",
+      "context": "jingle_reveal",
+      "duration": 16,
+      "bytes": 76812,
+      "source": "https://oldschool.runescape.wiki/images/Dream_World_%28Lunar_Diplomacy%29.ogg"
+    },
+    {
+      "name": "First Sunshine (Death to the Dorgeshuun)",
+      "slug": "first_sunshine_death_to_the_dorgeshuun",
+      "file": "first_sunshine_death_to_the_dorgeshuun.ogg",
+      "context": "jingle_reveal",
+      "duration": 4.5,
+      "bytes": 56428,
+      "source": "https://oldschool.runescape.wiki/images/First_Sunshine_%28Death_to_the_Dorgeshuun%29.ogg"
+    },
+    {
+      "name": "Star of Your Own (Shooting Stars)",
+      "slug": "star_of_your_own_shooting_stars",
+      "file": "star_of_your_own_shooting_stars.ogg",
+      "context": "jingle_reveal",
+      "duration": 3.5,
+      "bytes": 55044,
+      "source": "https://oldschool.runescape.wiki/images/Star_of_Your_Own_%28Shooting_Stars%29.ogg"
+    },
+    {
+      "name": "Treasure! (Treasure Trails)",
+      "slug": "treasure_treasure_trails",
+      "file": "treasure_treasure_trails.ogg",
+      "context": "jingle_reveal",
+      "duration": 6.5,
+      "bytes": 95369,
+      "source": "https://oldschool.runescape.wiki/images/Treasure%21_%28Treasure_Trails%29.ogg"
+    },
+    {
+      "name": "Honourable Victory! (Barbarian Assault)",
+      "slug": "honourable_victory_barbarian_assault",
+      "file": "honourable_victory_barbarian_assault.ogg",
+      "context": "jingle_victory",
+      "duration": 6.4,
+      "bytes": 91508,
+      "source": "https://oldschool.runescape.wiki/images/Honourable_Victory%21_%28Barbarian_Assault%29.ogg"
+    },
+    {
+      "name": "Last Man Standing! (Fight Pits)",
+      "slug": "last_man_standing_fight_pits",
+      "file": "last_man_standing_fight_pits.ogg",
+      "context": "jingle_victory",
+      "duration": 6.7,
+      "bytes": 89937,
+      "source": "https://oldschool.runescape.wiki/images/Last_Man_Standing%21_%28Fight_Pits%29.ogg"
+    },
+    {
+      "name": "Quest Complete 1",
+      "slug": "quest_complete_1",
+      "file": "quest_complete_1.ogg",
+      "context": "jingle_victory",
+      "duration": 6.6,
+      "bytes": 86374,
+      "source": "https://oldschool.runescape.wiki/images/Quest_Complete_1.ogg"
+    },
+    {
+      "name": "Quest Complete 2",
+      "slug": "quest_complete_2",
+      "file": "quest_complete_2.ogg",
+      "context": "jingle_victory",
+      "duration": 10.2,
+      "bytes": 111615,
+      "source": "https://oldschool.runescape.wiki/images/Quest_Complete_2.ogg"
+    },
+    {
+      "name": "Quest Complete 3",
+      "slug": "quest_complete_3",
+      "file": "quest_complete_3.ogg",
+      "context": "jingle_victory",
+      "duration": 6,
+      "bytes": 71754,
+      "source": "https://oldschool.runescape.wiki/images/Quest_Complete_3.ogg"
+    },
+    {
+      "name": "Victory! (Castle Wars)",
+      "slug": "victory_castle_wars",
+      "file": "victory_castle_wars.ogg",
+      "context": "jingle_victory",
+      "duration": 7,
+      "bytes": 98749,
+      "source": "https://oldschool.runescape.wiki/images/Victory%21_%28Castle_Wars%29.ogg"
+    },
+    {
+      "name": "You Are Victorious! (Emir's Arena)",
+      "slug": "you_are_victorious_emirs_arena",
+      "file": "you_are_victorious_emirs_arena.ogg",
+      "context": "jingle_victory",
+      "duration": 4.7,
+      "bytes": 58290,
+      "source": "https://oldschool.runescape.wiki/images/You_Are_Victorious%21_%28Emir%27s_Arena%29.ogg"
+    },
+    {
+      "name": "Lullaby",
+      "slug": "lullaby",
+      "file": "lullaby.ogg",
+      "context": "night",
+      "duration": 210,
+      "bytes": 2895273,
+      "source": "https://oldschool.runescape.wiki/images/Lullaby.ogg"
+    },
+    {
+      "name": "Moody",
+      "slug": "moody",
+      "file": "moody.ogg",
+      "context": "night",
+      "duration": 176,
+      "bytes": 2468594,
+      "source": "https://oldschool.runescape.wiki/images/Moody.ogg"
+    },
+    {
+      "name": "Nightfall",
+      "slug": "nightfall",
+      "file": "nightfall.ogg",
+      "context": "night",
+      "duration": 228,
+      "bytes": 3146744,
+      "source": "https://oldschool.runescape.wiki/images/Nightfall.ogg"
+    },
+    {
+      "name": "Serenade",
+      "slug": "serenade",
+      "file": "serenade.ogg",
+      "context": "night",
+      "duration": 187.6,
+      "bytes": 2601079,
+      "source": "https://oldschool.runescape.wiki/images/Serenade.ogg"
+    },
+    {
+      "name": "Starlight",
+      "slug": "starlight",
+      "file": "starlight.ogg",
+      "context": "night",
+      "duration": 192,
+      "bytes": 2474403,
+      "source": "https://oldschool.runescape.wiki/images/Starlight.ogg"
+    },
+    {
+      "name": "Still Night",
+      "slug": "still_night",
+      "file": "still_night.ogg",
+      "context": "night",
+      "duration": 172.8,
+      "bytes": 2384145,
+      "source": "https://oldschool.runescape.wiki/images/Still_Night.ogg"
+    },
+    {
+      "name": "Scape Main",
+      "slug": "scape_main",
+      "file": "scape_main.ogg",
+      "context": "title",
+      "duration": 196.9,
+      "bytes": 2939092,
+      "source": "https://oldschool.runescape.wiki/images/Scape_Main.ogg"
+    },
+    {
+      "name": "Scape Original",
+      "slug": "scape_original",
+      "file": "scape_original.ogg",
+      "context": "title",
+      "duration": 187.8,
+      "bytes": 2616088,
+      "source": "https://oldschool.runescape.wiki/images/Scape_Original.ogg"
+    },
+    {
+      "name": "Fanfare",
+      "slug": "fanfare",
+      "file": "fanfare.ogg",
+      "context": "victory",
+      "duration": 138,
+      "bytes": 1915618,
+      "source": "https://oldschool.runescape.wiki/images/Fanfare.ogg"
+    },
+    {
+      "name": "Fanfare 2",
+      "slug": "fanfare_2",
+      "file": "fanfare_2.ogg",
+      "context": "victory",
+      "duration": 118,
+      "bytes": 1764942,
+      "source": "https://oldschool.runescape.wiki/images/Fanfare_2.ogg"
+    },
+    {
+      "name": "Fanfare 3",
+      "slug": "fanfare_3",
+      "file": "fanfare_3.ogg",
+      "context": "victory",
+      "duration": 264.5,
+      "bytes": 3489329,
+      "source": "https://oldschool.runescape.wiki/images/Fanfare_3.ogg"
+    },
+    {
+      "name": "Adventure",
+      "slug": "adventure",
+      "file": "adventure.ogg",
+      "context": "world",
+      "duration": 153.6,
+      "bytes": 2232605,
+      "source": "https://oldschool.runescape.wiki/images/Adventure.ogg"
+    },
+    {
+      "name": "Al Kharid",
+      "slug": "al_kharid",
+      "file": "al_kharid.ogg",
+      "context": "world",
+      "duration": 199.3,
+      "bytes": 2846903,
+      "source": "https://oldschool.runescape.wiki/images/Al_Kharid.ogg"
+    },
+    {
+      "name": "Camelot",
+      "slug": "camelot",
+      "file": "camelot.ogg",
+      "context": "world",
+      "duration": 145.7,
+      "bytes": 1999674,
+      "source": "https://oldschool.runescape.wiki/images/Camelot.ogg"
+    },
+    {
+      "name": "Expanse",
+      "slug": "expanse",
+      "file": "expanse.ogg",
+      "context": "world",
+      "duration": 170.3,
+      "bytes": 2125725,
+      "source": "https://oldschool.runescape.wiki/images/Expanse.ogg"
+    },
+    {
+      "name": "Horizon",
+      "slug": "horizon",
+      "file": "horizon.ogg",
+      "context": "world",
+      "duration": 200.6,
+      "bytes": 2618213,
+      "source": "https://oldschool.runescape.wiki/images/Horizon.ogg"
+    },
+    {
+      "name": "Long Way Home",
+      "slug": "long_way_home",
+      "file": "long_way_home.ogg",
+      "context": "world",
+      "duration": 120,
+      "bytes": 1529436,
+      "source": "https://oldschool.runescape.wiki/images/Long_Way_Home.ogg"
+    },
+    {
+      "name": "Newbie Melody",
+      "slug": "newbie_melody",
+      "file": "newbie_melody.ogg",
+      "context": "world",
+      "duration": 222.6,
+      "bytes": 3169992,
+      "source": "https://oldschool.runescape.wiki/images/Newbie_Melody.ogg"
+    },
+    {
+      "name": "Overture",
+      "slug": "overture",
+      "file": "overture.ogg",
+      "context": "world",
+      "duration": 105.3,
+      "bytes": 1550136,
+      "source": "https://oldschool.runescape.wiki/images/Overture.ogg"
+    },
+    {
+      "name": "Sea Shanty 2",
+      "slug": "sea_shanty_2",
+      "file": "sea_shanty_2.ogg",
+      "context": "world",
+      "duration": 124.8,
+      "bytes": 1897334,
+      "source": "https://oldschool.runescape.wiki/images/Sea_Shanty_2.ogg"
+    },
+    {
+      "name": "Spirit",
+      "slug": "spirit",
+      "file": "spirit.ogg",
+      "context": "world",
+      "duration": 234,
+      "bytes": 3019029,
+      "source": "https://oldschool.runescape.wiki/images/Spirit.ogg"
+    },
+    {
+      "name": "Voyage",
+      "slug": "voyage",
+      "file": "voyage.ogg",
+      "context": "world",
+      "duration": 177,
+      "bytes": 2349222,
+      "source": "https://oldschool.runescape.wiki/images/Voyage.ogg"
+    },
+    {
+      "name": "Wander",
+      "slug": "wander",
+      "file": "wander.ogg",
+      "context": "world",
+      "duration": 203.4,
+      "bytes": 2846029,
+      "source": "https://oldschool.runescape.wiki/images/Wander.ogg"
+    },
+    {
+      "name": "Wild Side",
+      "slug": "wild_side",
+      "file": "wild_side.ogg",
+      "context": "world",
+      "duration": 316.8,
+      "bytes": 4499557,
+      "source": "https://oldschool.runescape.wiki/images/Wild_Side.ogg"
+    },
+    {
+      "name": "Wilderness",
+      "slug": "wilderness",
+      "file": "wilderness.ogg",
+      "context": "world",
+      "duration": 210.7,
+      "bytes": 2761071,
+      "source": "https://oldschool.runescape.wiki/images/Wilderness.ogg"
+    }
+  ]
+}

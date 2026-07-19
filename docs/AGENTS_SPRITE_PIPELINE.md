@@ -118,12 +118,18 @@ Troop pose is a pure function of `(time, attackAge, facingAngle, isMoving)`
   (`strike·[.15, .6]`). The manifest records each frame's `attackAge`; the
   runtime picks the frame nearest its live `time − lastAttackTime` — no fps
   math, and the anticipation still peaks exactly on the damage tick.
-- **idle**: one breath frame. **Directions**: troops whose draw consumes
+- **idle**: 12 exact-loop breath/ambient frames. **Directions**: troops whose draw consumes
   `facingAngle` bake 8 (`archer`, `mobilemortar`, `ram`,
   `davincitank`, `phalanx`, `romanwarrior`); symmetric troops bake 1.
   **Owners**: both `P`layer and `E`nemy palettes. Troops with externally-driven
-  attack poses (`golem` slam, `phalanx` spear, `davincitank`)
-  bake idle/walk only for now (`attack: false` in `TROOP_PARAMS`).
+  attack poses (`golem` slam, `phalanx` spear, `siegetower` deployment,
+  `davincitank` spin) bake one attack
+  frame per declared driver value; runtime selects the nearest value. The
+  Da Vinci Tank's six `tankSpin01` poses cover its 200 ms post-shot bay turn,
+  and the final pose is pixel-identical to the next direction's idle frame.
+  The Siege Tower's eight `parked01` poses cover its full 700 ms ramp descent
+  in every heading (including screen-down `d2`); the last pose is
+  pixel-identical to its timeless `deactivated` frame.
 
 ### Manifest schema (as emitted)
 
@@ -321,13 +327,13 @@ contract — never a global renderer setting:
 0. ✅ Remove the runtime pixelation filter.
 1. ✅ Pipeline + cannon pilot (quantizer, 16-angle sweep, fidelity metrics).
 2. ✅ Full roster baked.
-3. ✅ **v3 completeness**: per-angle fire sequences, tesla charge, frostfall
-   reload, fill stages, doors, jukebox, ambient-loop discovery,
+3. ✅ **v3 completeness**: per-angle fire sequences, tesla charge, fill
+   stages, doors, jukebox, ambient-loop discovery,
    state-read audit, vapor off, troop breath loops, golem/phalanx driver
    attacks, tank deactivated pose, wrecks, obstacles (16 hash-bucket
-   variants + sway loops), alpha snap. 9,676 frames across 57 manifests
-   (19 buildings, 14 troops, 19 wrecks, 5 obstacles) — enforced by
-   `scripts/render-quality-regression.mjs`.
+   variants + sway loops), alpha snap. The historical v3 snapshot was 9,676
+   frames across 57 manifests (19 buildings, 14 troops, 19 wrecks,
+   5 obstacles); later roster gates supersede those counts.
 4. ✅ **Runtime conversion live**: SpriteBank + shadow-sprite integration for
    buildings (including walls via topology tags), troops, wrecks,
    obstacles; ground-RT + postcard-RT quantize passes. Verified headful in
@@ -355,6 +361,28 @@ contract — never a global renderer setting:
    bake-only authoring modules. Bump `RENDER_VERSION`s +
    `BOT_WORLD_GENERATION_VERSION` when postcard content changes.
 
+### Canonical roster gate (2026-07-18)
+
+The committed normal bank is exactly **33,443 frames / 94 manifests**:
+
+- 7,913 building frames across 19 manifests
+- 21,168 troop frames across 20 manifests
+- 72 wreck frames across 19 manifests
+- 872 obstacle frames across 5 manifests
+- 2,924 villager frames across 11 manifests
+- 168 figure frames across 10 manifests (80 caravan soldiers + 80 road
+  travellers + 8 postcard fish)
+- 326 projectile frames across 10 manifests
+
+Goblin Plunderer A, Clockwork Beetle B, Healer/Physician's Cart B, Siege Tower
+C, Necromancer B, Skeleton C, Trebuchet B, War Elephant A and Ornithopter A
+are canonical plain-unit bakes. Quartermaster, Frostfall, the Biopunk faction
+and Barracks, Needleback, Razorwing Harpy, Vat Brute, Apex Chimera, Rift Djinn,
+Spore Lobber, and Mantis Stalker are fully removed. A separately counted death
+bank contributes 3,888 frames across six canonical large-troop manifests. The
+strict full gate is **37,331 frames / 100 manifests**. The regression pins
+counts and presence/absence rules.
+
 ## Keep, don't touch
 `TextureRenderPolicy`'s per-asset sampling boundary · `IsoUtils` · `DepthSystem` · the registries &
 `getBuildingStats`/`getTroopStats` · `DefenseSystem`/`DefenseBehaviorCatalog`
@@ -370,17 +398,19 @@ vector fallback, and the Settings dev tool can never disagree.
 
 **The `@slot` asset convention.** A design variant is a FULL standalone unit
 bake living in a sibling dir named `<unit>@<slot>`:
-`public/assets/sprites/buildings/cannon@A/`, `troops/golem@C/`, … — each with
+`public/assets/sprites/troops/exampleunit@A/`, `exampleunit@B/`, … — each with
 its own frames, `manifest.json`, and packed atlas. `pack-atlases.mjs` and the
 render-quality regression walk them as ordinary units (nothing special about
 `@` in a dir name). At runtime `SpriteBank.resolveVariantUnit(kind, unit)` is
 the single resolution point: when variant atlases exist for a unit, the plain
-name (`'cannon'`) transparently resolves to the active slot
-(`'cannon@B'`) — the stored slot when baked, else `A`, else the first baked
+name (`'exampleunit'`) transparently resolves to the active slot
+(`'exampleunit@A'`) — the stored slot when baked, else the judged default,
+else `A`, else the first baked
 slot. Every bank lookup routes through it (`unitOf`/`backed` are the only
 doors), so no call site knows variants exist. Units with no `@` dirs resolve
-to themselves; once a tournament's variants are baked, the un-tagged unit dir
-is deleted.
+to themselves. During an unresolved tournament the untagged unit dir is
+retired; final promotion restores the winner under the plain unit name and
+deletes the resolved `@slot` dirs.
 
 **Adding a future variant (the whole checklist):**
 

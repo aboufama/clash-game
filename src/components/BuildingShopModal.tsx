@@ -2,6 +2,7 @@ import { type BuildingDef, type BuildingType } from '../game/config/GameDefiniti
 import { placementCharge } from '../game/config/Economy';
 import { formatGold } from '../game/economy/Currency';
 import { soundSystem } from '../game/systems/SoundSystem';
+import { BuildingIcon } from './BuildingIcon';
 
 interface BuildingShopModalProps {
   isOpen: boolean;
@@ -64,7 +65,7 @@ export function BuildingShopModal({
         }}
       >
         <div className="bshop-thumb">
-          <div className={`icon ${b.id}-icon large`}></div>
+          <BuildingIcon type={b.id} className="bshop-building-icon" />
           <div className={`bshop-count ${maxed ? 'full' : ''}`}>{owned}/{b.maxCount}</div>
           {maxed && <div className="bshop-maxed-ribbon">MAX</div>}
         </div>

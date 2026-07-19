@@ -34,7 +34,6 @@ const WRECKS = [
   ['watchtower', 3, 22, 12, 2, 2],
 
   ['dragons_breath', 2, 2, 17, 4, 4],
-  ['frostfall', 4, 8, 17, 2, 2],
   ['jukebox', 1, 12, 17, 1, 1],
 
   ['wall', 1, 8, 21, 1, 1],
@@ -157,7 +156,7 @@ try {
     s.rubble.forEach(r => { r.createdAt -= 60000 })
   })
   await new Promise(r => setTimeout(r, 500))
-  for (const type of ['town_hall', 'farm', 'army_camp', 'dragons_breath', 'tesla', 'frostfall']) {
+  for (const type of ['town_hall', 'farm', 'army_camp', 'dragons_breath', 'tesla']) {
     const t = WRECKS.find(w => w[0] === type)
     if (!t) continue
     const [x, y] = iso(t[2] + t[4] / 2, t[3] + t[5] / 2)

@@ -15,7 +15,7 @@ import { RubbleRenderer } from './RubbleRenderer';
  */
 
 /** Types whose wreck has an animated (time-driven) element. */
-export const ANIMATED_WRECKS = new Set<string>(['tesla', 'frostfall']);
+export const ANIMATED_WRECKS = new Set<string>(['tesla']);
 
 /** Redraw only while a wreck still has a time-driven effect to show. */
 export function wreckNeedsAnimation(type: string, width: number, height: number, fireIntensity: number): boolean {
@@ -33,6 +33,13 @@ const dk = (c: number, f: number): number => {
     const g = Math.min(255, Math.round(((c >> 8) & 255) * f));
     const b = Math.min(255, Math.round((c & 255) * f));
     return (r << 16) | (g << 8) | b;
+};
+
+/** Blend two 0xRRGGBB colours. Used to keep wreck materials in step with L1-L9. */
+const mx = (a: number, b: number, t: number): number => {
+    const q = Math.max(0, Math.min(1, t));
+    const ch = (shift: number) => Math.round(((a >> shift) & 255) * (1 - q) + ((b >> shift) & 255) * q);
+    return (ch(16) << 16) | (ch(8) << 8) | ch(0);
 };
 
 const poly = (g: G, pts: number[][], color: number, a = 1) => {
@@ -188,6 +195,36 @@ interface W {
     fire: number;
 }
 
+type BarracksWreckTheme = 'mechanica' | 'mystic';
+
+interface BarracksWreckPalette {
+    wallLit: number;
+    wallDark: number;
+    roofLit: number;
+    roofDark: number;
+    trim: number;
+    accent: number;
+    fracture: number;
+    scorch: number;
+}
+
+/** Match the two authored barracks' material ladders without coupling wrecks to their renderer. */
+const barracksWreckPalette = (theme: BarracksWreckTheme, level: number): BarracksWreckPalette => {
+    const t = (Math.max(1, Math.min(9, level)) - 1) / 8;
+    if (theme === 'mechanica') return {
+        wallLit: mx(0xa48156, 0xbfb49a, t), wallDark: mx(0x75563f, 0x9d9078, t),
+        roofLit: mx(0x76583a, 0x50545b, t), roofDark: mx(0x553f2c, 0x34383e, t),
+        trim: mx(0x4d4036, 0x74684f, t), accent: mx(0xb16a35, 0xdaa520, t),
+        fracture: mx(0xd68b4a, 0xf0bd55, t), scorch: 0x241d18,
+    };
+    return {
+        wallLit: mx(0x8b806f, 0xbfb49a, t), wallDark: mx(0x665d51, 0x9d9078, t),
+        roofLit: mx(0x655082, 0x463f74, t), roofDark: mx(0x46365f, 0x2d2850, t),
+        trim: mx(0x51415f, 0x756a57, t), accent: mx(0x8f79cf, 0xb8abef, t),
+        fracture: mx(0x83ddff, 0xb5f5ff, t), scorch: 0x211d2c,
+    };
+};
+
 export class WreckRenderer {
     /**
      * Draw the wreck for `type` at level `level`. Unknown types get the
@@ -219,7 +256,8 @@ export class WreckRenderer {
             case 'mine': this.mine(ctx); break;
             case 'farm': this.farm(ctx); break;
             case 'storage': this.storage(ctx); break;
-            case 'barracks': this.barracks(ctx); break;
+            case 'barracks': this.barracks(ctx, 'mechanica'); break;
+            case 'mystic_barracks': this.barracks(ctx, 'mystic'); break;
             case 'lab': this.lab(ctx); break;
             case 'army_camp': this.armyCamp(ctx); break;
             case 'cannon': this.cannon(ctx); break;
@@ -232,7 +270,6 @@ export class WreckRenderer {
             case 'dragons_breath': this.dragonsBreath(ctx); break;
             case 'spike_launcher': this.spikeLauncher(ctx); break;
             case 'watchtower': this.watchtower(ctx); break;
-            case 'frostfall': this.frostfall(ctx); break;
             case 'jukebox': this.jukebox(ctx); break;
             default:
                 RubbleRenderer.drawRubble(graphics, gridX, gridY, width, height, time, fireIntensity);
@@ -475,55 +512,89 @@ export class WreckRenderer {
         }
     }
 
-    // ── BARRACKS 2x2 — fallen tent canvas draped over snapped poles, dropped arms ──
-    private static barracks(c: W) {
-        const { g, P, cx, cy, seed, time, fire } = c;
+    // ── FACTION BARRACKS 2x2 — collapsed shell plus one unmistakable dead machine ──
+    private static barracks(c: W, theme: BarracksWreckTheme) {
+        const { g, P, cx, cy, seed, level, time, fire } = c;
         void time; void fire;
-        charField(c.base ?? g, cx, cy, 38, seed, 0.34);
+        const L = Math.max(1, Math.min(9, level));
+        const p = barracksWreckPalette(theme, L);
+        charField(c.base ?? g, cx, cy, 38 + L * 0.6, seed, 0.34, p.scorch);
 
-        // Draped canvas — shadow facet first, then the lit fold over two pole bumps
-        const cA = P(0.5, 0.6), cB = P(1.55, 0.5), cC = P(1.7, 1.45), cD = P(0.6, 1.55);
-        poly(g, [cA, cB, cC, cD], dk(0xa8977a, 0.9), 0.97); // under/shadow cloth
-        const rA = P(0.75, 0.85), rB = P(1.45, 1.1);
-        poly(g, [
-            [cA[0] + 3, cA[1] + 2], [rA[0], rA[1] - 8], [rB[0], rB[1] - 6.5],
-            [cC[0] - 4, cC[1] - 2], [cB[0] - 2, cB[1] + 3]
-        ], dk(0xc9b892, 0.92), 0.97); // lit fold held up by broken poles
-        g.lineStyle(1, dk(0xa8977a, 0.75), 0.65); // fold creases
-        g.lineBetween(rA[0], rA[1] - 8, cD[0] + 5, cD[1] - 2);
-        g.lineBetween(rB[0], rB[1] - 6.5, cC[0] - 6, cC[1] - 1);
-        // pole tips poking through / out from under the canvas
-        beam(g, rA[0], rA[1] - 8, -1.2, 7, 2.4, 0x5d4037, 0.95, 3);
-        const pOut = P(0.42, 1.15);
-        beam(g, pOut[0], pOut[1], 2.75, 12, 2.4, dk(0x5d4037, 0.85), 0.95);
+        // Two low wall corners retain the upgraded material tier without
+        // becoming a standing building silhouette.
+        const stump = 5.5 + Math.floor((L - 1) / 2);
+        isoBox(g, P, 0.68, 0.55, 0.76, 0.2, stump, dk(p.wallLit, 0.78), dk(p.wallLit, 0.72), dk(p.wallDark, 0.72), 1, 4, seed);
+        isoBox(g, P, 1.48, 1.12, 0.2, 0.66, Math.max(5, stump - 1.5), dk(p.wallLit, 0.72), dk(p.wallDark, 0.78), dk(p.wallDark, 0.65), 1, 4, seed + 7);
 
-        // Fallen banner by the tent edge
-        const bn = P(1.75, 0.55);
-        beam(g, bn[0], bn[1], 0.5, 15, 1.8, dk(0x5d4037, 0.9), 0.9);
-        chip(g, bn[0] + 6, bn[1] + 4.5, 0.5, 8, 5, dk(0xb9553a, 0.85), 0.92);
-
-        // Dropped training weapons — a sword and a spear
-        const sw = P(1.35, 1.7);
-        g.lineStyle(1.8, 0x9a9aa2, 0.95);
-        g.lineBetween(sw[0] - 7, sw[1] + 2, sw[0] + 6, sw[1] - 3);
-        g.lineStyle(1.6, 0x5d4037, 0.95);
-        g.lineBetween(sw[0] + 6, sw[1] - 3, sw[0] + 9.5, sw[1] - 4.3);
-        g.lineStyle(1.4, 0x42424c, 0.9);
-        g.lineBetween(sw[0] + 5, sw[1] - 5.5, sw[0] + 7.5, sw[1] - 0.5);
-        const spr = P(0.55, 0.42);
-        beam(g, spr[0], spr[1], 0.25, 20, 1.6, 0x795548, 0.95);
-        poly(g, [[spr[0] + 10, spr[1] + 2.2], [spr[0] + 14, spr[1] + 3.6], [spr[0] + 10.5, spr[1] + 4.6]], 0x9a9aa2, 0.95);
-
-        // Cold campfire from the training yard — ring stones + charred logs
-        const fp = P(1.72, 1.28);
-        g.fillStyle(0x2a2020, 0.9);
-        g.fillEllipse(fp[0], fp[1], 9, 4.5);
-        for (let i = 0; i < 5; i++) {
-            const th = (i / 5) * Math.PI * 2 + 0.4;
-            chunk(g, fp[0] + Math.cos(th) * 5.5, fp[1] + Math.sin(th) * 2.8, 2.4, 0x555555);
+        // Hipped-roof fragments: same faction roof language at every level,
+        // more courses and trim survive in higher-tier ruins.
+        const rf = P(0.72, 1.42);
+        chip(g, rf[0], rf[1] - 1, 2.63, 21 + L * 0.45, 10 + L * 0.24, dk(p.roofLit, 0.82), 0.97);
+        g.lineStyle(1, dk(p.roofDark, 0.82), 0.84);
+        const courses = 1 + Math.floor((L - 1) / 3);
+        for (let i = 0; i < courses; i++) {
+            g.lineBetween(rf[0] - 8 + i * 4, rf[1] - 4 + i, rf[0] + 4 + i * 4, rf[1] + 1 + i);
         }
-        beam(g, fp[0], fp[1], 0.9, 7, 1.8, 0x1c1410, 0.95);
-        beam(g, fp[0] + 1, fp[1], 2.4, 7, 1.8, 0x241a12, 0.95);
+        const rf2 = P(1.47, 0.48);
+        chip(g, rf2[0], rf2[1], 0.42, 13 + L * 0.3, 6.5, dk(p.roofDark, 0.88), 0.95);
+        if (L === 9) {
+            // Mastery gold remains an accent: a snapped ridge-cap, never a slab.
+            beam(g, rf[0] - 1, rf[1] - 5, 2.63, 12, 1.7, 0xdaa520, 0.95);
+        }
+
+        if (theme === 'mechanica') {
+            // A cold, flattened forge gear is the Mechanica read. The open
+            // furnace eye is black: destruction switches the orange glow off.
+            const gear = P(1.48, 1.48), rad = 5.2 + Math.floor((L - 1) / 3);
+            g.lineStyle(2.2, dk(p.accent, 0.82), 1);
+            g.strokeEllipse(gear[0], gear[1] - 1, rad * 2, rad);
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2;
+                g.lineBetween(gear[0], gear[1] - 1, gear[0] + Math.cos(a) * rad, gear[1] - 1 + Math.sin(a) * rad * 0.5);
+                const tx = gear[0] + Math.cos(a) * (rad + 1.5), ty = gear[1] - 1 + Math.sin(a) * (rad + 1.5) * 0.5;
+                chip(g, tx, ty, a, 3.4, 2.1, dk(p.trim, 0.9), 0.95);
+            }
+            g.fillStyle(0x191715, 1);
+            g.fillEllipse(gear[0], gear[1] - 1, 4.2, 2.4);
+
+            const pipe = P(0.45, 0.82);
+            beam(g, pipe[0], pipe[1], 0.34, 19, 3.2, dk(p.accent, 0.72), 0.98, 3);
+            g.fillStyle(0x1b1917, 1);
+            g.fillEllipse(pipe[0] + 9, pipe[1] + 1.4, 5.2, 2.8);
+            if (L >= 5) {
+                const stack = P(1.73, 0.62);
+                isoBox(g, P, 1.73, 0.62, 0.22, 0.22, 7 + (L - 5) * 0.7, dk(p.trim, 0.78), dk(p.trim, 0.66), dk(p.roofDark, 0.72), 1, 3, seed + 11);
+                g.fillStyle(0x171719, 1);
+                g.fillEllipse(stack[0], stack[1] - 7 - (L - 5) * 0.7, 5.5, 2.5);
+            }
+        } else {
+            // Mystic power has fallen inert: shattered violet crystal and
+            // separated rune-tablet pieces replace the former hovering core.
+            const cr = P(1.45, 1.34);
+            poly(g, [[cr[0] - 7, cr[1]], [cr[0] - 3, cr[1] - 10 - L * 0.25], [cr[0] + 1, cr[1] - 5], [cr[0] + 5, cr[1] + 1]], dk(p.accent, 0.78), 0.98);
+            poly(g, [[cr[0] - 3, cr[1] - 10 - L * 0.25], [cr[0] - 1, cr[1] - 5], [cr[0] - 5, cr[1] - 1]], dk(p.fracture, 0.76), 0.94);
+            const shard = P(1.72, 1.53);
+            poly(g, [[shard[0] - 8, shard[1] - 1], [shard[0] + 4, shard[1] - 5], [shard[0] + 9, shard[1] - 1], [shard[0] - 3, shard[1] + 2]], dk(p.accent, 0.7), 0.97);
+            g.lineStyle(1.2, dk(p.fracture, 0.72), 0.9);
+            g.lineBetween(shard[0] - 4, shard[1] - 2, shard[0] + 4, shard[1] - 3.4);
+
+            const tablet = P(0.48, 0.88);
+            chip(g, tablet[0], tablet[1], 0.58, 14 + L * 0.25, 8, dk(p.roofLit, 0.8), 0.98);
+            g.lineStyle(1.3, dk(p.fracture, 0.7), 0.94);
+            g.beginPath();
+            g.moveTo(tablet[0] - 3.5, tablet[1] + 0.5);
+            g.lineTo(tablet[0], tablet[1] - 3);
+            g.lineTo(tablet[0] + 3.5, tablet[1] + 1.5);
+            g.strokePath();
+            if (L >= 5) {
+                // A broken ritual ring lies flat; its gap makes the loss of
+                // the former floating halo clear even in the small bake.
+                g.lineStyle(1.8, dk(p.accent, 0.72), 0.96);
+                g.beginPath();
+                g.arc(cr[0] - 8, cr[1] + 2, 8 + (L - 5) * 0.5, 0.3, Math.PI * 1.42);
+                g.strokePath();
+            }
+        }
     }
 
     // ── LAB 2x2 — shattered glassware, spilled reagent, purple roof shards ──
@@ -1379,81 +1450,6 @@ export class WreckRenderer {
         }
         const pn = P(1.35, 1.78);
         chip(g, pn[0], pn[1], 0.3, 7, 4, dk(L2 ? 0xf4ecd8 : 0xd8563c, 0.85), 0.9);
-    }
-
-    // ── FROSTFALL 2x2 — melting ruin: broken emitter crystal, melt pool, mist (animated) ──
-    private static frostfall(c: W) {
-        const { g, P, cx, cy, seed, level, time, fire } = c;
-        void P;
-        const L4 = level >= 4;
-        const scafWood = L4 ? 0x9a7428 : 0x6b4226;
-        charField(c.base ?? g, cx, cy, 30, seed, 0.16, 0x2b3a44); // faint damp shadow, not soot
-
-        // Melt pool — ONE pale sheet, spreading slightly as the ruin thaws
-        const spread = 1 + (1 - fire) * 0.25;
-        const pool: number[][] = [];
-        for (let i = 0; i < 9; i++) {
-            const th = (i / 9) * Math.PI * 2;
-            const r = 20 * spread * (0.62 + 0.45 * R(seed, i, 5.33));
-            pool.push([cx + Math.cos(th) * r, cy + 2 + Math.sin(th) * r * 0.5]);
-        }
-        poly(g, pool, 0xd8edfa, 0.32);
-
-        // The well pit, its stone lip broken
-        g.fillStyle(0x0a0a15, 0.95);
-        g.fillEllipse(cx - 4, cy + 3, 18, 8.5);
-        for (let i = 0; i < 5; i++) {
-            const th = R(seed, i, 2.9) * Math.PI * 2;
-            chunk(g, cx - 4 + Math.cos(th) * 12, cy + 3 + Math.sin(th) * 5.5, 3 + R(seed, i, 4.2) * 2, dk(L4 ? 0xafa78f : 0x3a4550, 0.9));
-        }
-
-        // Collapsed scaffold — crossed timbers, pulley wheel, slack rope
-        beam(g, cx - 10, cy - 3, 0.45, 26, 2.8, scafWood, 1, 6);
-        beam(g, cx - 13, cy - 1, 1.0, 18, 2.4, dk(scafWood, 0.8), 0.95, 3);
-        const pw = [cx - 20, cy + 5];
-        g.lineStyle(2, dk(0x4a2e1a, 1), 1);
-        g.strokeEllipse(pw[0], pw[1], 7, 3.6);
-        g.lineStyle(1.2, L4 ? 0xdaa520 : 0x8b7355, 0.85);
-        g.beginPath();
-        g.moveTo(pw[0] + 3, pw[1]);
-        g.lineTo(pw[0] + 9, pw[1] + 2.5);
-        g.lineTo(pw[0] + 7, pw[1] + 5);
-        g.strokePath();
-
-        // The emitter crystal — snapped: a jagged stub still standing in the pit,
-        // its upper half lying split beside, all in the frostfall ice palette
-        const stX = cx - 2, stY = cy + 1;
-        poly(g, [[stX - 5, stY], [stX - 3.5, stY - 11], [stX - 0.5, stY - 8.5], [stX + 1.5, stY - 12.5], [stX + 4.5, stY - 1]], 0x77bbee, 0.95);
-        poly(g, [[stX - 5, stY], [stX - 3.5, stY - 11], [stX - 1.8, stY - 9.6], [stX - 1.2, stY - 0.4]], 0xaaddff, 0.95);
-        g.lineStyle(1, 0x5599cc, 0.9);
-        g.strokeEllipse(stX - 0.3, stY - 0.2, 9.6, 4.4);
-        g.fillStyle(0xcceeff, 0.9); // fresh fracture glints
-        g.fillRect(stX - 3.2, stY - 10.6, 1.5, 1.5);
-        g.fillRect(stX + 1, stY - 12, 1.4, 1.4);
-        // fallen half, split in two on the east side
-        const fh = [cx + 11, cy + 6];
-        poly(g, [[fh[0] - 7, fh[1] - 1], [fh[0] + 3, fh[1] - 6], [fh[0] + 7, fh[1] - 2.5], [fh[0] - 3, fh[1] + 2.5]], 0xaaddff, 0.95);
-        poly(g, [[fh[0] - 7, fh[1] - 1], [fh[0] + 3, fh[1] - 6], [fh[0] - 1, fh[1] - 0.5]], 0xcceeff, 0.85);
-        poly(g, [[fh[0] + 6, fh[1] + 3.5], [fh[0] + 10.5, fh[1] + 1.5], [fh[0] + 11.5, fh[1] + 4.5]], 0x99ccee, 0.9);
-        // small ice chunks melting into the pool
-        for (let i = 0; i < 5; i++) {
-            const r1 = R(seed, i, 6.71), r2 = R(seed, i, 7.83);
-            chunk(g, cx - 14 + r1 * 30, cy + r2 * 9, 2 + r1 * 2.2, i % 2 ? 0xaaddff : 0x99ccee, 0.85);
-        }
-
-        // MIST — slow pale wisps curling off the melt while it lasts (fades with `fire`)
-        if (time > 0 && fire > 0.03) {
-            for (let i = 0; i < 4; i++) {
-                const r1 = R(seed, i, 50.5), r2 = R(seed, i, 51.7);
-                const cyc = ((time / 4200) + r1) % 1;
-                const wx = cx + (r1 - 0.5) * 34 + Math.sin(time / 700 + i * 1.7) * 6;
-                const wy = cy + 2 + (r2 - 0.5) * 12 - cyc * 26;
-                const wa = Math.sin(cyc * Math.PI) * 0.2 * (0.3 + fire * 0.7);
-                const ws = Math.floor(3 + cyc * 7);
-                g.fillStyle(0xdceefa, Math.max(0, wa));
-                g.fillRect(wx - ws / 2, wy - ws / 2, ws, ws);
-            }
-        }
     }
 
     // ── JUKEBOX 1x1 — split cabinet, spilled brass pipes and keys ──

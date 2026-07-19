@@ -6,7 +6,7 @@ import type {
   VillageRecord,
   WorldPlotRecord
 } from '../persistence'
-import { materializeVillage } from './village-state'
+import { hasUnsupportedVillageArmy, hasUnsupportedVillageBuildings, materializeVillage } from './village-state'
 
 const PRESENCE_WRITE_INTERVAL_MS = 30_000
 
@@ -80,7 +80,9 @@ export class VillageAuthority {
     populationLocked = false
   ): Promise<void> {
     if (village.simulatedThrough.getTime() >= now.getTime()
-      && village.simulationVersion === VILLAGE_SIMULATION_VERSION) return
+      && village.simulationVersion === VILLAGE_SIMULATION_VERSION
+      && !hasUnsupportedVillageBuildings(village)
+      && !hasUnsupportedVillageArmy(village)) return
     const expected = village.economyRevision
     const before = villageMaterialFingerprint(village)
     await this.materializeWithAudit(tx, village, now, populationLocked)

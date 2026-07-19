@@ -4,6 +4,7 @@ import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitio
 import { registerPixelSurface } from '../renderers/TextureRenderPolicy';
 import { defaultDesignSlot } from '../renderers/redesign/DesignRegistry';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
+import { troopWorldVisualScale } from '../renderers/TroopVisualScale';
 
 /**
  * SpriteBank — the runtime half of the bake pipeline
@@ -52,6 +53,8 @@ interface FrameMeta {
     slamOffset?: number;
     phalanxSpearOffset?: number;
     mortarRecoil?: number;
+    parked01?: number;
+    tankSpin01?: number;
     deactivated?: boolean;
 }
 
@@ -140,6 +143,10 @@ interface ShadowBinding {
     scaleMul: number;
     cellWorldPx: number;
     flipX: boolean;
+    /** Troop carriers may add a presentation-only lean (the clockwork
+     *  beetle's latch). Rigid projectiles deliberately leave this false:
+     *  their baked frame already contains its world rotation. */
+    followRotation: boolean;
     originX: number;
     originY: number;
 }
@@ -168,6 +175,8 @@ class SpriteBankImpl {
      *  dies), so re-hooking on every fallback→re-sync cycle would accumulate
      *  one closure per cycle on long-lived carriers. */
     private hooked = new WeakSet<Phaser.GameObjects.Graphics>();
+    /** Stable maximum silhouette top per resolved troop atlas/level/palette. */
+    private troopTopOffsets = new Map<string, number>();
     private lastSweep = 0;
 
     /** Kick off loading; call from scene create(). Safe to call once. */
@@ -188,6 +197,7 @@ class SpriteBankImpl {
             this.units.clear();
             this.variantSlots.clear();
             this.shadows.clear();
+            this.troopTopOffsets.clear();
         }
         fetch('/assets/sprites/index.json')
             .then(r => (r.ok ? r.json() : null))
@@ -329,7 +339,7 @@ class SpriteBankImpl {
         meta: FrameMeta,
         x: number,
         y: number,
-        opts: { alpha?: number; tint?: number | null; depth?: number; slot?: 'body' | 'ground'; scaleMul?: number; flipX?: boolean; snapCell?: number } = {}
+        opts: { alpha?: number; tint?: number | null; depth?: number; slot?: 'body' | 'ground'; scaleMul?: number; flipX?: boolean; followRotation?: boolean; snapCell?: number } = {}
     ) {
         const slot = opts.slot ?? 'body';
         const img = this.shadowFor(scene, carrier, atlasKey, slot);
@@ -347,6 +357,7 @@ class SpriteBankImpl {
             scaleMul: opts.scaleMul ?? 1,
             cellWorldPx: meta.cellWorldPx,
             flipX: opts.flipX ?? false,
+            followRotation: opts.followRotation ?? false,
             originX: meta.originX,
             originY: meta.originY
         };
@@ -396,6 +407,8 @@ class SpriteBankImpl {
         img.setPosition(x, y)
             .setAlpha(bind.alphaMul * carrier.alpha)
             .setVisible(carrier.visible);
+        const rotation = bind.followRotation ? carrier.rotation : 0;
+        if (img.rotation !== rotation) img.setRotation(rotation);
         // Blend rides along (the dragon shadow is a MULTIPLY pass, e.g.).
         if (img.blendMode !== carrier.blendMode) img.setBlendMode(carrier.blendMode);
     }
@@ -456,8 +469,8 @@ class SpriteBankImpl {
         building: {
             id?: string;
             ballistaAngle?: number; lastFireTime?: number;
+            ballistaStringTension?: number; ballistaBoltLoaded?: boolean;
             teslaCharging?: boolean; teslaChargeStart?: number; teslaCharged?: boolean;
-            frostfallProjectileActive?: boolean;
             fillLevel?: number; doorOpen?: number;
         } | undefined,
         time: number,
@@ -488,15 +501,28 @@ class SpriteBankImpl {
             const el = time - building.lastFireTime;
             // A state can bake fewer angles than idle — re-quantize the aim to
             // its own count (a clamp collapsed every aim to the last angle).
-            let frames = st.fire.frames[angleIdx(st.fire.angles || st.fire.frames.length)] ?? st.fire.frames[0];
-            // Launch axis (frostfall): prep/abort and launch-FX frames overlap
-            // in fireAge, disambiguated by the baked projectileActive flag —
-            // restrict to the branch matching the sim so nearest-age never
-            // mixes a geyser burst into an abort sink (or vice versa).
-            if (frames.some(f => f.ov?.projectileActive !== undefined)) {
-                const want = building.frostfallProjectileActive === true;
-                const branch = frames.filter(f => (f.ov?.projectileActive === true) === want);
-                if (branch.length > 0) frames = branch;
+            const frames = st.fire.frames[angleIdx(st.fire.angles || st.fire.frames.length)] ?? st.fire.frames[0];
+            // Ballista firing is externally driven: lastFireTime marks the
+            // START of its 400 ms wind-up, while loaded/tension are the actual
+            // visual truth. Select by that pose and hold the empty frame until
+            // the level-specific reload flips the live bolt state back on.
+            if (type === 'ballista') {
+                const tension = Phaser.Math.Clamp(building.ballistaStringTension ?? 0, 0, 1);
+                const loaded = building.ballistaBoltLoaded ?? true;
+                if (!loaded || tension > 0.01) {
+                    let best = frames[0];
+                    let bestDistance = Infinity;
+                    for (const frame of frames) {
+                        const frameTension = Number(frame.ov?.tension ?? 0);
+                        const frameLoaded = frame.ov?.bolt !== false;
+                        const distance = Math.abs(frameTension - tension) + (frameLoaded === loaded ? 0 : 4);
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            best = frame;
+                        }
+                    }
+                    return { meta: best, atlasKey, ground: entry.ground };
+                }
             }
             const maxAge = Number(frames[frames.length - 1]?.ov?.fireAge ?? 0) + 180;
             if (el >= 0 && el < maxAge) {
@@ -602,7 +628,7 @@ class SpriteBankImpl {
         isMoving: boolean,
         attackAge: number,
         time: number,
-        drivers: { attackDelay?: number; slamOffset?: number; phalanxSpearOffset?: number; phaseId?: string; pose?: string } = {}
+        drivers: { attackDelay?: number; slamOffset?: number; phalanxSpearOffset?: number; parked01?: number; tankSpin01?: number; phaseId?: string; pose?: string } = {}
     ): { meta: FrameMeta; atlasKey: string } | null {
         if (!this.backed('troops', type)) return null;
         const rec = this.unitOf('troops', type)!;
@@ -644,7 +670,11 @@ class SpriteBankImpl {
                 meta = best;
             }
         }
-        if (!meta && attackAge >= 0 && man.params.delay > 0) {
+        // Externally-driven attacks own their pose clock completely. Falling
+        // through to attackAge while the driver rests at zero would select
+        // the first driver frame after every damage tick (the tank used to
+        // begin a second, phantom spin before its explicit turn started).
+        if (!meta && !driver && attackAge >= 0 && man.params.delay > 0) {
             const delay = drivers.attackDelay || man.params.delay;
             let age = attackAge;
             if (age > delay + 600) age = (time + tOff) % delay; // replay free-run, mirrors attackAnim
@@ -675,6 +705,38 @@ class SpriteBankImpl {
         return { meta, atlasKey: rec.atlasKey };
     }
 
+    /**
+     * Maximum world distance from a troop's ground-contact anchor to the top
+     * of any baked pose, including its runtime-only presentation scale. Health
+     * bars use this instead of a blind per-type guess, so a large attack pose
+     * cannot grow through the bar. null keeps the vector-fallback path honest.
+     */
+    troopTopOffset(type: string, owner: 'PLAYER' | 'ENEMY', level: number): number | null {
+        if (!this.backed('troops', type)) return null;
+        const rec = this.unitOf('troops', type)!;
+        const man = rec.manifest as TroopManifest;
+        const levels = Object.keys(man.levels).map(Number);
+        const lv = man.levels[level] ? level : Math.min(Math.max(...levels), Math.max(1, level));
+        const ownerTag = owner === 'PLAYER' ? 'P' : 'E';
+        const dirs = man.levels[lv]?.[ownerTag];
+        if (!dirs) return null;
+        const visualScale = troopWorldVisualScale(type);
+        const key = `${rec.atlasKey}:${lv}:${ownerTag}:${visualScale}`;
+        const cached = this.troopTopOffsets.get(key);
+        if (cached !== undefined) return cached;
+
+        let authoredTop = 0;
+        for (const dir of dirs) {
+            for (const frame of dir.frames) {
+                authoredTop = Math.max(authoredTop, frame.originY * frame.texelH * frame.cellWorldPx);
+            }
+        }
+        if (!(authoredTop > 0)) return null;
+        const worldTop = authoredTop * visualScale;
+        this.troopTopOffsets.set(key, worldTop);
+        return worldTop;
+    }
+
     /** Shadow-stamp a troop; returns false → caller draws vector. */
     syncTroop(
         scene: Phaser.Scene,
@@ -683,7 +745,7 @@ class SpriteBankImpl {
             type: string; owner: 'PLAYER' | 'ENEMY'; level?: number;
             gameObject: Phaser.GameObjects.Graphics;
             facingAngle?: number; lastAttackTime?: number; attackDelay?: number;
-            slamOffset?: number; phalanxSpearOffset?: number;
+            slamOffset?: number; phalanxSpearOffset?: number; parked01?: number; tankSpin01?: number;
         },
         isMoving: boolean,
         attackAge: number,
@@ -692,10 +754,13 @@ class SpriteBankImpl {
         const pick = this.pickTroopFrame(
             troop.type, troop.owner, troop.level ?? 1, troop.facingAngle ?? 0,
             isMoving, attackAge, time,
-            { attackDelay: troop.attackDelay, slamOffset: troop.slamOffset, phalanxSpearOffset: troop.phalanxSpearOffset, phaseId: troop.id }
+            { attackDelay: troop.attackDelay, slamOffset: troop.slamOffset, phalanxSpearOffset: troop.phalanxSpearOffset, parked01: troop.parked01, tankSpin01: troop.tankSpin01, phaseId: troop.id }
         );
         if (!pick) return false;
-        this.stamp(scene, troop.gameObject, pick.atlasKey, pick.meta, troop.gameObject.x, troop.gameObject.y, {});
+        this.stamp(scene, troop.gameObject, pick.atlasKey, pick.meta, troop.gameObject.x, troop.gameObject.y, {
+            scaleMul: troopWorldVisualScale(troop.type),
+            followRotation: true
+        });
         return true;
     }
 
@@ -713,8 +778,44 @@ class SpriteBankImpl {
     ): boolean {
         const pick = this.pickTroopFrame(type, owner, level, facingAngle, false, -1, 0, { pose });
         if (!pick) return false;
-        this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, {});
+        this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, {
+            scaleMul: troopWorldVisualScale(type)
+        });
         return true;
+    }
+
+    /** Baked collapse/remnant sequence for the deliberately small set of
+     *  colossal troops. These canonical assets live in their own figure-style
+     *  kind. `phase` is caller-owned 0..1 progress; `remnant` selects the
+     *  timeless low wreck. */
+    syncTroopDeath(
+        scene: Phaser.Scene,
+        carrier: Phaser.GameObjects.Graphics,
+        type: string,
+        owner: 'PLAYER' | 'ENEMY',
+        level: number,
+        facingAngle: number,
+        phase: number,
+        remnant: boolean,
+        siegePose: 'rolling' | 'parked' = 'rolling'
+    ): boolean {
+        const dirs = type === 'golem' || type === 'icegolem' ? 16 : 8;
+        const tau = Math.PI * 2;
+        const facing = ((facingAngle % tau) + tau) % tau;
+        const dir = Math.round(facing / (tau / dirs)) % dirs;
+        const tag = owner === 'PLAYER' ? 'P' : 'E';
+        const poseTag = type === 'siegetower' ? `_${siegePose}` : '';
+        const variant = `l${Math.max(1, Math.min(3, Math.floor(level || 1)))}_${tag}_d${String(dir).padStart(2, '0')}${poseTag}`;
+        return this.syncFigure(
+            scene,
+            carrier,
+            type,
+            variant,
+            remnant ? 'remnant' : 'death',
+            remnant ? 0 : Phaser.Math.Clamp(phase, 0, 0.999999),
+            false,
+            { kind: 'troop_deaths', scaleMul: troopWorldVisualScale(type) }
+        );
     }
 
     /** Troop-sprite sync for loose figures (camp figures, spawn frames) whose
@@ -738,7 +839,11 @@ class SpriteBankImpl {
         // rides the stamp so the flip pivots on the baked anchor and survives
         // per-frame reconciliation.
         const dirs = (this.unitOf('troops', type)!.manifest as TroopManifest).params.dirs;
-        this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, { flipX: dirs > 1 ? false : flipX });
+        this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, {
+            flipX: dirs > 1 ? false : flipX,
+            scaleMul: troopWorldVisualScale(type),
+            followRotation: true
+        });
         return true;
     }
 

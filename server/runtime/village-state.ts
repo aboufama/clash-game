@@ -6,6 +6,7 @@ import {
   VILLAGE_SIMULATION_VERSION,
   advanceVillage,
   appearanceRevisionDelta,
+  normalizePersistedBuildings,
   populationCapacity,
   staffingFactor,
   workersNeeded,
@@ -23,7 +24,11 @@ import type {
 export const MAX_PLAYER_GOLD = 1_000_000_000
 
 export function villageBuildings(village: Pick<VillageRecord, 'buildings'>): SerializedBuilding[] {
-  return village.buildings as unknown as SerializedBuilding[]
+  return normalizePersistedBuildings(village.buildings).buildings
+}
+
+export function hasUnsupportedVillageBuildings(village: Pick<VillageRecord, 'buildings'>): boolean {
+  return normalizePersistedBuildings(village.buildings).changed
 }
 
 export function villageObstacles(village: Pick<VillageRecord, 'obstacles'>): SerializedObstacle[] {
@@ -42,6 +47,14 @@ export function villageArmy(village: Pick<VillageRecord, 'army'>): Record<string
     if (supported(type)) army[type] = count
   }
   return army
+}
+
+export function hasUnsupportedVillageArmy(village: Pick<VillageRecord, 'army'>): boolean {
+  const raw = village.army as unknown as Record<string, number>
+  return Object.keys(raw).some(type => (
+    GENERATED_ONLY.has(type)
+    || !Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, type)
+  ))
 }
 
 export function villagePopulation(village: Pick<VillageRecord, 'population'>): VillagePopulationState {
@@ -65,8 +78,12 @@ export function materializeVillage(
   now: Date,
   options: { populationLocked?: boolean; preserveOverCapacity?: boolean } = {}
 ): VillageAdvanceResult {
+  const normalizedBuildings = normalizePersistedBuildings(village.buildings)
+  if (hasUnsupportedVillageArmy(village)) {
+    village.army = villageArmy(village) as unknown as JsonObject
+  }
   const simulation = {
-    buildings: villageBuildings(village).map(building => ({ ...building })),
+    buildings: normalizedBuildings.buildings.map(building => ({ ...building })),
     balance: village.gold,
     ore: village.ore,
     food: village.food,
@@ -90,6 +107,15 @@ export function materializeVillage(
   village.simulatedThrough = new Date(simulation.simulatedThrough ?? now.getTime())
   village.simulationVersion = simulation.simulationVersion ?? VILLAGE_SIMULATION_VERSION
   village.nextEventAt = result.nextEventAt === undefined ? null : new Date(result.nextEventAt)
+  if (normalizedBuildings.changed) {
+    // Catalog deletions and level-cap migrations self-clean on the next
+    // materialization. Layout and postcard caches both need fresh fences even
+    // when economy values did not change, and the owning transaction persists
+    // through its normal CAS.
+    village.layoutRevision += 1
+    village.appearanceRevision += 1
+    village.lastMutationAt = now
+  }
   const revisionDelta = appearanceRevisionDelta(result)
   if (revisionDelta > 0) {
     village.appearanceRevision += revisionDelta

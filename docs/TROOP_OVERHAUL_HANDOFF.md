@@ -1,40 +1,61 @@
-# Troop overhaul — remaining items (stub, 2026-07-16)
+# Two-path troop roster — handoff (2026-07-18)
 
-The overhaul itself is DONE and documented in CLAUDE.md / AGENTS.md (the
-"troop overhaul + design tournaments" bullet): 19-troop roster (was 21 —
-pavisebearer + hawkeyeassassin were deleted end-to-end 2026-07-16, owner
-call, on top of the earlier ward/recursion/giant/sharpshooter deletion),
-2-per-level barracks unlocks (barracks maxLevel 10),
-`ATTACK_SIMULATION_VERSION` 4, every
-tournament slot baked + live-switchable, judge-panel defaults live in
-`DEFAULT_DESIGN_SLOTS` (`src/game/renderers/redesign/DesignRegistry.ts`).
-Gate live
-checkpoints (trebuchet-vs-dragons_breath duel, elephant wall trample,
-quartermaster aura, TrainingModal/battle bar) were captured
-2026-07-16 (pre-deletion, at the then-21-entry roster). This file lists
-only what remains; delete it when the list empties.
+The current contract is documented in
+[`TROOP_FACTION_ARCHITECTURE.md`](./TROOP_FACTION_ARCHITECTURE.md). The client,
+both server runtimes, save sanitizers, training screen, and battle presentation
+must consume that one roster authority.
 
-## Waiting on the OWNER (block winner promotion until picked)
+## Final roster
 
-- **Frostfall design pick:** `frostfall@A/B/C` baked + switchable
-  (`localStorage['clash.design.frostfall']`); no judged default — the
-  owner chooses.
-- **Per-troop winners:** the judge defaults in `DEFAULT_DESIGN_SLOTS` are
-  PROVISIONAL; the owner confirms or overrides each unit in the Design
-  Lab. Only after the picks: promote winners / delete losers per
-  docs/DESIGN_TOURNAMENTS.md "Winner promotion", then reconcile the
-  regression's exact counts once.
+- Army Camp: Barbarian (`warrior`) L1, Archer L2, Healer
+  (`physicianscart`) L3, Phalanx L4.
+- Mystic Barracks: Goblin Plunderer, Emberling, Storm Mage, Necromancer, War
+  Elephant, Stone Golem, Ice Golem.
+- Mechanica Barracks: Clockwork Beetle, Battering Ram, Mobile Mortar, Siege
+  Tower, Trebuchet, Ornithopter, Da Vinci Tank.
+- Generated only: Bound Spirit and Skeleton.
 
-## Open decisions / known gaps
+This is **4 Core + 7 Mystic + 7 Mechanica = 18 trainable troops**. Mystic and
+Mechanica unlock L1-L7 and retain L8-L9 as non-unlocking Mastery levels.
 
-- **Wallbreaker L4 balance cliff** (flagged by the balance review) —
-  owner decision pending on the retune.
-- **clockworkbeetle judge verdict** still in flight — no
-  `DEFAULT_DESIGN_SLOTS` entry yet (default falls back A→B→C, i.e. @A).
+## Compatibility decisions
 
-## Environment notes (kept — they save an hour)
+- `warrior` and `physicianscart` keep stable ids while displaying as
+  Barbarian and Healer.
+- Mechanica keeps the historical building id `barracks`; Mystic uses
+  `mystic_barracks`.
+- Goblin Plunderer and War Elephant move from the deleted Biopunk path into
+  Mystic.
+- Stone Golem returns to trainable Mystic progression.
+- Battering Ram moves from Core into Mechanica.
+- Unknown stored building/troop ids are discarded by the existing
+  sanitizers; the rest of the account remains intact.
 
-- The Vite-embedded game server CANNOT hot-reload shared definitions —
-  restart after TroopDefinitions/MilitaryBuildings edits or trains 404.
-- ONE shared harness identity: `tools/art-preview/.shared-device-token.json`.
-  NEVER mint per-run guests (30/hour limit + world-map junk).
+## Removed end-to-end
+
+The Biopunk faction and `biopunk_barracks` are gone. Needleback, Razorwing,
+Vat Brute, Apex Chimera, Rift Djinn, Spore Lobber, and Mantis Stalker are not
+definitions, player troop types, visual routes, design variants, bakes, icons,
+or packed-index entries. The retired Biopunk A/B/C tournament contract is no
+longer active.
+
+## Preserved art and simulation
+
+Surviving promoted designs remain canonical, including Goblin Plunderer A,
+Clockwork Beetle B, Healer/Physician's Cart B, Siege Tower C, Necromancer B,
+Skeleton C, Trebuchet B, War Elephant A, and Ornithopter A. No new art was
+authored by this roster collapse.
+
+`ATTACK_SIMULATION_VERSION` remains **6** because surviving combat stats and
+damage timing are unchanged. The packed-asset count and exact icon set are
+pinned by `scripts/render-quality-regression.mjs`.
+
+## Verification handoff
+
+Before shipping a future roster edit:
+
+1. verify Army Camp and both Barracks unlocks in both server runtimes;
+2. verify removed ids self-clean and reject new training/deployment;
+3. regenerate caravan soldiers, exact troop icons, and the packed index;
+4. inspect the generated portrait sheet and surviving sprite manifests;
+5. run `npm run verify` and a production build.

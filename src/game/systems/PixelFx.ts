@@ -32,7 +32,7 @@ export function screenShake(scene: Phaser.Scene, durationMs: number, intensity: 
  *
  * These replace the dozens of near-identical inline image+tween blocks that
  * grew around the pixel-cell conversion. Signature set-pieces (mortar crater,
- * golem death, frostfall, dragon pod…) stay bespoke but may reuse
+ * golem death, dragon pod…) stay bespoke but may reuse
  * `stampRing`/`burst` internally where they are drop-ins.
  *
  * One-shot FX are allowed `Math.random()` — iron rule 3 governs AMBIENT

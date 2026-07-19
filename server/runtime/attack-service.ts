@@ -66,6 +66,7 @@ import type {
   AttackStartRequest,
   BotSettleRequest,
   BotStartRequest,
+  MatchmakeRequest,
   RuntimeAttackService,
   RuntimePrincipal
 } from './contracts'
@@ -154,6 +155,7 @@ type ReplayFrame = {
     owner: 'PLAYER' | 'ENEMY'
     gridX: number
     gridY: number
+    visualOffsetY?: number
     health: number
     maxHealth: number
     facingAngle?: number
@@ -368,6 +370,7 @@ function sanitizeFrame(raw: unknown, maxT: number): ReplayFrame | null {
           owner,
           gridX: finiteNumber(state.gridX),
           gridY: finiteNumber(state.gridY),
+          ...(state.visualOffsetY === undefined ? {} : { visualOffsetY: finiteNumber(state.visualOffsetY, 0, -100, 100) }),
           health: nonNegativeInt(state.health, 0, 100_000_000),
           maxHealth: Math.max(1, nonNegativeInt(state.maxHealth, 1, 100_000_000)),
           ...(state.facingAngle === undefined ? {} : { facingAngle: finiteNumber(state.facingAngle, 0, -100, 100) }),
@@ -663,10 +666,13 @@ export class PersistenceAttackService implements RuntimeAttackService {
 
   async matchmake(
     principal: RuntimePrincipal,
-    body: { requestId?: unknown } = {},
+    body: MatchmakeRequest = {},
     rawToken?: unknown
   ): Promise<StartedPlayerAttack> {
     const operationId = requestId(body?.requestId, 'Matchmaking')
+    const excludeTargetId = body.excludeTargetId === undefined
+      ? undefined
+      : strictId(body.excludeTargetId, 'excludeTargetId')
     return this.serializable(async (tx, now) => {
       const result = await idempotentMutation(tx, {
         actorId: principal.playerId,
@@ -683,11 +689,18 @@ export class PersistenceAttackService implements RuntimeAttackService {
           targetTrophies: account.trophies,
           trophyRadius: 10_000,
           now,
-          limit: MATCHMAKE_LIMIT
+          limit: MATCHMAKE_LIMIT + (excludeTargetId ? 1 : 0)
         })
         if (candidates.length === 0) throw new ApiError(404, 'No opponents available')
-        const offset = hashString(`${principal.playerId}:${operationId}`) % candidates.length
-        const targetId = candidates[offset]!.player.playerId
+        const alternatives = excludeTargetId
+          ? candidates.filter(candidate => candidate.player.playerId !== excludeTargetId)
+          : candidates
+        // Exclusion is a NEXT preference, not a way to make a one-opponent
+        // world unplayable. Reuse the sole candidate only when no alternative exists.
+        const selectionPool = (alternatives.length > 0 ? alternatives : candidates)
+          .slice(0, MATCHMAKE_LIMIT)
+        const offset = hashString(`${principal.playerId}:${operationId}`) % selectionPool.length
+        const targetId = selectionPool[offset]!.player.playerId
         return jsonValue(await this.startPlayerInTransaction(
           tx, principal, targetId, true, tokenHash(rawToken), now
         ))

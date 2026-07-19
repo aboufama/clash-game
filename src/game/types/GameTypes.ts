@@ -40,8 +40,6 @@ export interface PlacedBuilding {
     prismTarget?: Troop;           // Current target being lasered
     prismLaserGraphics?: Phaser.GameObjects.Graphics; // The continuous laser beam
     prismLaserCore?: Phaser.GameObjects.Graphics;     // Inner core of laser
-    // Frostfall Monolith
-    frostfallProjectileActive?: boolean; // true when the big crystal has launched and is flying
     // Ice-golem freeze-on-death debuff: while `time < frozenUntil` this
     // defense holds fire entirely (DefenseSystem skips it; client battle
     // sim + presentation only — server settlement ignores debuffs by
@@ -104,6 +102,10 @@ export interface Troop {
     maxHealth: number;
     owner: 'PLAYER' | 'ENEMY';
     lastAttackTime: number;
+    /** True only after the presentation clock was anchored to a real attack
+     *  or kit tick. Spawn cooldown seeding must never masquerade as an attack
+     *  frame while a newly deployed troop is already moving. */
+    attackClockActive?: boolean;
     attackDelay: number;
     speedMult: number;
     hasTakenDamage: boolean;
@@ -123,13 +125,9 @@ export interface Troop {
     lastProgressTime?: number;
     stuckTicks?: number;
     retargetPauseUntil?: number;
-    /** While set (and in the future), velocity is a knockback impulse that
-     * updateTroops integrates through the collision resolver each frame. */
-    knockbackUntil?: number;
     lastTargetSwitchTime?: number;
     lastOpportunityScanTime?: number;
     target: any; // PlacedBuilding | Troop | null
-    chillRemainingMs?: number;
     /** Last time the ice golem's on-hit frost FX played (throttle gate —
      *  continuous-beam damage ticks would otherwise spam a burst per tick). */
     frostHitFxAt?: number;
@@ -137,6 +135,10 @@ export interface Troop {
     slamOffset?: number; // For golem body slam animation
     mortarRecoil?: number; // For mobile mortar - recoil offset for the mortar only (not the soldier)
     phalanxSpearOffset?: number; // For phalanx - spear thrusting animation (0 = normal, 1 = full thrust)
+    /** Da Vinci Tank: normalized post-shot rotation through one cannon bay
+     *  (0..1 maps to 0..45 degrees). Kept separate from facing so the bake
+     *  can sample the in-between spin poses instead of snapping octants. */
+    tankSpin01?: number;
     lastHealthBarValue?: number;
     lastHealthChangeTime?: number;
     // Depth-sort thrash guard: only call setDepth when the bucket changes.
@@ -151,6 +153,8 @@ export interface Troop {
     replaySampleX?: number;
     replaySampleY?: number;
     replaySampleT?: number;
+    replayPrevSampleVisualOffsetY?: number;
+    replaySampleVisualOffsetY?: number;
     // === 2026-07 troop-kit state (client battle sim; all optional) ===
     /** Generated unit (skeleton): id of the summoner that raised it. */
     summonedBy?: string;
@@ -163,15 +167,33 @@ export interface Troop {
     /** Siege tower: undefined = rolling; 0..1 = parked drop-ramp driver
      *  (tweened once on arrival, passed to the TroopDesignFn as `driver`). */
     parked01?: number;
-    /** Siege tower: the enemy wall tile currently serving as the ally ramp. */
+    /** Siege tower: intended wall during deployment, then the live ally ramp. */
     parkedWallId?: string;
-    /** Quartermaster aura: last frame this troop was inside a drum aura. */
-    lastBoostedAt?: number;
-    /** Quartermaster aura: brief gold tint window on newly buffed allies. */
-    boostTintUntil?: number;
     /** Replay watch: when this troop's stream samples stopped moving —
      *  derives the siege tower's parked pose without new frame fields. */
     replayStillSince?: number;
+    /** Replay watch: committed Da Vinci Tank bay heading from the most
+     *  recently applied stream sample. Kept separate while rendering one or
+     *  more reconstructed in-between turns toward the pending sample. */
+    replaySampleFacingAngle?: number;
+    /** Clockwork beetle contact sequence: a short deterministic leap onto
+     *  the target followed by its shared snap-fuse delay. */
+    beetleLatch?: {
+        targetId: string;
+        startedAt: number;
+        landedAt: number;
+        detonateAt: number;
+        fromX: number;
+        fromY: number;
+        landX: number;
+        landY: number;
+        landOffsetY: number;
+        landFramePublished?: boolean;
+    };
+    /** Screen-space carrier lift relative to the troop's grid anchor. Used
+     *  by the beetle latch and Siege Tower ramp hop, and mirrored into replay
+     *  snapshots. */
+    visualOffsetY?: number;
 }
 
 export interface PlacedObstacle {

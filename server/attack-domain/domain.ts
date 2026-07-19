@@ -40,12 +40,18 @@ import type {
 // defense DPS. Attacks pin the rules version at preparation, so replays and
 // settlements recorded under v1/v2 keep reproducing their original results.
 // v4 (2026-07, troop rework): declarative kit credit on top of v3 —
-// resource-raider damage multipliers, summoner wave credit, quartermaster
-// cadence auras and support-window lifetime extensions (healer/siege
+// resource-raider damage multipliers, summoner wave credit and
+// support-window lifetime extensions (healer/siege
 // tower). Every v4 branch in simulation.ts is
 // guarded by rules.simulationVersion >= 4; stored v1–v3 attacks keep taking
 // their original branches byte-identically.
-export const ATTACK_SIMULATION_VERSION = 4
+// v5 (2026-07): a troop with an explicit detonationDelayMs receives no
+// damage credit before that fuse has elapsed and receives exactly one
+// detonation afterward. Stored v1–v4 attacks keep their prior cadence math.
+// v6 (2026-07): the clockwork beetle's post-latch fuse is shortened to the
+// shared 125 ms snap-fuse. Stored v5 attacks retain their historical exact
+// 1,000 ms fuse; stored v1–v4 keep their prior cadence math.
+export const ATTACK_SIMULATION_VERSION = 6
 
 export const DEFAULT_ATTACK_RULES: Readonly<AttackRulesSnapshot> = Object.freeze({
   simulationVersion: ATTACK_SIMULATION_VERSION,

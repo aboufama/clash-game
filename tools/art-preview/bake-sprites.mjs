@@ -5,16 +5,20 @@
 // removed Pixelate shader's math (CELL world-px cells, center-sampled),
 // anchored to the OBJECT. v3 bakes the full dynamic-state surface:
 //   - defenses: per-angle IDLE + per-angle FIRE sequences (recoil/tension/
-//     reload/charge drivers), tesla charge/charged, frostfall loaded/empty
+//     reload/charge drivers), tesla charge/charged
 //   - mine/farm fillLevel stages, town-hall door, jukebox playing,
 //     ambient idle loops (auto-detected), vapor OFF (smoke is a
 //     runtime effect layer)
 //   - troops: 8/1 dirs × exact-loop idle breath + walk + attack (attackAge
 //     or driver-swept: golem slam, phalanx spear), tank deactivated pose
+//   - large-troop deaths: authored collapse sequence + persistent remnant,
+//     stored as figure-style atlases under troop_deaths/; Apex Chimera's
+//     terminal art is candidate-specific and therefore bakes as @A/@B/@C
 //   - wrecks: ground+body rubble per building type/level
 //
 //   UNITS=all TROOPS=all WRECKS=1 node bake-sprites.mjs     # everything
 //   UNITS=cannon LEVELS=1 node bake-sprites.mjs
+//   WRECK_UNITS=barracks,mystic_barracks LEVELS=1,2,3 node bake-sprites.mjs
 //   VERIFY=1 UNITS=cannon node bake-sprites.mjs
 //   OUT=/tmp/x CELL=1.8 ... (experiments; default writes public/assets/sprites)
 //
@@ -40,7 +44,11 @@ const ROTATING = new Set(['cannon', 'ballista', 'xbow', 'mortar', 'spike_launche
 const ANGLES_ENV = process.env.ANGLES ? Math.max(1, Number(process.env.ANGLES)) : null
 const ANGLE = Number(process.env.ANGLE ?? 0.55)
 const VERIFY = process.env.VERIFY === '1'
-const WANT_WRECKS = process.env.WRECKS === '1' || (UNITS.length === 1 && UNITS[0] === 'all')
+// WRECK_UNITS is deliberately independent of UNITS: a targeted wreck refresh
+// must not rewrite every building sprite (or every other wreck manifest).
+// An explicit list always scopes the wreck pass, even when WRECKS=1 is also set.
+const WRECK_UNITS = (process.env.WRECK_UNITS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+const WANT_WRECKS = WRECK_UNITS.length > 0 || process.env.WRECKS === '1' || (UNITS.length === 1 && UNITS[0] === 'all')
 const TROOPS = (process.env.TROOPS ?? '').split(',').map(s => s.trim()).filter(Boolean)
 const TROOP_LEVELS = (process.env.TROOP_LEVELS ?? '1,2,3').split(',').map(Number)
 // FIGURES=1 bakes every village-life figure (villagers kind); FIGURES=villager,dog
@@ -89,7 +97,8 @@ const TROOP_PARAMS = {
                   recoilSeq: [0, 0, 0, 0, 5, 2.5] }, // paired with attack ages: recoil after the tick
   ram:          { stride: 300, delay: 1100, windup: 320, strike: 160, dirs: 8, big: true },
   stormmage:    { stride: 480, delay: 1700, windup: 620, strike: 380, dirs: 1 },
-  davincitank:  { stride: 480, delay: 0,    windup: 0,   strike: 0,   dirs: 8, big: true, attack: false,
+  davincitank:  { stride: 480, delay: 1800, windup: 0,   strike: 0,   dirs: 8, big: true,
+                  attackDriver: { key: 'tankSpin01', values: [0.12, 0.28, 0.44, 0.6, 0.8, 1] },
                   loopExact: false, deactivated: true },
   phalanx:      { stride: 600, delay: 0,    windup: 0,   strike: 0,   dirs: 8,
                   attackDriver: { key: 'phalanxSpearOffset', values: [0, 0.45, 1, 0.55, 0.15] } },
@@ -98,16 +107,17 @@ const TROOP_PARAMS = {
   // ===== 2026-07 troop overhaul (TROOP_DESIGN.md v2) — params pinned ahead
   // of the art phase; do NOT bake these until their authored rigs land and
   // strides are re-synced to the authored walk periods. =====
-  goblinplunderer: { stride: 240, delay: 600, windup: 200, strike: 120, dirs: 8 }, // fast mover needs 8 headings
-  clockworkbeetle: { stride: 240, delay: 500, windup: 240, strike: 0,   dirs: 8 },
-  physicianscart:  { stride: 500, delay: 6000, windup: 800, strike: 400, dirs: 8, big: true }, // heal pulse baked as attack seq on 6s cadence
-  quartermaster:   { stride: 450, delay: 0, windup: 0, strike: 0, dirs: 1, attack: false, idleMs: 2000 }, // drum beat = exact 2000ms idle harmonics; damage 0 so attack:false is consistent
-  siegetower:      { stride: 700, delay: 0, windup: 0, strike: 0, dirs: 8, big: true, attack: false, deactivated: true }, // deactivated = parked ramp idle
-  necromancer:     { stride: 480, delay: 5000, windup: 700, strike: 400, dirs: 1 },
-  trebuchet:       { stride: 700, delay: 4000, windup: 900, strike: 400, dirs: 8, big: true },
-  warelephant:     { stride: 1200, delay: 3000, windup: 900, strike: 500, dirs: 8, big: true },
-  ornithopter:     { stride: 500, delay: 0, windup: 0, strike: 0, dirs: 8, attack: false, idleMs: 500 }, // 'walk'=flap loop, idle=hover bob; bombs are projectiles, no attack frames
-  skeleton:        { stride: 300, delay: 900, windup: 260, strike: 150, dirs: 8 }
+  goblinplunderer: { stride: 240, delay: 700, windup: 260, strike: 140, dirs: 8, idleMs: 2000 }, // promoted design A
+  clockworkbeetle: { stride: 240, delay: 500, windup: 500, strike: 0, dirs: 8, idleMs: 2000 }, // promoted design B
+  physicianscart:  { stride: 500, delay: 6000, windup: 1400, strike: 420, dirs: 8, big: true, idleMs: 2000 }, // promoted design B
+  siegetower:      { stride: 700, delay: 0, windup: 0, strike: 0, dirs: 8, big: true,
+                     attackDriver: { key: 'parked01', values: [0.05, 0.2, 0.38, 0.56, 0.71, 0.83, 0.92, 1] },
+                     deactivated: true, idleMs: 2000 }, // promoted design C; driven attack frames = 700 ms ramp deployment
+  necromancer:     { stride: 480, delay: 1600, windup: 620, strike: 300, dirs: 1, idleMs: 2000 }, // promoted design B
+  trebuchet:       { stride: 600, delay: 4000, windup: 3570, strike: 430, dirs: 8, big: true, idleMs: 2000 }, // promoted design B
+  warelephant:     { stride: 1200, delay: 2000, windup: 620, strike: 240, dirs: 8, big: true, idleMs: 2000 }, // promoted design A
+  ornithopter:     { stride: 500, delay: 0, windup: 0, strike: 0, dirs: 8, attack: false, idleMs: 2000 }, // promoted design A; 'walk'=flap loop, idle=hover bob
+  skeleton:        { stride: 300, delay: 900, windup: 260, strike: 150, dirs: 8, idleMs: 2000 }, // promoted design C
 }
 const WALK_FRAMES = 6
 // Idle breath is the archetypal "subtle ambient" — doubled for smoothness
@@ -131,8 +141,16 @@ const BUILDING_STATES = {
     { fireAge: 300, recoil: 0.25 }, { fireAge: 480, recoil: 0 }
   ] },
   ballista: { fire: [
-    { fireAge: 0, tension: 0, bolt: false }, { fireAge: 150, tension: 0.35, bolt: false },
-    { fireAge: 320, tension: 0.7, bolt: true }, { fireAge: 520, tension: 1, bolt: true }
+    // Live contract: the bolt stays on the rail while the string winds from
+    // 0→1 over 400 ms, disappears at release, then the string snaps 1→0.
+    // The empty/relaxed pose persists until the level-specific reload timer.
+    { fireAge: 0, tension: 0, bolt: true },
+    { fireAge: 120, tension: 0.5, bolt: true },
+    { fireAge: 260, tension: 0.85, bolt: true },
+    { fireAge: 390, tension: 1, bolt: true },
+    { fireAge: 410, tension: 1, bolt: false },
+    { fireAge: 455, tension: 0.5, bolt: false },
+    { fireAge: 510, tension: 0, bolt: false }
   ] },
   xbow: { fire: [
     { fireAge: 0, tension: 1 }, { fireAge: 110, tension: 0.6 },
@@ -147,25 +165,6 @@ const BUILDING_STATES = {
     fire: [{ fireAge: 0 }, { fireAge: 120 }, { fireAge: 320 }]
   },
   prism: { fire: [{ fireAge: 0 }, { fireAge: 120 }, { fireAge: 240 }] },
-  // Frostfall (tournament designs A/B/C): the fire tick STARTS a ~4200 ms
-  // preparation (A awaken 0-800/growth 500-3800/arming 3800-4200; B churn
-  // 0-800/growth+tremble 800-4200; C dock 0-900/pylon ignitions at
-  // 650/1300/1950/2600/tremble 3300-3900/breach 3900-4200), the projectile
-  // spawns at EXACTLY 4200 (projectileActive true through the ~600 ms
-  // flight), and the settle/abort tail runs to ~4900. Union keyframes,
-  // denser around the launch instant; the active/inactive frames overlap in
-  // age, so the runtime picker branches on ov.projectileActive (SpriteBank).
-  // Window = 4850 + 180 ≈ 5030 ms — continuous fire (fireRate 5000..4400)
-  // resets lastFireTime each shot, so late settle frames only show after
-  // the final shot of a battle.
-  frostfall: { fire: [
-    // preparation — the shard grows on the building, nothing launched yet
-    ...[0, 500, 1100, 1800, 2500, 3200, 3700, 4000, 4150].map(a => ({ fireAge: a, projectileActive: false })),
-    // launch — shard ABSENT (in flight): geyser burst / frost ring / spray
-    ...[4230, 4360, 4520, 4700].map(a => ({ fireAge: a, projectileActive: true })),
-    // abort/settle — flag clear past 4200: A's sink-back + post-impact regrow
-    ...[4400, 4850].map(a => ({ fireAge: a, projectileActive: false }))
-  ] },
   dragons_breath: { fire: [0, 150, 350, 700, 1100, 1600].map(a => ({ fireAge: a })) },
   // Spike launcher: the loader's 3000 ms reload pantomime (walk to arm tip,
   // throw the ball into the sling, winch back) was cut at 600 ms.
@@ -279,7 +278,6 @@ try {
           teslaCharging: ov.chargeAge != null,
           teslaChargeStart: ov.chargeAge != null ? TIME - ov.chargeAge : 0,
           teslaCharged: ov.charged === true,
-          frostfallProjectileActive: ov.projectileActive === true,
           fillLevel: ov.fillLevel ?? 1,
           doorOpen: ov.doorOpen ?? 0
         }
@@ -461,7 +459,7 @@ try {
       ballistaAngle: 0.4, ballistaTargetAngle: 0.4, idleTargetAngle: 0.4,
       ballistaStringTension: 0, ballistaBoltLoaded: true, cannonRecoilOffset: 0,
       isFiring: false, lastFireTime: 500, teslaCharging: false, teslaChargeStart: 0,
-      teslaCharged: false, frostfallProjectileActive: false, fillLevel: 1,
+      teslaCharged: false, fillLevel: 1,
       doorOpen: 0, crewedUntil: 0
     }
     const proxy = new Proxy(base, { get: (t, k) => { if (typeof k === 'string') reads.add(k); return t[k] } })
@@ -495,7 +493,7 @@ try {
   const OV_FIELD = {
     fireAge: 'lastFireTime', tension: 'ballistaStringTension', bolt: 'ballistaBoltLoaded',
     recoil: 'cannonRecoilOffset', chargeAge: 'teslaCharging', charged: 'teslaCharged',
-    projectileActive: 'frostfallProjectileActive', fillLevel: 'fillLevel',
+    fillLevel: 'fillLevel',
     doorOpen: 'doorOpen', jukeboxPlaying: null, timeAt: null
   }
   // Fields that are deliberately NOT swept (identity, sim bookkeeping, or
@@ -548,7 +546,6 @@ try {
     if (reads.includes('doorOpen') && !plan.door) plan.door = [{ doorOpen: 0.5 }, { doorOpen: 1 }]
     if (reads.includes('fillLevel') && !plan.fill) plan.fill = [{ fillLevel: 0 }, { fillLevel: 0.34 }, { fillLevel: 0.67 }]
     if (reads.includes('lastFireTime') && !plan.fire) plan.fire = [0, 90, 200, 380, 600].map(a => ({ fireAge: a }))
-    if (reads.includes('frostfallProjectileActive') && !plan.fire) plan.fire = [{ fireAge: 0, projectileActive: true }, { fireAge: 600, projectileActive: false }]
     const covered = new Set([
       ...(nAngles > 1 ? ['ballistaAngle'] : []),
       ...Object.values(plan).flatMap(seq => seq.flatMap(ov => Object.keys(ov).map(k => OV_FIELD[k]).filter(Boolean)))
@@ -730,12 +727,23 @@ try {
       return { body, ground }
     }, type, level, w, h, CELL)
 
-    for (const info of roster) {
-      if (info.route === 'generic') continue
+    let wreckRoster = roster.filter(info => info.route !== 'generic')
+    if (WRECK_UNITS.length > 0 && !(WRECK_UNITS.length === 1 && WRECK_UNITS[0] === 'all')) {
+      wreckRoster = WRECK_UNITS.map(type => {
+        const info = roster.find(candidate => candidate.type === type)
+        if (!info) throw new Error(`WRECK_UNITS contains unknown building type '${type}'`)
+        if (info.route === 'generic') throw new Error(`WRECK_UNITS type '${type}' has no authored building visual route`)
+        return info
+      })
+    }
+    for (const info of wreckRoster) {
       const dir = join(OUT_ROOT, 'wrecks', info.type)
       mkdirSync(dir, { recursive: true })
       const man = { cellWorldPx: CELL, levels: {} }
       const levels = LEVELS ?? Array.from({ length: info.maxLevel }, (_, i) => i + 1)
+      if (levels.length === 0 || levels.some(level => !Number.isInteger(level) || level < 1 || level > info.maxLevel)) {
+        throw new Error(`Invalid LEVELS for wreck ${info.type}; expected integers in L1..L${info.maxLevel}`)
+      }
       for (const level of levels) {
         const res = await bakeWreck(info.type, level, info.width, info.height)
         const entry = {}
@@ -748,7 +756,7 @@ try {
         man.levels[level] = entry
       }
       writeFileSync(join(dir, 'manifest.json'), JSON.stringify(man, null, 2))
-      console.log(`baked wreck ${info.type}: L1..L${levels[levels.length - 1]}`)
+      console.log(`baked wreck ${info.type}: ${levels.map(level => `L${level}`).join(',')}`)
     }
   }
 
@@ -959,9 +967,10 @@ try {
     async (type, level, owner, params, frames, dirs, cell) => {
       const B = window.__clashBake
       const scene = B.scene
-      const big = params.big || type === 'golem' || type === 'icegolem'
-      const minX = big ? -56 : -32, maxX = big ? 56 : 32
-      const minY = big ? -66 : -38, maxY = big ? 28 : 20
+      const huge = params.huge === true
+      const big = huge || params.big || type === 'golem' || type === 'icegolem'
+      const minX = huge ? -92 : big ? -56 : -32, maxX = huge ? 92 : big ? 56 : 32
+      const minY = huge ? -108 : big ? -66 : -38, maxY = huge ? 42 : big ? 28 : 20
       const W = maxX - minX, H = maxY - minY
       const rt = scene.make.renderTexture({ x: 0, y: 0, width: W, height: H }, false)
       const out = []
@@ -980,8 +989,8 @@ try {
             B.TroopRenderer.drawTroopVisual(
               g, type, owner, facing, f.isMoving,
               f.slamOffset ?? 0, f.mortarRecoil ?? 0,
-              f.deactivated === true, f.phalanxSpearOffset ?? 0,
-              level, f.time, f.attackAge, params.delay
+              f.parked01 ?? (f.deactivated === true), f.phalanxSpearOffset ?? 0,
+              level, f.time, f.attackAge, params.delay, f.tankSpin01 ?? 0
             )
           } finally {
             if (Array.isArray(scene.troops)) {
@@ -1042,6 +1051,8 @@ try {
               ...(f.slamOffset != null ? { slamOffset: f.slamOffset } : {}),
               ...(f.phalanxSpearOffset != null ? { phalanxSpearOffset: f.phalanxSpearOffset } : {}),
               ...(f.mortarRecoil != null ? { mortarRecoil: f.mortarRecoil } : {}),
+              ...(f.parked01 != null ? { parked01: f.parked01 } : {}),
+              ...(f.tankSpin01 != null ? { tankSpin01: f.tankSpin01 } : {}),
               ...(f.deactivated ? { deactivated: true } : {})
             }
           })
@@ -1175,7 +1186,6 @@ try {
       projRot('mortar_shell', 'drawMortarShell', [1, 2, 3, 4], 16),
       projRot('ballista_bolt', 'drawBallistaBolt', [1, 2, 3], 16),
       projRot('xbow_bolt', 'drawXbowBolt', [1, 2, 3], 16),
-      projRot('frostfall_shard', 'drawFrostfallShard', [1, 2, 3], 16),
       projRot('dragon_rocket', 'drawDragonRocket', [1, 2], 16),
       projRot('spike_ball', 'drawSpikeBall', [1, 2, 3, 4], 16),
       // 2026-07 troop overhaul projectiles: the trebuchet boulder tumbles
@@ -1185,6 +1195,37 @@ try {
       projRot('trebuchet_stone', 'drawTrebuchetStone', [1, 2, 3], 16),
       projRot('ornithopter_bomb', 'drawOrnithopterBomb', [1], 1)
     ])
+    const deathUnits = [
+      ['golem', 16],
+      ['icegolem', 16],
+      ['davincitank', 8],
+      ['siegetower', 8],
+      ['trebuchet', 8],
+      ['warelephant', 8]
+    ]
+    const deathFigureUnits = () => Object.fromEntries(deathUnits.map(([unit, dirs]) => [unit, {
+      kind: 'troop_deaths',
+      // Collapse pieces travel well outside the standing silhouette. Capture
+      // generously, then the standard tight alpha-crop keeps every frame lean.
+      box: { minX: -96, maxX: 96, minY: -96, maxY: 64 },
+      variants: Object.fromEntries([1, 2, 3].flatMap(level =>
+        ['PLAYER', 'ENEMY'].flatMap(owner =>
+          Array.from({ length: dirs }, (_, dir) =>
+            (unit === 'siegetower' ? ['rolling', 'parked'] : [null]).map(siegePose => {
+              const facing = (dir / dirs) * Math.PI * 2
+              const tag = owner === 'PLAYER' ? 'P' : 'E'
+              const poseTag = siegePose ? `_${siegePose}` : ''
+              return [`l${level}_${tag}_d${String(dir).padStart(2, '0')}${poseTag}`, {
+                args: { deathType: unit, owner, level, facing, ...(siegePose ? { siegePose } : {}) },
+                states: {
+                  death: seq(8, 0, (_, k) => ({ deathPhase: k / 8 })),
+                  remnant: seq(1, 0, () => ({ deathPhase: 1 }))
+                }
+              }]
+            })
+          ).flat()
+        )))
+    }]))
     const VILLAGER_ROLES = ['peasant', 'builder', 'miner', 'farmer']
     const villagerStates = (role, elder, child) => {
       const base = { role, elder: elder || undefined, child: child || undefined }
@@ -1317,7 +1358,12 @@ try {
       // Directional shapes bake 16 rotation variants (CoC-style, same as the
       // turrets); runtime picks the nearest angle instead of rotating the
       // sprite. Radially symmetric shells bake one. Levels bake per material.
-      ...projectileUnits()
+      ...projectileUnits(),
+
+      // ---- large troop collapse/remnants (kind 'troop_deaths') ----
+      // Figure-style manifests give us variant + named-state selection while
+      // keeping terminal art independent from unresolved A/B/C body atlases.
+      ...deathFigureUnits()
     }
     // Caravan soldiers cloak in each troop's palette — one variant per type.
     FIGURE_UNITS.caravan_soldier.variants = Object.fromEntries(
@@ -1335,7 +1381,9 @@ try {
         const out = []
         for (const a of jobs) {
           const g = scene.make.graphics({ x: 0, y: 0 }, false)
-          if (a.proj) {
+          if (a.deathType) {
+            B.TroopDeathRenderer.draw(g, a.deathType, a.owner, a.level, a.facing, a.deathPhase, a.siegePose)
+          } else if (a.proj) {
             // Rigid projectile: draw unrotated at (0,0), rotate the GRAPHICS
             // to the variant angle — the quantizer sees the final pose.
             g.setRotation(a.rot ?? 0)
@@ -1437,10 +1485,12 @@ try {
     for (const unit of figureList) {
       const plan = FIGURE_UNITS[unit]
       if (!plan) { console.warn(`skip figure ${unit}: no plan`); continue }
-      const dir = join(OUT_ROOT, plan.kind ?? 'villagers', unit)
+      const outputUnit = unit
+      const dir = join(OUT_ROOT, plan.kind ?? 'villagers', outputUnit)
       mkdirSync(dir, { recursive: true })
-      const man = { cellWorldPx: CELL, unit, variants: {} }
+      const man = { cellWorldPx: CELL, unit: outputUnit, variants: {} }
       let total = 0
+      const reviewFrames = []
       for (const [vKey, variant] of Object.entries(plan.variants)) {
         const jobs = []
         const index = []
@@ -1462,11 +1512,15 @@ try {
           write64(join(dir, name), f.png)
           vEntry.states[ix.sName] = vEntry.states[ix.sName] ?? { loopMs: ix.loopMs, frames: [] }
           vEntry.states[ix.sName].frames.push({ file: name, ...f.meta })
+          if (plan.kind === 'troop_deaths' && /^l3_P_d00(?:_|$)/.test(vKey)) reviewFrames.push(f.png)
           total++
         })
         man.variants[vKey] = vEntry
       }
       writeFileSync(join(dir, 'manifest.json'), JSON.stringify(man, null, 2))
+      if (reviewFrames.length > 0) {
+        write64(join(SHOTS, `bake-sheet-troop-death-${outputUnit}-L3.png`), await sheetFrom(reviewFrames))
+      }
       console.log(`baked figure ${unit}: ${Object.keys(plan.variants).length} variants · ${total} frames`)
     }
   }

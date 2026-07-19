@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import '../faction-training.spec'
+import '../legacy-combat-adapter.spec'
 import { merchantOffersFor, placementCharge, upgradeCharge, worldDayIndex } from '../../src/game/config/Economy'
 import { engageAttack, prepareAttack } from '../attack-domain/domain'
 import { combatSnapshotHash } from '../attack-domain/simulation'

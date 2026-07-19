@@ -50,23 +50,34 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
     return () => clearInterval(interval);
   }, [userId, isOnline]);
 
-  // Open FIRST, fetch after: waiting on a slow network before showing the
-  // dropdown makes the bell feel dead. The list refreshes in place, and the
-  // badge re-anchors from the fresh list.
+  // Open FIRST, fetch and mark-read together: waiting on a slow network before
+  // showing the dropdown makes the bell feel dead. If the read write fails,
+  // the freshly fetched list restores the honest unread badge and keeps the
+  // manual retry available.
   const handleOpen = () => {
     if (!isOnline) return;
     setIsOpen(true);
     setIsLoading(true);
     void (async () => {
-      try {
-        const notifs = await Backend.getNotifications(userId);
-        setNotifications(notifs);
-        setUnreadCount(notifs.filter(n => !n.read).length);
-      } catch {
-        // Network blip: stay open with whatever we already have.
-      } finally {
-        setIsLoading(false);
+      const [listResult, readResult] = await Promise.allSettled([
+        Backend.getNotifications(userId),
+        Backend.markNotificationsRead(userId),
+      ]);
+
+      if (listResult.status === 'fulfilled') {
+        const notifs = listResult.value;
+        setNotifications(readResult.status === 'fulfilled'
+          ? notifs.map(n => ({ ...n, read: true }))
+          : notifs);
+        setUnreadCount(readResult.status === 'fulfilled'
+          ? 0
+          : notifs.filter(n => !n.read).length);
+      } else if (readResult.status === 'fulfilled') {
+        // The server accepted the read even if the list refresh failed.
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setUnreadCount(0);
       }
+      setIsLoading(false);
     })();
   };
 

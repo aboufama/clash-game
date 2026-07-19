@@ -3217,40 +3217,40 @@
             [
               {
                 "file": "ballista_L1_fire0_a00.png",
-                "texelW": 57,
+                "texelW": 63,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.4156378600823044,
                 "originY": 0.8684003152088258,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire1_a00.png",
-                "texelW": 57,
+                "texelW": 63,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.4156378600823044,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire2_a00.png",
-                "texelW": 62,
+                "texelW": 60,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.42234169653524484,
+                "originX": 0.43641975308641967,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3262,49 +3262,88 @@
                 "originX": 0.4593892137751786,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L1_fire0_a01.png",
-                "texelW": 59,
+                "texelW": 62,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4777150031387317,
+                "originX": 0.45459976105137373,
                 "originY": 0.8561584840654606,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire1_a01.png",
+                "texelW": 62,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.45459976105137373,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire2_a01.png",
                 "texelW": 59,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
-                }
-              },
-              {
-                "file": "ballista_L1_fire2_a01.png",
-                "texelW": 61,
-                "texelH": 43,
-                "cellWorldPx": 1.35,
-                "originX": 0.46205221615057657,
-                "originY": 0.8561584840654606,
-                "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3316,9 +3355,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3333,7 +3411,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3344,9 +3422,9 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3357,8 +3435,8 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3370,9 +3448,48 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3387,7 +3504,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3398,9 +3515,9 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3411,8 +3528,8 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3424,9 +3541,48 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3441,7 +3597,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3452,9 +3608,9 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3465,8 +3621,8 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3478,9 +3634,48 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3495,7 +3690,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3506,9 +3701,9 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3519,8 +3714,8 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3532,9 +3727,48 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3549,7 +3783,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3560,9 +3794,9 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3573,8 +3807,8 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3586,49 +3820,88 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L1_fire0_a07.png",
-                "texelW": 57,
+                "texelW": 65,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5259259259259257,
                 "originY": 0.8561584840654606,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire1_a07.png",
-                "texelW": 57,
+                "texelW": 65,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5259259259259257,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire2_a07.png",
-                "texelW": 63,
+                "texelW": 61,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.5108759553203995,
+                "originX": 0.4948391013964784,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3640,49 +3913,88 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L1_fire0_a08.png",
-                "texelW": 57,
+                "texelW": 68,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5468409586056643,
                 "originY": 0.8684003152088258,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire1_a08.png",
-                "texelW": 54,
+                "texelW": 68,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4293552812071328,
+                "originX": 0.5468409586056643,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire2_a08.png",
-                "texelW": 66,
+                "texelW": 64,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.5331088664421997,
+                "originX": 0.5185185185185183,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3694,49 +4006,88 @@
                 "originX": 0.4948391013964784,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a08.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a08.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a08.png",
+                "texelW": 54,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4293552812071328,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L1_fire0_a09.png",
-                "texelW": 57,
+                "texelW": 64,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5185185185185183,
                 "originY": 0.8737717309145877,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire1_a09.png",
-                "texelW": 57,
+                "texelW": 64,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5185185185185183,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire2_a09.png",
-                "texelW": 63,
+                "texelW": 61,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.5108759553203995,
+                "originX": 0.4948391013964784,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3748,9 +4099,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3765,7 +4155,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3776,9 +4166,9 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3789,8 +4179,8 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3802,9 +4192,48 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3819,7 +4248,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3830,9 +4259,9 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3843,8 +4272,8 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3856,9 +4285,48 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3866,39 +4334,39 @@
               {
                 "file": "ballista_L1_fire0_a12.png",
                 "texelW": 58,
-                "texelH": 42,
+                "texelH": 46,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8527336860670193,
+                "originY": 0.8655394524959737,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire1_a12.png",
                 "texelW": 58,
-                "texelH": 42,
+                "texelH": 46,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8527336860670193,
+                "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire2_a12.png",
                 "texelW": 58,
-                "texelH": 45,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8625514403292176,
+                "originY": 0.8594276094276091,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3910,9 +4378,48 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8527336860670193,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3927,7 +4434,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3938,9 +4445,9 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -3951,8 +4458,8 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -3964,9 +4471,48 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -3981,7 +4527,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -3992,9 +4538,9 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -4005,8 +4551,8 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -4018,49 +4564,88 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L1_fire0_a15.png",
-                "texelW": 59,
+                "texelW": 62,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4777150031387317,
+                "originX": 0.45459976105137373,
                 "originY": 0.8737717309145877,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L1_fire1_a15.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.45459976105137373,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire2_a15.png",
                 "texelW": 59,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
-                }
-              },
-              {
-                "file": "ballista_L1_fire2_a15.png",
-                "texelW": 60,
-                "texelH": 49,
-                "cellWorldPx": 1.35,
-                "originX": 0.4697530864197529,
-                "originY": 0.8737717309145877,
-                "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -4072,9 +4657,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L1_fire4_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire5_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L1_fire6_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ]
@@ -7305,40 +7929,40 @@
             [
               {
                 "file": "ballista_L2_fire0_a00.png",
-                "texelW": 57,
+                "texelW": 63,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.4156378600823044,
                 "originY": 0.8684003152088258,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire1_a00.png",
-                "texelW": 57,
+                "texelW": 63,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.4156378600823044,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire2_a00.png",
-                "texelW": 62,
+                "texelW": 60,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.42234169653524484,
+                "originX": 0.43641975308641967,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7350,49 +7974,88 @@
                 "originX": 0.4593892137751786,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L2_fire0_a01.png",
-                "texelW": 59,
+                "texelW": 62,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4777150031387317,
+                "originX": 0.45459976105137373,
                 "originY": 0.8561584840654606,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire1_a01.png",
+                "texelW": 62,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.45459976105137373,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire2_a01.png",
                 "texelW": 59,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
-                }
-              },
-              {
-                "file": "ballista_L2_fire2_a01.png",
-                "texelW": 61,
-                "texelH": 43,
-                "cellWorldPx": 1.35,
-                "originX": 0.46205221615057657,
-                "originY": 0.8561584840654606,
-                "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7404,9 +8067,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7421,7 +8123,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -7432,9 +8134,9 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -7445,8 +8147,8 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7458,9 +8160,48 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7475,7 +8216,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -7486,9 +8227,9 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -7499,8 +8240,8 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7512,9 +8253,48 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7529,7 +8309,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -7540,9 +8320,9 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -7553,8 +8333,8 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7566,9 +8346,48 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7583,7 +8402,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -7594,9 +8413,9 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -7607,8 +8426,8 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7620,9 +8439,48 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7637,7 +8495,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -7648,9 +8506,9 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -7661,8 +8519,8 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7674,49 +8532,88 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L2_fire0_a07.png",
-                "texelW": 57,
+                "texelW": 65,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5259259259259257,
                 "originY": 0.8561584840654606,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire1_a07.png",
-                "texelW": 57,
+                "texelW": 65,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5259259259259257,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire2_a07.png",
-                "texelW": 63,
+                "texelW": 61,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.5108759553203995,
+                "originX": 0.4948391013964784,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7728,49 +8625,88 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L2_fire0_a08.png",
-                "texelW": 57,
+                "texelW": 68,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5468409586056643,
                 "originY": 0.8684003152088258,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire1_a08.png",
-                "texelW": 54,
+                "texelW": 68,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4293552812071328,
+                "originX": 0.5468409586056643,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire2_a08.png",
-                "texelW": 66,
+                "texelW": 64,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.5331088664421997,
+                "originX": 0.5185185185185183,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7782,49 +8718,88 @@
                 "originX": 0.4948391013964784,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a08.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a08.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a08.png",
+                "texelW": 54,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4293552812071328,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L2_fire0_a09.png",
-                "texelW": 57,
+                "texelW": 64,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5185185185185183,
                 "originY": 0.8737717309145877,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire1_a09.png",
-                "texelW": 57,
+                "texelW": 64,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5185185185185183,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire2_a09.png",
-                "texelW": 63,
+                "texelW": 61,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.5108759553203995,
+                "originX": 0.4948391013964784,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7836,9 +8811,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7853,7 +8867,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -7864,9 +8878,9 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -7877,8 +8891,8 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7890,9 +8904,48 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7907,7 +8960,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -7918,9 +8971,9 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -7931,8 +8984,8 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7944,9 +8997,48 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -7954,39 +9046,39 @@
               {
                 "file": "ballista_L2_fire0_a12.png",
                 "texelW": 58,
-                "texelH": 42,
+                "texelH": 46,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8527336860670193,
+                "originY": 0.8655394524959737,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire1_a12.png",
                 "texelW": 58,
-                "texelH": 42,
+                "texelH": 46,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8527336860670193,
+                "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire2_a12.png",
                 "texelW": 58,
-                "texelH": 45,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8625514403292176,
+                "originY": 0.8594276094276091,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -7998,9 +9090,48 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8527336860670193,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -8015,7 +9146,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -8026,9 +9157,9 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -8039,8 +9170,8 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -8052,9 +9183,48 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -8069,7 +9239,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -8080,9 +9250,9 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -8093,8 +9263,8 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -8106,49 +9276,88 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L2_fire0_a15.png",
-                "texelW": 59,
+                "texelW": 62,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4777150031387317,
+                "originX": 0.45459976105137373,
                 "originY": 0.8737717309145877,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L2_fire1_a15.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.45459976105137373,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire2_a15.png",
                 "texelW": 59,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
-                }
-              },
-              {
-                "file": "ballista_L2_fire2_a15.png",
-                "texelW": 60,
-                "texelH": 49,
-                "cellWorldPx": 1.35,
-                "originX": 0.4697530864197529,
-                "originY": 0.8737717309145877,
-                "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -8160,9 +9369,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L2_fire4_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire5_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L2_fire6_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ]
@@ -11393,40 +12641,40 @@
             [
               {
                 "file": "ballista_L3_fire0_a00.png",
-                "texelW": 57,
+                "texelW": 63,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.4156378600823044,
                 "originY": 0.8684003152088258,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire1_a00.png",
-                "texelW": 57,
+                "texelW": 63,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.4156378600823044,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire2_a00.png",
-                "texelW": 62,
+                "texelW": 60,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.42234169653524484,
+                "originX": 0.43641975308641967,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11438,49 +12686,88 @@
                 "originX": 0.4593892137751786,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a00.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L3_fire0_a01.png",
-                "texelW": 59,
+                "texelW": 62,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4777150031387317,
+                "originX": 0.45459976105137373,
                 "originY": 0.8561584840654606,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire1_a01.png",
+                "texelW": 62,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.45459976105137373,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire2_a01.png",
                 "texelW": 59,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
-                }
-              },
-              {
-                "file": "ballista_L3_fire2_a01.png",
-                "texelW": 61,
-                "texelH": 43,
-                "cellWorldPx": 1.35,
-                "originX": 0.46205221615057657,
-                "originY": 0.8561584840654606,
-                "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11492,9 +12779,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a01.png",
+                "texelW": 59,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -11509,7 +12835,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -11520,9 +12846,9 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -11533,8 +12859,8 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11546,9 +12872,48 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a02.png",
+                "texelW": 56,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -11563,7 +12928,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -11574,9 +12939,9 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -11587,8 +12952,8 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11600,9 +12965,48 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a03.png",
+                "texelW": 52,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -11617,7 +13021,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -11628,9 +13032,9 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -11641,8 +13045,8 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11654,9 +13058,48 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a04.png",
+                "texelW": 58,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -11671,7 +13114,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -11682,9 +13125,9 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -11695,8 +13138,8 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11708,9 +13151,48 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8414055080721743,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a05.png",
+                "texelW": 63,
+                "texelH": 39,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8414055080721743,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -11725,7 +13207,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -11736,9 +13218,9 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -11749,8 +13231,8 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11762,49 +13244,88 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8372319688109159,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a06.png",
+                "texelW": 62,
+                "texelH": 38,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8372319688109159,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L3_fire0_a07.png",
-                "texelW": 57,
+                "texelW": 65,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5259259259259257,
                 "originY": 0.8561584840654606,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire1_a07.png",
-                "texelW": 57,
+                "texelW": 65,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5259259259259257,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire2_a07.png",
-                "texelW": 63,
+                "texelW": 61,
                 "texelH": 43,
                 "cellWorldPx": 1.35,
-                "originX": 0.5108759553203995,
+                "originX": 0.4948391013964784,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11816,49 +13337,88 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8561584840654606,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a07.png",
+                "texelW": 57,
+                "texelH": 43,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8561584840654606,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L3_fire0_a08.png",
-                "texelW": 57,
+                "texelW": 68,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5468409586056643,
                 "originY": 0.8684003152088258,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire1_a08.png",
-                "texelW": 54,
+                "texelW": 68,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.4293552812071328,
+                "originX": 0.5468409586056643,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire2_a08.png",
-                "texelW": 66,
+                "texelW": 64,
                 "texelH": 47,
                 "cellWorldPx": 1.35,
-                "originX": 0.5331088664421997,
+                "originX": 0.5185185185185183,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11870,49 +13430,88 @@
                 "originX": 0.4948391013964784,
                 "originY": 0.8684003152088258,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a08.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a08.png",
+                "texelW": 57,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a08.png",
+                "texelW": 54,
+                "texelH": 47,
+                "cellWorldPx": 1.35,
+                "originX": 0.4293552812071328,
+                "originY": 0.8684003152088258,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L3_fire0_a09.png",
-                "texelW": 57,
+                "texelW": 64,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5185185185185183,
                 "originY": 0.8737717309145877,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire1_a09.png",
-                "texelW": 57,
+                "texelW": 64,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4593892137751786,
+                "originX": 0.5185185185185183,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire2_a09.png",
-                "texelW": 63,
+                "texelW": 61,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.5108759553203995,
+                "originX": 0.4948391013964784,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11924,9 +13523,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a09.png",
+                "texelW": 57,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4593892137751786,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -11941,7 +13579,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -11952,9 +13590,9 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -11965,8 +13603,8 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -11978,9 +13616,48 @@
                 "originX": 0.5029868578255674,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a10.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.5029868578255674,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -11995,7 +13672,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -12006,9 +13683,9 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -12019,8 +13696,8 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -12032,9 +13709,48 @@
                 "originX": 0.5108759553203995,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a11.png",
+                "texelW": 63,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.5108759553203995,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -12042,39 +13758,39 @@
               {
                 "file": "ballista_L3_fire0_a12.png",
                 "texelW": 58,
-                "texelH": 42,
+                "texelH": 46,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8527336860670193,
+                "originY": 0.8655394524959737,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire1_a12.png",
                 "texelW": 58,
-                "texelH": 42,
+                "texelH": 46,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8527336860670193,
+                "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire2_a12.png",
                 "texelW": 58,
-                "texelH": 45,
+                "texelH": 44,
                 "cellWorldPx": 1.35,
                 "originX": 0.46871008939974435,
-                "originY": 0.8625514403292176,
+                "originY": 0.8594276094276091,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -12086,9 +13802,48 @@
                 "originX": 0.46871008939974435,
                 "originY": 0.8527336860670193,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a12.png",
+                "texelW": 58,
+                "texelH": 42,
+                "cellWorldPx": 1.35,
+                "originX": 0.46871008939974435,
+                "originY": 0.8527336860670193,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -12103,7 +13858,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -12114,9 +13869,9 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -12127,8 +13882,8 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -12140,9 +13895,48 @@
                 "originX": 0.38817663817663817,
                 "originY": 0.8655394524959737,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a13.png",
+                "texelW": 52,
+                "texelH": 46,
+                "cellWorldPx": 1.35,
+                "originX": 0.38817663817663817,
+                "originY": 0.8655394524959737,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
@@ -12157,7 +13951,7 @@
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
@@ -12168,9 +13962,9 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
                 }
               },
               {
@@ -12181,8 +13975,8 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -12194,49 +13988,88 @@
                 "originX": 0.4497354497354497,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a14.png",
+                "texelW": 56,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4497354497354497,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ],
             [
               {
                 "file": "ballista_L3_fire0_a15.png",
-                "texelW": 59,
+                "texelW": 62,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
-                "originX": 0.4777150031387317,
+                "originX": 0.45459976105137373,
                 "originY": 0.8737717309145877,
                 "ov": {
                   "fireAge": 0,
                   "tension": 0,
-                  "bolt": false
+                  "bolt": true
                 }
               },
               {
                 "file": "ballista_L3_fire1_a15.png",
+                "texelW": 62,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.45459976105137373,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 120,
+                  "tension": 0.5,
+                  "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire2_a15.png",
                 "texelW": 59,
                 "texelH": 49,
                 "cellWorldPx": 1.35,
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 150,
-                  "tension": 0.35,
-                  "bolt": false
-                }
-              },
-              {
-                "file": "ballista_L3_fire2_a15.png",
-                "texelW": 60,
-                "texelH": 49,
-                "cellWorldPx": 1.35,
-                "originX": 0.4697530864197529,
-                "originY": 0.8737717309145877,
-                "ov": {
-                  "fireAge": 320,
-                  "tension": 0.7,
+                  "fireAge": 260,
+                  "tension": 0.85,
                   "bolt": true
                 }
               },
@@ -12248,9 +14081,48 @@
                 "originX": 0.4777150031387317,
                 "originY": 0.8737717309145877,
                 "ov": {
-                  "fireAge": 520,
+                  "fireAge": 390,
                   "tension": 1,
                   "bolt": true
+                }
+              },
+              {
+                "file": "ballista_L3_fire4_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 410,
+                  "tension": 1,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire5_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 455,
+                  "tension": 0.5,
+                  "bolt": false
+                }
+              },
+              {
+                "file": "ballista_L3_fire6_a15.png",
+                "texelW": 59,
+                "texelH": 49,
+                "cellWorldPx": 1.35,
+                "originX": 0.4777150031387317,
+                "originY": 0.8737717309145877,
+                "ov": {
+                  "fireAge": 510,
+                  "tension": 0,
+                  "bolt": false
                 }
               }
             ]
@@ -12260,10 +14132,10 @@
       "ground": {
         "file": "ballista_L3_ground.png",
         "texelW": 50,
-        "texelH": 27,
+        "texelH": 28,
         "cellWorldPx": 1.35,
         "originX": 0.5037037037037037,
-        "originY": 0.4746227709190659
+        "originY": 0.4933862433862427
       }
     }
   }

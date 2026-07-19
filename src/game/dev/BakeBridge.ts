@@ -3,6 +3,7 @@ import { drawBuildingVisual } from '../renderers/BuildingVisualDispatcher';
 import { BUILDING_VISUAL_CATALOG } from '../renderers/BuildingVisualCatalog';
 import { BuildingRenderer } from '../renderers/BuildingRenderer';
 import { TroopRenderer } from '../renderers/TroopRenderer';
+import { TroopDeathRenderer } from '../renderers/TroopDeathRenderer';
 import { WreckRenderer } from '../renderers/WreckRenderer';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats } from '../config/GameDefinitions';
@@ -34,6 +35,7 @@ export function installBakeBridge(scene: Phaser.Scene) {
         drawBuildingVisual,
         BuildingRenderer,
         TroopRenderer,
+        TroopDeathRenderer,
         WreckRenderer,
         ObstacleRenderer,
         BUILDING_VISUAL_CATALOG,

@@ -141,52 +141,6 @@ export class ProjectileRenderer {
     }
 
     /**
-     * Frostfall crystal shard — diamond with faces, highlight and outline,
-     * sized by level (matches the renderer's rising crystal).
-     */
-    static drawFrostfallShard(g: Phaser.GameObjects.Graphics, level: number) {
-        const crystalHeight = level >= 3 ? 45 : (level === 2 ? 40 : 35);
-        const crystalWidth = level >= 3 ? 22 : (level === 2 ? 20 : 18);
-
-        // Simple diamond shape matching renderer
-        g.fillStyle(0xaaddff, 0.9);
-        g.beginPath();
-        g.moveTo(0, -crystalHeight * 0.5);
-        g.lineTo(crystalWidth * 0.5, 0);
-        g.lineTo(0, crystalHeight * 0.5);
-        g.lineTo(-crystalWidth * 0.5, 0);
-        g.closePath();
-        g.fillPath();
-
-        // Left face
-        g.fillStyle(0x77bbee, 0.5);
-        g.beginPath();
-        g.moveTo(0, -crystalHeight * 0.5);
-        g.lineTo(0, crystalHeight * 0.5);
-        g.lineTo(-crystalWidth * 0.5, 0);
-        g.closePath();
-        g.fillPath();
-
-        // Highlight
-        g.fillStyle(0xcceeFF, 0.4);
-        g.beginPath();
-        g.moveTo(0, -crystalHeight * 0.5);
-        g.lineTo(crystalWidth * 0.5, 0);
-        g.lineTo(crystalWidth * 0.15, -crystalHeight * 0.1);
-        g.closePath();
-        g.fillPath();
-
-        // Outline
-        g.lineStyle(1, 0x5599cc, 0.6);
-        g.strokePoints([
-            new Phaser.Math.Vector2(0, -crystalHeight * 0.5),
-            new Phaser.Math.Vector2(crystalWidth * 0.5, 0),
-            new Phaser.Math.Vector2(0, crystalHeight * 0.5),
-            new Phaser.Math.Vector2(-crystalWidth * 0.5, 0),
-        ], true, true);
-    }
-
-    /**
      * Dragon's Breath firecracker rocket, standing nose-up exactly as the
      * pod drawn in the silo (see BuildingRenderer.drawDragonsBreath). Clears
      * and redraws: MainScene calls this per frame while the rocket flies.

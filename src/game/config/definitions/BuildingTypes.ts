@@ -1,8 +1,10 @@
+import type { FactionBarracksType } from './TroopFactions';
+
 export type UtilityBuildingType = 'town_hall' | 'jukebox' | 'watchtower';
 
 export type ResourceBuildingType = 'mine' | 'farm' | 'storage';
 
-export type MilitaryBuildingType = 'barracks' | 'lab' | 'army_camp';
+export type MilitaryBuildingType = FactionBarracksType | 'lab' | 'army_camp';
 
 export type DefenseBuildingType =
     | 'cannon'
@@ -13,8 +15,7 @@ export type DefenseBuildingType =
     | 'wall'
     | 'prism'
     | 'dragons_breath'
-    | 'spike_launcher'
-    | 'frostfall';
+    | 'spike_launcher';
 
 export type BuildingType =
     | UtilityBuildingType

@@ -1,7 +1,7 @@
 import {
-  GENERATED_ONLY,
   TROOP_DEFINITIONS,
-  getTroopUnlockLevel,
+  isTrainableTroopType,
+  troopTrainingRequirement,
   troopFoodCostOf,
   type TroopType
 } from '../../src/game/config/GameDefinitions'
@@ -10,7 +10,8 @@ import {
   botNameFor,
   campCapacityOf,
   isWildernessPreserveAt,
-  maxBarracksLevel,
+  barracksLevelForTroop,
+  maxCompletedArmyCampLevel,
   merchantOffersFor,
   resourceCapacity,
   watchtowerSightOf,
@@ -53,6 +54,7 @@ import type {
   BotSettleRequest,
   BotStartRequest,
   MerchantTradeRequest,
+  MatchmakeRequest,
   ResourceMutationRequest,
   RuntimeAttackService,
   RuntimePrincipal,
@@ -643,7 +645,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
   async trainTroop(principal: RuntimePrincipal, body: ArmyMutationRequest) {
     const type = sanitizeId(body.type) as TroopType
     const definition = TROOP_DEFINITIONS[type]
-    if (!definition || GENERATED_ONLY.has(type)) throw new ApiError(404, 'Unknown troop type')
+    if (!definition || !isTrainableTroopType(type)) throw new ApiError(404, 'Unknown troop type')
     const count = clamp(toInteger(body.count, 1), 1, 50)
     const id = requestId(body.requestId)
     const now = this.clock()
@@ -656,8 +658,14 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
       await this.authority.materializeWithAudit(tx, state.village, now)
       const buildings = villageBuildings(state.village)
       const army = villageArmy(state.village)
-      if (maxBarracksLevel(buildings) < getTroopUnlockLevel(type)) {
-        throw new ApiError(403, `${definition.name} needs a level ${getTroopUnlockLevel(type)} barracks`)
+      const trainingRequirement = troopTrainingRequirement(type)
+      if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
+      if (trainingRequirement.kind === 'core') {
+        if (maxCompletedArmyCampLevel(buildings) < trainingRequirement.unlockLevel) {
+          throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+        }
+      } else if (barracksLevelForTroop(buildings, type) < trainingRequirement.unlockLevel) {
+        throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
       }
       if (armySpaceUsed(army) + definition.space * count > campCapacityOf(buildings)) {
         throw new ApiError(409, 'Not enough housing space in the camps')
@@ -1136,7 +1144,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
     return this.attacks.startAttack(player, body, matchmade, rawToken)
   }
 
-  matchmake(player: RuntimePrincipal, body: { requestId?: unknown } = {}, rawToken?: unknown) {
+  matchmake(player: RuntimePrincipal, body: MatchmakeRequest = {}, rawToken?: unknown) {
     return this.attacks.matchmake(player, body, rawToken)
   }
 

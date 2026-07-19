@@ -68,8 +68,7 @@ function harness(): {
             tesla: handler('tesla'),
             prism: handler('prism'),
             dragons_breath: handler('dragons_breath'),
-            spike_launcher: handler('spike_launcher'),
-            frostfall: handler('frostfall')
+            spike_launcher: handler('spike_launcher')
         },
         idle: {
             cleanupPrismLaser: source => prismCleanups.push(source.id)
@@ -86,7 +85,7 @@ function lastFire(fires: FireEvent[]): FireEvent {
 
 assert.deepEqual(
     Object.keys(DEFENSE_BEHAVIOR_CATALOG).sort(),
-    ['ballista', 'cannon', 'dragons_breath', 'frostfall', 'mortar', 'prism', 'spike_launcher', 'tesla', 'xbow'],
+    ['ballista', 'cannon', 'dragons_breath', 'mortar', 'prism', 'spike_launcher', 'tesla', 'xbow'],
     'every active defense must have an explicit behavior policy'
 );
 
@@ -136,20 +135,19 @@ assert.deepEqual(
     assert.equal(mortar.lockedTargetId, undefined);
 }
 
-// Ready-start defenses act on their first tick. Prism also tears down its
-// continuous visual when no legal target remains.
+// Prism acts on its first tick and tears down its continuous visual when no
+// legal target remains.
 {
     const { system, fires, prismCleanups } = harness();
-    const frostfall = defense('frostfall');
     const prism = defense('prism');
     const idlePrism = defense('prism', 'idle-prism');
     const target = troop('ready-target', 2, 0.5);
 
-    system.update(1_000, [frostfall, prism], [target]);
+    system.update(1_000, [prism], [target]);
     assert.deepEqual(
         fires.map(event => event.effect),
-        ['frostfall', 'prism'],
-        'ready-start defenses did not fire on their first tick'
+        ['prism'],
+        'prism did not fire on its first tick'
     );
 
     system.update(1_000, [idlePrism], []);

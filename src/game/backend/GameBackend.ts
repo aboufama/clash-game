@@ -129,6 +129,7 @@ export type ReplayTroopSnapshot = {
   owner: 'PLAYER' | 'ENEMY';
   gridX: number;
   gridY: number;
+  visualOffsetY?: number;
   health: number;
   maxHealth: number;
   facingAngle?: number;
@@ -188,6 +189,11 @@ export type StartedAttack = {
     y: number;
     plotVersion: number;
   };
+};
+
+export type MatchmakingOptions = {
+  /** Player base just skipped with NEXT; omitted for the initial search. */
+  excludeTargetId?: string;
 };
 
 export type AttackEndResult = {
@@ -252,7 +258,7 @@ type RememberedBattle =
     };
 
 type PendingBattleStart =
-  | { kind: 'pvp-start'; requestId: string; matchmade: boolean; targetId?: string }
+  | { kind: 'pvp-start'; requestId: string; matchmade: boolean; targetId?: string; excludeTargetId?: string }
   | { kind: 'bot-start'; requestId: string; x?: number; y?: number };
 
 type ServerActiveBattle =
@@ -454,6 +460,7 @@ function parsePendingBattleStart(value: unknown): PendingBattleStart | null {
     requestId?: unknown;
     matchmade?: unknown;
     targetId?: unknown;
+    excludeTargetId?: unknown;
     x?: unknown;
     y?: unknown;
   };
@@ -462,7 +469,10 @@ function parsePendingBattleStart(value: unknown): PendingBattleStart | null {
       kind: 'pvp-start',
       requestId: parsed.requestId,
       matchmade: Boolean(parsed.matchmade),
-      ...(typeof parsed.targetId === 'string' && parsed.targetId ? { targetId: parsed.targetId } : {})
+      ...(typeof parsed.targetId === 'string' && parsed.targetId ? { targetId: parsed.targetId } : {}),
+      ...(typeof parsed.excludeTargetId === 'string' && parsed.excludeTargetId
+        ? { excludeTargetId: parsed.excludeTargetId }
+        : {})
     };
   }
   if (parsed.kind === 'bot-start' && typeof parsed.requestId === 'string' && parsed.requestId) {
@@ -1827,6 +1837,7 @@ export class Backend {
         const path = pending.matchmade ? '/api/attacks/matchmake' : '/api/attacks/start';
         const result = await Backend.enqueueMutation(user.id, () => Backend.postWithRetry<StartedAttack>(path, {
           ...(!pending.matchmade ? { targetId: pending.targetId } : {}),
+          ...(pending.matchmade && pending.excludeTargetId ? { excludeTargetId: pending.excludeTargetId } : {}),
           requestId: pending.requestId
         }));
         if (!result?.attackId || !Array.isArray(result.world?.buildings)) {
@@ -2019,8 +2030,8 @@ export class Backend {
 
   // ---- attacks ----
 
-  /** Server picks a random opponent, snapshots their base and opens the attack. */
-  static async startMatchedAttack(): Promise<StartedAttack | null> {
+  /** Server picks an opponent, snapshots their base and opens the attack. */
+  static async startMatchedAttack(options: MatchmakingOptions = {}): Promise<StartedAttack | null> {
     if (!Auth.isOnlineMode()) return null;
     const user = Auth.getCurrentUser();
     if (!user) return null;
@@ -2029,10 +2040,21 @@ export class Backend {
     });
     if (readRememberedBattle(user.id) || readPendingBattleStart(user.id)) return null;
     const requestId = makeRequestId('matchmake');
-    rememberPendingBattleStart(user.id, { kind: 'pvp-start', requestId, matchmade: true });
+    const excludeTargetId = typeof options.excludeTargetId === 'string' && options.excludeTargetId
+      ? options.excludeTargetId
+      : undefined;
+    rememberPendingBattleStart(user.id, {
+      kind: 'pvp-start',
+      requestId,
+      matchmade: true,
+      ...(excludeTargetId ? { excludeTargetId } : {})
+    });
     try {
       return await Backend.enqueueMutation(user.id, async () => {
-        const result = await Backend.postWithRetry<StartedAttack>('/api/attacks/matchmake', { requestId });
+        const result = await Backend.postWithRetry<StartedAttack>('/api/attacks/matchmake', {
+          ...(excludeTargetId ? { excludeTargetId } : {}),
+          requestId
+        });
         if (!result?.attackId || !Array.isArray(result.world?.buildings)
           || !Number.isInteger(result.target?.x) || !Number.isInteger(result.target?.y)) {
           throw new Error('Matchmaking returned an invalid world');

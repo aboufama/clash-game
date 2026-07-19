@@ -93,7 +93,7 @@
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAABCklEQVR42u2WwQ2DMAxFMwojMAIjZASu3DICI2QELp3TVUD/4tayoRLElb/0D2kc81o7pin9qHVdqbnW+tXYT0+re9BSCjVz0G3bdnNQxAeopHmeqZkoHX4dBhD/HPEBqinnTM0AmaZpN9bYf/zWuwGVgLsDfBwUD+RjiI8ZLY5fImvc/4DyEvJEGpi2lvKcbpnuQTFWtEshfRGcl9bWfFjjvF9Q63iR4rRSXs3rF5SXXvrptRbR1ta85h7tDlQr3dkpsSzLbvPlEF4cHy3gBtQ6ls6Wytxz1jHlBvSqxnGkZg7EH4x9xN/+/7N7UAnQWvrbgN2ADsNAzRyYA0j7OB+goVAoFAqFXOoNKkL9Td/hwfcAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
-/* ICE GOLEM - Icy recolor of the golem silhouette (placeholder until the icy redesign ships its own icon) */
+/* ICE GOLEM - legacy network-fallback glyph; live troop UI uses the exact baked portrait */
 .icegolem-icon::before {
     content: '';
     position: absolute;
@@ -185,19 +185,6 @@
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAmCAYAAACoPemuAAAA40lEQVR42mNggAIrK5f/IMww2MCgc5iWltF/bHjUYYTAiyc3/oPwjStHwJhcc3a82fEfhIevw2CJ3ssrDIxh/BNHNoAxqebl78//D8Ijz2EwPrr6bC+V/yDcnWoCxgsqvMAYFx+mfvg7DF0e3UGwRE4Iw9QPH4fBClSYAwgVsDCL+m/2o+AzxsZgjC4+6jB0h8EchI6Hr8NwVeYDHpWD1mFSUgr/kTEhcVixge4AXJjsAnbQOoxSEGUn9x+EYQ6A8Qe8gTnoHIbuIPRKe8AcOGgdNprGRsEoGAWjYBSMglGAFQAA2GD1wzeMOrcAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
-
-/* QUARTERMASTER - Barrel-chested drummer, gold-laced war drum, both sticks raised, banner pole */
-.quartermaster-icon::before {
-    content: '';
-    position: absolute;
-    width: 30px;
-    height: 50px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAyCAYAAABLXmvvAAAA7ElEQVR42u2VsQrCMBBAs/sB3SvoGnAX8Tv8Av0PHfyJjroVXDq6ujs4FUfHLs4nVzjQwyPB1KaBe/CGkLSvhLYxpmM2ywmgzXnxofk30cPXIms1feEdftwOgIYGm3sJKIWdvWhh4nJcAypdsM9zQAtrv0rzUli8f7QwUVc7QF3zz/rUytfzsOt+8cN8a6UwBaSwdP1ww/wBSmu9DA4OLky/QmmcfpjgW8qDZOenTu9hCvCDXbKzczha2Pel4uN0w/xz8h2nG662I0BpK13S+nTDxGqWAfrrfDrh+XQM74auG35YURRFURRFCeYFBSXvC4ReAVkAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
-}
 
 /* SIEGE TOWER - Tall three-tier timber belfry, hide panels, raised drop-ramp at the crown, wheels */
 .siegetower-icon::before {
@@ -484,19 +471,6 @@
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAA2klEQVR42mNggIIbK/7/B2EGKoEbG63+g/CnSxkoGCbOMGgtrgu0+A/CXTEOWDFMHl0fzKKuLDkUDBPHsBjdATS3GN0BuU4GYEysxTD16EGMbiFGUKODAbP45CL1/6TgHRP1wJigwYTAgFkMCzotKQg+2fUfjGFpAMaHycPUk2wRLC4GzGJY0KFbPCtqHxjDLITxKbYYPW7pbjHdg3rQWowe1OjyQ9/iGAu1/yAMM5AQhqkfehZ76cj9B2GYQaRimP6hYzE60DMw+U8MZqA2GDCLR8EoGAWDHgAAOKMPhpqaw9AAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
 }
 
-/* FROSTFALL MONOLITH - Towering ice crystal on a frosted stone base */
-.frostfall-icon::before {
-    content: '';
-    position: absolute;
-    width: 22px;
-    height: 34px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAiCAYAAABbXymAAAAA10lEQVR42u2UIQvCQBiG9/vMJoNZBLvNYhD/gEWwGIyGdQ0LBqPIfoEsGQxiED75Dh/Dp4cT7tzCXnjC7e57Nl7GJUnJFFcRJQmd4OLN6SYKYtb1FS/yiyiH893Bmn15pnrxKCtEsVUgZr+0kC+ILvZV0V/njp+7DS7uzHeilK2C8/UR2yp4ThWtSeqoTsxBBhFTia2gOrG9XHwv8Am9l1NwMQPT2dKxSreObH/8CPvAHLwuqWjiwXAsihX7sCLAA/HEpN3tiWIPfIM5ePsroombNGnyxzwA72q//tPa6CIAAAAASUVORK5CYII=') 0 0 / 100% 100% no-repeat;
-}
-
 /* ORE MINE - Rock face with a timbered entrance and glinting ore */
 .mine-icon::before {
     content: '';
@@ -618,17 +592,30 @@
     background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACIAAAAiCAYAAAA6RwvCAAAA2ElEQVR42u2TQQrCMBBFcwjBtTcIuHVRkCJ0lQO4KIhd5x71aB7Bu4yT6lcZGdSqtCnz6VsMSSYPJnVOhIg/xg2dwUWoZIHyLkAHrpnWXTheQT1dEU1Ajgoip9mqA/X0RG4X7jaUePVo5aik2NejG42INprtck6Jhpca9/x4NRHsx/l8RbTRaCISKYLz+/WCEvmKyFTctHq4oFXAOvb//PceTCSEQIm6rjtijB19a/TLT6QoCkpIEa3GI313P/rnI4J47ykhxfrW6PfxGxmNiMVisVgslj/lDN5zYz+jmPooAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
-/* BARRACKS - Military training building with red roof, door, and crossed swords */
+/* MECHANICA BARRACKS - Slate drill hall with copper ridge, smokestack, furnace door, and exposed gear */
 .barracks-icon::before {
     content: '';
     position: absolute;
-    width: 26px;
-    height: 38px;
+    width: 30px;
+    height: 42px;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     image-rendering: pixelated;
-    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAmCAYAAADa8osYAAAA60lEQVR42u2UMQrCQBBFp06rIKQQjIUgCAFb0YCkD9YWaQx4ECsvYZvWE+QCNtbeZXQGf7MmGLbYTbEfXvGzs/MggRAZaZqGBbJM7/vOREhd1yygX4lYeI03CnrX/PBEWIRXAQHnpKDj3BT7F1Wfoeo7LNyTRMHCf2Ae97HPn+iaj1i4HVbK8zxVHped0rfjPvb5E532MxZMoW3HPn+i43rCgim07dg3PNF2MVeWcdQKzocnwgVTiOdxRK3g3BTguXtRlmUsFEWhlGWpdHX8cvrOY787EZKmKQum2LZj3883ciYKCQkJCQnxmDd9NyAiii69DgAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAqCAYAAACk2+sZAAAB50lEQVR42u3VT28SQRgGcL6Hl0r8U2hraEVB/pllWVpmd9ldcHdhWlrUSjGatAkkTZq0Fw8majQeNfHsV/DoybMXP8+470PeC0lDTGzZwz7J7/BuyDzDZGFSqSvO57fnE5K67vy34g9yQ5Hf7+rA8/znVrP3FNH0HZi8fvmFxL84X6gqYrZ9+DG5D3++9oBnvWlBbqsIDwoV8MMB/PM3vLbizPqmIuVaA9peD/zeAVhOAE6nD9vCA60hoFjWgIuF1YH4Fa+k7yrCR8UL8RFzMc9uV8JlxbxOZi0HvH58ijmvDqUi59MxfHwzhUXz6fEIxs8H0A8ktIQLZ+ZtiF+x9NuKHB/twcX0CHhD8/PpyQgOhxKCJzPCdKGmNeHT7jrEr9hqGYoMZQd4A2HHhtFBADyPn/Yh7Dpg2y7ohoBC6TF8H+fg0iNfWnGrqSkSegKe7XahtLYC6tvWzE8J/HwQuuDYJhhNAY8qGix8uZZWXC0XFRFROfFMA7I3b8Cv/TSo91ng59aODkajDtXazGa+BPEr5r+4Sk0H0/bAD/dAWB4EvQHsD1+AH0pomQ7wxc9F+YdlyEYXD4lPMefO6oYivJFS9GKQenQBkGL00yDzMxfMXw7pWxlYeB8vrThJkiRJkiRJkuTK8xcW+MSKUvDpZAAAAABJRU5ErkJggg==') 0 0 / 100% 100% no-repeat;
+}
+
+/* MYSTIC BARRACKS - Violet-roofed rune hall with floating cyan crystal, arcane door, spires, and tablet */
+.mystic_barracks-icon::before {
+    content: '';
+    position: absolute;
+    width: 26px;
+    height: 46px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    image-rendering: pixelated;
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAuCAYAAAA2oQl1AAACFklEQVR42u3U30tTYRzH8f0vXYR5oSlCc2240ZzH6XTZNmtuuulmc7rOsiFLxakj1qaMJISSiEVgmVBBP6Fbo4u6iu6Cugiigggq6iJ48nnH6UIp6mLHgvOB18Xzhef74XDgMZn+Mq+/CSGZqp2qFxXeCCE9/PJD6sk7/H9FwXvPhXTq1Vfc/SRw/Ol7uMr38e8WLWYfCWnrvOvihpDyLz7DPLmKP72/c0W+1hkhddomkPCVMTd6A+c/COSOriPWU4JiUaHd3/kiW0NUSF57GlpBLnEFS9kHqBQfozh+C+P9Kwh3zEOxJNFU64P+RfW73UJqaQzDaz+G+MEipuKXsJC5jZX8BvKpNah9ZxFsn0Jb8zDMdX7U7nJCvyIts9MFIS2fuYC1y9fxq/NqZR3l4jJyUwWoYycRDiXhdvmhf5E6mhXS/EwJ2sLZ6dPYel5aPIdsZg5jIxPo31wudXlCcDq6oX9RJDwipPTmZ0vaQsUWwcLkM9y5+hHa/IQ6jVhURcAfg9IWgM2iQP+inu4+IQ2EEkjE0misccDvKqL8VkCbRweSOOwfhLu9FzarG9tehqoXWS1tQnIrfgR7Y4gPqjgSGMLwUBqRsIrBgRQChyLoaA/AYfeg2dyK+rr90K/o55tXZxGSxexC6wEvvJ4gMvGbqJReQo1cg72lE+Z9TjTstWJPTRO2/SPdiowYMWLEiBEjRn6T7x9qVCVEPmFMAAAAAElFTkSuQmCC') 0 0 / 100% 100% no-repeat;
 }
 
 /* LAB - Alchemist's workshop with smokestack, bubbling flask, and purple glow */

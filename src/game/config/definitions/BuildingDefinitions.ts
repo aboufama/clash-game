@@ -16,6 +16,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDef> = {
     jukebox: UTILITY_BUILDING_DEFINITIONS.jukebox,
     storage: RESOURCE_BUILDING_DEFINITIONS.storage,
     barracks: MILITARY_BUILDING_DEFINITIONS.barracks,
+    mystic_barracks: MILITARY_BUILDING_DEFINITIONS.mystic_barracks,
     lab: MILITARY_BUILDING_DEFINITIONS.lab,
     cannon: DEFENSE_BUILDING_DEFINITIONS.cannon,
     ballista: DEFENSE_BUILDING_DEFINITIONS.ballista,
@@ -27,8 +28,7 @@ export const BUILDING_DEFINITIONS: Record<BuildingType, BuildingDef> = {
     prism: DEFENSE_BUILDING_DEFINITIONS.prism,
     dragons_breath: DEFENSE_BUILDING_DEFINITIONS.dragons_breath,
     spike_launcher: DEFENSE_BUILDING_DEFINITIONS.spike_launcher,
-    watchtower: UTILITY_BUILDING_DEFINITIONS.watchtower,
-    frostfall: DEFENSE_BUILDING_DEFINITIONS.frostfall
+    watchtower: UTILITY_BUILDING_DEFINITIONS.watchtower
 };
 
 // Stats are pure functions of (type, level) and are requested per entity per

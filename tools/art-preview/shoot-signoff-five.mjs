@@ -1,9 +1,7 @@
-// FINAL VISUAL SIGN-OFF harness for the five unreviewed tournament slots:
-//   clockworkbeetle A, necromancer A (+ skeleton A), quartermaster A,
-//   physicianscart C, trebuchet C.
+// Visual sign-off harness for the promoted canonical troops.
 // Montage phase: pinned-time frame series through window.__clashBake
 // (exact phases, nearest-upscaled). Scene phase: level rows day + night.
-// Shared identity only; designs selected pre-boot; sprites.off pre-boot.
+// Shared identity only; sprites.off is selected pre-boot.
 //
 //   BASE=http://127.0.0.1:5175 OUT=<dir> node shoot-signoff-five.mjs
 import puppeteer from 'puppeteer-core'
@@ -11,7 +9,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5175'
 const OUT = (process.env.OUT ?? new URL('./shots/signoff-five', import.meta.url).pathname).replace(/\/$/, '')
-for (const d of ['clockworkbeetle', 'necromancer', 'skeleton', 'quartermaster', 'physicianscart', 'trebuchet', 'scene']) {
+for (const d of ['clockworkbeetle', 'necromancer', 'skeleton', 'physicianscart', 'trebuchet', 'scene']) {
   mkdirSync(`${OUT}/${d}`, { recursive: true })
 }
 
@@ -31,12 +29,6 @@ try {
   await page.evaluateOnNewDocument(tok => {
     localStorage.setItem('clash.device.token', tok)
     localStorage.setItem('clash.sprites.off', '1')
-    localStorage.setItem('clash.design.clockworkbeetle', 'A')
-    localStorage.setItem('clash.design.necromancer', 'A')
-    localStorage.setItem('clash.design.skeleton', 'A')
-    localStorage.setItem('clash.design.quartermaster', 'A')
-    localStorage.setItem('clash.design.physicianscart', 'C')
-    localStorage.setItem('clash.design.trebuchet', 'C')
   }, token)
   page.on('pageerror', e => console.log('PAGE ERROR:', String(e.message).slice(0, 240)))
 
@@ -143,22 +135,6 @@ try {
   }
   console.log('skeleton montages done')
 
-  // ======================= QUARTERMASTER — A =======================
-  {
-    const B = [-20, 20, -30, 14], D = `${OUT}/quartermaster`
-    write64(`${D}/levels-idle.png`, await montage('quartermaster', LVLS.map(j => ({ ...j, time: 250 })), B, 6))
-    write64(`${D}/idle-2000ms-beats.png`, await montage('quartermaster',
-      [0, 65, 130, 250, 375, 500, 565, 750, 1000, 1250, 1500, 1750, 2000].map(time => ({ time })), B, 6, { level: 3 }))
-    write64(`${D}/walk-450ms.png`, await montage('quartermaster', span(0, 450, 6).map(time => ({ time, isMoving: true })), B, 6, { level: 3 }))
-    write64(`${D}/walk-lean-facings.png`, await montage('quartermaster',
-      [0, Math.PI / 2, Math.PI, -Math.PI / 2].map(facing => ({ facing, time: 112, isMoving: true })), B, 6, { level: 2 }))
-    write64(`${D}/closeup.png`, await montage('quartermaster', [
-      { level: 1, time: 250 }, { level: 2, time: 250 }, { level: 3, time: 250 },
-      { level: 3, time: 30 }, { level: 3, time: 530 }
-    ], B, 10))
-  }
-  console.log('quartermaster montages done')
-
   // ======================= PHYSICIAN'S CART — C =======================
   {
     const B = [-30, 30, -32, 16], D = `${OUT}/physicianscart`
@@ -209,8 +185,6 @@ try {
       ['skeleton', 12.7, 15, 'ENEMY', 2],
       ['necromancer', 16.5, 13.5, 'PLAYER', 1], ['necromancer', 18.2, 13.5, 'PLAYER', 2], ['necromancer', 19.9, 13.5, 'PLAYER', 3],
       ['necromancer', 17.3, 15.6, 'ENEMY', 2], ['warrior', 21.2, 13.5, 'PLAYER', 1],
-      ['quartermaster', 6, 18, 'PLAYER', 1], ['quartermaster', 8, 18, 'PLAYER', 2], ['quartermaster', 10, 18, 'PLAYER', 3],
-      ['quartermaster', 8, 19.8, 'ENEMY', 2], ['warrior', 11.8, 18, 'PLAYER', 1],
       ['physicianscart', 13.5, 18, 'PLAYER', 1], ['physicianscart', 16.5, 18, 'PLAYER', 2], ['physicianscart', 19.5, 18, 'PLAYER', 3],
       ['physicianscart', 16.5, 20.6, 'ENEMY', 2],
       ['trebuchet', 7, 22.5, 'PLAYER', 1], ['trebuchet', 11.5, 22.5, 'PLAYER', 2], ['trebuchet', 16, 22.5, 'PLAYER', 3],
@@ -241,7 +215,6 @@ try {
     ['beetle-row', 7.3, 14.2, 4.2, -4],
     ['skeleton-row', 12.6, 14.2, 4.2, -4],
     ['necro-row', 18.4, 14.4, 3.4, -6],
-    ['quartermaster-row', 8.4, 18.8, 3.6, -6],
     ['cart-row', 16.5, 19.2, 2.6, -6],
     ['trebuchet-row', 11.8, 23.8, 2.0, -10]
   ]

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BUILDING_DEFINITIONS, type BuildingType, getBuildingStats, BARRACKS_TROOP_UNLOCK_ORDER, TROOP_DEFINITIONS, getTroopLevelMultiplier, getTroopUnlockLevel, upgradeOreCostOf } from '../game/config/GameDefinitions';
+import { BUILDING_DEFINITIONS, CORE_TROOP_TYPES, TROOP_DEFINITIONS, TROOP_FACTION_META, TROOP_TECH_TREES, factionForBarracks, factionUnlocksAtLevel, type BuildingType, getBuildingStats, getCoreTroopUnlockLevel, getTroopLevelMultiplier, upgradeOreCostOf } from '../game/config/GameDefinitions';
 import { armySpaceUsed } from '../game/config/Economy';
 import { serverUpgradeDurationMs } from '../game/config/UpgradePolicy';
 import { gameManager } from '../game/GameManager';
@@ -278,13 +278,10 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, sp
                             </span>
                         </div>
                     )}
-                    {/* Two troops unlock per barracks level: derive each level's
-                        pair from getTroopUnlockLevel (never raw [level-1] indexing). */}
-                    {(() => {
-                        if (type !== 'barracks') return null;
-                        const unlockNames = (barracksLevel: number) => BARRACKS_TROOP_UNLOCK_ORDER
-                            .filter(troop => getTroopUnlockLevel(troop) === barracksLevel)
-                            .map(troop => TROOP_DEFINITIONS[troop]?.name ?? '—');
+                    {type === 'army_camp' && (() => {
+                        const unlockNames = (campLevel: number) => CORE_TROOP_TYPES
+                            .filter(troop => getCoreTroopUnlockLevel(troop) === campLevel)
+                            .map(troop => TROOP_DEFINITIONS[troop].name);
                         const current = unlockNames(level);
                         const next = isMaxLevel ? [] : unlockNames(level + 1);
                         return (
@@ -299,6 +296,50 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, sp
                                     <div className="stat-row">
                                         <span className="stat-label">Next</span>
                                         <span className="stat-value next">{next.join(' + ')}</span>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
+                    {/* Each Barracks advances only its own troop path. */}
+                    {(() => {
+                        const faction = factionForBarracks(type);
+                        if (!faction) return null;
+                        const unlockNames = (barracksLevel: number) => factionUnlocksAtLevel(faction, barracksLevel)
+                            .map(troop => TROOP_DEFINITIONS[troop]?.name ?? '—');
+                        const current = unlockNames(level);
+                        const next = isMaxLevel ? [] : unlockNames(level + 1);
+                        const treeCap = TROOP_TECH_TREES[faction].length;
+                        const atMastery = level > treeCap;
+                        const masteryNext = !isMaxLevel && level + 1 > treeCap;
+                        return (
+                            <>
+                                <div className="stat-row">
+                                    <span className="stat-label">Path</span>
+                                    <span className="stat-value">{TROOP_FACTION_META[faction].name}</span>
+                                </div>
+                                {current.length > 0 && (
+                                    <div className="stat-row">
+                                        <span className="stat-label">Unlocks</span>
+                                        <span className="stat-value">{current.join(' + ')}</span>
+                                    </div>
+                                )}
+                                {next.length > 0 && (
+                                    <div className="stat-row">
+                                        <span className="stat-label">Next</span>
+                                        <span className="stat-value next">{next.join(' + ')}</span>
+                                    </div>
+                                )}
+                                {masteryNext && (
+                                    <div className="stat-row">
+                                        <span className="stat-label">Next</span>
+                                        <span className="stat-value next">Mastery · Structural reinforcement</span>
+                                    </div>
+                                )}
+                                {atMastery && (
+                                    <div className="stat-row">
+                                        <span className="stat-label">Mastery</span>
+                                        <span className="stat-value">Structural tier complete</span>
                                     </div>
                                 )}
                             </>

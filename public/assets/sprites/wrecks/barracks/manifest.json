@@ -4,131 +4,91 @@
     "1": {
       "body": {
         "file": "barracks_L1_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 53,
+        "texelH": 31,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.46121593291404606,
+        "originY": 0.5579450418160095
       }
     },
     "2": {
       "body": {
         "file": "barracks_L2_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 54,
+        "texelH": 31,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.47119341563786,
+        "originY": 0.5579450418160095
       }
     },
     "3": {
       "body": {
         "file": "barracks_L3_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 54,
+        "texelH": 31,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.47119341563786,
+        "originY": 0.5579450418160095
       }
     },
     "4": {
       "body": {
         "file": "barracks_L4_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 54,
+        "texelH": 31,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.47119341563786,
+        "originY": 0.5579450418160095
       }
     },
     "5": {
       "body": {
         "file": "barracks_L5_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 57,
+        "texelH": 32,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.4463937621832358,
+        "originY": 0.571759259259259
       }
     },
     "6": {
       "body": {
         "file": "barracks_L6_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 57,
+        "texelH": 32,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.4463937621832358,
+        "originY": 0.571759259259259
       }
     },
     "7": {
       "body": {
         "file": "barracks_L7_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 57,
+        "texelH": 34,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.4463937621832358,
+        "originY": 0.5675381263616553
       }
     },
     "8": {
       "body": {
         "file": "barracks_L8_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 57,
+        "texelH": 34,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.4463937621832358,
+        "originY": 0.5675381263616553
       }
     },
     "9": {
       "body": {
         "file": "barracks_L9_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
+        "texelW": 57,
+        "texelH": 35,
         "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
-      }
-    },
-    "10": {
-      "body": {
-        "file": "barracks_L10_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
-        "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
-      }
-    },
-    "11": {
-      "body": {
-        "file": "barracks_L11_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
-        "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
-      }
-    },
-    "12": {
-      "body": {
-        "file": "barracks_L12_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
-        "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
-      }
-    },
-    "13": {
-      "body": {
-        "file": "barracks_L13_wreck_body.png",
-        "texelW": 59,
-        "texelH": 29,
-        "cellWorldPx": 1.35,
-        "originX": 0.3804143126177022,
-        "originY": 0.4929757343550442
+        "originX": 0.4463937621832358,
+        "originY": 0.5798941798941795
       }
     }
   }

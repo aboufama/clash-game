@@ -1,0 +1,4134 @@
+{
+  "cellWorldPx": 1.35,
+  "unit": "warelephant",
+  "variants": {
+    "l1_P_d00": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d00_death0.png",
+              "texelW": 28,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l1_P_d00_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_P_d00_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_P_d00_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l1_P_d00_death4.png",
+              "texelW": 28,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l1_P_d00_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l1_P_d00_death6.png",
+              "texelW": 27,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4115226337448559,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l1_P_d00_death7.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d00_remnant0.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        }
+      }
+    },
+    "l1_P_d01": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d01_death0.png",
+              "texelW": 24,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.42129629629629595,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l1_P_d01_death1.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_P_d01_death2.png",
+              "texelW": 20,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_P_d01_death3.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l1_P_d01_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l1_P_d01_death5.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l1_P_d01_death6.png",
+              "texelW": 20,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l1_P_d01_death7.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d01_remnant0.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l1_P_d02": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d02_death0.png",
+              "texelW": 20,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5055555555555552,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l1_P_d02_death1.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_P_d02_death2.png",
+              "texelW": 14,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5596707818930038
+            },
+            {
+              "file": "warelephant_l1_P_d02_death3.png",
+              "texelW": 15,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.4444444444444444
+            },
+            {
+              "file": "warelephant_l1_P_d02_death4.png",
+              "texelW": 15,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.27777777777777773
+            },
+            {
+              "file": "warelephant_l1_P_d02_death5.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l1_P_d02_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l1_P_d02_death7.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d02_remnant0.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        }
+      }
+    },
+    "l1_P_d03": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d03_death0.png",
+              "texelW": 23,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.6135265700483091,
+              "originY": 0.6111111111111109
+            },
+            {
+              "file": "warelephant_l1_P_d03_death1.png",
+              "texelW": 22,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_P_d03_death2.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_P_d03_death3.png",
+              "texelW": 22,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.4595959595959593
+            },
+            {
+              "file": "warelephant_l1_P_d03_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l1_P_d03_death5.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l1_P_d03_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l1_P_d03_death7.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d03_remnant0.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l1_P_d04": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d04_death0.png",
+              "texelW": 27,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l1_P_d04_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_P_d04_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_P_d04_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l1_P_d04_death4.png",
+              "texelW": 27,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l1_P_d04_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.5753968253968254,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l1_P_d04_death6.png",
+              "texelW": 26,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5811965811965809,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l1_P_d04_death7.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d04_remnant0.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        }
+      }
+    },
+    "l1_P_d05": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d05_death0.png",
+              "texelW": 23,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5700483091787436,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l1_P_d05_death1.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_P_d05_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_P_d05_death3.png",
+              "texelW": 22,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l1_P_d05_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l1_P_d05_death5.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l1_P_d05_death6.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l1_P_d05_death7.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d05_remnant0.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l1_P_d06": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d06_death0.png",
+              "texelW": 18,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5061728395061728,
+              "originY": 0.5811965811965809
+            },
+            {
+              "file": "warelephant_l1_P_d06_death1.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l1_P_d06_death2.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l1_P_d06_death3.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l1_P_d06_death4.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.42690058479532117
+            },
+            {
+              "file": "warelephant_l1_P_d06_death5.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.374269005847953
+            },
+            {
+              "file": "warelephant_l1_P_d06_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.35555555555555535
+            },
+            {
+              "file": "warelephant_l1_P_d06_death7.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d06_remnant0.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l1_P_d07": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d07_death0.png",
+              "texelW": 22,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l1_P_d07_death1.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.45555555555555544,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_P_d07_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_P_d07_death3.png",
+              "texelW": 20,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l1_P_d07_death4.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l1_P_d07_death5.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l1_P_d07_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l1_P_d07_death7.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_P_d07_remnant0.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d00": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d00_death0.png",
+              "texelW": 28,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l1_E_d00_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_E_d00_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_E_d00_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l1_E_d00_death4.png",
+              "texelW": 28,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l1_E_d00_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l1_E_d00_death6.png",
+              "texelW": 27,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4115226337448559,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l1_E_d00_death7.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d00_remnant0.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d01": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d01_death0.png",
+              "texelW": 24,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.42129629629629595,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l1_E_d01_death1.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_E_d01_death2.png",
+              "texelW": 20,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_E_d01_death3.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l1_E_d01_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l1_E_d01_death5.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l1_E_d01_death6.png",
+              "texelW": 20,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l1_E_d01_death7.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d01_remnant0.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d02": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d02_death0.png",
+              "texelW": 20,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5055555555555552,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l1_E_d02_death1.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_E_d02_death2.png",
+              "texelW": 14,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5596707818930038
+            },
+            {
+              "file": "warelephant_l1_E_d02_death3.png",
+              "texelW": 15,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.4444444444444444
+            },
+            {
+              "file": "warelephant_l1_E_d02_death4.png",
+              "texelW": 15,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.27777777777777773
+            },
+            {
+              "file": "warelephant_l1_E_d02_death5.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l1_E_d02_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l1_E_d02_death7.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d02_remnant0.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d03": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d03_death0.png",
+              "texelW": 23,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.6135265700483091,
+              "originY": 0.6111111111111109
+            },
+            {
+              "file": "warelephant_l1_E_d03_death1.png",
+              "texelW": 22,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_E_d03_death2.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l1_E_d03_death3.png",
+              "texelW": 22,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.4595959595959593
+            },
+            {
+              "file": "warelephant_l1_E_d03_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l1_E_d03_death5.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l1_E_d03_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l1_E_d03_death7.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d03_remnant0.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d04": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d04_death0.png",
+              "texelW": 27,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l1_E_d04_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_E_d04_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l1_E_d04_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l1_E_d04_death4.png",
+              "texelW": 27,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l1_E_d04_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.5753968253968254,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l1_E_d04_death6.png",
+              "texelW": 26,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5811965811965809,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l1_E_d04_death7.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d04_remnant0.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d05": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d05_death0.png",
+              "texelW": 23,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5700483091787436,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l1_E_d05_death1.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_E_d05_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_E_d05_death3.png",
+              "texelW": 22,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l1_E_d05_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l1_E_d05_death5.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l1_E_d05_death6.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l1_E_d05_death7.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d05_remnant0.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d06": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d06_death0.png",
+              "texelW": 18,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5061728395061728,
+              "originY": 0.5811965811965809
+            },
+            {
+              "file": "warelephant_l1_E_d06_death1.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l1_E_d06_death2.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l1_E_d06_death3.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l1_E_d06_death4.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.42690058479532117
+            },
+            {
+              "file": "warelephant_l1_E_d06_death5.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.374269005847953
+            },
+            {
+              "file": "warelephant_l1_E_d06_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.35555555555555535
+            },
+            {
+              "file": "warelephant_l1_E_d06_death7.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d06_remnant0.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l1_E_d07": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d07_death0.png",
+              "texelW": 22,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l1_E_d07_death1.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.45555555555555544,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_E_d07_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l1_E_d07_death3.png",
+              "texelW": 20,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l1_E_d07_death4.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l1_E_d07_death5.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l1_E_d07_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l1_E_d07_death7.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l1_E_d07_remnant0.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d00": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d00_death0.png",
+              "texelW": 28,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l2_P_d00_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_P_d00_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_P_d00_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l2_P_d00_death4.png",
+              "texelW": 28,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l2_P_d00_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l2_P_d00_death6.png",
+              "texelW": 27,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4115226337448559,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l2_P_d00_death7.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d00_remnant0.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d01": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d01_death0.png",
+              "texelW": 24,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.42129629629629595,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l2_P_d01_death1.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_P_d01_death2.png",
+              "texelW": 20,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_P_d01_death3.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l2_P_d01_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l2_P_d01_death5.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l2_P_d01_death6.png",
+              "texelW": 20,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l2_P_d01_death7.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d01_remnant0.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d02": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d02_death0.png",
+              "texelW": 20,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5055555555555552,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l2_P_d02_death1.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_P_d02_death2.png",
+              "texelW": 14,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5596707818930038
+            },
+            {
+              "file": "warelephant_l2_P_d02_death3.png",
+              "texelW": 15,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.4444444444444444
+            },
+            {
+              "file": "warelephant_l2_P_d02_death4.png",
+              "texelW": 15,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.27777777777777773
+            },
+            {
+              "file": "warelephant_l2_P_d02_death5.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l2_P_d02_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l2_P_d02_death7.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d02_remnant0.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d03": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d03_death0.png",
+              "texelW": 23,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.6135265700483091,
+              "originY": 0.6111111111111109
+            },
+            {
+              "file": "warelephant_l2_P_d03_death1.png",
+              "texelW": 22,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_P_d03_death2.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_P_d03_death3.png",
+              "texelW": 22,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.4595959595959593
+            },
+            {
+              "file": "warelephant_l2_P_d03_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l2_P_d03_death5.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l2_P_d03_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l2_P_d03_death7.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d03_remnant0.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d04": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d04_death0.png",
+              "texelW": 27,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l2_P_d04_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_P_d04_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_P_d04_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l2_P_d04_death4.png",
+              "texelW": 27,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l2_P_d04_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.5753968253968254,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l2_P_d04_death6.png",
+              "texelW": 26,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5811965811965809,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l2_P_d04_death7.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d04_remnant0.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d05": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d05_death0.png",
+              "texelW": 23,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5700483091787436,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l2_P_d05_death1.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_P_d05_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_P_d05_death3.png",
+              "texelW": 22,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l2_P_d05_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l2_P_d05_death5.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l2_P_d05_death6.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l2_P_d05_death7.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d05_remnant0.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d06": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d06_death0.png",
+              "texelW": 18,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5061728395061728,
+              "originY": 0.5811965811965809
+            },
+            {
+              "file": "warelephant_l2_P_d06_death1.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l2_P_d06_death2.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l2_P_d06_death3.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l2_P_d06_death4.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.42690058479532117
+            },
+            {
+              "file": "warelephant_l2_P_d06_death5.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.374269005847953
+            },
+            {
+              "file": "warelephant_l2_P_d06_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.35555555555555535
+            },
+            {
+              "file": "warelephant_l2_P_d06_death7.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d06_remnant0.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l2_P_d07": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d07_death0.png",
+              "texelW": 22,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l2_P_d07_death1.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.45555555555555544,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_P_d07_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_P_d07_death3.png",
+              "texelW": 20,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l2_P_d07_death4.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l2_P_d07_death5.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l2_P_d07_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l2_P_d07_death7.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_P_d07_remnant0.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d00": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d00_death0.png",
+              "texelW": 28,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l2_E_d00_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_E_d00_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_E_d00_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l2_E_d00_death4.png",
+              "texelW": 28,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l2_E_d00_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l2_E_d00_death6.png",
+              "texelW": 27,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4115226337448559,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l2_E_d00_death7.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d00_remnant0.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d01": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d01_death0.png",
+              "texelW": 24,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.42129629629629595,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l2_E_d01_death1.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_E_d01_death2.png",
+              "texelW": 20,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_E_d01_death3.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l2_E_d01_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l2_E_d01_death5.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l2_E_d01_death6.png",
+              "texelW": 20,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l2_E_d01_death7.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d01_remnant0.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d02": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d02_death0.png",
+              "texelW": 20,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5055555555555552,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l2_E_d02_death1.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_E_d02_death2.png",
+              "texelW": 14,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5596707818930038
+            },
+            {
+              "file": "warelephant_l2_E_d02_death3.png",
+              "texelW": 15,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.4444444444444444
+            },
+            {
+              "file": "warelephant_l2_E_d02_death4.png",
+              "texelW": 15,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.27777777777777773
+            },
+            {
+              "file": "warelephant_l2_E_d02_death5.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l2_E_d02_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l2_E_d02_death7.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d02_remnant0.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d03": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d03_death0.png",
+              "texelW": 23,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.6135265700483091,
+              "originY": 0.6111111111111109
+            },
+            {
+              "file": "warelephant_l2_E_d03_death1.png",
+              "texelW": 22,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_E_d03_death2.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l2_E_d03_death3.png",
+              "texelW": 22,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.4595959595959593
+            },
+            {
+              "file": "warelephant_l2_E_d03_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l2_E_d03_death5.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l2_E_d03_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l2_E_d03_death7.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d03_remnant0.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d04": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d04_death0.png",
+              "texelW": 27,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l2_E_d04_death1.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_E_d04_death2.png",
+              "texelW": 26,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5959595959595955
+            },
+            {
+              "file": "warelephant_l2_E_d04_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l2_E_d04_death4.png",
+              "texelW": 27,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l2_E_d04_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.5753968253968254,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l2_E_d04_death6.png",
+              "texelW": 26,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5811965811965809,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l2_E_d04_death7.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d04_remnant0.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d05": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d05_death0.png",
+              "texelW": 23,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5700483091787436,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l2_E_d05_death1.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_E_d05_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_E_d05_death3.png",
+              "texelW": 22,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l2_E_d05_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l2_E_d05_death5.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l2_E_d05_death6.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l2_E_d05_death7.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d05_remnant0.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d06": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d06_death0.png",
+              "texelW": 18,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5061728395061728,
+              "originY": 0.5811965811965809
+            },
+            {
+              "file": "warelephant_l2_E_d06_death1.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l2_E_d06_death2.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l2_E_d06_death3.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l2_E_d06_death4.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.42690058479532117
+            },
+            {
+              "file": "warelephant_l2_E_d06_death5.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.374269005847953
+            },
+            {
+              "file": "warelephant_l2_E_d06_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.35555555555555535
+            },
+            {
+              "file": "warelephant_l2_E_d06_death7.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d06_remnant0.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l2_E_d07": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d07_death0.png",
+              "texelW": 22,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l2_E_d07_death1.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.45555555555555544,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_E_d07_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l2_E_d07_death3.png",
+              "texelW": 20,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l2_E_d07_death4.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l2_E_d07_death5.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l2_E_d07_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l2_E_d07_death7.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l2_E_d07_remnant0.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d00": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d00_death0.png",
+              "texelW": 28,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l3_P_d00_death1.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_P_d00_death2.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_P_d00_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l3_P_d00_death4.png",
+              "texelW": 28,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l3_P_d00_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l3_P_d00_death6.png",
+              "texelW": 27,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4115226337448559,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l3_P_d00_death7.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d00_remnant0.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d01": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d01_death0.png",
+              "texelW": 24,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.42129629629629595,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l3_P_d01_death1.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_P_d01_death2.png",
+              "texelW": 20,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_P_d01_death3.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l3_P_d01_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l3_P_d01_death5.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l3_P_d01_death6.png",
+              "texelW": 20,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l3_P_d01_death7.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d01_remnant0.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d02": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d02_death0.png",
+              "texelW": 20,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5055555555555552,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l3_P_d02_death1.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_P_d02_death2.png",
+              "texelW": 14,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5596707818930038
+            },
+            {
+              "file": "warelephant_l3_P_d02_death3.png",
+              "texelW": 15,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.46581196581196566
+            },
+            {
+              "file": "warelephant_l3_P_d02_death4.png",
+              "texelW": 15,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.27777777777777773
+            },
+            {
+              "file": "warelephant_l3_P_d02_death5.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l3_P_d02_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l3_P_d02_death7.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d02_remnant0.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d03": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d03_death0.png",
+              "texelW": 23,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.6135265700483091,
+              "originY": 0.6111111111111109
+            },
+            {
+              "file": "warelephant_l3_P_d03_death1.png",
+              "texelW": 22,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_P_d03_death2.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_P_d03_death3.png",
+              "texelW": 22,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l3_P_d03_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l3_P_d03_death5.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l3_P_d03_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l3_P_d03_death7.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d03_remnant0.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d04": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d04_death0.png",
+              "texelW": 27,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l3_P_d04_death1.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_P_d04_death2.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_P_d04_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l3_P_d04_death4.png",
+              "texelW": 27,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l3_P_d04_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.5753968253968254,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l3_P_d04_death6.png",
+              "texelW": 26,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5811965811965809,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l3_P_d04_death7.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d04_remnant0.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d05": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d05_death0.png",
+              "texelW": 23,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5700483091787436,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l3_P_d05_death1.png",
+              "texelW": 21,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5462962962962958
+            },
+            {
+              "file": "warelephant_l3_P_d05_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l3_P_d05_death3.png",
+              "texelW": 22,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l3_P_d05_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l3_P_d05_death5.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l3_P_d05_death6.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l3_P_d05_death7.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d05_remnant0.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d06": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d06_death0.png",
+              "texelW": 18,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5061728395061728,
+              "originY": 0.5811965811965809
+            },
+            {
+              "file": "warelephant_l3_P_d06_death1.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l3_P_d06_death2.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l3_P_d06_death3.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l3_P_d06_death4.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.42690058479532117
+            },
+            {
+              "file": "warelephant_l3_P_d06_death5.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.374269005847953
+            },
+            {
+              "file": "warelephant_l3_P_d06_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.35555555555555535
+            },
+            {
+              "file": "warelephant_l3_P_d06_death7.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d06_remnant0.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l3_P_d07": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d07_death0.png",
+              "texelW": 22,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l3_P_d07_death1.png",
+              "texelW": 20,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.45555555555555544,
+              "originY": 0.5462962962962958
+            },
+            {
+              "file": "warelephant_l3_P_d07_death2.png",
+              "texelW": 21,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.5462962962962958
+            },
+            {
+              "file": "warelephant_l3_P_d07_death3.png",
+              "texelW": 20,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4814814814814812
+            },
+            {
+              "file": "warelephant_l3_P_d07_death4.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l3_P_d07_death5.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l3_P_d07_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l3_P_d07_death7.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_P_d07_remnant0.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d00": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d00_death0.png",
+              "texelW": 28,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l3_E_d00_death1.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_E_d00_death2.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_E_d00_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.46581196581196566,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l3_E_d00_death4.png",
+              "texelW": 28,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l3_E_d00_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.43253968253968234,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l3_E_d00_death6.png",
+              "texelW": 27,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4115226337448559,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l3_E_d00_death7.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d00_remnant0.png",
+              "texelW": 19,
+              "texelH": 6,
+              "cellWorldPx": 1.35,
+              "originX": 0.42690058479532117,
+              "originY": -0.648148148148148
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d01": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d01_death0.png",
+              "texelW": 24,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.42129629629629595,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l3_E_d01_death1.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_E_d01_death2.png",
+              "texelW": 20,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_E_d01_death3.png",
+              "texelW": 20,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l3_E_d01_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l3_E_d01_death5.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l3_E_d01_death6.png",
+              "texelW": 20,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l3_E_d01_death7.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d01_remnant0.png",
+              "texelW": 15,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d02": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d02_death0.png",
+              "texelW": 20,
+              "texelH": 30,
+              "cellWorldPx": 1.35,
+              "originX": 0.5055555555555552,
+              "originY": 0.5703703703703702
+            },
+            {
+              "file": "warelephant_l3_E_d02_death1.png",
+              "texelW": 14,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_E_d02_death2.png",
+              "texelW": 14,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5596707818930038
+            },
+            {
+              "file": "warelephant_l3_E_d02_death3.png",
+              "texelW": 15,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.46581196581196566
+            },
+            {
+              "file": "warelephant_l3_E_d02_death4.png",
+              "texelW": 15,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.27777777777777773
+            },
+            {
+              "file": "warelephant_l3_E_d02_death5.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l3_E_d02_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.20555555555555546
+            },
+            {
+              "file": "warelephant_l3_E_d02_death7.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d02_remnant0.png",
+              "texelW": 9,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.15740740740740808
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d03": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d03_death0.png",
+              "texelW": 23,
+              "texelH": 28,
+              "cellWorldPx": 1.35,
+              "originX": 0.6135265700483091,
+              "originY": 0.6111111111111109
+            },
+            {
+              "file": "warelephant_l3_E_d03_death1.png",
+              "texelW": 22,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_E_d03_death2.png",
+              "texelW": 21,
+              "texelH": 25,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.6044444444444442
+            },
+            {
+              "file": "warelephant_l3_E_d03_death3.png",
+              "texelW": 22,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.4830917874396135
+            },
+            {
+              "file": "warelephant_l3_E_d03_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.28395061728395027
+            },
+            {
+              "file": "warelephant_l3_E_d03_death5.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.22839506172839494
+            },
+            {
+              "file": "warelephant_l3_E_d03_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5767195767195765,
+              "originY": 0.1830065359477119
+            },
+            {
+              "file": "warelephant_l3_E_d03_death7.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d03_remnant0.png",
+              "texelW": 16,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.5069444444444439,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d04": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d04_death0.png",
+              "texelW": 27,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.6196581196581197
+            },
+            {
+              "file": "warelephant_l3_E_d04_death1.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_E_d04_death2.png",
+              "texelW": 26,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.6135265700483091
+            },
+            {
+              "file": "warelephant_l3_E_d04_death3.png",
+              "texelW": 26,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5427350427350426,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l3_E_d04_death4.png",
+              "texelW": 27,
+              "texelH": 14,
+              "cellWorldPx": 1.35,
+              "originX": 0.5596707818930038,
+              "originY": 0.29365079365079344
+            },
+            {
+              "file": "warelephant_l3_E_d04_death5.png",
+              "texelW": 28,
+              "texelH": 13,
+              "cellWorldPx": 1.35,
+              "originX": 0.5753968253968254,
+              "originY": 0.23931623931623866
+            },
+            {
+              "file": "warelephant_l3_E_d04_death6.png",
+              "texelW": 26,
+              "texelH": 12,
+              "cellWorldPx": 1.35,
+              "originX": 0.5811965811965809,
+              "originY": 0.17592592592592554
+            },
+            {
+              "file": "warelephant_l3_E_d04_death7.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d04_remnant0.png",
+              "texelW": 20,
+              "texelH": 5,
+              "cellWorldPx": 1.35,
+              "originX": 0.5555555555555556,
+              "originY": -0.9777777777777791
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d05": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d05_death0.png",
+              "texelW": 23,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.5700483091787436,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l3_E_d05_death1.png",
+              "texelW": 21,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5462962962962958
+            },
+            {
+              "file": "warelephant_l3_E_d05_death2.png",
+              "texelW": 21,
+              "texelH": 23,
+              "cellWorldPx": 1.35,
+              "originX": 0.5291005291005291,
+              "originY": 0.5265700483091785
+            },
+            {
+              "file": "warelephant_l3_E_d05_death3.png",
+              "texelW": 22,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.45555555555555544
+            },
+            {
+              "file": "warelephant_l3_E_d05_death4.png",
+              "texelW": 22,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l3_E_d05_death5.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l3_E_d05_death6.png",
+              "texelW": 22,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.5505050505050503,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l3_E_d05_death7.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d05_remnant0.png",
+              "texelW": 14,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d06": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d06_death0.png",
+              "texelW": 18,
+              "texelH": 26,
+              "cellWorldPx": 1.35,
+              "originX": 0.5061728395061728,
+              "originY": 0.5811965811965809
+            },
+            {
+              "file": "warelephant_l3_E_d06_death1.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l3_E_d06_death2.png",
+              "texelW": 14,
+              "texelH": 22,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.5505050505050503
+            },
+            {
+              "file": "warelephant_l3_E_d06_death3.png",
+              "texelW": 15,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.5055555555555552
+            },
+            {
+              "file": "warelephant_l3_E_d06_death4.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.42690058479532117
+            },
+            {
+              "file": "warelephant_l3_E_d06_death5.png",
+              "texelW": 15,
+              "texelH": 19,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": 0.374269005847953
+            },
+            {
+              "file": "warelephant_l3_E_d06_death6.png",
+              "texelW": 14,
+              "texelH": 20,
+              "cellWorldPx": 1.35,
+              "originX": 0.5079365079365076,
+              "originY": 0.35555555555555535
+            },
+            {
+              "file": "warelephant_l3_E_d06_death7.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d06_remnant0.png",
+              "texelW": 9,
+              "texelH": 10,
+              "cellWorldPx": 1.35,
+              "originX": 0.4567901234567899,
+              "originY": -0.2888888888888893
+            }
+          ]
+        }
+      }
+    },
+    "l3_E_d07": {
+      "states": {
+        "death": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d07_death0.png",
+              "texelW": 22,
+              "texelH": 27,
+              "cellWorldPx": 1.35,
+              "originX": 0.41414141414141403,
+              "originY": 0.5967078189300411
+            },
+            {
+              "file": "warelephant_l3_E_d07_death1.png",
+              "texelW": 20,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.45555555555555544,
+              "originY": 0.5462962962962958
+            },
+            {
+              "file": "warelephant_l3_E_d07_death2.png",
+              "texelW": 21,
+              "texelH": 24,
+              "cellWorldPx": 1.35,
+              "originX": 0.4338624338624337,
+              "originY": 0.5462962962962958
+            },
+            {
+              "file": "warelephant_l3_E_d07_death3.png",
+              "texelW": 20,
+              "texelH": 21,
+              "cellWorldPx": 1.35,
+              "originX": 0.4055555555555551,
+              "originY": 0.4814814814814812
+            },
+            {
+              "file": "warelephant_l3_E_d07_death4.png",
+              "texelW": 21,
+              "texelH": 18,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3950617283950615
+            },
+            {
+              "file": "warelephant_l3_E_d07_death5.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.3594771241830065
+            },
+            {
+              "file": "warelephant_l3_E_d07_death6.png",
+              "texelW": 21,
+              "texelH": 17,
+              "cellWorldPx": 1.35,
+              "originX": 0.38624338624338583,
+              "originY": 0.30065359477124143
+            },
+            {
+              "file": "warelephant_l3_E_d07_death7.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        },
+        "remnant": {
+          "loopMs": null,
+          "frames": [
+            {
+              "file": "warelephant_l3_E_d07_remnant0.png",
+              "texelW": 15,
+              "texelH": 8,
+              "cellWorldPx": 1.35,
+              "originX": 0.4740740740740738,
+              "originY": -0.4861111111111111
+            }
+          ]
+        }
+      }
+    }
+  }
+}

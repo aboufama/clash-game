@@ -78,8 +78,7 @@ export const DEFENSE_BEHAVIOR_CATALOG = {
         // matching grid, and MainScene fires exactly this many per volley.
         fireModel: { kind: 'perShot', salvoSize: 16 }
     },
-    spike_launcher: { ...NEAREST_STANDARD, fireEffect: 'spike_launcher', start: 'cooldown' },
-    frostfall: { ...NEAREST_STANDARD, fireEffect: 'frostfall', start: 'ready' }
+    spike_launcher: { ...NEAREST_STANDARD, fireEffect: 'spike_launcher', start: 'cooldown' }
 } as const satisfies Record<ActiveDefenseType, DefenseBehavior>;
 
 export function getDefenseBehavior(type: string): DefenseBehavior | undefined {

@@ -27,6 +27,11 @@ export interface VillageLayoutProposal {
   changed: boolean
 }
 
+export interface PersistedBuildingNormalization {
+  buildings: SerializedBuilding[]
+  changed: boolean
+}
+
 function hasOwn(record: object, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(record, key)
 }
@@ -42,6 +47,60 @@ function toInt(value: unknown, fallback: number): number {
 
 function sanitizeId(value: unknown): string {
   return String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 96)
+}
+
+/**
+ * Repair stored buildings after catalog changes without re-sanitizing the
+ * owner-authored layout. Known buildings are retained, levels and pending
+ * upgrade targets are capped to the current definition, and an upgrade that
+ * no longer has a higher legal target is completed at the cap.
+ */
+export function normalizePersistedBuildings(input: unknown): PersistedBuildingNormalization {
+  if (!Array.isArray(input)) return { buildings: [], changed: true }
+  const buildings: SerializedBuilding[] = []
+  let changed = false
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') {
+      changed = true
+      continue
+    }
+    const candidate = raw as SerializedBuilding
+    const type = typeof candidate.type === 'string' ? candidate.type as BuildingType : undefined
+    const definition = type && hasOwn(BUILDING_DEFINITIONS, type) ? BUILDING_DEFINITIONS[type] : undefined
+    if (!definition) {
+      changed = true
+      continue
+    }
+
+    const maxLevel = definition.maxLevel ?? 1
+    const level = clamp(toInt(candidate.level, 1), 1, maxLevel)
+    const rawUpgradeTarget = toInt(candidate.upgradingTo, 0)
+    const upgradeTarget = rawUpgradeTarget > 0 ? clamp(rawUpgradeTarget, 1, maxLevel) : 0
+    const hasPendingUpgrade = upgradeTarget > level
+    const hasUpgradeMetadata = candidate.upgradingTo !== undefined
+      || candidate.upgradeStartedAt !== undefined
+      || candidate.upgradeEndsAt !== undefined
+    const needsRepair = level !== candidate.level
+      || (hasPendingUpgrade && upgradeTarget !== candidate.upgradingTo)
+      || (!hasPendingUpgrade && hasUpgradeMetadata)
+
+    if (!needsRepair) {
+      buildings.push(candidate)
+      continue
+    }
+
+    const normalized = { ...candidate, level }
+    if (hasPendingUpgrade) {
+      normalized.upgradingTo = upgradeTarget
+    } else {
+      delete normalized.upgradingTo
+      delete normalized.upgradeStartedAt
+      delete normalized.upgradeEndsAt
+    }
+    buildings.push(normalized)
+    changed = true
+  }
+  return { buildings, changed }
 }
 
 /** Normalize untrusted building payloads without consulting mutable state. */
@@ -299,4 +358,3 @@ export function validateVillageLayout(input: {
       || wallLevel !== input.currentWallLevel
   }
 }
-
