@@ -70,7 +70,7 @@ Every client must see the same world, so world content is a **pure function of
 absolute plot coordinates**: seed only via `hashString` (FNV-1a) / `mulberry32`
 (`config/Economy.ts`) + the `WorldNatureSeed` mixers. **Never `Math.random()`**
 in world-gen. `natureAt(plotX, plotY)` samples 3 fbm fields
-(elevation/moisture/canopy) → one of 12 archetypes.
+(elevation/moisture/canopy) → one of 11 archetypes (the plot-local river archetype was removed 2026-07-19 — rivers come only from the seam-free hydrology layer).
 
 ### Add a wilderness archetype
 1. `renderers/WildernessRenderer.ts` — append to `ARCHETYPES` with a `place`

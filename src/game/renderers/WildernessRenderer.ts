@@ -279,8 +279,7 @@ function boulder(ctx: Ctx, tx: number, ty: number, s: number) {
     fillPolygon(g, [left, crownL, { x: peakX, y: peakY }, { x: p.x - 1 * s, y: p.y - 2 * s }, bottom], 0x858d8b);
     fillPolygon(g, [crownL, { x: peakX, y: peakY }, crownR, { x: p.x - 1 * s, y: p.y - 2 * s }], 0xabb2ad);
     fillPolygon(g, [{ x: peakX, y: peakY }, crownR, right, bottom, { x: p.x - 1 * s, y: p.y - 2 * s }], 0x4d565b);
-    g.lineStyle(Math.max(1, 1.2 * s), 0x3f484b, 0.7);
-    g.lineBetween(peakX + 2 * s, peakY + 5 * s, p.x + 3 * s, p.y - 6 * s);
+    // (no split stroke - the owner reads stray lines on rock faces as artifacts)
     if (rng() < 0.72) {
         g.fillStyle(0x4f6b3c, 0.82);
         g.fillEllipse(p.x - w * 0.45, p.y - 1.5 * s, w * 0.72, 5 * s);
@@ -319,13 +318,8 @@ function cragOutcrop(ctx: Ctx, tx: number, ty: number, s: number, tag: string) {
         { x: p.x - 7 * s, y: p.y - 5 * s },
         { x: p.x - 10 * s, y: p.y + 5 * s }
     ], 0x68716f);
-    // Broad strata and a split make the formation geological, not a giant pebble.
-    g.lineStyle(Math.max(1.8, 2.1 * s), 0x424b4d, 0.68);
-    g.lineBetween(p.x - 20 * s, p.y - h * 0.34, p.x + 14 * s, p.y - h * 0.27);
-    g.lineBetween(peakA.x + 4 * s, peakA.y + 9 * s, p.x - 1 * s, p.y - 8 * s);
-    g.lineBetween(peakB.x - 2 * s, peakB.y + 7 * s, p.x + 7 * s, p.y - 3 * s);
-    g.lineStyle(Math.max(1.2, 1.35 * s), 0xc4c8bc, 0.38);
-    g.lineBetween(p.x - 17 * s, p.y - h * 0.51, peakA.x - 1 * s, peakA.y + 4 * s);
+    // (no strata/split strokes - owner-reported as random shadow lines on the
+    // faces; the facet fills carry the geological read on their own)
     g.fillStyle(0x4d683c, 0.88);
     g.fillEllipse(p.x - 16 * s, p.y - 1 * s, 28 * s, 8 * s);
     g.fillEllipse(p.x + 10 * s, p.y + 3 * s, 18 * s, 6 * s);
@@ -774,120 +768,6 @@ function scatterRocks(ctx: Ctx, cx: number, cy: number, spread: number, n: numbe
     }
 }
 
-/** One continuous meandering ribbon, built in grid space from centerline
- * tangents. No overlapping ellipse/capsule stamps and no dark seams. */
-function riverRun(ctx: Ctx, points: Array<{ x: number; y: number }>, rx: number, ry: number) {
-    const g = ctx.g;
-    const rng = featureRng(ctx, 'river-ribbon');
-    const baseWidth = (rx + ry) * 0.52;
-    ctx.streams.push({ points: points.map(point => ({ ...point })), halfWidth: baseWidth });
-    ctx.avoid.push((x, y) => {
-        for (let i = 1; i < points.length; i++) {
-            const a = points[i - 1];
-            const b = points[i];
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
-            if (Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t)) <= baseWidth * 1.18) return true;
-        }
-        return false;
-    });
-    const ribbon = (scale: number, wobble: number): TerrainPoint[] => {
-        const left: TerrainPoint[] = [];
-        const right: TerrainPoint[] = [];
-        for (let i = 0; i < points.length; i++) {
-            const prev = points[Math.max(0, i - 1)];
-            const next = points[Math.min(points.length - 1, i + 1)];
-            const dx = next.x - prev.x;
-            const dy = next.y - prev.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const widthNoise = 1 + Math.sin(i * 0.72 + ctx.seed * 0.001) * wobble
-                + Math.sin(i * 0.29 + ctx.seed * 0.003) * wobble * 0.55;
-            const width = baseWidth * scale * widthNoise;
-            const nx = -dy / len;
-            const ny = dx / len;
-            left.push({ x: points[i].x + nx * width, y: points[i].y + ny * width });
-            right.push({ x: points[i].x - nx * width, y: points[i].y - ny * width });
-        }
-        return [...left, ...right.reverse()];
-    };
-    const bank = ribbon(1.32, 0.12).map(point => at(ctx, point.x, point.y));
-    const water = ribbon(1, 0.1).map(point => at(ctx, point.x, point.y));
-    const channel = ribbon(0.48, 0.08).map(point => at(ctx, point.x, point.y));
-    fillPolygon(g, bank, 0x6d694c, 0.95);
-    fillPolygon(g, water, 0x347b8d, 1);
-    fillPolygon(g, channel, 0x1e5875, 0.92);
-    strokePolygon(g, water, 1.5, 0x91c5c5, 0.38);
-
-    for (let i = 2; i < points.length - 2; i += 3) {
-        const c = at(ctx, points[i].x, points[i].y);
-        const width = 5 + rng() * 8;
-        g.lineStyle(1.4, i % 2 === 0 ? 0xb9dfe2 : 0x7fb7c1, 0.48 + rng() * 0.22);
-        g.lineBetween(c.x - width * 0.6, c.y, c.x + width * 0.4, c.y);
-    }
-}
-
-/** A short, emphatic rapid spanning the brook rather than evenly spaced dots. */
-function brookRapids(
-    ctx: Ctx,
-    points: Array<{ x: number; y: number }>,
-    centerIndex: number,
-    halfWidth: number,
-    tag: string
-) {
-    const g = ctx.g;
-    const rng = featureRng(ctx, `brook-rapids:${tag}`);
-    const index = Math.max(3, Math.min(points.length - 4, Math.trunc(centerIndex)));
-    // ONE flow direction for the whole rapid, smoothed across its span. The
-    // meander's dense samples can hairpin inside those five steps; per-point
-    // normals then swivel ~90-120° around the bend apex and the five crest
-    // bars smear into a white "starburst" fan radiating over the banks
-    // (worst at plot-boundary bends). Rapids read as parallel bars marching
-    // downstream, so they share the crossing axis.
-    const flowFrom = points[index - 3] ?? points[index - 1];
-    const flowTo = points[index + 3] ?? points[index + 1];
-    const flowDx = flowTo.x - flowFrom.x;
-    const flowDy = flowTo.y - flowFrom.y;
-    const flowLen = Math.hypot(flowDx, flowDy) || 1;
-    const nx = -flowDy / flowLen;
-    const ny = flowDx / flowLen;
-    for (let step = -2; step <= 2; step++) {
-        const i = index + step;
-        const point = points[i];
-        // Where the channel turns away from the rapid's shared axis, the bar
-        // shrinks with the alignment (and vanishes past ~70°): a full-width
-        // crest at a hairpin point would overhang the banks. rng() draws stay
-        // unconditional so the sequence (and every seeded look) is stable.
-        const ldx = points[i + 1].x - points[i - 1].x;
-        const ldy = points[i + 1].y - points[i - 1].y;
-        const llen = Math.hypot(ldx, ldy) || 1;
-        const align = Math.abs((ldx * flowDx + ldy * flowDy) / (llen * flowLen));
-        const width = halfWidth * (0.72 + rng() * 0.26) * align;
-        const crestAlpha = 0.7 + rng() * 0.2;
-        if (align >= 0.35) {
-            const left = at(ctx, point.x + nx * width, point.y + ny * width);
-            const right = at(ctx, point.x - nx * width, point.y - ny * width);
-            g.lineStyle(step === 0 ? 3.2 : 2.2, 0xd8eff0, crestAlpha);
-            g.lineBetween(left.x, left.y, right.x, right.y);
-        }
-        if (step % 2 === 0) {
-            const rock = at(ctx,
-                point.x + nx * (rng() - 0.5) * width,
-                point.y + ny * (rng() - 0.5) * width);
-            const size = 5 + rng() * 4;
-            g.fillStyle(0x566363, 0.96);
-            g.fillEllipse(rock.x, rock.y + 1, size * 2.2, size);
-            g.fillStyle(0xa2aaa2, 0.72);
-            g.fillEllipse(rock.x - size * 0.35, rock.y - size * 0.2, size, size * 0.4);
-        }
-    }
-    const crest = at(ctx, points[index].x, points[index].y);
-    for (let i = 0; i < 4; i++) {
-        const drift = (i - 1.5) * 8;
-        g.lineStyle(1.5, 0xb8dcdf, 0.5);
-        g.lineBetween(crest.x + drift - 5, crest.y + 5 + i, crest.x + drift + 4, crest.y + 6 + i);
-    }
-}
 
 function paintSorted(items: Array<{ tx: number; ty: number; draw: () => void }>) {
     items.sort((a, b) => (a.tx + a.ty) - (b.tx + b.ty));
@@ -1170,76 +1050,6 @@ const ARCHETYPES: Array<{ key: string; place: Placer }> = [
         }
     },
     {
-        key: 'river',
-        place: (ctx, put) => {
-            const rng = featureRng(ctx, 'biome:river');
-            // A contained spring-fed brook with a real sequence of outer bends:
-            // spring -> riffles -> two rapids -> receiving pool. World rivers
-            // belong to the shared hydrology layer; this parcel owns one reach.
-            const flip = (hashString(`brook:${ctx.plotX},${ctx.plotY}`) & 1) === 1;
-            const run: Array<{ x: number; y: number }> = [];
-            const phase = (rng() - 0.5) * 0.7;
-            const direction = flip ? -1 : 1;
-            // The base reach crosses one diagonal of the iso ground. Offsetting
-            // along its grid-space normal produces broad screen-space oxbows
-            // without doubling back or self-intersecting like sharp waypoints.
-            for (let i = 0; i <= 56; i++) {
-                const t = i / 56;
-                const envelope = Math.pow(Math.sin(t * Math.PI), 0.78);
-                const wave = Math.sin(t * Math.PI * 3.6 + phase) * 3.15
-                    + Math.sin(t * Math.PI * 7.2 + phase * 0.65) * 0.55;
-                const meander = direction * wave * envelope;
-                run.push({
-                    x: 4.7 + 15.5 * t + meander * 0.7,
-                    y: 19.2 - 14.1 * t + meander * 0.7
-                });
-            }
-            const source = run[0];
-            const mouth = run[run.length - 1];
-            groundPatch(ctx, 12.5, 12.5, 10.8, 9.2, 0x496743, 0.18, 'river-valley');
-            groundPatch(ctx, source.x + (flip ? -1 : 1), source.y + 1.2, 4.8, 3.5, 0x3d6040, 0.2, 'brook-head-moss');
-            groundPatch(ctx, mouth.x + (flip ? 1 : -1), mouth.y - 1, 5.2, 3.8, 0x6e6a4b, 0.18, 'brook-mouth-silt');
-            riverRun(ctx, run, 0.74, 0.52);
-            brookRapids(ctx, run, Math.floor(run.length * 0.34), 0.76, 'upper');
-            brookRapids(ctx, run, Math.floor(run.length * 0.69), 0.82, 'lower');
-            pool(ctx, source.x, source.y, 2.25, 1.7, true, 'brook-spring');
-            pool(ctx, mouth.x, mouth.y, 3.1, 2.3, true, 'brook-mouth');
-
-            // Banks follow the sampled curve's normals. The old straight-line
-            // interpolation left trees floating far from the actual bends.
-            const banks = 13 + Math.floor(rng() * 4);
-            for (let i = 0; i < banks; i++) {
-                const side = rng() < 0.5 ? -1 : 1;
-                const index = 3 + Math.floor(rng() * (run.length - 6));
-                const point = run[index];
-                const prev = run[index - 1];
-                const next = run[index + 1];
-                const dx = next.x - prev.x;
-                const dy = next.y - prev.y;
-                const len = Math.hypot(dx, dy) || 1;
-                const distance = 2.3 + rng() * 3.6;
-                const tx = point.x + (-dy / len) * side * distance;
-                const ty = point.y + (dx / len) * side * distance;
-                const kind = rng() < 0.56 ? broadleaf : conifer;
-                const scale = 1.12 + rng() * 0.78;
-                put(tx, ty, (ax, ay) => kind(ctx, ax, ay, scale));
-            }
-            const headTreeScale = 2.05 + rng() * 0.3;
-            put(source.x + (flip ? -3.4 : 3.4), source.y + 2.1,
-                (tx, ty) => ancientTree(ctx, tx, ty, headTreeScale, 'brook-head-tree'));
-            const rapidRocks = [run[Math.floor(run.length * 0.31)], run[Math.floor(run.length * 0.72)]];
-            for (let i = 0; i < rapidRocks.length; i++) {
-                const point = rapidRocks[i];
-                put(point.x + (flip ? -2.2 : 2.2), point.y + 1.8,
-                    (tx, ty) => boulder(ctx, tx, ty, 1.05 + rng() * 0.35));
-            }
-            const quiet = run[Math.floor(run.length * 0.52)];
-            put(quiet.x + (flip ? 3.1 : -3.1), quiet.y + 2.7,
-                (tx, ty) => fallenLog(ctx, tx, ty, 0.9 + rng() * 0.2, 'brook-bank-fall'));
-            scatterRocks(ctx, 12.5, 12.5, 18, 10);
-        }
-    },
-    {
         key: 'thicket',
         place: (ctx, put) => {
             const rng = featureRng(ctx, 'biome:thicket');
@@ -1371,7 +1181,6 @@ const ARCHETYPE_LABELS: Record<string, string> = {
     meadow: 'Sunweave Meadow',
     marsh: 'Silverreed Fen',
     'standing-stones': 'Old Stone Circle',
-    river: 'Wandering Brook',
     thicket: 'Briarwild',
     deadwood: 'Stormbreak Wood',
     'boulder-lone-tree': 'Sentinel Rock',
@@ -1415,7 +1224,7 @@ export class WildernessRenderer {
      * can never survive behind a current empty-plot classification.
      * v7: plot corners round off like village lawns (junction-aware cuts).
      * v9: deadwood stubbed for its clean-room design round (delegator). */
-    static readonly RENDER_VERSION = 11;
+    static readonly RENDER_VERSION = 12;
 
     static renderRevision(plotX: number, plotY: number, seedVersion: unknown = 0): string {
         const version = normalizeWorldNatureSeedVersion(seedVersion);
@@ -1463,9 +1272,7 @@ export class WildernessRenderer {
         let key: string;
 
         if (moisture > 0.69 && elevation < 0.53) {
-            key = moisture > 0.79 ? 'marsh' : (detail % 4 === 0 ? 'river' : 'lake');
-        } else if (moisture > 0.61 && elevation < 0.61 && detail % 5 === 0) {
-            key = 'river';
+            key = moisture > 0.79 ? 'marsh' : 'lake';
         } else if (elevation > 0.68) {
             key = detail % 7 === 0 ? 'standing-stones' : (detail % 3 === 0 ? 'boulder-lone-tree' : 'crags');
         } else if (canopy > 0.64) {
