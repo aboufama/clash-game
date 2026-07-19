@@ -3404,9 +3404,10 @@ export class MainScene extends Phaser.Scene {
         bar.clear();
 
         const healthPct = Math.max(0, item.health / item.maxHealth);
-        // Hand-pixelated styling: chunky 1.5-unit cells drawn directly in the
-        // overlay scene, independent of the smooth world sampling policy.
-        const C = 1.5;
+        // Bar styling cell: halved from 1.5 to 0.75 (owner request 2026-07 -
+        // "2x higher fidelity") so the border ring, pill corners and insets
+        // step twice as finely while staying hand-drawn overlay chrome.
+        const C = 0.75;
 
         // Border (dark ring, one cell thick, stepped corners)
         bar.fillStyle(0x1a1a1a, 0.9);
@@ -3458,7 +3459,7 @@ export class MainScene extends Phaser.Scene {
                 const segments = Math.floor(width / 12);
                 for (let i = 1; i < segments; i++) {
                     const segX = x + Math.round(((width / segments) * i) / C) * C;
-                    bar.fillRect(segX, y + C, C, height - C * 2);
+                    bar.fillRect(segX, y + C, Math.max(1, C), height - C * 2);
                 }
             }
         }
@@ -3648,8 +3649,8 @@ export class MainScene extends Phaser.Scene {
     /**
      * SIEGE TOWER PARKING. Only a wall explicitly authorized by the current
      * navigation plan may start deployment. That plan-level gate is what
-     * distinguishes a closed-loop ramp objective from the no-wall Town Hall
-     * fallback (or any ordinary obstruction), so this method checks it again
+     * distinguishes the first wall on the Town Hall ray from the wall-free
+     * Town Hall approach (or any ordinary structure), so this method checks it again
      * defensively before mutating the troop. The tower then becomes stationary
      * (still targetable), tweens its parked01 driver 0→1 through the redraw
      * path, and opens the wall as an ALLY RAMP only after the descent completes.
@@ -4388,7 +4389,7 @@ export class MainScene extends Phaser.Scene {
                                 }
                             } else if (troop.type === 'siegetower') {
                                 // SIEGE TOWER — never fights. The authorization
-                                // gate above admits only the closed-loop wall
+                                // gate above admits only the first on-ray wall
                                 // selected by its current navigation plan.
                                 if (troop.parked01 === undefined) {
                                     this.parkSiegeTower(troop, time);
@@ -6655,17 +6656,16 @@ export class MainScene extends Phaser.Scene {
             const intentDestroyed = troop.strategicTarget?.id === removed.id;
             const activeDestroyed = (troop.target as { id?: string } | null)?.id === removed.id;
             const routeBlockerDestroyed = troop.navigationPlan?.blockerId === removed.id;
-            // `rampWallId` certifies a wall against the complete live wall
-            // topology. Destroying any segment can break that cycle even when
-            // the tower's own target survives, so an unparked tower must
-            // re-select before it is allowed to deploy.
+            // Removing any wall may expose a different first intersection on
+            // the direct Town Hall ray, so an unparked tower must re-select
+            // before it is allowed to deploy.
             const rampAuthorizationInvalidated = removed.type === 'wall'
                 && troop.parked01 === undefined
                 && !!troop.navigationPlan?.rampWallId;
 
             if (intentDestroyed || rampAuthorizationInvalidated) {
                 // Losing the objective cancels its breach work; changing a
-                // certified wall cycle clears the intent so the tower selects
+                // authorized ray wall clears the intent so the tower selects
                 // against the new topology instead of refreshing stale state.
                 troop.strategicTarget = null;
                 troop.target = null;
