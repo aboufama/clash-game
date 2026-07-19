@@ -201,6 +201,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const placeholderRef = useRef<HTMLCanvasElement>(null);
+  const chartWrapRef = useRef<HTMLDivElement>(null);
   const revealRef = useRef<HTMLCanvasElement>(null);
   const overlayStart = useRef<{ at: number; from: number } | null>(null);
 
@@ -464,10 +465,24 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     return () => cancelAnimationFrame(raf);
   }, [atlas, layout]);
 
-  // The charting reveal, act one: before the first chart lands, a fog of
-  // panel-wood tiles melts outward from your keep at the centre of a
-  // placeholder grid. The sweep parks at the hold line and pulses its
-  // frontier until data arrives (the retry note replaces it on failure).
+  // Open CENTERED on your keep (owner rule 2026-07-20): the chart can be
+  // larger than the viewport and the default (0,0) scroll could start with
+  // your village off screen entirely. Scrolling away afterwards is free.
+  const centeredRef = useRef(false);
+  useEffect(() => {
+    if (!atlas || !layout || centeredRef.current) return;
+    const wrap = chartWrapRef.current;
+    if (!wrap) return;
+    const meCell = layout.project(atlas.me.x, atlas.me.y);
+    const px = (meCell.cx + 0.5) * CELL * SCALE;
+    const py = (meCell.cy + 0.5) * CELL * SCALE;
+    wrap.scrollLeft = Math.max(0, px - wrap.clientWidth / 2);
+    wrap.scrollTop = Math.max(0, py - wrap.clientHeight / 2);
+    centeredRef.current = true;
+  }, [atlas, layout]);
+
+  // The charting reveal, act one: STATIC fog while the chart loads (the one
+  // reveal sweep runs in act two on the real map, centered on your keep).
   useEffect(() => {
     if (layout || fetchFailed || revealDone) return;
     const canvas = placeholderRef.current;
@@ -611,7 +626,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
             <span className="sym sym-close small" />
           </button>
         </div>
-        <div className="atlas-chart-wrap">
+        <div className="atlas-chart-wrap" ref={chartWrapRef}>
           {!layout && fetchFailed && (
             <div className="theatre-empty">The atlas could not be charted. It will retry shortly.</div>
           )}

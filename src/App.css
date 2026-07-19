@@ -4367,6 +4367,15 @@ body.is-touch {
 .bshop-body {
     scrollbar-width: thin;
     scrollbar-color: #4a3524 #14100c;
+    /* Hard bounds: no rubberband/elastic overscroll and no scroll chaining
+       to the page behind (owner rule 2026-07-20) — the pxf thumb stops dead
+       at the edge like everything else in the pixel chrome. */
+    overscroll-behavior: none;
+}
+
+html,
+body {
+    overscroll-behavior: none;
 }
 
 .modal-body::-webkit-scrollbar,
