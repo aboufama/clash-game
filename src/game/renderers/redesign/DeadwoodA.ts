@@ -144,27 +144,29 @@ function stormSnag(ctx: WildernessPlotCtx, tx: number, ty: number, s: number, ta
 
     // splinter crown — cream heartwood spears, lit side palest
     const spearN = 4 + (rng() < 0.5 ? 1 : 0);
-    const crownHalf = wT * 2.3;
+    // The splinter fan spans EXACTLY the tapered trunk's top width — spears
+    // erupt from the break face, never overhang the sides (owner note).
+    const crownHalf = wT * 0.9;
     for (let i = 0; i < spearN; i++) {
         const f = i / (spearN - 1);
         const sx = topX + (f - 0.5) * 2 * crownHalf + (rng() - 0.5) * 2.2 * s;
         const tallest = i === Math.floor(spearN / 2);
         const hs = (tallest ? 24 + rng() * 9 : 10 + rng() * 10) * s;
-        const w2 = (2.4 + rng() * 1.4) * s;
+        // Narrow spears: wide bases read as fat wedges at the owner's zoom
+        const w2 = (1.2 + rng() * 0.7) * s;
         const color = f < 0.34 ? HEART_LIT : f < 0.72 ? HEART_MID : HEART_DK;
         g.fillStyle(color, 1);
         g.fillTriangle(sx - w2, topY + 3.5 * s, sx + w2, topY + 3.5 * s, sx + lean * hs * 1.4, topY - hs);
     }
-    // bark spikes framing the crown + torn dark notch at its base
+    // bark spikes framing the crown
     g.fillStyle(BARK_LIT, 1);
     g.fillTriangle(topX - wT - 2 * s, topY + 4.2 * s, topX - wT + 2.4 * s, topY + 3 * s,
         topX - wT + 0.6 * s, topY - (9 + rng() * 5) * s);
     g.fillStyle(BARK_DARK, 1);
     g.fillTriangle(topX + wT - 2.6 * s, topY + 3 * s, topX + wT + 2 * s, topY + 4.2 * s,
         topX + wT + 0.3 * s, topY - (8 + rng() * 5) * s);
-    g.fillStyle(0x362c21, 1);
-    g.fillTriangle(topX - wT * 0.7, topY + 3 * s, topX + wT * 0.8, topY + 3 * s,
-        topX + lean * 5, topY - 5 * s);
+    // (no dark crown notch — the owner read the identical dark triangle at
+    // every crown top as a repeated artifact rather than torn wood)
 
     // hanging bark flap peeled below the break
     V.fillPolygon(g, [
@@ -184,8 +186,8 @@ function stormSnag(ctx: WildernessPlotCtx, tx: number, ty: number, s: number, ta
         const rise = (5 + rng() * 3.5) * s;
         g.lineStyle(Math.max(1.8, 4.4 * s), BARK_DARK, 1);
         g.lineBetween(sx0, sy0, sx0 + side * len, sy0 - rise);
-        g.fillStyle(HEART_MID, 1);
-        g.fillCircle(sx0 + side * len, sy0 - rise, Math.max(1.4, 2.2 * s));
+        // (no pale tip cap — the owner reads bright dots at branch ends as
+        // artifacts; the dark stub line carries the read, like the root fingers)
     }
 
     // bark striations; woodpecker holes on the biggest hulks
@@ -225,8 +227,7 @@ function shatteredStump(ctx: WildernessPlotCtx, tx: number, ty: number, s: numbe
         g.fillStyle(spear.color, 1);
         g.fillTriangle(sx - 2.4 * s, p.y - h + 1, sx + 2.4 * s, p.y - h + 1, sx + 1.7 * s, p.y - h - hs);
     }
-    g.fillStyle(0x362c21, 1);
-    g.fillTriangle(p.x - w * 0.3, p.y - h + 1, p.x + w * 0.35, p.y - h + 1, p.x, p.y - h - 3 * s);
+    // (no dark top notch — same repeated-artifact read as the snag crowns)
 }
 
 /** The monumental windthrown giant: crater, root plate, trunk, break, crown. */
@@ -258,8 +259,10 @@ function fallenGiant(
     logShadow(g, pts, rad, ex, ey);
 
     // ---- torn-earth crater where the roots pulled out ----
-    V.groundPatch(ctx, plateX - STORM_UX * 0.95, plateY - STORM_UY * 0.95, 1.5, 1.05, 0x6b5a41, 0.32, 'dwA-crater-rim');
-    V.groundPatch(ctx, plateX - STORM_UX * 0.95, plateY - STORM_UY * 0.95, 0.95, 0.7, EARTH_DK, 0.55, 'dwA-crater-pit');
+    // Deep-brown DIRT, not a green-tinted smudge: the hole the roots tore out
+    // of the ground reads as exposed earth (owner note).
+    V.groundPatch(ctx, plateX - STORM_UX * 0.95, plateY - STORM_UY * 0.95, 1.5, 1.05, 0x5a4632, 0.6, 'dwA-crater-rim');
+    V.groundPatch(ctx, plateX - STORM_UX * 0.95, plateY - STORM_UY * 0.95, 0.95, 0.7, 0x33281c, 0.85, 'dwA-crater-pit');
     const craterP = V.at(ctx, plateX - STORM_UX * 0.95, plateY - STORM_UY * 0.95);
     for (let i = 0; i < 3; i++) {
         const a = rng() * Math.PI * 2;
@@ -412,6 +415,33 @@ function fallenGiant(
 
     // ---- the trunk ----
     logBody(g, pts, rad, true);
+
+    // The butt terminates as a CYLINDER end, not a plane: a convex cap
+    // curving back toward the crown, shaded like the body strips it wraps.
+    const rad0 = rad(0);
+    const capC = { x: pts[0].x, y: pts[0].y - rad0 * 0.36 };
+    const capH = rad0 * 1.06;
+    const capB = rad0 * 0.52;
+    // Inner edges are pushed trunk-ward per pass (mid deepest) so no two
+    // polygons share an exact vertical edge: an AA gap would otherwise show
+    // grass as a faint vertical line through the cap (owner-reported).
+    const capEdge = (from: number, to: number, tone: number, innerPush: number) => {
+        const poly: Pt[] = [];
+        const steps = 8;
+        for (let i = 0; i <= steps; i++) {
+            const s = from + ((to - from) * i) / steps;
+            const w = Math.sqrt(Math.max(0, 1 - s * s)) * capB;
+            poly.push({ x: capC.x - ex * w, y: capC.y + s * capH - ey * w });
+        }
+        for (let i = steps; i >= 0; i--) {
+            const s = from + ((to - from) * i) / steps;
+            poly.push({ x: capC.x + ex * innerPush, y: capC.y + s * capH + ey * innerPush });
+        }
+        V.fillPolygon(g, poly, tone);
+    };
+    capEdge(-1, 1, BARK_MID, capB * 0.55);
+    capEdge(-1, -0.15, BARK_LIT, capB * 0.3);
+    capEdge(0.35, 1, BARK_DARK, capB * 0.3);
 
     // (No moss saddle: the flat green quad sat so close to the grass tones
     // that the owner read it as a hole punched in the trunk at every zoom.
