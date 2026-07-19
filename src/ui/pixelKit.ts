@@ -38,6 +38,10 @@ const WOOD_PRESSED: FramePalette = { ...WOOD, light: '#4a3524', shade: '#8b6f47'
 const GOLD: FramePalette = { outline: '#1c1410', light: '#f7dc6f', shade: '#8a6a1e', seam: '#14100c', face: '#3f2f1f' };
 const PARCHMENT: FramePalette = { outline: '#1c1410', light: '#c9b380', shade: '#8a744e', seam: '#5c4a30', face: '#efe3bb' };
 const DANGER: FramePalette = { outline: '#1c1410', light: '#e77c6a', shade: '#7c1f14', seam: '#14100c', face: '#3a1511' };
+// Troop-path accents for the training/raid cards — same grid, faction hues
+// (mystic arcane purple, mechanica workshop copper).
+const MYSTIC: FramePalette = { outline: '#1c1410', light: '#a27bb8', shade: '#4d3a5e', seam: '#14100c', face: '#241b2e' };
+const MECHANICA: FramePalette = { outline: '#1c1410', light: '#c18745', shade: '#5f3c1a', seam: '#14100c', face: '#2a1e10' };
 
 /**
  * Draw one frame cell. Ring 0 is the outline, rings 1-2 the bevelled body,
@@ -132,6 +136,8 @@ export function installPixelKit() {
     root.setProperty('--pxf-gold', frameSvg(GOLD));
     root.setProperty('--pxf-bubble', frameSvg(PARCHMENT));
     root.setProperty('--pxf-danger', frameSvg(DANGER));
+    root.setProperty('--pxf-mystic', frameSvg(MYSTIC));
+    root.setProperty('--pxf-mechanica', frameSvg(MECHANICA));
     root.setProperty('--pxf-bar', barSvg('#1a1a1a', '#333333', '#4a1a1a'));
     root.setProperty('--pxf-tail', tailSvg(PARCHMENT));
     root.setProperty('--pxf-tail-danger', tailSvg(DANGER));

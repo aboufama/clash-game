@@ -529,6 +529,99 @@ ALTER TABLE world_allocation_state
   CHECK (allocation_model >= 1);
 `
 
+const VILLAGE_BANNER_SQL = String.raw`
+ALTER TABLE villages
+  ADD COLUMN banner jsonb,
+  ADD CONSTRAINT villages_banner_object CHECK (banner IS NULL OR jsonb_typeof(banner) = 'object');
+`
+
+const PERSISTENT_BOT_VILLAGES_SQL = String.raw`
+CREATE TABLE bot_villages (
+  id text PRIMARY KEY,
+  world_id text NOT NULL REFERENCES world_realms(id),
+  x integer NOT NULL,
+  y integer NOT NULL,
+  plot_version bigint NOT NULL CHECK (plot_version > 0),
+  world_generation_version integer NOT NULL CHECK (world_generation_version > 0),
+  generator_version integer NOT NULL CHECK (generator_version > 0),
+  seed bigint NOT NULL CHECK (seed > 0 AND seed <= 9007199254740991),
+  username text NOT NULL CHECK (length(trim(username)) > 0),
+  trophies integer NOT NULL CHECK (trophies >= 0),
+  profile jsonb NOT NULL CHECK (jsonb_typeof(profile) = 'object'),
+  world jsonb NOT NULL CHECK (jsonb_typeof(world) = 'object'),
+  revision bigint NOT NULL CHECK (revision > 0),
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL CHECK (updated_at >= created_at),
+  UNIQUE(world_id, x, y),
+  CONSTRAINT bot_village_world_identity CHECK (
+    world ? 'id'
+    AND world ? 'ownerId'
+    AND world ? 'buildings'
+    AND world ? 'resources'
+    AND world ->> 'id' = id
+    AND world ->> 'ownerId' = id
+    AND jsonb_typeof(world -> 'buildings') = 'array'
+    AND jsonb_typeof(world -> 'resources') = 'object'
+  )
+);
+
+CREATE INDEX bot_villages_window_idx
+  ON bot_villages(world_id, y, x, id);
+`
+
+const ADMIN_AUTHORITY_SQL = String.raw`
+CREATE TABLE account_moderation (
+  player_id text PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  access_state text NOT NULL CHECK (access_state IN ('active', 'suspended', 'banned')),
+  reason text CHECK (reason IS NULL OR length(reason) <= 500),
+  access_until timestamptz,
+  updated_at timestamptz NOT NULL,
+  revision bigint NOT NULL CHECK (revision > 0),
+  CONSTRAINT account_moderation_until_consistent CHECK (
+    access_state = 'suspended' OR access_until IS NULL
+  )
+);
+CREATE INDEX account_moderation_blocked_idx
+  ON account_moderation(access_state, access_until, player_id)
+  WHERE access_state <> 'active';
+
+CREATE TABLE admin_runtime_config (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  maintenance_enabled boolean NOT NULL,
+  maintenance_message text CHECK (maintenance_message IS NULL OR length(maintenance_message) <= 500),
+  updated_at timestamptz NOT NULL,
+  revision bigint NOT NULL CHECK (revision > 0)
+);
+INSERT INTO admin_runtime_config(
+  singleton, maintenance_enabled, maintenance_message, updated_at, revision
+) VALUES (true, false, NULL, NOW(), 1);
+
+CREATE TABLE admin_audit_log (
+  id text PRIMARY KEY,
+  actor text NOT NULL CHECK (length(actor) BETWEEN 1 AND 100),
+  action text NOT NULL CHECK (length(action) BETWEEN 1 AND 100),
+  target_type text NOT NULL CHECK (target_type IN ('player', 'system')),
+  target_id text,
+  details jsonb NOT NULL CHECK (jsonb_typeof(details) = 'object'),
+  occurred_at timestamptz NOT NULL,
+  CONSTRAINT admin_audit_target_consistent CHECK (
+    (target_type = 'player' AND target_id IS NOT NULL)
+    OR (target_type = 'system' AND target_id IS NULL)
+  )
+);
+CREATE INDEX admin_audit_history_idx ON admin_audit_log(occurred_at DESC, id DESC);
+
+CREATE FUNCTION reject_admin_audit_mutation() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'admin_audit_log is append-only';
+END;
+$$;
+CREATE TRIGGER admin_audit_append_only
+  BEFORE UPDATE OR DELETE ON admin_audit_log
+  FOR EACH ROW EXECUTE FUNCTION reject_admin_audit_mutation();
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -540,7 +633,10 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 8, name: 'bounded_presentation_replays', sql: BOUNDED_PRESENTATION_REPLAYS_SQL },
   { version: 9, name: 'bounded_auxiliary_retention', sql: BOUNDED_AUXILIARY_RETENTION_SQL },
   { version: 10, name: 'world_allocation_concurrency', sql: WORLD_ALLOCATION_CONCURRENCY_SQL },
-  { version: 11, name: 'spiral_center_allocation', sql: SPIRAL_CENTER_ALLOCATION_SQL }
+  { version: 11, name: 'spiral_center_allocation', sql: SPIRAL_CENTER_ALLOCATION_SQL },
+  { version: 12, name: 'village_banner', sql: VILLAGE_BANNER_SQL },
+  { version: 13, name: 'persistent_bot_villages', sql: PERSISTENT_BOT_VILLAGES_SQL },
+  { version: 14, name: 'admin_authority', sql: ADMIN_AUTHORITY_SQL }
 ]
 
 function checksum(sql: string): string {

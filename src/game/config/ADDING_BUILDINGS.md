@@ -68,8 +68,8 @@ is intended to make a missing defense behavior a compile error.
 - New storage/housing/army-capacity semantics may need an update to the shared
   helpers in `src/game/config/Economy.ts` or the village simulator. Do not add a
   second client-only/server-only formula.
-- If the building changes bot composition, add deterministic placements to
-  `src/game/backend/BotWorlds.ts`.
+- If the building changes bot composition, update the server-only procedural
+  village catalog and its invariant tests. Never add client-side bot layouts.
 
 ## 4. Presentation integration
 

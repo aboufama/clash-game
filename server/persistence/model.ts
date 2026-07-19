@@ -5,6 +5,7 @@
  * a domain boundary, not a serialized copy of a scene graph.
  */
 import type { AttackAggregate } from '../attack-domain/types'
+import type { SerializedWorld, VillageBanner } from '../../src/game/data/Models'
 
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
@@ -67,6 +68,7 @@ export interface VillageRecord {
   food: number
   productionRemainders: { ore: number; food: number }
   population: JsonObject
+  banner: VillageBanner | null
   simulatedThrough: Date
   lastMutationAt: Date
   layoutRevision: number
@@ -84,6 +86,7 @@ export interface PublicVillageRecord {
   obstacles: JsonValue[]
   wallLevel: number
   population: JsonObject
+  banner: VillageBanner | null
   simulatedThrough: Date
   lastMutationAt: Date
   layoutRevision: number
@@ -108,12 +111,55 @@ export interface WorldPlotRecord {
   leaseExpiresAt: Date | null
 }
 
+/**
+ * One server-owned procedural village after it has crossed the persistence
+ * boundary. The generator provenance is immutable; ordinary presentation or
+ * balance changes advance `revision` instead of silently regenerating it.
+ */
+export interface BotVillageRecord {
+  id: string
+  worldId: string
+  x: number
+  y: number
+  /** Changes when this coordinate is vacated and later receives a new owner. */
+  plotVersion: number
+  /** Version of the world-topology rules that selected this coordinate. */
+  worldGenerationVersion: number
+  /** Version of the procedural village algorithm that authored `world`. */
+  generatorVersion: number
+  /** Persisted safe-integer generator input; never reconstructed by a client. */
+  seed: number
+  username: string
+  trophies: number
+  /** Generator-owned audit/tuning metadata (difficulty, archetype, districts, etc.). */
+  profile: JsonObject
+  /** Complete immutable-at-attack-start village payload served to map and combat clients. */
+  world: SerializedWorld
+  /** Public cache/CAS revision for this persisted village. */
+  revision: number
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface WorldAtlasQuery {
   worldId: string
   minX: number
   maxX: number
   minY: number
   maxY: number
+  now: Date
+  limit: number
+}
+
+/**
+ * Bounded global player-directory read for the atlas modal. Unlike
+ * `WorldAtlasQuery`, this deliberately has no coordinate window: the atlas
+ * charts every settled chief in the world and caps the result nearest-first.
+ */
+export interface WorldPlayerDirectoryQuery {
+  worldId: string
+  centerX: number
+  centerY: number
   now: Date
   limit: number
 }
@@ -129,10 +175,11 @@ export interface WorldAtlasEntry {
     'gold' | 'ore' | 'food' | 'productionRemainders' | 'economyRevision'>
 }
 
-/** Coarse spatial row for the atlas modal; deliberately excludes village JSON. */
+/** Coarse spatial row for the atlas modal; excludes layout JSON but carries heraldry. */
 export interface WorldPlayerEntry {
   plot: WorldPlotRecord
   player: PlayerSummaryRecord
+  banner: VillageBanner | null
 }
 
 /** A region never changes generator after its first persisted claim/read. */
@@ -367,6 +414,97 @@ export interface BalanceLedgerDaySummary {
   positive: number
   negative: number
   operationCount: number
+}
+
+export type AccountAccessState = 'active' | 'suspended' | 'banned'
+
+/** Moderation is separate from credentials so no admin read can expose hashes. */
+export interface AccountModerationRecord {
+  playerId: string
+  state: AccountAccessState
+  reason: string | null
+  until: Date | null
+  updatedAt: Date
+  revision: number
+}
+
+export interface AdminOverviewRecord {
+  players: number
+  registeredPlayers: number
+  onlinePlayers: number
+  playerVillages: number
+  botVillages: number
+  preparingAttacks: number
+  engagedAttacks: number
+  activeAttacks: number
+  finalizingAttacks: number
+  totalGold: number
+  totalOre: number
+  totalFood: number
+  averageTrophies: number
+  suspendedPlayers: number
+  bannedPlayers: number
+}
+
+export interface AdminPlayerQuery {
+  search: string
+  limit: number
+  now: Date
+  onlineSince: Date
+}
+
+/** Secret-free account projection used only by bounded operator queries. */
+export interface AdminPlayerRecord {
+  id: string
+  username: string
+  registered: boolean
+  trophies: number
+  shieldUntil: Date | null
+  createdAt: Date
+  lastSeenAt: Date
+  profileRevision: number
+  accessState: AccountAccessState
+  accessReason: string | null
+  accessUntil: Date | null
+  moderationUpdatedAt: Date | null
+  worldId: string | null
+  x: number | null
+  y: number | null
+  plotVersion: number | null
+  gold: number
+  ore: number
+  food: number
+  economyRevision: number
+  layoutRevision: number
+  appearanceRevision: number
+  buildings: number
+  obstacles: number
+  army: JsonObject
+  population: JsonObject
+  activeSessions: number
+  activeAttacks: number
+}
+
+export interface AdminAttackQuery {
+  state: AttackState | null
+  limit: number
+}
+
+export interface AdminAuditRecord {
+  id: string
+  actor: string
+  action: string
+  targetType: 'player' | 'system'
+  targetId: string | null
+  details: JsonObject
+  occurredAt: Date
+}
+
+export interface AdminRuntimeConfigRecord {
+  maintenanceEnabled: boolean
+  maintenanceMessage: string | null
+  updatedAt: Date
+  revision: number
 }
 
 export interface TransactionOptions {

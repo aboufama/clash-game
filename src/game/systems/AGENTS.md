@@ -58,18 +58,20 @@ Iso: `cartToIso(x,y) = ((x−y)*32, (x+y)*16)` (64×32 tiles).
   Residency (`WorldPostcardResidency.ts`): ring-1 always resident, ring-2
   prefetched + evicted after a grace period.
 - Player/bot plots → `renderSnapshot` (bakes lawn + buildings via the SHARED
-  `BuildingVisualDispatcher`). Bots come from `backend/BotWorlds.ts`
-  (`generateBotWorldFromSeed`, `BOT_WORLD_GENERATION_VERSION`).
+  `BuildingVisualDispatcher`). Both arrive as revisioned server postcards;
+  clients must never generate a bot village from a seed.
 - Empty plots → `renderNaturePostcard` → `WildernessRenderer.drawWildPlot` or
   `WorldHydrologyRenderer.drawFeatures`.
 - Fog of war past `watchtowerSightOf` radius (drawn cumulus, see the weather/
   world-map notes).
 
 ### Determinism (the golden rule of world-gen)
-Every client must see the same world, so world content is a **pure function of
-absolute plot coordinates**: seed only via `hashString` (FNV-1a) / `mulberry32`
-(`config/Economy.ts`) + the `WorldNatureSeed` mixers. **Never `Math.random()`**
-in world-gen. `natureAt(plotX, plotY)` samples 3 fbm fields
+Generated nature is a **pure function of absolute plot coordinates**: seed only
+via `hashString` (FNV-1a) / `mulberry32` (`config/Economy.ts`) plus the
+`WorldNatureSeed` mixers. **Never `Math.random()`** in world-gen. Bot villages
+are drafted only inside server-side durable provisioning and are subsequently
+loaded from persistence; no client or attack path may reconstruct one.
+`natureAt(plotX, plotY)` samples 3 fbm fields
 (elevation/moisture/canopy) → one of 11 archetypes (the plot-local river archetype was removed 2026-07-19 — rivers come only from the seam-free hydrology layer).
 
 ### Add a wilderness archetype

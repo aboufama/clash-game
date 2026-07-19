@@ -17,7 +17,10 @@ export interface PrepareBotAttackInput {
   sourceArmyVersion: number
   selectionSource: Extract<AttackSelectionSource, 'BOT_MAP' | 'BOT_MATCHMADE'>
   worldId: string
-  worldGenerationVersion: number
+  botId: string
+  botGeneratorVersion: number
+  botVillageRevision: number
+  botPlotVersion: number
   x: number
   y: number
   seed: number
@@ -34,7 +37,7 @@ export function prepareBotAttack(input: PrepareBotAttackInput): AttackAggregate 
   const snapshot: CombatVillageSnapshot = {
     schemaVersion: 1,
     snapshotId: `snap_${input.attackId}`,
-    villageVersion: `bot_${input.seed}_v1`,
+    villageVersion: `${input.botId}_g${input.botGeneratorVersion}_r${input.botVillageRevision}`,
     buildings: input.world.buildings.map(building => ({
       id: building.id,
       type: building.type,
@@ -43,7 +46,6 @@ export function prepareBotAttack(input: PrepareBotAttackInput): AttackAggregate 
       gridY: building.gridY
     }))
   }
-  const botId = `bot_${input.x}_${input.y}_${input.seed}`
   const durationMs = Math.max(1_000, input.expiresAt - input.startedAt)
   return prepareAttack({
     attackId: input.attackId,
@@ -52,14 +54,14 @@ export function prepareBotAttack(input: PrepareBotAttackInput): AttackAggregate 
     selectionSource: input.selectionSource,
     target: {
       kind: 'BOT',
-      targetId: botId,
-      botId,
+      targetId: input.botId,
+      botId: input.botId,
       seed: input.seed,
       plot: {
         worldId: input.worldId,
         x: input.x,
         y: input.y,
-        version: `generation_${input.worldGenerationVersion}_${input.seed}`
+        version: `${input.botId}_p${input.botPlotVersion}`
       },
       villageVersion: snapshot.villageVersion,
       snapshotId: snapshot.snapshotId,

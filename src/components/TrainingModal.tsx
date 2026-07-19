@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TroopDef, TroopFaction, TroopType } from '../game/config/GameDefinitions';
 import { CORE_TROOP_TYPES, TROOP_FACTIONS, TROOP_FACTION_META, TROOP_TECH_TREES, getCoreTroopUnlockLevel, getTroopStats, getTroopUnlockLevel, troopFoodCostOf } from '../game/config/GameDefinitions';
 import { formatGold } from '../game/economy/Currency';
@@ -81,6 +81,13 @@ export function TrainingModal({
 }: TrainingModalProps) {
   const [tooltip, setTooltip] = useState<TooltipInfo | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const [lockPopup, setLockPopup] = useState<{ key: number; text: string; x: number; y: number } | null>(null);
+  const lockPopupTimer = useRef<number | null>(null);
+  const lockPopupKey = useRef(0);
+
+  useEffect(() => () => {
+    if (lockPopupTimer.current) window.clearTimeout(lockPopupTimer.current);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -94,6 +101,14 @@ export function TrainingModal({
   };
 
   const handleMouseLeave = () => setTooltip(null);
+
+  const showLockPopup = (text: string, e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    if (lockPopupTimer.current) window.clearTimeout(lockPopupTimer.current);
+    lockPopupKey.current += 1;
+    setLockPopup({ key: lockPopupKey.current, text, x: rect.left + rect.width / 2, y: rect.top });
+    lockPopupTimer.current = window.setTimeout(() => setLockPopup(null), 1100);
+  };
 
   const tooltipTroop = tooltip ? troops.find(t => t.id === tooltip.id) : null;
   const tooltipScaled = tooltipTroop ? getTroopStats(tooltipTroop.id as TroopType, troopLevel) : null;
@@ -129,7 +144,15 @@ export function TrainingModal({
         key={troop.id}
         className={`faction-troop-card ${isCore ? 'core-troop-card' : ''} ${isLocked ? 'locked' : ''} ${!isAvailable && !isLocked ? 'disabled' : ''} ${isFlagship ? 'flagship' : ''}`}
         aria-disabled={!isAvailable}
-        onClick={() => { if (isAvailable) { soundSystem.play('click'); void onTrainTroop(troop.id); } }}
+        onClick={(event) => {
+          if (isAvailable) {
+            soundSystem.play('click');
+            void onTrainTroop(troop.id);
+          } else if (isLocked) {
+            soundSystem.play('denied');
+            showLockPopup(lockText, event);
+          }
+        }}
         onMouseEnter={(event) => !isLocked && handleMouseEnter(troop.id, event)}
         onMouseLeave={handleMouseLeave}
       >
@@ -205,8 +228,7 @@ export function TrainingModal({
           <section className="core-troop-section" aria-labelledby="core-troops-heading">
             <header className="core-troop-header">
               <div>
-                <span className="troop-faction-kicker">Core Troops</span>
-                <strong id="core-troops-heading">Army Camp Progression</strong>
+                <span className="troop-faction-kicker" id="core-troops-heading">Core Troops</span>
               </div>
               <span className={`core-troop-access ${armyCampLevel === 0 ? 'offline' : ''}`}>
                 {armyCampUpgrading
@@ -246,10 +268,6 @@ export function TrainingModal({
               const meta = TROOP_FACTION_META[faction];
               const branchLevel = barracksLevels[faction];
               const branchUpgrading = barracksUpgrading[faction];
-              const branchTierCount = TROOP_TECH_TREES[faction].length;
-              const branchLevelLabel = branchLevel > branchTierCount
-                ? `LV ${branchLevel} · MASTERY`
-                : `LV ${branchLevel}/${branchTierCount}`;
               return (
                 <section
                   className={`troop-faction-column faction-${faction}`}
@@ -262,9 +280,7 @@ export function TrainingModal({
                         {meta.name} <span>- {meta.description}</span>
                       </strong>
                     </div>
-                    <span className={`troop-faction-level ${branchLevel === 0 ? 'offline' : ''}`}>
-                      {branchUpgrading ? 'UPGRADING' : branchLevel > 0 ? branchLevelLabel : 'NOT BUILT'}
-                    </span>
+                    {branchUpgrading && <span className="troop-faction-level">UPGRADING</span>}
                   </header>
 
                   <div className="troop-tech-lane">
@@ -294,16 +310,12 @@ export function TrainingModal({
       </div>
 
       {tooltip && tooltipTroop && tooltipScaled && (
+        // Chrome comes from the ONE shared pxf tooltip class (frame, ink,
+        // tail, above-the-anchor offset) — .troop-tooltip adds layout only.
         <div
           ref={tooltipRef}
-          className="troop-tooltip"
-          style={{
-            position: 'fixed',
-            left: tooltip.x,
-            top: tooltip.y,
-            transform: 'translate(-50%, calc(-100% - 10px))',
-            zIndex: 10000
-          }}
+          className="pxf-tooltip troop-tooltip"
+          style={{ left: tooltip.x, top: tooltip.y }}
         >
           <div className="tooltip-flavor">{tooltipFlavor}</div>
           <div className="tooltip-stats">
@@ -313,6 +325,16 @@ export function TrainingModal({
             <span><span className="sym sym-swords small" /> {Math.round(tooltipScaled.damage)}</span>
             <span><span className="sym sym-slot small" /> {tooltipTroop.space}</span>
           </div>
+        </div>
+      )}
+
+      {lockPopup && (
+        <div
+          key={lockPopup.key}
+          className="faction-lock-popup"
+          style={{ left: lockPopup.x, top: lockPopup.y }}
+        >
+          {lockPopup.text}
         </div>
       )}
     </div>

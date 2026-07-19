@@ -237,7 +237,7 @@ to update.
    projectile/effect callback in MainScene's `DefenseSystem` wiring.
 6. `src/game/systems/DayNightSystem.ts` — `LIGHT_SOURCES` if it glows (§9).
 7. `src/icons/accurate-icons.css` — shop icon.
-8. `src/game/backend/BotWorlds.ts` — bot base placements, if bots build it.
+8. Server procedural-village catalog — bot composition, if bots build it.
 9. Depth is automatic (`DepthSystem`), but verify layering vs walls/troops.
 10. **Screenshot it** (§11) at every level, day and night, before calling it
    done.

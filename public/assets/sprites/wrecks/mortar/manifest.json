@@ -2,43 +2,75 @@
   "cellWorldPx": 1.35,
   "levels": {
     "1": {
+      "ground": {
+        "file": "mortar_L1_wreck_ground.png",
+        "texelW": 25,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": -0.10222222222222273,
+        "originY": 0.4074074074074061
+      },
       "body": {
         "file": "mortar_L1_wreck_body.png",
         "texelW": 34,
-        "texelH": 22,
+        "texelH": 16,
         "cellWorldPx": 1.35,
-        "originX": 0.5424836601307184,
-        "originY": 0.37710437710437666
+        "originX": 0.5130718954248361,
+        "originY": 0.4560185185185182
       }
     },
     "2": {
+      "ground": {
+        "file": "mortar_L2_wreck_ground.png",
+        "texelW": 25,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": -0.10222222222222273,
+        "originY": 0.4074074074074061
+      },
       "body": {
         "file": "mortar_L2_wreck_body.png",
         "texelW": 34,
-        "texelH": 22,
+        "texelH": 16,
         "cellWorldPx": 1.35,
-        "originX": 0.5424836601307184,
-        "originY": 0.37710437710437666
+        "originX": 0.5130718954248361,
+        "originY": 0.4560185185185182
       }
     },
     "3": {
+      "ground": {
+        "file": "mortar_L3_wreck_ground.png",
+        "texelW": 25,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": -0.10222222222222273,
+        "originY": 0.4074074074074061
+      },
       "body": {
         "file": "mortar_L3_wreck_body.png",
         "texelW": 34,
-        "texelH": 22,
+        "texelH": 16,
         "cellWorldPx": 1.35,
-        "originX": 0.5424836601307184,
-        "originY": 0.37710437710437666
+        "originX": 0.5130718954248361,
+        "originY": 0.4560185185185182
       }
     },
     "4": {
+      "ground": {
+        "file": "mortar_L4_wreck_ground.png",
+        "texelW": 25,
+        "texelH": 13,
+        "cellWorldPx": 1.35,
+        "originX": -0.10222222222222273,
+        "originY": 0.4074074074074061
+      },
       "body": {
         "file": "mortar_L4_wreck_body.png",
         "texelW": 34,
-        "texelH": 22,
+        "texelH": 16,
         "cellWorldPx": 1.35,
-        "originX": 0.5424836601307184,
-        "originY": 0.37710437710437666
+        "originX": 0.5130718954248361,
+        "originY": 0.4560185185185182
       }
     }
   }

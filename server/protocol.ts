@@ -14,7 +14,7 @@ export interface PublicWorldSnapshot {
   lastSaveTime: number
   revision: number
   life: VillageLifeManifest
-  /** Owner-chosen heraldry; omitted = deterministic identity default. */
+  /** Owner-chosen heraldry; omitted while banner onboarding is incomplete. */
   banner?: VillageBanner
 }
 

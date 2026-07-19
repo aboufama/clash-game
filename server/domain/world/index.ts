@@ -1,5 +1,7 @@
 export * from './allocation'
+export * from './bot-village-identity'
 export * from './coordinates'
 export * from './generation'
 export * from './plots'
+export * from './procedural-village'
 export * from './windows'

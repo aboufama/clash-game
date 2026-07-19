@@ -3,6 +3,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
+import {
+  classifyPlot,
+  coordinateAtAllocationOrdinal,
+  persistentBotVillageIdAt
+} from '../domain/world'
 import { buildLegacyImportPlan } from './legacy-import'
 import {
   LEGACY_COLLECTIONS,
@@ -55,13 +60,47 @@ function player(id = 'player-1') {
     population: { count: 3, lastGrowthAt: START - 180_000 },
     ore: 25,
     food: 50,
-    plotX: -3,
-    plotY: -2,
+    // Spiral model 2 allows this real claim to hide the persistent bot at the
+    // same coordinate; the cutover must preserve both records.
+    plotX: 1,
+    plotY: 0,
     productionRemainders: { ore: 0, food: 0 }
   }
 }
 
-function sourceDirectory(root: string): { playerRaw: string; replayRaw: string } {
+function persistedBotVillage(x = 1, y = 0) {
+  const id = persistentBotVillageIdAt('main', x, y)
+  return {
+    id,
+    worldId: 'main',
+    x,
+    y,
+    plotVersion: 1,
+    worldGenerationVersion: 1,
+    presentationSeedVersion: 0,
+    generatorVersion: 1,
+    seed: 4_200_000_001,
+    username: 'Frozen Citadel',
+    trophies: 2_700,
+    profile: { difficulty: 'fortress', generator: 'procedural-village', generatorVersion: 1 },
+    world: {
+      id,
+      ownerId: id,
+      username: 'Frozen Citadel',
+      buildings: [{ id: `${id}-hall`, type: 'town_hall', gridX: 10, gridY: 10, level: 4 }],
+      obstacles: [],
+      resources: { gold: 73_421, ore: 9_000, food: 8_000 },
+      wallLevel: 4,
+      lastSaveTime: START,
+      revision: 4
+    },
+    revision: 4,
+    createdAt: START - 1_000,
+    updatedAt: START
+  }
+}
+
+function sourceDirectory(root: string): { playerRaw: string; replayRaw: string; botRaw: string; botId: string } {
   for (const collection of LEGACY_COLLECTIONS) mkdirSync(path.join(root, collection), { recursive: true })
   const playerRaw = writeRecord(root, 'players', 'player-1', player(), true)
   const replayRaw = writeRecord(root, 'replays', 'attack-1', {
@@ -77,6 +116,15 @@ function sourceDirectory(root: string): { playerRaw: string; replayRaw: string }
     status: 'aborted'
   })
   writeRecord(root, 'notifications', 'player-1', { items: [] })
+  const bot = persistedBotVillage()
+  const botRaw = writeRecord(root, 'bot-villages', bot.id, bot, true)
+  const releasedBotOrdinal = Array.from({ length: 27 }, (_, ordinal) => ordinal)
+    .find(ordinal => {
+      const coordinate = coordinateAtAllocationOrdinal(ordinal)
+      return (coordinate.x !== bot.x || coordinate.y !== bot.y)
+        && classifyPlot(coordinate, 1).kind === 'BOT'
+    })
+  assert.notEqual(releasedBotOrdinal, undefined)
   writeRecord(root, 'world-state', 'main', {
     allocation: {
       schemaVersion: 1,
@@ -85,9 +133,11 @@ function sourceDirectory(root: string): { playerRaw: string; replayRaw: string }
       currentGenerationVersion: 1,
       nextOrdinal: 27
     },
-    releasedSlots: []
+    releasedSlots: [{ ordinal: releasedBotOrdinal, plotVersion: 3 }],
+    presentationSeedVersion: 0,
+    spiralModelVersion: 2
   })
-  return { playerRaw, replayRaw }
+  return { playerRaw, replayRaw, botRaw, botId: bot.id }
 }
 
 test('legacy cutover materializes one deterministic, sealed, read-only snapshot', () => {
@@ -104,6 +154,7 @@ test('legacy cutover materializes one deterministic, sealed, read-only snapshot'
     assert.equal(readFileSync(path.join(source, 'players/player-1.json'), 'utf8'), originals.playerRaw)
     assert.equal(readFileSync(path.join(source, 'replays/attack-1.json'), 'utf8'), originals.replayRaw)
     assert.equal(readFileSync(path.join(outputA, 'replays/attack-1.json'), 'utf8'), originals.replayRaw)
+    assert.equal(readFileSync(path.join(outputA, `bot-villages/${originals.botId}.json`), 'utf8'), originals.botRaw)
     assert.equal(first.manifest.snapshotSha256, second.manifest.snapshotSha256)
     assert.equal(
       readFileSync(path.join(outputA, 'players/player-1.json'), 'utf8'),
@@ -127,6 +178,7 @@ test('legacy cutover materializes one deterministic, sealed, read-only snapshot'
     assert.deepEqual(verifyFrozenLegacySnapshot(outputA, CUTOFF), [])
     assert.deepEqual(buildLegacyImportPlan(outputA, CUTOFF).issues, [])
     assert.equal(first.manifest.collections['world-state'].records, 1)
+    assert.equal(first.manifest.collections['bot-villages'].records, 1)
   } finally {
     rmSync(parent, { recursive: true, force: true })
   }

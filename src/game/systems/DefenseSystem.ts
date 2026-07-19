@@ -24,6 +24,81 @@ function gridDistance(ax: number, ay: number, bx: number, by: number): number {
     return Math.sqrt(dx * dx + dy * dy);
 }
 
+/** The range/ownership rule and the nearest-pick shared by the sim tick and
+ *  the read-only display probe below — ONE implementation so the barrel a
+ *  turret shows can never drift from the target the sim will hand it. */
+interface DefenseTargetingParams {
+    owner: PlacedBuilding['owner'];
+    centerX: number;
+    centerY: number;
+    maxRange: number;
+    minRange?: number;
+}
+
+function isDefenseTargetInRange(params: DefenseTargetingParams, troop: Troop | null | undefined): troop is Troop {
+    if (!troop || troop.health <= 0 || troop.owner === params.owner) return false;
+    const distance = gridDistance(params.centerX, params.centerY, troop.gridX, troop.gridY);
+    if (distance > params.maxRange) return false;
+    if (params.minRange && distance < params.minRange) return false;
+    return true;
+}
+
+function findNearestDefenseTarget(params: DefenseTargetingParams, troops: readonly Troop[]): Troop | null {
+    let nearest: Troop | null = null;
+    let nearestDistance = params.maxRange;
+    for (const troop of troops) {
+        if (!isDefenseTargetInRange(params, troop)) continue;
+        const distance = gridDistance(params.centerX, params.centerY, troop.gridX, troop.gridY);
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = troop;
+        }
+    }
+    return nearest;
+}
+
+function defenseTargetingParams(defense: Readonly<PlacedBuilding>): DefenseTargetingParams {
+    const stats = getBuildingStats(defense.type as BuildingType, defense.level || 1);
+    return {
+        owner: defense.owner,
+        centerX: defense.gridX + (stats.width || 1) / 2,
+        centerY: defense.gridY + (stats.height || 1) / 2,
+        maxRange: stats.range || 7,
+        minRange: stats.minRange
+    };
+}
+
+/**
+ * READ-ONLY prospective-target probe for the PRESENTATION layer: the troop
+ * this defense would shoot if its cooldown expired right now. Locked
+ * defenses resolve their existing lock first (alive + in range), then fall
+ * back to the exact nearest-in-[minRange, range] rule `update()` applies —
+ * through the shared helpers above, never a copy. MUTATES NOTHING: no lock
+ * clearing, no lastFireTime stamp, no fire/idle dispatch — turret barrels
+ * may track their next victim during reload without perturbing targeting
+ * order, replay bytes or ATTACK_SIMULATION_VERSION.
+ */
+export function peekDefenseTarget(
+    defense: Readonly<PlacedBuilding>,
+    troops: readonly Troop[],
+    time: number
+): Troop | null {
+    const behavior = getDefenseBehavior(defense.type);
+    if (!behavior || defense.health <= 0 || defense.upgradingTo) return null;
+    // Frozen defenses hold their bearing solid (the sim tick skips them too).
+    if (defense.frozenUntil !== undefined && time < defense.frozenUntil) return null;
+
+    const params = defenseTargetingParams(defense);
+    if (behavior.targeting === 'locked' && defense.lockedTargetId) {
+        const existing = troops.find(troop => troop.id === defense.lockedTargetId);
+        if (isDefenseTargetInRange(params, existing)) return existing;
+        // Dead/escaped lock: fall through to the same nearest rule the sim
+        // will apply on its next tick — WITHOUT clearing the lock (that
+        // mutation belongs to update()).
+    }
+    return findNearestDefenseTarget(params, troops);
+}
+
 /**
  * Owns defense selection, target locks and shot scheduling. Rendering and
  * impact effects remain scene concerns and are supplied through callbacks.
@@ -48,32 +123,16 @@ export class DefenseSystem {
             if (defense.frozenUntil !== undefined && time < defense.frozenUntil) continue;
 
             const stats = getBuildingStats(defense.type as BuildingType, defense.level || 1);
-            const maxRange = stats.range || 7;
             const interval = stats.fireRate || 2500;
-            const centerX = defense.gridX + (stats.width || 1) / 2;
-            const centerY = defense.gridY + (stats.height || 1) / 2;
 
-            const isTargetInRange = (troop: Troop | null | undefined): troop is Troop => {
-                if (!troop || troop.health <= 0 || troop.owner === defense.owner) return false;
-                const distance = gridDistance(centerX, centerY, troop.gridX, troop.gridY);
-                if (distance > maxRange) return false;
-                if (stats.minRange && distance < stats.minRange) return false;
-                return true;
-            };
-
-            const findNearestTarget = (): Troop | null => {
-                let nearest: Troop | null = null;
-                let nearestDistance = maxRange;
-                for (const troop of troops) {
-                    if (!isTargetInRange(troop)) continue;
-                    const distance = gridDistance(centerX, centerY, troop.gridX, troop.gridY);
-                    if (distance < nearestDistance) {
-                        nearestDistance = distance;
-                        nearest = troop;
-                    }
-                }
-                return nearest;
-            };
+            // Same-shape closures as before, now backed by the shared
+            // helpers peekDefenseTarget reads — selection semantics are
+            // byte-identical (same guards, same strict `<` nearest rule).
+            const params = defenseTargetingParams(defense);
+            const isTargetInRange = (troop: Troop | null | undefined): troop is Troop =>
+                isDefenseTargetInRange(params, troop);
+            const findNearestTarget = (): Troop | null =>
+                findNearestDefenseTarget(params, troops);
 
             const usesTargetLock = behavior.targeting === 'locked';
             if (!usesTargetLock && defense.lockedTargetId) defense.lockedTargetId = undefined;

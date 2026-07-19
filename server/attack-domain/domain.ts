@@ -51,7 +51,13 @@ import type {
 // v6 (2026-07): the clockwork beetle's post-latch fuse is shortened to the
 // shared 125 ms snap-fuse. Stored v5 attacks retain their historical exact
 // 1,000 ms fuse; stored v1–v4 keep their prior cadence math.
-export const ATTACK_SIMULATION_VERSION = 6
+// v7 (2026-07): a siege tower grants pathing credit only when the immutable
+// target snapshot contains a cardinally-connected closed wall loop. Stored
+// v4–v6 attacks retain their historical unconditional tower credit.
+// v8 (2026-07): each siege tower grants pathing credit only when the straight
+// ray from its recorded deploy point to the nearest Town Hall meets a wall.
+// Stored v7 attacks retain their closed-loop gate byte-for-byte.
+export const ATTACK_SIMULATION_VERSION = 8
 
 export const DEFAULT_ATTACK_RULES: Readonly<AttackRulesSnapshot> = Object.freeze({
   simulationVersion: ATTACK_SIMULATION_VERSION,

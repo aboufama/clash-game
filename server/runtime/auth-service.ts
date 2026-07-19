@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import type { SerializedBuilding } from '../../src/game/data/Models'
+import { createStarterVillage } from '../../src/game/config/GameDefinitions'
 import {
   InMemoryAuthRateLimiter,
   createOpaqueSessionToken,
@@ -18,6 +18,7 @@ import { STARTING_POPULATION, VILLAGE_SIMULATION_VERSION } from '../domain/villa
 import { DEFAULT_GUEST_PLOT_TTL_MS } from '../domain/world'
 import { ApiError } from '../errors'
 import type {
+  AccountModerationRecord,
   AccountRecord,
   JsonValue,
   Persistence,
@@ -37,13 +38,15 @@ import {
   releasePlayerPlotClaim
 } from './world-authority'
 
-const STARTING_GOLD = 1_000
-const STARTING_ORE = 25
-const STARTING_FOOD = 50
 const DEFAULT_STARTER_SHIELD_MS = 2 * 60 * 60_000
 const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60_000
 const SESSION_TOUCH_INTERVAL_MS = 30_000
 const MAX_SESSIONS_PER_PLAYER = 8
+
+interface AccountAccessBlock {
+  state: 'suspended' | 'banned'
+  until: Date | null
+}
 
 export interface AuthSessionOptions {
   clock: () => Date
@@ -59,27 +62,20 @@ export interface AuthSessionOptions {
   allowGuestSessions?: boolean
 }
 
-function starterBuildings(): SerializedBuilding[] {
-  return [
-    { id: randomId('b', 6), type: 'town_hall', gridX: 11, gridY: 11, level: 1 },
-    { id: randomId('b', 6), type: 'cannon', gridX: 8, gridY: 11, level: 1 },
-    { id: randomId('b', 6), type: 'barracks', gridX: 15, gridY: 11, level: 1 },
-    { id: randomId('b', 6), type: 'army_camp', gridX: 11, gridY: 15, level: 1 }
-  ]
-}
-
 function starterVillage(playerId: string, now: Date): VillageRecord {
+  const starter = createStarterVillage(() => randomId('b', 6))
   return {
     playerId,
-    buildings: starterBuildings() as unknown as JsonValue[],
-    obstacles: [],
-    army: {},
-    wallLevel: 1,
-    gold: STARTING_GOLD,
-    ore: STARTING_ORE,
-    food: STARTING_FOOD,
+    buildings: starter.buildings as unknown as JsonValue[],
+    obstacles: starter.obstacles,
+    army: starter.army,
+    wallLevel: starter.wallLevel,
+    gold: starter.resources.gold,
+    ore: starter.resources.ore,
+    food: starter.resources.food,
     productionRemainders: { ore: 0, food: 0 },
     population: { count: STARTING_POPULATION, lastGrowthAt: now.getTime(), bornAt: [] },
+    banner: null,
     simulatedThrough: now,
     lastMutationAt: now,
     layoutRevision: 1,
@@ -155,6 +151,30 @@ export class AuthSessionService {
     if (await tx.sessions.touch(session.tokenHash, now)) session.lastUsedAt = now
   }
 
+  private async revokeBlockedAccess(
+    tx: UnitOfWork,
+    playerId: string,
+    now: Date
+  ): Promise<AccountAccessBlock | null> {
+    const moderation: AccountModerationRecord | null = await tx.admin.getModeration(playerId)
+    const blocked = moderation?.state === 'banned'
+      || (moderation?.state === 'suspended'
+        && (moderation.until === null || moderation.until > now))
+    if (!blocked || !moderation || moderation.state === 'active') return null
+    await tx.sessions.deleteForPlayer(playerId)
+    return { state: moderation.state, until: moderation.until }
+  }
+
+  private accessDenied(block: AccountAccessBlock): never {
+    const suspended = block.state === 'suspended'
+    throw new ApiError(
+      403,
+      suspended ? 'This account is suspended' : 'This account is banned',
+      suspended ? 'ACCOUNT_SUSPENDED' : 'ACCOUNT_BANNED',
+      block.until ? { until: block.until.getTime() } : undefined
+    )
+  }
+
   private async sessionResponse(
     tx: UnitOfWork,
     state: OwnedState,
@@ -186,7 +206,7 @@ export class AuthSessionService {
   private async resumeSession(token: string): Promise<SessionResponse | null> {
     const tokenHash = hashSessionToken(token)
     const now = this.clock()
-    return this.persistence.transaction(async tx => {
+    const result = await this.persistence.transaction(async tx => {
       const discovered = await tx.sessions.getByTokenHash(tokenHash)
       if (!discovered) return null
       // Lock player authority before the token row. Guest reaping/account
@@ -212,6 +232,8 @@ export class AuthSessionService {
         await tx.accounts.deleteUnreferencedGuests([state.account.id])
         return null
       }
+      const accessBlock = await this.revokeBlockedAccess(tx, account.id, now)
+      if (accessBlock) return { blocked: accessBlock }
       await this.touchSession(tx, session, now)
       if (state.plot.leaseId && state.plot.leaseExpiresAt
         && state.plot.leaseExpiresAt.getTime() - now.getTime() < DEFAULT_GUEST_PLOT_TTL_MS / 2) {
@@ -229,6 +251,8 @@ export class AuthSessionService {
       await this.authority.touchPresence(tx, state.account, now)
       return this.sessionResponse(tx, state, token, false, now)
     })
+    if (result && 'blocked' in result) this.accessDenied(result.blocked)
+    return result
   }
 
   /**
@@ -331,11 +355,15 @@ export class AuthSessionService {
       const session = await tx.sessions.getByTokenHash(tokenHash)
       if (!session) return { kind: 'missing' as const }
       if (session.expiresAt <= now) return { kind: 'cleanup' as const, playerId: session.playerId }
-      const account = await tx.accounts.getById(session.playerId)
+      // Serialize the moderation decision with admin actions, which lock the
+      // account root before writing moderation and revoking sessions.
+      const account = await tx.accounts.getById(session.playerId, { forUpdate: true })
       const plot = await tx.world.getPlayerPlot(session.playerId)
       if (!account || !plot || (plot.leaseExpiresAt !== null && plot.leaseExpiresAt <= now)) {
         return { kind: 'cleanup' as const, playerId: session.playerId }
       }
+      const accessBlock = await this.revokeBlockedAccess(tx, account.id, now)
+      if (accessBlock) return { kind: 'blocked' as const, accessBlock }
       await this.touchSession(tx, session, now)
       if (plot.leaseId && plot.leaseExpiresAt
         && plot.leaseExpiresAt.getTime() - now.getTime() < DEFAULT_GUEST_PLOT_TTL_MS / 2) {
@@ -351,6 +379,7 @@ export class AuthSessionService {
     }, { isolation: 'read committed' })
     if (observed.kind === 'valid') return { playerId: observed.playerId }
     if (observed.kind === 'missing') throw new ApiError(401, 'Unknown device token')
+    if (observed.kind === 'blocked') this.accessDenied(observed.accessBlock)
 
     // Error cases are rare. Re-read them under locks so expiry cleanup cannot
     // race registration, lease renewal, relocation, or another API process.
@@ -378,6 +407,9 @@ export class AuthSessionService {
         return null
       }
 
+      const accessBlock = await this.revokeBlockedAccess(tx, account.id, now)
+      if (accessBlock) return { kind: 'blocked' as const, accessBlock }
+
       // A concurrent renewal/promotion can make the earlier observation stale.
       await this.touchSession(tx, session, now)
       if (plot.leaseId && plot.leaseExpiresAt
@@ -390,9 +422,10 @@ export class AuthSessionService {
         )
       }
       await this.authority.touchPresence(tx, account, now)
-      return { playerId: session.playerId }
+      return { kind: 'valid' as const, playerId: session.playerId }
     })
-    if (recovered) return recovered
+    if (recovered?.kind === 'blocked') this.accessDenied(recovered.accessBlock)
+    if (recovered?.kind === 'valid') return { playerId: recovered.playerId }
     throw new ApiError(401, 'Unknown device token')
   }
 
@@ -439,35 +472,41 @@ export class AuthSessionService {
     passwordHash: string
   ) {
     const now = this.clock()
-    return this.usernameMutation(() => this.persistence.transaction(async tx => {
-      const state = await this.authority.owned(tx, principal.playerId, true)
-      if (state.account.registered) {
-        throw new ApiError(409, 'This village is already registered — log out to create a different account')
-      }
-      const existing = await tx.accounts.getByUsernameKey(key, { forUpdate: true })
-      if (existing && existing.id !== state.account.id) {
-        throw new ApiError(409, 'That username is already taken', 'USERNAME_TAKEN')
-      }
-      if (!state.plot.leaseId || !await tx.world.promoteGuestLease(state.account.id, state.plot.leaseId, now)) {
-        throw new ApiError(409, 'The guest village lease expired before registration')
-      }
-      const accountRevision = state.account.revision
-      state.account.username = username
-      state.account.usernameKey = key
-      state.account.passwordHash = passwordHash
-      state.account.registered = true
-      state.account.lastSeenAt = now
-      await this.authority.updateAccount(tx, state.account, accountRevision)
-      const villageRevision = state.village.economyRevision
-      state.village.appearanceRevision += 1
-      state.village.lastMutationAt = now
-      await this.authority.updateVillage(tx, state.village, villageRevision)
-      state.plot.leaseId = null
-      state.plot.leaseIssuedAt = null
-      state.plot.leaseRenewedAt = null
-      state.plot.leaseExpiresAt = null
-      return profileOf(state.account, state.plot)
-    }))
+    return this.usernameMutation(async () => {
+      const result = await this.persistence.transaction(async tx => {
+        const state = await this.authority.owned(tx, principal.playerId, true)
+        const accessBlock = await this.revokeBlockedAccess(tx, state.account.id, now)
+        if (accessBlock) return { kind: 'blocked' as const, block: accessBlock }
+        if (state.account.registered) {
+          throw new ApiError(409, 'This village is already registered — log out to create a different account')
+        }
+        const existing = await tx.accounts.getByUsernameKey(key, { forUpdate: true })
+        if (existing && existing.id !== state.account.id) {
+          throw new ApiError(409, 'That username is already taken', 'USERNAME_TAKEN')
+        }
+        if (!state.plot.leaseId || !await tx.world.promoteGuestLease(state.account.id, state.plot.leaseId, now)) {
+          throw new ApiError(409, 'The guest village lease expired before registration')
+        }
+        const accountRevision = state.account.revision
+        state.account.username = username
+        state.account.usernameKey = key
+        state.account.passwordHash = passwordHash
+        state.account.registered = true
+        state.account.lastSeenAt = now
+        await this.authority.updateAccount(tx, state.account, accountRevision)
+        const villageRevision = state.village.economyRevision
+        state.village.appearanceRevision += 1
+        state.village.lastMutationAt = now
+        await this.authority.updateVillage(tx, state.village, villageRevision)
+        state.plot.leaseId = null
+        state.plot.leaseIssuedAt = null
+        state.plot.leaseRenewedAt = null
+        state.plot.leaseExpiresAt = null
+        return { kind: 'profile' as const, profile: profileOf(state.account, state.plot) }
+      })
+      if (result.kind === 'blocked') this.accessDenied(result.block)
+      return result.profile
+    })
   }
 
   async login(rawUsername: unknown, rawPassword: unknown, rawAddress?: unknown): Promise<SessionResponse> {
@@ -486,8 +525,10 @@ export class AuthSessionService {
     }
     this.limiter.recordLoginSuccess(attempt.failureKey)
     const token = createOpaqueSessionToken()
-    return this.persistence.transaction(async tx => {
+    const result = await this.persistence.transaction(async tx => {
       const state = await this.authority.owned(tx, account.id, true)
+      const accessBlock = await this.revokeBlockedAccess(tx, state.account.id, now)
+      if (accessBlock) return { kind: 'blocked' as const, block: accessBlock }
       const sessions = await tx.sessions.listForPlayer(account.id, MAX_SESSIONS_PER_PLAYER + 16, { forUpdate: true })
       if (!state.account.passwordHash || state.account.passwordHash !== account.passwordHash) {
         throw new ApiError(401, 'Incorrect password')
@@ -509,8 +550,10 @@ export class AuthSessionService {
         deviceId: null
       })
       await this.authority.touchPresence(tx, state.account, now)
-      return this.sessionResponse(tx, state, token, false, now)
+      return { kind: 'response' as const, response: await this.sessionResponse(tx, state, token, false, now) }
     })
+    if (result.kind === 'blocked') this.accessDenied(result.block)
+    return result.response
   }
 
   async logout(rawToken: unknown): Promise<void> {

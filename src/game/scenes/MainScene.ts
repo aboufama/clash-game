@@ -4721,6 +4721,9 @@ export class MainScene extends Phaser.Scene {
         else if (type === 'golem' || type === 'icegolem') legacy = 70;
         else if (type === 'davincitank') legacy = 48;
         else if (type === 'mobilemortar') legacy = 26;
+        else if (type === 'siegetower') legacy = 62;
+        else if (type === 'trebuchet') legacy = 46;
+        else if (type === 'ornithopter') legacy = 40;
         const top = Math.max(10, legacy - 10);
         return { cx: 0, cy: -top / 2, rx: Math.max(6, top * 0.45), ry: top / 2 };
     }
@@ -4737,11 +4740,19 @@ export class MainScene extends Phaser.Scene {
 
     /** Center of a troop's visible body (baked silhouette ellipse) — the
      *  anchor for UNDIRECTED hit FX (zone ticks, on-hit reactions). */
+    /** Carrier scale (spawn bounce etc.) — the stamped body rides it, so the
+     *  ellipse must too or bolts terminate in air beside a half-size sprite. */
+    private troopVisualScale(troop: Troop): number {
+        const g = troop.gameObject;
+        return g && g.active ? Math.abs(g.scaleX || 1) : 1;
+    }
+
     private troopBodyCenter(troop: Troop): { x: number; y: number } {
         const a = this.troopVisualAnchor(troop);
+        const s = this.troopVisualScale(troop);
         const ell = SpriteBank.troopBodyEllipse(troop.type, troop.owner, troop.level || 1)
             ?? this.vectorBodyEllipse(troop.type);
-        return { x: a.x + ell.cx, y: a.y + ell.cy };
+        return { x: a.x + ell.cx * s, y: a.y + ell.cy * s };
     }
 
     /**
@@ -4755,18 +4766,27 @@ export class MainScene extends Phaser.Scene {
      */
     private visualImpactPoint(troop: Troop, fromX: number, fromY: number): { x: number; y: number } {
         const a = this.troopVisualAnchor(troop);
+        const s = this.troopVisualScale(troop);
         const ell = SpriteBank.troopBodyEllipse(troop.type, troop.owner, troop.level || 1)
             ?? this.vectorBodyEllipse(troop.type);
-        const cx = a.x + ell.cx;
-        const cy = a.y + ell.cy;
+        const rx = ell.rx * s;
+        const ry = ell.ry * s;
+        const cx = a.x + ell.cx * s;
+        const cy = a.y + ell.cy * s;
         // Normalize the ellipse to a unit circle: the nearest surface point
         // along the attacker→center ray is the direction unit vector, mapped
         // back through the semi-axes (affine maps preserve nearest-ness).
-        const nx = (fromX - cx) / ell.rx;
-        const ny = (fromY - cy) / ell.ry;
+        const nx = (fromX - cx) / rx;
+        const ny = (fromY - cy) / ry;
         const d = Math.hypot(nx, ny);
-        if (!(d > 1)) return { x: cx, y: cy };
-        return { x: cx + (nx / d) * ell.rx, y: cy + (ny / d) * ell.ry };
+        // Attacker at the exact center (or NaN): only then collapse to center.
+        if (!(d > 1e-4)) return { x: cx, y: cy };
+        // Attacker inside the ellipse: land the shot AT the attacker — this is
+        // the continuous limit of the surface point as d→1+, so a homing
+        // projectile mid-flight never pops when the muzzle crosses the
+        // boundary (previously it jumped ~rx px to the center).
+        if (d <= 1) return { x: fromX, y: fromY };
+        return { x: cx + (nx / d) * rx, y: cy + (ny / d) * ry };
     }
 
     private shootAt(cannon: PlacedBuilding, troop: Troop): boolean {
@@ -4882,9 +4902,12 @@ export class MainScene extends Phaser.Scene {
                 ball.destroy();
                 cannon.isFiring = false;
 
-                // Impact effect (pixelated rectangle)
+                // Impact effect (pixelated rectangle) — dirt is GROUND art:
+                // it stays at the feet tile even though the ball now lands on
+                // the body surface, else it floats mid-air on tall troops.
+                const feet = this.troopVisualAnchor(targetTroop);
                 const impact = this.trackBattleFx(this.add.graphics());
-                pixelRect(impact, aim.x - 8, aim.y, 16, 8, 0x8b7355, 0.6);
+                pixelRect(impact, feet.x - 8, feet.y, 16, 8, 0x8b7355, 0.6);
                 impact.setDepth(depthForGroundEffect(targetTroop.gridX, targetTroop.gridY) - 1);
                 this.tweens.add({ targets: impact, alpha: 0, duration: 300, onComplete: () => impact.destroy() });
 
@@ -9873,7 +9896,9 @@ export class MainScene extends Phaser.Scene {
         }
         const username = started.world.username || 'Bot clan';
         const meta = {
-            id: `bot_${started.seed >>> 0}`,
+            // The server owns bot identity. Seeds can repeat at different
+            // coordinates and are provenance, not an entity/cache key.
+            id: started.world.ownerId,
             username,
             isBot: true,
             attackId: started.raidId,

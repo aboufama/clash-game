@@ -1,5 +1,12 @@
 import type {
   AccountRecord,
+  AccountModerationRecord,
+  AdminAttackQuery,
+  AdminAuditRecord,
+  AdminOverviewRecord,
+  AdminPlayerQuery,
+  AdminPlayerRecord,
+  AdminRuntimeConfigRecord,
   AttackCandidateQuery,
   AttackCandidateRecord,
   AttackAuthorityCommandWrite,
@@ -9,6 +16,7 @@ import type {
   AttackCommandRecord,
   AttackCommandQuery,
   AttackRecord,
+  BotVillageRecord,
   IdempotencyClaim,
   JsonObject,
   JsonValue,
@@ -28,6 +36,7 @@ import type {
   WorldAllocationRecord,
   WorldAtlasEntry,
   WorldAtlasQuery,
+  WorldPlayerDirectoryQuery,
   WorldPlayerEntry,
   WorldPlotRecord,
   WorldRegionRecord
@@ -70,6 +79,7 @@ export interface VillageRepository {
   get(playerId: string, options?: { forUpdate?: boolean }): Promise<VillageRecord | null>
   insert(record: VillageRecord): Promise<void>
   update(record: VillageRecord, expectedEconomyRevision: number): Promise<boolean>
+  updateAppearance(record: VillageRecord, expectedAppearanceRevision: number): Promise<boolean>
 }
 
 export interface WorldRepository {
@@ -95,8 +105,26 @@ export interface WorldRepository {
   getOccupant(worldId: string, x: number, y: number, options?: { forUpdate?: boolean }): Promise<WorldPlotRecord | null>
   /** Bounded exact-coordinate occupancy projection for randomized world probes. */
   listOccupantsAt(worldId: string, coordinates: readonly { x: number; y: number }[]): Promise<WorldPlotRecord[]>
+  /** Exact persisted bot identity lookup; generation is never a read fallback. */
+  getBotVillage(id: string, options?: { forUpdate?: boolean }): Promise<BotVillageRecord | null>
+  /** Exact-coordinate persisted bot lookup used by map and attack start. */
+  getBotVillageAt(
+    worldId: string,
+    x: number,
+    y: number,
+    options?: { forUpdate?: boolean }
+  ): Promise<BotVillageRecord | null>
+  /** Bounded persisted-bot window; callers must never synthesize missing rows. */
+  listBotVillages(query: WorldAtlasQuery): Promise<BotVillageRecord[]>
+  /** Idempotent only for equivalent content/provenance; the committed row's timestamps win. */
+  insertBotVillage(record: BotVillageRecord): Promise<'inserted' | 'existing'>
+  /** CAS update; identity, coordinate, plot version and generator provenance are immutable. */
+  updateBotVillage(record: BotVillageRecord, expectedRevision: number): Promise<boolean>
+  deleteBotVillage(id: string): Promise<boolean>
   listAtlas(query: WorldAtlasQuery): Promise<WorldAtlasEntry[]>
   listPlayers(query: WorldAtlasQuery): Promise<WorldPlayerEntry[]>
+  /** Global atlas directory, bounded by result count and ordered nearest-first. */
+  listPlayersGlobal(query: WorldPlayerDirectoryQuery): Promise<WorldPlayerEntry[]>
   /**
    * Claims expired guest account roots in stable ID order. PostgreSQL locks
    * accounts (not plots) with SKIP LOCKED so cleanup follows account -> plot.
@@ -205,6 +233,21 @@ export interface BalanceLedgerRepository {
   summarizeDays(fromDay: number, throughDay: number): Promise<BalanceLedgerDaySummary[]>
 }
 
+/** Bounded, secret-free reads and durable mutations for the operator surface. */
+export interface AdminRepository {
+  overview(now: Date, onlineSince: Date): Promise<AdminOverviewRecord>
+  listPlayers(query: AdminPlayerQuery): Promise<AdminPlayerRecord[]>
+  getPlayer(playerId: string, now: Date): Promise<AdminPlayerRecord | null>
+  isUsernameTaken(usernameKey: string, excludingPlayerId: string): Promise<boolean>
+  listAttacks(query: AdminAttackQuery): Promise<AttackRecord[]>
+  getModeration(playerId: string, options?: { forUpdate?: boolean }): Promise<AccountModerationRecord | null>
+  upsertModeration(record: AccountModerationRecord, expectedRevision: number | null): Promise<boolean>
+  getConfig(options?: { forUpdate?: boolean }): Promise<AdminRuntimeConfigRecord>
+  updateConfig(record: AdminRuntimeConfigRecord, expectedRevision: number): Promise<boolean>
+  listAudit(limit: number): Promise<AdminAuditRecord[]>
+  appendAudit(record: AdminAuditRecord): Promise<void>
+}
+
 export interface UnitOfWork {
   accounts: AccountRepository
   sessions: SessionRepository
@@ -217,6 +260,7 @@ export interface UnitOfWork {
   outbox: OutboxRepository
   operationMarkers: OperationMarkerRepository
   balanceLedger: BalanceLedgerRepository
+  admin: AdminRepository
 }
 
 export interface Persistence {

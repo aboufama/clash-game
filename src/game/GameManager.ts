@@ -95,6 +95,8 @@ type SceneCommands = {
     showNeighborhood: () => void;
     /** Server population changed: births arrive as children at the town hall. */
     syncPopulation: (count: number) => void;
+    /** Every merchant deal taken: pack up the stall and send him on his way. */
+    merchantSoldOut: () => void;
 };
 
 class GameManager {
@@ -269,6 +271,9 @@ class GameManager {
 
     syncPopulation(count: number) {
         this.sceneCommands.syncPopulation?.(count);
+    }
+    merchantSoldOut() {
+        this.sceneCommands.merchantSoldOut?.();
     }
 
     closeMenus() {

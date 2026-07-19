@@ -3,6 +3,7 @@ import {
     VILLAGE_BANNER_EMBLEMS,
     VILLAGE_BANNER_PALETTES,
     VILLAGE_BANNER_PATTERNS,
+    sanitizeVillageBanner,
     villageBannersEqual,
     type VillageBanner
 } from '../game/data/Models';
@@ -18,11 +19,37 @@ import { soundSystem } from '../game/systems/SoundSystem';
 interface BannerPickerModalProps {
     isOpen: boolean;
     userId: string;
+    required?: boolean;
     onClose: () => void;
+    onSaved?: (banner: VillageBanner) => void;
 }
 
 const EMBLEM_NAMES = ['TOWER', 'BLADE', 'OAK', 'STAR', 'MOON', 'HAMMER'];
 const PATTERN_NAMES = ['SOLID', 'FESS', 'PALE', 'BEND', 'CHEVRON'];
+
+interface BannerDraft {
+    palette: number | null;
+    emblem: number | null;
+    pattern: number | null;
+}
+
+const EMPTY_BANNER_DRAFT: BannerDraft = Object.freeze({
+    palette: null,
+    emblem: null,
+    pattern: null
+});
+
+function draftFor(banner: VillageBanner | null): BannerDraft {
+    const safe = sanitizeVillageBanner(banner);
+    return safe
+        ? { palette: safe.palette, emblem: safe.emblem, pattern: safe.pattern }
+        : { ...EMPTY_BANNER_DRAFT };
+}
+
+function bannerFor(draft: BannerDraft): Required<VillageBanner> | null {
+    if (draft.palette === null || draft.emblem === null || draft.pattern === null) return null;
+    return { palette: draft.palette, emblem: draft.emblem, pattern: draft.pattern };
+}
 
 /** One banner rendered by the REAL flag renderer onto a DOM canvas. */
 function BannerSwatch({ userId, banner, width, height, scale }: {
@@ -47,42 +74,51 @@ function BannerSwatch({ userId, banner, width, height, scale }: {
  * swatch and the preview are painted by the SAME renderer the world uses,
  * so what you pick is exactly what flies.
  */
-export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModalProps) {
-    // The explicit persisted choice (null = identity default) and the
-    // identity-default axes it falls back to.
+export function BannerPickerModal({ isOpen, userId, required = false, onClose, onSaved }: BannerPickerModalProps) {
+    // Missing or partial heraldry is deliberately NOT seeded from the
+    // identity-derived rendering fallback. New players must choose every axis.
     const savedBanner = useMemo<VillageBanner | null>(
-        () => (isOpen ? Backend.getCachedWorld(userId)?.banner ?? null : null),
+        () => (isOpen ? sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner) : null),
         [isOpen, userId]
     );
     const defaultAxes = useMemo(() => bannerAxesOf(villageFlagFor(userId)), [userId]);
-    const [choice, setChoice] = useState<VillageBanner>(savedBanner ?? defaultAxes);
+    const [choice, setChoice] = useState<BannerDraft>(() => draftFor(savedBanner));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     useEffect(() => {
         if (isOpen) {
-            setChoice(savedBanner ?? defaultAxes);
+            setChoice(draftFor(savedBanner));
             setError(null);
         }
-    }, [isOpen, savedBanner, defaultAxes]);
+    }, [isOpen, savedBanner]);
 
     if (!isOpen) return null;
 
-    const dirty = !villageBannersEqual(choice, savedBanner ?? defaultAxes);
+    const completedChoice = bannerFor(choice);
+    const dirty = Boolean(completedChoice && !villageBannersEqual(completedChoice, savedBanner));
 
-    const pick = (next: Partial<VillageBanner>) => {
+    const pick = (next: Partial<BannerDraft>) => {
         soundSystem.play('click');
         setChoice(prev => ({ ...prev, ...next }));
     };
 
+    // Option tiles still need complete data for the real renderer. These are
+    // visual examples only: fallbacks never enter the draft or mark a choice.
+    const swatchBanner = (next: Partial<BannerDraft>): Required<VillageBanner> => ({
+        palette: next.palette ?? choice.palette ?? defaultAxes.palette,
+        emblem: next.emblem ?? choice.emblem ?? defaultAxes.emblem,
+        pattern: next.pattern ?? choice.pattern ?? defaultAxes.pattern
+    });
+
     const save = async () => {
-        if (busy) return;
+        if (busy || !completedChoice) return;
         setBusy(true);
         setError(null);
-        // The default axes chosen verbatim persist as an EXPLICIT banner —
-        // renames/identity churn can never silently restyle the flag.
         try {
-            await Backend.setVillageBanner(userId, choice);
+            const applied = sanitizeVillageBanner(await Backend.setVillageBanner(userId, completedChoice));
+            if (!applied) throw new Error('Banner save returned no complete banner');
             soundSystem.play('confirm');
+            onSaved?.(applied);
             onClose();
         } catch {
             setError('The banner could not be raised — try again.');
@@ -91,32 +127,46 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
         }
     };
 
-    const reset = async () => {
-        if (busy) return;
-        setBusy(true);
-        setError(null);
-        try {
-            await Backend.setVillageBanner(userId, null);
-            setChoice(defaultAxes);
-            soundSystem.play('confirm');
-            onClose();
-        } catch {
-            setError('The banner could not be reset — try again.');
-        } finally {
-            setBusy(false);
-        }
+    const requestClose = () => {
+        if (required || busy) return;
+        soundSystem.play('uiClose');
+        onClose();
     };
 
     return (
-        <div className="modal-overlay" onClick={busy ? undefined : () => { soundSystem.play('uiClose'); onClose(); }}>
-            <div className="training-modal banner-modal" onClick={e => e.stopPropagation()}>
+        <div
+            className={`modal-overlay ${required ? 'banner-required-overlay' : ''}`}
+            onClick={requestClose}
+            role="presentation"
+        >
+            <div
+                className="training-modal banner-modal"
+                onClick={e => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="banner-picker-title"
+            >
                 <div className="modal-header">
-                    <h2>Village Banner</h2>
-                    <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} disabled={busy} aria-label="Close"><span className="sym sym-close small" /></button>
+                    <h2 id="banner-picker-title">{required ? 'Raise Your Banner' : 'Village Banner'}</h2>
+                    {!required && (
+                        <button className="pxf-close" onClick={requestClose} disabled={busy} aria-label="Close"><span className="sym sym-close small" /></button>
+                    )}
                 </div>
                 <div className="modal-body banner-body">
+                    {required && (
+                        <div className="banner-required-note">
+                            Choose a field, emblem, and pattern before entering your village.
+                        </div>
+                    )}
                     <div className="banner-preview-row">
-                        <BannerSwatch userId={userId} banner={choice} width={192} height={132} scale={3} />
+                        {completedChoice ? (
+                            <BannerSwatch userId={userId} banner={completedChoice} width={192} height={132} scale={3} />
+                        ) : (
+                            <div className="banner-empty-preview" aria-label="No banner selected">
+                                <span>NO BANNER</span>
+                                <small>CHOOSE ALL THREE</small>
+                            </div>
+                        )}
                         <div className="banner-preview-note">
                             Flown at your town hall, carried to war and planted at the enemy gate.
                         </div>
@@ -130,8 +180,10 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
                                 className={`banner-cell ${choice.palette === palette ? 'selected' : ''}`}
                                 onClick={() => pick({ palette })}
                                 disabled={busy}
+                                aria-pressed={choice.palette === palette}
+                                aria-label={`Field ${palette + 1}`}
                             >
-                                <BannerSwatch userId={userId} banner={{ ...choice, palette }} width={64} height={48} scale={1.6} />
+                                <BannerSwatch userId={userId} banner={swatchBanner({ palette })} width={64} height={48} scale={1.6} />
                             </button>
                         ))}
                     </div>
@@ -144,8 +196,9 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
                                 className={`banner-cell ${choice.emblem === emblem ? 'selected' : ''}`}
                                 onClick={() => pick({ emblem })}
                                 disabled={busy}
+                                aria-pressed={choice.emblem === emblem}
                             >
-                                <BannerSwatch userId={userId} banner={{ ...choice, emblem }} width={64} height={48} scale={1.6} />
+                                <BannerSwatch userId={userId} banner={swatchBanner({ emblem })} width={64} height={48} scale={1.6} />
                                 <span className="banner-cell-name">{EMBLEM_NAMES[emblem]}</span>
                             </button>
                         ))}
@@ -156,11 +209,12 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
                         {Array.from({ length: VILLAGE_BANNER_PATTERNS }, (_, pattern) => (
                             <button
                                 key={pattern}
-                                className={`banner-cell ${(choice.pattern ?? defaultAxes.pattern) === pattern ? 'selected' : ''}`}
+                                className={`banner-cell ${choice.pattern === pattern ? 'selected' : ''}`}
                                 onClick={() => pick({ pattern })}
                                 disabled={busy}
+                                aria-pressed={choice.pattern === pattern}
                             >
-                                <BannerSwatch userId={userId} banner={{ ...choice, pattern }} width={64} height={48} scale={1.6} />
+                                <BannerSwatch userId={userId} banner={swatchBanner({ pattern })} width={64} height={48} scale={1.6} />
                                 <span className="banner-cell-name">{PATTERN_NAMES[pattern]}</span>
                             </button>
                         ))}
@@ -169,11 +223,8 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
                     {error && <div className="banner-error">{error}</div>}
 
                     <div className="banner-actions">
-                        <button className="banner-save-btn" onClick={save} disabled={busy || !dirty}>
-                            {busy ? 'RAISING…' : 'RAISE BANNER'}
-                        </button>
-                        <button className="banner-reset-btn" onClick={reset} disabled={busy || !savedBanner}>
-                            VILLAGE CREST
+                        <button className="banner-save-btn" onClick={save} disabled={busy || !completedChoice || !dirty}>
+                            {busy ? 'RAISING…' : completedChoice ? 'RAISE BANNER' : 'CHOOSE ALL THREE'}
                         </button>
                     </div>
                 </div>

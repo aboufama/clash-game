@@ -12,3 +12,16 @@ export class ApiError extends Error {
     this.details = details
   }
 }
+
+/**
+ * A newly created player must explicitly choose all banner axes before any
+ * gameplay state can be changed. Keep this transport failure identical across
+ * the legacy JSON and normalized persistence runtimes.
+ */
+export function bannerRequiredError(): ApiError {
+  return new ApiError(
+    409,
+    'Choose a village banner before changing your village',
+    'BANNER_REQUIRED'
+  )
+}

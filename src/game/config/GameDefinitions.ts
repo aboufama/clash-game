@@ -5,3 +5,4 @@
  * client and server imports intentionally continue to work through this file.
  */
 export * from './definitions';
+export * from './StarterVillage';

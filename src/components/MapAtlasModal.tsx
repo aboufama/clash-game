@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Backend } from '../game/backend/GameBackend';
 import { soundSystem } from '../game/systems/SoundSystem';
 import {
@@ -8,6 +8,8 @@ import {
 } from '../game/config/WorldHydrology';
 import { buildVariableWidthRibbon } from '../game/renderers/WorldHydrologyRenderer';
 import { WildernessRenderer } from '../game/renderers/WildernessRenderer';
+import { weatherAt } from '../game/systems/WeatherSystem';
+import { DayNightSystem } from '../game/systems/DayNightSystem';
 
 interface AtlasPlayer {
   x: number;
@@ -22,6 +24,10 @@ interface AtlasPlayer {
 
 interface AtlasData {
   me: { x: number; y: number };
+  /** The watchtower's default-sight radius in plots (0-2); 0 with no watchtower. */
+  sight: number;
+  /** The world's coordinate bound: plots span ±worldPlotLimit on both axes. */
+  worldPlotLimit: number;
   players: AtlasPlayer[];
   /** Live raids: attacker plot -> victim plot. */
   battles?: Array<{ ax: number; ay: number; vx: number; vy: number }>;
@@ -101,8 +107,10 @@ const KEEP = [
 
 const CELL = 14;   // logical pixels per plot cell (7px glyph + breathing room)
 const SCALE = 2;   // screen pixels per logical pixel
-const MAX_COLS = 48;
-const MAX_ROWS = 34;
+// One cell per plot for the whole ±24 world square (49 + the margin ring);
+// bigger spans (legacy outliers) fall back to bucketing.
+const MAX_COLS = 51;
+const MAX_ROWS = 51;
 
 // ---- the charting reveal ----
 // While the chart loads (and briefly after it lands) the atlas is covered by
@@ -110,8 +118,6 @@ const MAX_ROWS = 34;
 // player's own keep in diamond (Manhattan) rings. Deterministic f(time): one
 // clock per open, per-cell stagger from the cell hash — never Math.random.
 const REVEAL_STAGGER = 2;           // extra per-cell delay in rings, from the cell hash
-const REVEAL_PLACEHOLDER_MS = 700;  // dataless sweep reaches the hold line in this long
-const REVEAL_HOLD = 0.55;           // the dataless sweep parks here and pulses
 const REVEAL_COMPLETE_MS = 900;     // hold line -> fully charted once data lands
 const REVEAL_COLS = 21;             // placeholder grid, before the first chart arrives
 const REVEAL_ROWS = 15;
@@ -148,18 +154,54 @@ function drawKeepGlyph(ctx: CanvasRenderingContext2D, px: number, py: number, wa
   }
 }
 
+// ---- the watchtower sight ring ----
+// The atlas charts a wide window, but a chief only sees this much of it
+// "for free" (no scouting) — the watchtower's own radius. A thin gold
+// outline traces that square around the player's keep, and a small pip
+// perched on the keep marks the tower that projects it.
+const SIGHT_LINE = '#e0b84a';
+
+function drawSightBoundary(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number) {
+  ctx.fillStyle = SIGHT_LINE;
+  ctx.fillRect(x0, y0, x1 - x0, 1);
+  ctx.fillRect(x0, y1 - 1, x1 - x0, 1);
+  ctx.fillRect(x0, y0, 1, y1 - y0);
+  ctx.fillRect(x1 - 1, y0, 1, y1 - y0);
+}
+
+/** A tiny flagged mast above the keep glyph, marking the watchtower itself.
+ *  Occupies columns px+3..px+5 — clear of the battle badge (px+6..px+8) and
+ *  above the shield arc's rows, so all three can coexist on one keep. */
+function drawWatchtowerPip(ctx: CanvasRenderingContext2D, px: number, py: number) {
+  ctx.fillStyle = '#5c4033';
+  ctx.fillRect(px + 3, py - 4, 1, 2);
+  ctx.fillStyle = SIGHT_LINE;
+  ctx.fillRect(px + 4, py - 5, 2, 1);
+  ctx.fillRect(px + 4, py - 4, 1, 1);
+}
+
+/** Coarse weather label for the top bar: a pure function of the shared world clock. */
+function currentWeatherLabel(): string {
+  const worldNow = Date.now() + DayNightSystem.serverOffsetMs;
+  const intensity = weatherAt(worldNow);
+  if (intensity <= 0) return 'Clear';
+  return intensity < 0.75 ? 'Rain' : 'Storm';
+}
+
+type HoverInfo =
+  | { kind: 'village'; player: AtlasPlayer }
+  | { kind: 'plot'; x: number; y: number; label: string };
+
 export function MapAtlasModal({ onClose }: { onClose: () => void }) {
   const [atlas, setAtlas] = useState<AtlasData | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
-  const [hover, setHover] = useState<AtlasPlayer | null>(null);
+  const [hover, setHover] = useState<HoverInfo | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const [revealDone, setRevealDone] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const placeholderRef = useRef<HTMLCanvasElement>(null);
   const revealRef = useRef<HTMLCanvasElement>(null);
-  // One reveal clock per open; the overlay resumes from wherever the
-  // dataless sweep had reached instead of restarting.
-  const revealT0 = useRef<number | null>(null);
   const overlayStart = useRef<{ at: number; from: number } | null>(null);
 
   // The chart is LIVE: re-fetched every few seconds while open, so battles
@@ -201,14 +243,15 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
       minY = Math.min(minY, y);
       maxY = Math.max(maxY, y);
     }
-    // Always chart at least the near region: a lone village still gets its
-    // surrounding lakes and forests, not a 3x3 postage stamp.
-    const meX = Number.isFinite(atlas.me.x) ? Math.trunc(atlas.me.x) : 0;
-    const meY = Number.isFinite(atlas.me.y) ? Math.trunc(atlas.me.y) : 0;
-    minX = Math.min(minX, meX - 6);
-    maxX = Math.max(maxX, meX + 6);
-    minY = Math.min(minY, meY - 6);
-    maxY = Math.max(maxY, meY + 6);
+    // It's a WORLD atlas: always frame the whole ±worldPlotLimit square,
+    // grown further only by legacy outlier plots beyond it.
+    const worldRadius = Number.isFinite(atlas.worldPlotLimit) && atlas.worldPlotLimit > 0
+      ? Math.trunc(atlas.worldPlotLimit)
+      : 24;
+    minX = Math.min(minX, -worldRadius);
+    maxX = Math.max(maxX, worldRadius);
+    minY = Math.min(minY, -worldRadius);
+    maxY = Math.max(maxY, worldRadius);
     const spanX = Math.max(1, maxX - minX + 1);
     const spanY = Math.max(1, maxY - minY + 1);
     const bucket = Math.max(1, Math.ceil(spanX / (MAX_COLS - 2)), Math.ceil(spanY / (MAX_ROWS - 2)));
@@ -339,6 +382,13 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
       ctx.fillRect(0, origin.cy * CELL, layout.w, 1);
     }
 
+    // The watchtower's default-sight square, centered on the player's plot.
+    if (atlas.sight > 0) {
+      const tl = layout.project(atlas.me.x - atlas.sight, atlas.me.y - atlas.sight);
+      const br = layout.project(atlas.me.x + atlas.sight, atlas.me.y + atlas.sight);
+      drawSightBoundary(ctx, tl.cx * CELL, tl.cy * CELL, (br.cx + 1) * CELL, (br.cy + 1) * CELL);
+    }
+
     for (const p of atlas.players) {
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
       const cellPos = layout.project(p.x, p.y);
@@ -361,6 +411,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
         ctx.fillRect(px + 6, py - 2, 2, 2);
         ctx.fillRect(px + 7, py - 3, 2, 2);
       }
+      if (p.me && atlas.sight > 0) drawWatchtowerPip(ctx, px, py);
     }
   }, [atlas, layout]);
 
@@ -425,48 +476,13 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     if (!ctx) return;
     canvas.width = REVEAL_COLS * CELL;
     canvas.height = REVEAL_ROWS * CELL;
-    const mcx = Math.floor(REVEAL_COLS / 2);
-    const mcy = Math.floor(REVEAL_ROWS / 2);
-    const maxRing = mcx + mcy + REVEAL_STAGGER + 1;
-    let raf = 0;
-    const draw = () => {
-      raf = requestAnimationFrame(draw);
-      const now = performance.now();
-      if (revealT0.current === null) revealT0.current = now;
-      const fraction = Math.min(REVEAL_HOLD, ((now - revealT0.current) / REVEAL_PLACEHOLDER_MS) * REVEAL_HOLD);
-      const ringFloat = fraction * maxRing;
-      const pulse = Math.floor(now / 300) % 2 === 0;
-      for (let cy = 0; cy < REVEAL_ROWS; cy++) {
-        for (let cx = 0; cx < REVEAL_COLS; cx++) {
-          const ring = Math.abs(cx - mcx) + Math.abs(cy - mcy) + (cellHash(cx, cy) % (REVEAL_STAGGER + 1));
-          if (ring > ringFloat) {
-            paintFogCell(ctx, cx, cy);
-            continue;
-          }
-          const x = cx * CELL;
-          const y = cy * CELL;
-          ctx.fillStyle = '#efe3bb';
-          ctx.fillRect(x, y, CELL, CELL);
-          ctx.fillStyle = '#e2d3a4';
-          ctx.fillRect(x + CELL - 1, y, 1, CELL);
-          ctx.fillRect(x, y + CELL - 1, CELL, 1);
-          if (ringFloat - ring < 1 && pulse) {
-            ctx.fillStyle = FRONTIER_TINT;
-            ctx.fillRect(x, y, CELL, CELL);
-          }
-        }
-      }
-      // Your keep seeds the chart at the centre of the sweep.
-      drawKeepGlyph(
-        ctx,
-        mcx * CELL + Math.floor((CELL - 7) / 2),
-        mcy * CELL + Math.floor((CELL - 7) / 2),
-        '#d9b348',
-        '#8a6a1e'
-      );
-    };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    // STATIC fog only (owner fix 2026-07-19): the old dataless melt ran on a
+    // placeholder grid sized nothing like the real chart, so the hand-off
+    // stuttered. Fog holds still here; the ONE reveal sweep runs in act two,
+    // on the real map, centered on your keep.
+    for (let cy = 0; cy < REVEAL_ROWS; cy++) {
+      for (let cx = 0; cx < REVEAL_COLS; cx++) paintFogCell(ctx, cx, cy);
+    }
   }, [layout, fetchFailed, revealDone]);
 
   // Act two: the real chart is underneath and the same sweep finishes across
@@ -489,11 +505,11 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     let raf = 0;
     const draw = () => {
       const now = performance.now();
-      if (revealT0.current === null) revealT0.current = now;
       if (overlayStart.current === null) {
-        // Resume from wherever the dataless sweep had reached; never restart.
-        const from = Math.min(REVEAL_HOLD, ((now - revealT0.current) / REVEAL_PLACEHOLDER_MS) * REVEAL_HOLD);
-        overlayStart.current = { at: now, from };
+        // The whole sweep runs on the REAL chart, ring zero at your keep —
+        // act one holds static fog, so there is no placeholder clock to
+        // resume and no mid-sweep re-anchor stutter.
+        overlayStart.current = { at: now, from: 0 };
       }
       const { at, from } = overlayStart.current;
       const fraction = Math.min(1, from + ((now - at) / REVEAL_COMPLETE_MS) * (1 - from));
@@ -527,12 +543,52 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     const ly = (e.clientY - rect.top) / (rect.height / layout.h);
     const cx = Math.floor(lx / CELL);
     const cy = Math.floor(ly / CELL);
-    setHover(atlas.players.find(p => {
+    setHoverPos({ x: e.clientX, y: e.clientY });
+    // The outer ring is a reserved margin — layout.project never places a
+    // village or resolves a plot there.
+    if (cx <= 0 || cy <= 0 || cx >= layout.cols - 1 || cy >= layout.rows - 1) {
+      setHover(null);
+      return;
+    }
+    const player = atlas.players.find(p => {
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
       const projected = layout.project(p.x, p.y);
       return projected.cx === cx && projected.cy === cy;
-    }) ?? null);
+    });
+    if (player) {
+      setHover({ kind: 'village', player });
+      return;
+    }
+    // Hover speaks only for populated villages (owner rule 2026-07-19);
+    // open land identifies its archetype on CLICK via onChartClick.
+    if (hover?.kind !== 'plot') setHover(null);
   };
+
+  const onChartClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!atlas || !layout) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const lx = (e.clientX - rect.left) / (rect.width / layout.w);
+    const ly = (e.clientY - rect.top) / (rect.height / layout.h);
+    const cx = Math.floor(lx / CELL);
+    const cy = Math.floor(ly / CELL);
+    if (cx <= 0 || cy <= 0 || cx >= layout.cols - 1 || cy >= layout.rows - 1) { setHover(null); return; }
+    const village = atlas.players.some(p => {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+      const projected = layout.project(p.x, p.y);
+      return projected.cx === cx && projected.cy === cy;
+    });
+    if (village) return; // villages already speak on hover
+    const centerOffset = layout.bucket > 1 ? Math.floor(layout.bucket / 2) : 0;
+    const px = layout.minX + (cx - 1) * layout.bucket + centerOffset;
+    const py = layout.minY + (cy - 1) * layout.bucket + centerOffset;
+    const nature = WildernessRenderer.natureAt(px, py);
+    setHoverPos({ x: e.clientX, y: e.clientY });
+    setHover({ kind: 'plot', x: px, y: py, label: nature.label });
+  };
+
+  // The WHOLE world's plot count: the main server spans ±worldPlotLimit on
+  // both axes — (2·24 + 1)² = 2,401 plots at today's single-server bound.
+  const totalPlots = atlas ? (2 * atlas.worldPlotLimit + 1) ** 2 : 0;
 
   return (
     <div className="modal-overlay" onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
@@ -540,10 +596,16 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
         <div className="atlas-title">
           <span className="sym sym-castle small" />
           <span>WORLD ATLAS</span>
-          <span className="atlas-count">
-            {atlas
-              ? `${atlas.players.length}${atlas.truncated ? '+' : ''} nearby villages`
-              : fetchFailed ? 'chart lost — retrying…' : 'charting…'}
+          <span className="atlas-stats">
+            {atlas ? (
+              <>
+                <span className="atlas-stat">{atlas.me.x}, {atlas.me.y}</span>
+                <span className="atlas-stat">{totalPlots.toLocaleString()} plots</span>
+                <span className="atlas-stat">{currentWeatherLabel()}</span>
+              </>
+            ) : (
+              <span className="atlas-stat">{fetchFailed ? 'chart lost — retrying…' : 'charting…'}</span>
+            )}
           </span>
           <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close">
             <span className="sym sym-close small" />
@@ -567,7 +629,8 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
                 className="atlas-chart"
                 style={{ width: layout.w * SCALE, height: layout.h * SCALE }}
                 onMouseMove={onMove}
-                onMouseLeave={() => setHover(null)}
+                onClick={onChartClick}
+                onMouseLeave={() => { setHover(null); setHoverPos(null); }}
               />
               <canvas
                 ref={liveRef}
@@ -585,14 +648,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <div className="atlas-footer">
-          {hover ? (
-            <span className="atlas-hover">
-              {hover.me ? 'YOU — ' : ''}{hover.username}
-              <span className="sym sym-trophy small" />{hover.trophies}
-              {hover.shielded ? ' · shielded' : ''}
-              {hover.underAttack ? ' · UNDER ATTACK' : ''}
-            </span>
-          ) : (atlas?.battles?.length ?? 0) > 0 ? (
+          {(atlas?.battles?.length ?? 0) > 0 ? (
             <span className="atlas-hover">{atlas!.battles!.length} battle{atlas!.battles!.length === 1 ? '' : 's'} raging right now</span>
           ) : (
             <span className="atlas-legend">
@@ -605,6 +661,25 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
+      {hover && hoverPos && (
+        // Same shared pxf tooltip chrome as the raid-menu troop cards —
+        // floats above the cursor point with the tail aiming back at it.
+        <div
+          className="pxf-tooltip atlas-tooltip"
+          style={{ left: hoverPos.x, top: hoverPos.y - 6 }}
+        >
+          {hover.kind === 'village' ? (
+            <>
+              {hover.player.me ? 'YOU — ' : ''}{hover.player.username}
+              <span className="sym sym-trophy small" /> {hover.player.trophies}
+              {hover.player.shielded ? ' · shielded' : ''}
+              {hover.player.underAttack ? ' · UNDER ATTACK' : ''}
+            </>
+          ) : (
+            <>{hover.label} · plot {hover.x}, {hover.y}</>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -96,10 +96,11 @@ export interface ApiService<Principal> {
    * authenticated principal.
    */
   register(rawToken: unknown, rawUsername: unknown, rawPassword: unknown, rawAddress?: unknown): Awaitable<unknown>
+  /** Reject gameplay mutations until this authenticated player chose complete heraldry. */
+  assertGameplayReady(player: Principal): Awaitable<void>
   rename(player: Principal, rawName: unknown): Awaitable<unknown>
-  /** Optional until the normalized-persistence runtime grows a banner column;
-   *  the JSON service implements it fully. Routes 404 when absent. */
-  setBanner?(player: Principal, rawBanner: unknown): Awaitable<unknown>
+  /** Persist one complete, server-validated heraldry choice. */
+  setBanner(player: Principal, rawBanner: unknown): Awaitable<unknown>
 
   getWorld(player: Principal): Awaitable<unknown>
   saveWorld(player: Principal, body: SaveWorldRequest): Awaitable<unknown>

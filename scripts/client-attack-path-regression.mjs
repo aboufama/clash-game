@@ -47,6 +47,14 @@ assert.ok((backend.match(/Backend\.validStartedBotRaid\(result\)/g) ?? []).lengt
 
 assert.ok((scene.match(/arriveAndFight\(/g) ?? []).length >= 3,
   'All issued attack starts must use the shared in-place arrival handoff')
+const botAttackLoader = scene.slice(
+  scene.indexOf('private async generateEnemyVillage('),
+  scene.indexOf('/** A fresh FIND MATCH', scene.indexOf('private async generateEnemyVillage('))
+)
+assert.match(botAttackLoader, /id: started\.world\.ownerId/,
+  'Bot battle presentation must use the server-persisted village identity, never a seed-derived alias')
+assert.doesNotMatch(botAttackLoader, /id: `bot_\$\{started\.seed/,
+  'Bot seeds are provenance and must never become client entity/cache identities')
 assert.match(scene, /onMidpoint\(epoch\)\)[\s\S]*?\.finally\(\(\) => \{[\s\S]*?finishExclusiveTransition\(epoch\)/,
   'The cloud-transition midpoint must always release the transition lock in its finally')
 assert.match(scene, /private async arriveAndFight\([\s\S]*?Backend\.endAttack\(meta\.attackId, 'aborted'[\s\S]*?await this\.abortBotSession\(meta\)/,
@@ -126,6 +134,39 @@ for (const type of ['goblinplunderer', 'wallbreaker', 'stormmage']) {
     `${type} must not regain a type-hardcoded punch adapter`)
 }
 
+const siegeParking = scene.slice(
+  scene.indexOf('private parkSiegeTower('),
+  scene.indexOf('private rampSetFor(', scene.indexOf('private parkSiegeTower('))
+)
+assert.match(siegeParking, /approvedRampWallId = troop\.navigationPlan\?\.topologyRevision === this\.combatTopologyRevision[\s\S]*?troop\.navigationPlan\.rampWallId[\s\S]*?target\.type !== 'wall'[\s\S]*?target\.id !== approvedRampWallId[\s\S]*?return;/,
+  'Siege Tower deployment must require the exact wall authorized by its current topology revision')
+assert.match(combatAdapter, /troop\.type === 'siegetower'[\s\S]*?targetWall\.type !== 'wall' \|\| targetWall\.id !== approvedRampWallId[\s\S]*?troop\.attackClockActive = false;[\s\S]*?return;/,
+  'The no-wall Town Hall fallback must not start even a partial Siege Tower deployment animation')
+
+const troopMovement = scene.slice(
+  scene.indexOf('private updateTroops('),
+  scene.indexOf('private destroyBuilding(', scene.indexOf('private updateTroops('))
+)
+assert.match(troopMovement, /candidate\.health <= 0 \|\| candidate\.type === 'siegetower'/,
+  'Rolling and parked Siege Towers must stay out of the local troop-separation obstacle grid')
+assert.equal((troopMovement.match(/if \(troop\.type !== 'siegetower'\) \{\s*forEachNeighbor/g) ?? []).length, 2,
+  'Moving and holding Siege Towers must ignore ally separation while retaining structure collision')
+assert.match(troopMovement, /finalApproachStillOutOfRange = troop\.path\.length === 1[\s\S]*?geometry\.distance > geometry\.stopRange;[\s\S]*?if \(finalApproachStillOutOfRange\) break;/,
+  'A short-range final waypoint must not be discarded before the target is truly in range')
+assert.match(troopMovement, /moveDir\.lengthSq\(\) > 0\.000_000_01/,
+  'Sub-cell final approaches must retain precise movement below the old 0.01-tile cutoff')
+
+const battleEnd = scene.slice(
+  scene.indexOf('private checkBattleEnd('),
+  scene.indexOf('private getDefenseStats(', scene.indexOf('private checkBattleEnd('))
+)
+assert.match(battleEnd, /activeRaidTroops[\s\S]*?stats\.damage > 0[\s\S]*?if \(!target\) return false;[\s\S]*?holdingAtFallback[\s\S]*?stats\.range \+ 0\.08[\s\S]*?armyRemaining <= 0 && activeRaidTroops === 0 && this\.pendingSpawnCount === 0/,
+  'A routeable no-wall Siege Tower must finish its Town Hall fallback without letting an unrouteable tower hang the raid')
+assert.match(scene, /private replaySiegeRampWallNear\([\s\S]*?building\.type !== 'wall'[\s\S]*?interactionRange[\s\S]*?const rampWall = this\.replaySiegeRampWallNear\(troop\);[\s\S]*?motionDist > 0\.004 \|\| !rampWall/,
+  'Replay watch may infer a deployed Siege Tower only when it is stationary at a live enemy wall')
+assert.match(scene, /rampAuthorizationInvalidated = removed\.type === 'wall'[\s\S]*?troop\.parked01 === undefined[\s\S]*?troop\.navigationPlan\?\.rampWallId[\s\S]*?urgent = intentDestroyed \|\| activeDestroyed \|\| routeBlockerDestroyed[\s\S]*?rampAuthorizationInvalidated[\s\S]*?troop\.nextPathTime = rampAuthorizationInvalidated[\s\S]*?\? now/,
+  'Destroying any wall must revoke and immediately reacquire an unparked Siege Tower first-ray-wall authorization')
+
 assert.doesNotMatch(villageLife, /fallbackBarracks/,
   'Core troop figures must never fall back to an arbitrary faction Barracks')
 assert.match(villageLife, /building\.type === FACTION_BARRACKS\[faction\]/,
@@ -135,4 +176,4 @@ assert.match(villageLife, /getTroopFaction\(type as TroopType\)[\s\S]*?\? factio
 assert.match(villageLife, /const trainingBuilding = getTroopFaction\(type\) \? factionBarracks : coreCamp;/,
   'Fresh Core troop figures must originate at their assigned Army Camp')
 
-console.log('client attack path regression: 47 checks passed')
+console.log('client attack path regression: 56 checks passed')

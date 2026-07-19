@@ -283,7 +283,11 @@ export function Hud({
           </>
         ) : (
           <>
-            {battleStarted && (
+            {/* ATTACK only — one event, one surface: while spectating
+                (REPLAY view) the destruction lives inside the single
+                replay-status-overlay card in App.tsx, never as a second
+                stacked HUD row. */}
+            {battleStarted && isAttackView && (
               <>
                 <div className="battle-stats">
                   <div className="destruction-meter">

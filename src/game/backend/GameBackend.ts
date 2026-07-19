@@ -1,6 +1,6 @@
-import { BUILDING_DEFINITIONS, MAP_SIZE, type BuildingType, type ObstacleType } from '../config/GameDefinitions';
+import { BUILDING_DEFINITIONS, MAP_SIZE, createStarterVillage, type BuildingType, type ObstacleType } from '../config/GameDefinitions';
 import { adoptUpgradePolicy } from '../config/UpgradePolicy';
-import type { SerializedBuilding, SerializedObstacle, SerializedWorld, VillageBanner, VillageLifeManifest } from '../data/Models';
+import { sanitizeVillageBanner, type SerializedBuilding, type SerializedObstacle, type SerializedWorld, type VillageBanner, type VillageLifeManifest } from '../data/Models';
 export type { VillageBanner, VillageLifeManifest } from '../data/Models';
 import { Auth } from './Auth';
 
@@ -43,7 +43,7 @@ export interface WorldPostcard {
   revision?: number | string;
   /** Optional only for compatibility with bots and pre-manifest servers. */
   life?: VillageLifeManifest;
-  /** Owner-chosen heraldry; omitted = deterministic identity default. */
+  /** Owner-chosen heraldry; omitted means first-run banner setup is required. */
   banner?: VillageBanner;
 }
 
@@ -91,9 +91,13 @@ type BackendApiError = Error & ApiErrorPayload & { status?: number };
 
 export type AttackNotification = {
   id: string;
+  kind?: 'attack' | 'admin_notice';
   attackId?: string;
   attackerId?: string;
   attackerName: string;
+  title?: string;
+  message?: string;
+  severity?: 'info' | 'warning' | 'critical';
   goldLost?: number;
   oreLost?: number;
   foodLost?: number;
@@ -571,7 +575,8 @@ function cloneWorld(world: SerializedWorld): SerializedWorld {
       ...world.population,
       bornAt: world.population.bornAt ? [...world.population.bornAt] : undefined
     } : undefined,
-    army: world.army ? { ...world.army } : undefined
+    army: world.army ? { ...world.army } : undefined,
+    banner: world.banner ? { ...world.banner } : undefined
   };
 }
 
@@ -682,6 +687,9 @@ export class Backend {
   private static authorityRequestSeq = new Map<string, number>();
   private static authorityResponseSeq = new Map<string, number>();
   private static knownRevision = new Map<string, number>();
+  /** A banner acknowledged in this session wins later cache adoptions, so an
+   *  older own-world response cannot undo onboarding or an explicit edit. */
+  private static confirmedBanners = new Map<string, VillageBanner>();
   private static battleReconcileTimers = new Map<string, number>();
 
   // ---- transport ----
@@ -875,12 +883,16 @@ export class Backend {
   }
 
   private static setCachedWorld(userId: string, world: SerializedWorld) {
-    Backend.memoryCache.set(userId, world);
-    const revision = Number(world.revision);
+    const confirmedBanner = Backend.confirmedBanners.get(userId);
+    const effectiveWorld = confirmedBanner
+      ? { ...world, banner: { ...confirmedBanner } }
+      : world;
+    Backend.memoryCache.set(userId, effectiveWorld);
+    const revision = Number(effectiveWorld.revision);
     if (Number.isFinite(revision)) Backend.knownRevision.set(userId, Math.max(Backend.knownRevision.get(userId) ?? 0, revision));
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(getCacheKey(userId), JSON.stringify(world));
+        localStorage.setItem(getCacheKey(userId), JSON.stringify(effectiveWorld));
       } catch {
         // Quota exceeded — memory cache still holds the world.
       }
@@ -992,6 +1004,7 @@ export class Backend {
     Backend.authorityRequestSeq.delete(userId);
     Backend.authorityResponseSeq.delete(userId);
     Backend.knownRevision.delete(userId);
+    Backend.confirmedBanners.delete(userId);
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(getCacheKey(userId));
@@ -1016,6 +1029,7 @@ export class Backend {
     Backend.authorityRequestSeq.clear();
     Backend.authorityResponseSeq.clear();
     Backend.knownRevision.clear();
+    Backend.confirmedBanners.clear();
     Backend.frameBuffer = [];
     Backend.frameBufferAttackId = null;
     Backend.failedFrameBatches.clear();
@@ -1388,6 +1402,10 @@ export class Backend {
   /** A bounded regional chart around the caller; the server reports truncation. */
   static async fetchAtlas(): Promise<{
     me: { x: number; y: number };
+    /** The watchtower's default-sight radius in plots (0-2); 0 with no watchtower. */
+    sight: number;
+    /** The world's coordinate bound: plots span ±worldPlotLimit on both axes. */
+    worldPlotLimit: number;
     players: Array<{ x: number; y: number; username: string; trophies: number; shielded: boolean; underAttack: boolean; me: boolean; online: boolean }>;
     battles: Array<{ ax: number; ay: number; vx: number; vy: number }>;
     window: { minX: number; maxX: number; minY: number; maxY: number };
@@ -1397,6 +1415,8 @@ export class Backend {
     try {
       const raw = await Backend.apiGet<{
         me?: { x?: unknown; y?: unknown };
+        sight?: unknown;
+        worldPlotLimit?: unknown;
         players?: unknown;
         battles?: unknown;
         window?: { minX?: unknown; maxX?: unknown; minY?: unknown; maxY?: unknown };
@@ -1434,7 +1454,13 @@ export class Backend {
         && finite(raw.window.minY) && finite(raw.window.maxY)
         ? { minX: raw.window.minX, maxX: raw.window.maxX, minY: raw.window.minY, maxY: raw.window.maxY }
         : { minX: me.x, maxX: me.x, minY: me.y, maxY: me.y };
-      return { me: { x: me.x, y: me.y }, players, battles, window, truncated: raw.truncated === true };
+      const sight = finite(raw.sight) ? Math.max(0, Math.min(2, Math.floor(raw.sight))) : 0;
+      // 24 mirrors the server's WORLD_PLOT_RADIUS (the main server's ±bound,
+      // 49×49 = 2,401 plots) for servers that predate the field.
+      const worldPlotLimit = finite(raw.worldPlotLimit) && raw.worldPlotLimit > 0
+        ? Math.floor(raw.worldPlotLimit)
+        : 24;
+      return { me: { x: me.x, y: me.y }, sight, worldPlotLimit, players, battles, window, truncated: raw.truncated === true };
     } catch (error) {
       console.warn('Atlas fetch failed:', error);
       return null;
@@ -1468,21 +1494,15 @@ export class Backend {
 
   /** Offline-only starter village; online players get theirs from the server. */
   static async createWorld(userId: string, owner: 'PLAYER' | 'ENEMY'): Promise<SerializedWorld> {
-    const cx = 11;
-    const cy = 11;
+    const starter = createStarterVillage(randomId);
     const world: SerializedWorld = {
       id: `world_${userId}`,
       ownerId: userId,
-      buildings: [
-        { id: randomId(), type: 'town_hall' as BuildingType, gridX: cx, gridY: cy, level: 1 },
-        { id: randomId(), type: 'cannon' as BuildingType, gridX: cx - 3, gridY: cy, level: 1 },
-        { id: randomId(), type: 'barracks' as BuildingType, gridX: cx + 4, gridY: cy, level: 1 },
-        { id: randomId(), type: 'army_camp' as BuildingType, gridX: cx, gridY: cy + 4, level: 1 }
-      ],
-      obstacles: [],
-      resources: { gold: 1000 },
-      army: {},
-      wallLevel: 1,
+      buildings: starter.buildings,
+      obstacles: starter.obstacles,
+      resources: starter.resources,
+      army: starter.army,
+      wallLevel: starter.wallLevel,
       lastSaveTime: Date.now(),
       revision: 1
     };
@@ -1520,28 +1540,40 @@ export class Backend {
   }
 
   /**
-   * Persist the owner's banner choice (null = back to the identity-derived
-   * default) and mirror it into the cached world so the town-hall flag, the
-   * war camp and the picker all redraw immediately. Announces the change via
-   * a window event; the server refreshes neighbour postcards through its
-   * appearance revision.
+   * Persist the owner's complete banner and mirror it into the cached world
+   * so the town-hall flag, war camp and picker all redraw immediately.
+   * Announces the change via a window event; the server refreshes neighbour
+   * postcards through its appearance revision.
    */
-  static async setVillageBanner(userId: string, banner: VillageBanner | null): Promise<VillageBanner | null> {
-    const response = await Backend.apiPost<{ banner?: VillageBanner | null }>('/api/player/banner', { banner });
-    const applied = response.banner ?? null;
-    const cached = Backend.getCachedWorld(userId);
-    if (cached) {
-      const next: SerializedWorld = { ...cached };
-      if (applied) next.banner = { ...applied };
-      else delete next.banner;
-      Backend.setCachedWorld(userId, next);
-    }
-    try {
-      window.dispatchEvent(new CustomEvent('clash:banner-changed', { detail: { userId, banner: applied } }));
-    } catch {
-      // Non-browser context (tests) — nothing to announce to.
-    }
-    return applied;
+  static async setVillageBanner(userId: string, banner: VillageBanner): Promise<VillageBanner> {
+    const requested = sanitizeVillageBanner(banner);
+    if (!requested) throw new Error('A complete banner choice is required');
+    const apply = (applied: VillageBanner) => {
+      Backend.confirmedBanners.set(userId, { ...applied });
+      const cached = Backend.getCachedWorld(userId);
+      if (cached) Backend.setCachedWorld(userId, { ...cached, banner: { ...applied } });
+      try {
+        window.dispatchEvent(new CustomEvent('clash:banner-changed', { detail: { userId, banner: applied } }));
+      } catch {
+        // Non-browser context (tests) — nothing to announce to.
+      }
+      return applied;
+    };
+
+    if (!Auth.isOnlineMode()) return apply(requested);
+
+    return await Backend.enqueueMutation(userId, async () => {
+      const authoritySeq = Backend.nextAuthorityRequest(userId);
+      const response = await Backend.apiPost<{ banner?: VillageBanner }>('/api/player/banner', { banner: requested });
+      const applied = sanitizeVillageBanner(response.banner);
+      if (!applied) throw new Error('Banner mutation returned no complete banner');
+      // Banner changes advance the server's appearance revision rather than
+      // the economy revision carried by own-world payloads. Record request
+      // order explicitly, and retain the acknowledged choice if an older GET
+      // or save response arrives without heraldry afterward.
+      Backend.markAuthorityAdopted(userId, undefined, authoritySeq);
+      return apply(applied);
+    });
   }
 
   static async applyResourceDelta(userId: string, delta: number, reason: string, refId?: string, requestId?: string, resource: 'gold' | 'ore' | 'food' = 'gold'): Promise<ResourceDeltaResult> {
@@ -2438,9 +2470,15 @@ export class Backend {
     const response = await Backend.apiGet<{ items?: Array<Record<string, unknown>> }>('/api/notifications');
     return (response.items ?? []).map(item => ({
       id: typeof item.id === 'string' && item.id ? item.id : makeRequestId('notif'),
+      kind: item.kind === 'admin_notice' ? 'admin_notice' as const : 'attack' as const,
       attackId: typeof item.attackId === 'string' ? item.attackId : undefined,
       attackerId: typeof item.attackerId === 'string' ? item.attackerId : undefined,
-      attackerName: typeof item.attackerName === 'string' && item.attackerName ? item.attackerName : 'Unknown',
+      attackerName: typeof item.attackerName === 'string' && item.attackerName
+        ? item.attackerName
+        : item.kind === 'admin_notice' ? 'Kingdom notice' : 'Unknown',
+      title: typeof item.title === 'string' ? item.title : undefined,
+      message: typeof item.message === 'string' ? item.message : undefined,
+      severity: item.severity === 'warning' || item.severity === 'critical' ? item.severity : 'info',
       goldLost: typeof item.goldLost === 'number' ? item.goldLost : undefined,
       oreLost: typeof item.oreLost === 'number' ? item.oreLost : undefined,
       foodLost: typeof item.foodLost === 'number' ? item.foodLost : undefined,

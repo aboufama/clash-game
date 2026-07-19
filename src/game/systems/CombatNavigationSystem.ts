@@ -19,9 +19,14 @@ export interface CombatNavigationPlan {
     /** For A* plans always the first wall to breach. For straight-charge
      * plans it may be ANY structure sitting on the charge ray. */
     blockerId?: string;
+    /** Explicit authorization for a Siege Tower to deploy on this wall.
+     * Presence means it is the first live wall on the tower-to-Town-Hall
+     * ray; a wall-less Town Hall approach never receives it. */
+    rampWallId?: string;
     topologyRevision: number;
     routeCost: number;
-    /** Continuous grid-space endpoint. Waypoints are cell centers as well. */
+    /** Continuous grid-space endpoint. Intermediate waypoints are cell
+     * centers; the final short-range approach may be a safe sub-cell point. */
     goal: CombatPoint;
     waypoints: CombatPoint[];
     plannedAt: number;
@@ -166,6 +171,16 @@ export class CombatNavigationSystem {
         }
 
         const stats = getTroopStats(troop.type, troop.level || 1);
+        if (stats.wallRamp) {
+            return this.selectWallRampTarget(
+                troop,
+                enemies,
+                buildings,
+                topologyRevision,
+                plannedAt,
+                stats
+            );
+        }
         const nonWalls = enemies.filter(building => building.type !== 'wall');
         let priorityCandidates: PlacedBuilding[] = [];
 
@@ -290,6 +305,52 @@ export class CombatNavigationSystem {
         return { strategicTarget: bestTarget, activeTarget, plan: bestPlan };
     }
 
+    /** Siege Towers always travel on the direct ray to the nearest Town Hall.
+     * The first live enemy wall intersecting that ray becomes the active ramp
+     * target. Every other structure is intentionally ignored: the tower is
+     * path infrastructure with a wall-only interaction, not a general attacker.
+     * With no wall on the ray it rolls to the Town Hall without deploying. */
+    private static selectWallRampTarget(
+        troop: Troop,
+        enemies: PlacedBuilding[],
+        buildings: PlacedBuilding[],
+        topologyRevision: number,
+        plannedAt: number,
+        stats: TroopDef
+    ): CombatNavigationSelection {
+        const townHall = enemies
+            .filter(building => building.type === 'town_hall')
+            .sort((a, b) => {
+                const distanceDelta = this.edgeDistance(troop.gridX, troop.gridY, a)
+                    - this.edgeDistance(troop.gridX, troop.gridY, b);
+                return distanceDelta || a.id.localeCompare(b.id);
+            })[0];
+        if (!townHall) return { strategicTarget: null, activeTarget: null, plan: null };
+
+        // Feed the ray caster only its destination and live enemy walls. This
+        // is what makes the tower pass through ordinary structures while still
+        // stopping at the first wall whose radius-expanded cell crosses the ray.
+        const raySolids = enemies.filter(building =>
+            building.id === townHall.id || building.type === 'wall'
+        );
+        const basePlan = this.planStraightCharge(
+            troop,
+            townHall,
+            raySolids,
+            topologyRevision,
+            plannedAt,
+            stats
+        );
+        if (!basePlan) return { strategicTarget: townHall, activeTarget: null, plan: null };
+
+        const rampWallId = basePlan.blockerId;
+        const plan: CombatNavigationPlan = rampWallId
+            ? { ...basePlan, rampWallId }
+            : basePlan;
+        const activeTarget = buildings.find(building => building.id === plan.activeTargetId) ?? null;
+        return { strategicTarget: townHall, activeTarget, plan };
+    }
+
     static planToBuilding(
         troop: Troop,
         target: PlacedBuilding,
@@ -300,6 +361,24 @@ export class CombatNavigationSystem {
         rampWallIds?: ReadonlySet<string>
     ): CombatNavigationPlan | null {
         const stats = getTroopStats(troop.type, troop.level || 1);
+        // Callers use this primitive for periodic locked-target refreshes.
+        // A wall-ramp troop must re-raycast the Town Hall line so a removed
+        // first wall immediately exposes the next wall behind it.
+        if (stats.wallRamp) {
+            const selection = this.selectTargetAndPlan(
+                troop,
+                buildings,
+                allTroops,
+                topologyRevision,
+                plannedAt,
+                target,
+                rampWallIds
+            );
+            // Preserve this method's target-specific contract. A stale wall
+            // target from an older plan is cleared and reacquired as Town Hall
+            // intent rather than being silently paired with a mismatched plan.
+            return selection.strategicTarget?.id === target.id ? selection.plan : null;
+        }
         const context = this.buildContext(troop, buildings, allTroops, stats, rampWallIds);
         return this.planToBuildingWithContext(
             troop,
@@ -724,7 +803,31 @@ export class CombatNavigationSystem {
                     region.maxX,
                     region.maxY
                 );
-                if (distance <= region.range + 0.08) {
+                // A cell is a search goal when some continuous point inside
+                // it can reach the interaction rim. Center-only goals strand
+                // short-range large units: an adjacent center is 0.5 tiles
+                // away even though the collision-safe edge of that same cell
+                // is close enough to touch the target.
+                const cellDistance = this.distanceBetweenRects(
+                    cellX,
+                    cellY,
+                    cellX + 1,
+                    cellY + 1,
+                    region.minX,
+                    region.minY,
+                    region.maxX,
+                    region.maxY
+                );
+                // Expand only through a face-facing cell. A corner-touch-only
+                // cell would require a diagonal stop at the inflated corner;
+                // for the L1 tower that leaves less margin than the live
+                // waypoint-consumption epsilon. A* can deterministically take
+                // either neighboring face cell and produce a stable stop.
+                const overlapsTargetX = cellX < region.maxX && cellX + 1 > region.minX;
+                const overlapsTargetY = cellY < region.maxY && cellY + 1 > region.minY;
+                const hasContinuousFaceApproach = overlapsTargetX || overlapsTargetY;
+                if (distance <= region.range + 0.08
+                    || (hasContinuousFaceApproach && cellDistance <= region.range + 0.08)) {
                     goals[index] = 1;
                     goalCount++;
                     const bias = (claims?.get(index) ?? 0) * this.GOAL_CLAIM_COST
@@ -813,13 +916,45 @@ export class CombatNavigationSystem {
         }
 
         const waypoints = this.compressCollinear(movementNodes);
-        const goal = waypoints[waypoints.length - 1] ?? { x: troop.gridX, y: troop.gridY };
+        let goal = waypoints[waypoints.length - 1] ?? { x: troop.gridX, y: troop.gridY };
+        const blockerInfo = blocker
+            ? BUILDING_DEFINITIONS[blocker.type as keyof typeof BUILDING_DEFINITIONS]
+            : undefined;
+        const interactionRect = blocker && blockerInfo
+            ? {
+                minX: blocker.gridX,
+                minY: blocker.gridY,
+                maxX: blocker.gridX + blockerInfo.width,
+                maxY: blocker.gridY + blockerInfo.height
+            }
+            : region;
+        let approachCost = 0;
+        if (this.distanceToRect(
+            goal.x,
+            goal.y,
+            interactionRect.minX,
+            interactionRect.minY,
+            interactionRect.maxX,
+            interactionRect.maxY
+        ) > stats.range + 0.08) {
+            const approach = this.continuousApproachToRect(
+                troop,
+                goal,
+                interactionRect,
+                context,
+                stats.range + 0.08
+            );
+            if (!approach) return null;
+            approachCost = Math.hypot(approach.x - goal.x, approach.y - goal.y) * this.COST_OPEN;
+            if (approachCost > 0.000_001) waypoints.push(approach);
+            goal = approach;
+        }
         return {
             strategicTargetId: region.id,
             activeTargetId: blocker?.id ?? region.id,
             blockerId: blocker?.id,
             topologyRevision,
-            routeCost: search.cost,
+            routeCost: search.cost + approachCost,
             goal,
             waypoints,
             plannedAt
@@ -884,7 +1019,10 @@ export class CombatNavigationSystem {
             // Tiny, bounded crowd cost spreads lanes without making dynamic
             // agents part of topology or changing which walls are solid.
             for (const other of allTroops) {
-                if (other.id === troop.id || other.health <= 0) continue;
+                // A Siege Tower is route infrastructure, not a body to avoid:
+                // neither rolling nor parked towers may bend allied paths
+                // away from the wall opening they create.
+                if (other.id === troop.id || other.health <= 0 || other.type === 'siegetower') continue;
                 const x = Math.floor(other.gridX);
                 const y = Math.floor(other.gridY);
                 if (x < this.GRID_MIN || y < this.GRID_MIN || x > this.GRID_MAX || y > this.GRID_MAX) continue;
@@ -985,9 +1123,11 @@ export class CombatNavigationSystem {
         const heuristic = (x: number, y: number) => {
             const cellX = x + this.GRID_MIN;
             const cellY = y + this.GRID_MIN;
-            const distance = this.distanceToRect(
-                cellX + 0.5,
-                cellY + 0.5,
+            const distance = this.distanceBetweenRects(
+                cellX,
+                cellY,
+                cellX + 1,
+                cellY + 1,
                 region.minX,
                 region.minY,
                 region.maxX,
@@ -1093,8 +1233,12 @@ export class CombatNavigationSystem {
         if (y > mapSize + 2.25) score += y - (mapSize + 2.25);
 
         const radius = this.agentRadius(troop);
+        const wallOnly = getTroopStats(troop.type, troop.level || 1).wallRamp === true;
         for (const building of buildings) {
             if (building.health <= 0 || building.isDestroyed) continue;
+            // The Siege Tower is a pather with a wall-only interaction. Its
+            // direct Town Hall ray may pass through every non-wall structure.
+            if (wallOnly && building.type !== 'wall') continue;
             // Ramped wall (parked allied siege tower): physically absent for
             // this owner, matching the open traversal grid above.
             if (rampWallIds?.has(building.id)) continue;
@@ -1113,6 +1257,79 @@ export class CombatNavigationSystem {
     private static agentRadius(troop: Pick<Troop, 'type' | 'level'>): number {
         const stats = getTroopStats(troop.type, troop.level || 1);
         return 0.12 + Math.min(0.12, Math.sqrt(Math.max(1, stats.space)) * 0.018);
+    }
+
+    /** Furthest collision-safe point from `from` toward the nearest point on
+     * a target rect. The short segment is monotone until the first inflated
+     * footprint; if that obstacle is not the target, the final range check
+     * rejects the approach instead of returning a phasing waypoint. */
+    private static continuousApproachToRect(
+        troop: Troop,
+        from: CombatPoint,
+        rect: Pick<TargetRegion, 'minX' | 'minY' | 'maxX' | 'maxY'>,
+        context: TraversalContext,
+        acceptance: number
+    ): CombatPoint | null {
+        if (!this.isPositionWalkable(troop, from.x, from.y, context.solids, MAP_SIZE, context.rampWalls)) {
+            return null;
+        }
+        const targetX = this.clamp(from.x, rect.minX, rect.maxX);
+        const targetY = this.clamp(from.y, rect.minY, rect.maxY);
+        const dx = targetX - from.x;
+        const dy = targetY - from.y;
+        if (Math.hypot(dx, dy) < 0.000_001) return null;
+
+        let safeT = 0;
+        let blockedT = 1;
+        if (this.isPositionWalkable(
+            troop,
+            targetX,
+            targetY,
+            context.solids,
+            MAP_SIZE,
+            context.rampWalls
+        )) {
+            safeT = 1;
+        } else {
+            for (let iteration = 0; iteration < 28; iteration++) {
+                const candidateT = (safeT + blockedT) / 2;
+                const x = from.x + dx * candidateT;
+                const y = from.y + dy * candidateT;
+                if (this.isPositionWalkable(troop, x, y, context.solids, MAP_SIZE, context.rampWalls)) {
+                    safeT = candidateT;
+                } else {
+                    blockedT = candidateT;
+                }
+            }
+        }
+        const approach = {
+            x: from.x + dx * safeT,
+            y: from.y + dy * safeT
+        };
+        const distance = this.distanceToRect(
+            approach.x,
+            approach.y,
+            rect.minX,
+            rect.minY,
+            rect.maxX,
+            rect.maxY
+        );
+        return distance <= acceptance + 0.000_001 ? approach : null;
+    }
+
+    private static distanceBetweenRects(
+        aMinX: number,
+        aMinY: number,
+        aMaxX: number,
+        aMaxY: number,
+        bMinX: number,
+        bMinY: number,
+        bMaxX: number,
+        bMaxY: number
+    ): number {
+        const dx = Math.max(bMinX - aMaxX, aMinX - bMaxX, 0);
+        const dy = Math.max(bMinY - aMaxY, aMinY - bMaxY, 0);
+        return Math.hypot(dx, dy);
     }
 
     private static distanceToRect(

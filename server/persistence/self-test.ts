@@ -19,7 +19,7 @@ import {
 import { buildLegacyImportPlan, mapLegacyReplayAttack } from './legacy-import'
 import { MemoryPersistence } from './memory'
 import { MIGRATIONS } from './migrations'
-import type { AccountRecord, AttackRecord, JsonObject, VillageRecord } from './model'
+import type { AccountRecord, AttackRecord, BotVillageRecord, JsonObject, VillageRecord } from './model'
 import type { SqlExecutor } from './postgres/database'
 import { PostgresUnitOfWork } from './postgres/repositories'
 import { idempotentMutation, outboxEvent } from './repositories'
@@ -57,6 +57,7 @@ function village(playerId: string, appearanceRevision = 1): VillageRecord {
     food: 50,
     productionRemainders: { ore: 0, food: 0 },
     population: { count: 3 },
+    banner: null,
     simulatedThrough: NOW,
     lastMutationAt: NOW,
     layoutRevision: appearanceRevision,
@@ -64,6 +65,39 @@ function village(playerId: string, appearanceRevision = 1): VillageRecord {
     economyRevision: 0,
     simulationVersion: 2,
     nextEventAt: null
+  }
+}
+
+function botVillage(id = 'bot-persisted', x = 4, y = -3): BotVillageRecord {
+  return {
+    id,
+    worldId: 'main',
+    x,
+    y,
+    plotVersion: 1,
+    worldGenerationVersion: 1,
+    generatorVersion: 1,
+    seed: 4_294_967_291,
+    username: 'Citadel of Ash',
+    trophies: 2_400,
+    profile: { difficulty: 'advanced', archetype: 'segmented-citadel' },
+    world: {
+      id,
+      ownerId: id,
+      username: 'Citadel of Ash',
+      buildings: [
+        { id: `${id}-hall`, type: 'town_hall', gridX: 11, gridY: 11, level: 4 },
+        { id: `${id}-wall`, type: 'wall', gridX: 9, gridY: 11, level: 3 }
+      ],
+      obstacles: [],
+      resources: { gold: 180_000, ore: 20_000, food: 35_000 },
+      wallLevel: 3,
+      lastSaveTime: NOW.getTime(),
+      revision: 1
+    },
+    revision: 1,
+    createdAt: NOW,
+    updatedAt: NOW
   }
 }
 
@@ -237,6 +271,9 @@ test('appearance revision is canonical village state with an additive migration'
   const migration = MIGRATIONS.find(item => item.name === 'village_appearance_revision')
   assert.equal(migration?.version, 4)
   assert.match(migration?.sql ?? '', /appearance_revision/)
+  const bannerMigration = MIGRATIONS.find(item => item.name === 'village_banner')
+  assert.equal(bannerMigration?.version, 12)
+  assert.match(bannerMigration?.sql ?? '', /ADD COLUMN banner jsonb/)
 
   const persistence = new MemoryPersistence()
   const record = village('visible-player', 11)
@@ -244,6 +281,16 @@ test('appearance revision is canonical village state with an additive migration'
     await tx.accounts.insert(account('visible-player'))
     await tx.villages.insert(record)
     assert.equal((await tx.villages.get('visible-player'))?.appearanceRevision, 11)
+    const changedAt = new Date(NOW.getTime() + 1_000)
+    const changed = {
+      ...record,
+      banner: { palette: 2, emblem: 4, pattern: 1 },
+      lastMutationAt: changedAt,
+      appearanceRevision: 12
+    }
+    assert.equal(await tx.villages.updateAppearance(changed, 11), true)
+    assert.equal(await tx.villages.updateAppearance({ ...changed, appearanceRevision: 13 }, 11), false)
+    assert.deepEqual(await tx.villages.get('visible-player'), changed)
   })
 
   const calls: Array<{ sql: string; values?: readonly unknown[] }> = []
@@ -262,6 +309,7 @@ test('appearance revision is canonical village state with an additive migration'
           food: String(record.food),
           production_remainders: record.productionRemainders,
           population: record.population,
+          banner: record.banner,
           simulated_through: record.simulatedThrough,
           last_mutation_at: record.lastMutationAt,
           layout_revision: String(record.layoutRevision),
@@ -278,8 +326,81 @@ test('appearance revision is canonical village state with an additive migration'
   await postgres.villages.insert(record)
   const insert = calls[0]!
   assert.match(insert.sql, /appearance_revision/)
-  assert.equal(insert.values?.[13], 11)
+  assert.equal(insert.values?.[10], null)
+  assert.equal(insert.values?.[14], 11)
   assert.equal((await postgres.villages.get(record.playerId))?.appearanceRevision, 11)
+  const changedAt = new Date(NOW.getTime() + 1_000)
+  const changed = {
+    ...record,
+    banner: { palette: 2, emblem: 4, pattern: 1 },
+    lastMutationAt: changedAt,
+    appearanceRevision: 12
+  }
+  assert.equal(await postgres.villages.updateAppearance(changed, 11), true)
+  const appearanceUpdate = calls.at(-1)!
+  assert.match(appearanceUpdate.sql, /UPDATE villages SET[\s\S]*banner = \$2::jsonb/)
+  assert.deepEqual(appearanceUpdate.values, [
+    record.playerId, changed.banner, changedAt, 12, 11
+  ])
+})
+
+test('persistent bot villages are idempotent, bounded, CAS-safe, and survive player claims', async () => {
+  const migration = MIGRATIONS.find(item => item.name === 'persistent_bot_villages')
+  assert.equal(migration?.version, 13)
+  assert.match(migration?.sql ?? '', /CREATE TABLE bot_villages/)
+  assert.match(migration?.sql ?? '', /UNIQUE\(world_id, x, y\)/)
+
+  const persistence = new MemoryPersistence()
+  const stored = botVillage()
+  await persistence.transaction(async tx => {
+    assert.equal(await tx.world.insertBotVillage(stored), 'inserted')
+    assert.equal(await tx.world.insertBotVillage({
+      ...stored,
+      createdAt: new Date(stored.createdAt.getTime() + 5),
+      updatedAt: new Date(stored.updatedAt.getTime() + 5)
+    }), 'existing', 'a concurrent provisioner adopts the committed timestamps')
+    assert.deepEqual(await tx.world.getBotVillage(stored.id), stored)
+    assert.deepEqual(await tx.world.getBotVillageAt(stored.worldId, stored.x, stored.y), stored)
+    assert.deepEqual(await tx.world.listBotVillages({
+      worldId: 'main', minX: 0, maxX: 5, minY: -5, maxY: 0, now: NOW, limit: 10
+    }), [stored])
+    await assert.rejects(tx.world.insertBotVillage({
+      ...stored,
+      id: 'bot-coordinate-collision',
+      world: { ...stored.world, id: 'bot-coordinate-collision', ownerId: 'bot-coordinate-collision' }
+    }), /coordinate already exists/i)
+
+    const advanced: BotVillageRecord = {
+      ...stored,
+      username: 'Citadel of Embers',
+      trophies: 2_550,
+      world: { ...stored.world, username: 'Citadel of Embers', revision: 2 },
+      revision: 2,
+      updatedAt: new Date(NOW.getTime() + 1_000)
+    }
+    assert.equal(await tx.world.updateBotVillage(advanced, 1), true)
+    assert.equal(await tx.world.updateBotVillage({ ...advanced, revision: 3 }, 1), false)
+    assert.deepEqual(await tx.world.getBotVillage(stored.id), advanced)
+
+    await tx.accounts.insert(account('bot-replacing-player'))
+    await tx.villages.insert(village('bot-replacing-player'))
+    await tx.world.ensureRegion({
+      worldId: 'main', regionId: 'main:1:-1:v1', regionX: 0, regionY: -1,
+      size: 32, generationVersion: 1, createdAt: NOW
+    })
+    await tx.world.assign({
+      worldId: 'main', x: stored.x, y: stored.y, regionId: 'main:1:-1:v1',
+      playerId: 'bot-replacing-player', plotVersion: 2, assignedAt: NOW,
+      leaseId: null, leaseIssuedAt: null, leaseRenewedAt: null, leaseExpiresAt: null
+    })
+    assert.deepEqual(await tx.world.getBotVillage(stored.id), advanced,
+      'a real-player claim hides but never destroys durable bot authority')
+    assert.equal((await tx.world.getOccupant('main', stored.x, stored.y))?.playerId, 'bot-replacing-player')
+    assert.equal(await tx.world.release('bot-replacing-player'), true)
+    assert.deepEqual(await tx.world.getBotVillageAt('main', stored.x, stored.y), advanced,
+      'the same bot identity resurfaces after the player leaves')
+  })
+  await persistence.close()
 })
 
 test('PostgreSQL persists and reloads command + aggregate authority atomically', async () => {
@@ -835,7 +956,9 @@ test('leaderboard, matchmaking, and atlas reads are bounded and eligibility-awar
     ]
     for (const record of accounts) await tx.accounts.insert(record)
     for (const record of accounts.filter(record => record.id !== 'no-village' && record.id !== 'lease-attacker')) {
-      await tx.villages.insert(village(record.id, record.id === 'eligible-low' ? 7 : 1))
+      const storedVillage = village(record.id, record.id === 'eligible-low' ? 7 : 1)
+      if (record.id === 'eligible-low') storedVillage.banner = { palette: 3, emblem: 5, pattern: 2 }
+      await tx.villages.insert(storedVillage)
     }
 
     const mainRegion = {
@@ -894,8 +1017,22 @@ test('leaderboard, matchmaking, and atlas reads are bounded and eligibility-awar
     })
     assert.deepEqual(atlas.map(entry => entry.player.playerId), ['eligible-high', 'eligible-low'])
     assert.equal(atlas[1]?.village.appearanceRevision, 7)
+    assert.deepEqual(atlas[1]?.village.banner, { palette: 3, emblem: 5, pattern: 2 })
     assert.deepEqual(atlas[1]?.village.buildings, [
       { id: 'townhall-eligible-low', type: 'townhall', x: 0, y: 0 }
+    ])
+    const atlasPlayers = await tx.world.listPlayers({
+      worldId: 'main', minX: 1, maxX: 2, minY: 0, maxY: 0, now: NOW, limit: 10
+    })
+    assert.deepEqual(atlasPlayers.map(entry => entry.banner), [
+      null,
+      { palette: 3, emblem: 5, pattern: 2 }
+    ])
+    const globalPlayers = await tx.world.listPlayersGlobal({
+      worldId: 'main', centerX: 5, centerY: 0, now: NOW, limit: 3
+    })
+    assert.deepEqual(globalPlayers.map(entry => entry.player.playerId), [
+      'leased', 'shielded', 'eligible-low'
     ])
     await assert.rejects(tx.world.listAtlas({
       worldId: 'main', minX: 0, maxX: 256, minY: 0, maxY: 0, now: NOW, limit: 1

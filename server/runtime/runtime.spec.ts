@@ -172,6 +172,18 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
+const EXPECTED_STARTER_BUILDINGS = [
+  { type: 'army_camp', level: 1, gridX: 11, gridY: 15 },
+  { type: 'mine', level: 1, gridX: 8, gridY: 11 },
+  { type: 'town_hall', level: 1, gridX: 11, gridY: 11 }
+]
+
+function starterBuildingPlacements(world: SessionResponse['world']) {
+  return world.buildings
+    .map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY }))
+    .sort((left, right) => left.type.localeCompare(right.type))
+}
+
 function account(id: string, now: Date): AccountRecord {
   return {
     id,
@@ -264,6 +276,119 @@ function incomingAttack(
   })
 }
 
+test('normalized banner authority rejects incomplete choices and propagates the persisted banner', async () => {
+  const persistence = new MemoryPersistence()
+  const now = new Date('2026-07-11T11:00:00.000Z')
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    allowGuestSessions: true
+  })
+  try {
+    const session = grantedSession(await service.ensureSession('', 'banner-authority'))
+    const principal: RuntimePrincipal = { playerId: session.player.id }
+    assert.equal(session.world.banner, undefined)
+    for (const invalid of [
+      null,
+      { palette: 1, emblem: 2 },
+      { palette: '1', emblem: 2, pattern: 3 },
+      { palette: 1, emblem: 2, pattern: 5 }
+    ]) {
+      await assert.rejects(service.setBanner(principal, invalid), error => (
+        error instanceof ApiError && error.status === 400 && error.code === 'INVALID_BANNER'
+      ))
+    }
+
+    const before = await persistence.transaction(async tx => tx.villages.get(principal.playerId))
+    assert(before)
+    const banner = { palette: 6, emblem: 3, pattern: 4 }
+    assert.deepEqual(await service.setBanner(principal, banner), { banner })
+    const stored = await persistence.transaction(async tx => tx.villages.get(principal.playerId))
+    assert(stored)
+    assert.deepEqual(stored.banner, banner)
+    assert.equal(stored.appearanceRevision, before.appearanceRevision + 1)
+    assert.equal(stored.economyRevision, before.economyRevision)
+    assert.deepEqual((await service.getWorld(principal)).banner, banner)
+    assert.deepEqual((await service.scout(principal, principal.playerId)).banner, banner)
+
+    const map = record(await service.map(principal, session.player.plotX, session.player.plotY, 0))
+    const selfPostcard = (map.plots as unknown[]).map(record)
+      .find(plot => plot.ownerId === principal.playerId)
+    assert(selfPostcard)
+    assert.deepEqual(record(selfPostcard.world).banner, banner)
+    const atlas = record(await service.atlas(principal))
+    const selfAtlas = (atlas.players as unknown[]).map(record).find(player => player.me === true)
+    assert(selfAtlas)
+    assert.deepEqual(selfAtlas.banner, banner)
+
+    assert.deepEqual(await service.setBanner(principal, banner), { banner })
+    assert.equal(
+      (await persistence.transaction(async tx => tx.villages.get(principal.playerId)))?.appearanceRevision,
+      stored.appearanceRevision,
+      'the current explicit choice is an appearance-revision no-op'
+    )
+  } finally {
+    await service.close()
+  }
+})
+
+test('normalized HTTP authority blocks gameplay mutations until banner onboarding completes', async () => {
+  const persistence = new MemoryPersistence()
+  const now = new Date('2026-07-11T11:30:00.000Z')
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    allowDebugGrants: true,
+    allowGuestSessions: true
+  })
+  const handle = createApiHandler(service)
+  const call = async (method: string, path: string, token: string | null, body: unknown = {}) => handle({
+    method,
+    path,
+    query: new URLSearchParams(),
+    token,
+    clientAddress: 'banner-gate-spec',
+    body
+  })
+
+  try {
+    const created = await call('POST', '/auth/session', null)
+    assert.equal(created.status, 200)
+    const session = created.body as SessionResponse
+
+    for (const path of ['/world', '/map', '/map/atlas', '/notifications']) {
+      const readable = await call('GET', path, session.token)
+      assert.equal(readable.status, 200, `${path} stays readable during banner onboarding`)
+    }
+
+    for (const [path, body] of [
+      ['/world/save', { world: session.world, requestId: 'blocked-save' }],
+      ['/resources/apply', { delta: 1, reason: 'debug_grant', requestId: 'blocked-grant' }],
+      ['/army/train', { type: 'warrior', count: 1, requestId: 'blocked-train' }],
+      ['/player/rename', { name: 'BlockedChief' }],
+      ['/attacks/matchmake', { requestId: 'blocked-match' }],
+      ['/map/relocate', { x: 3, y: 3 }]
+    ] as const) {
+      const blocked = await call('POST', path, session.token, body)
+      assert.equal(blocked.status, 409, `${path} is gated`)
+      assert.equal(record(blocked.body).code, 'BANNER_REQUIRED')
+    }
+
+    const chosen = { palette: 2, emblem: 1, pattern: 4 }
+    const banner = await call('POST', '/player/banner', session.token, { banner: chosen })
+    assert.equal(banner.status, 200)
+    assert.deepEqual(record(banner.body).banner, chosen)
+
+    const saved = await call('POST', '/world/save', session.token, {
+      world: session.world,
+      requestId: 'ready-save'
+    })
+    assert.equal(saved.status, 200, 'the same gameplay mutation succeeds after choosing a banner')
+  } finally {
+    await service.close()
+  }
+})
+
 test('MemoryPersistence serves the async core routes without global scans or checkpoint revisions', async () => {
   const persistence = new CountingPersistence()
   let now = new Date('2026-07-11T12:00:00.000Z')
@@ -301,7 +426,13 @@ test('MemoryPersistence serves the async core routes without global scans or che
   const token = session.token
   const principal: RuntimePrincipal = { playerId: session.player.id }
   assert.equal(session.created, true)
-  assert.equal(session.world.resources.gold, 1_000)
+  assert.deepEqual(session.world.resources, { gold: 2_000, ore: 100, food: 100 })
+  assert.deepEqual(starterBuildingPlacements(session.world), EXPECTED_STARTER_BUILDINGS)
+  const chosenBanner = { palette: 1, emblem: 4, pattern: 3 }
+  assert.equal((await call('POST', '/player/banner', {
+    token,
+    body: { banner: chosenBanner }
+  })).status, 200)
 
   persistence.resetAuthorityReads()
   assert.deepEqual(await service.authenticate(token), principal)
@@ -310,8 +441,8 @@ test('MemoryPersistence serves the async core routes without global scans or che
     accounts: 1,
     villages: 0,
     plots: 1,
-    forUpdate: 0
-  }, 'healthy authentication is read-mostly and skips village authority')
+    forUpdate: 1
+  }, 'healthy authentication locks only the account root so moderation cannot race; village authority stays skipped')
 
   persistence.resetAuthorityReads()
   const resumed = grantedSession(await service.ensureSession(token, 'resume-lock-order'))
@@ -322,17 +453,55 @@ test('MemoryPersistence serves the async core routes without global scans or che
     'session resume locks player authority before the token row'
   )
 
-  // Advancing only the wall clock must not turn a semantic no-op save into a
-  // client revision conflict/write.
+  // A layout no-op remains accepted even when the starter mine advances the
+  // economy checkpoint between creation and save.
   now = new Date(now.getTime() + 1)
   const noOp = await call('POST', '/world/save', {
     token,
     body: { world: session.world, requestId: 'noop-save' }
   })
   assert.equal(noOp.status, 200)
-  assert.equal((record(noOp.body).world as { revision: number }).revision, session.world.revision)
+  const noOpWorld = record(noOp.body).world as SessionResponse['world']
+  assert.deepEqual(starterBuildingPlacements(noOpWorld), EXPECTED_STARTER_BUILDINGS)
   await persistence.base.transaction(async tx => {
-    assert.equal((await tx.villages.get(session.player.id))?.economyRevision, session.world.revision)
+    assert.equal((await tx.villages.get(session.player.id))?.economyRevision, noOpWorld.revision)
+  })
+
+  for (const invalidBanner of [
+    null,
+    { palette: 1, emblem: 2 },
+    { palette: '1', emblem: 2, pattern: 3 },
+    { palette: 1, emblem: 2, pattern: 5 }
+  ]) {
+    const rejected = await call('POST', '/player/banner', {
+      token,
+      body: { banner: invalidBanner }
+    })
+    assert.equal(rejected.status, 400)
+    assert.equal(record(rejected.body).code, 'INVALID_BANNER')
+  }
+  const raisedBanner = await call('POST', '/player/banner', {
+    token,
+    body: { banner: chosenBanner }
+  })
+  assert.equal(raisedBanner.status, 200)
+  assert.deepEqual(record(raisedBanner.body).banner, chosenBanner)
+  const ownedAfterBanner = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
+  assert.deepEqual(ownedAfterBanner.banner, chosenBanner)
+  await persistence.base.transaction(async tx => {
+    const stored = await tx.villages.get(session.player.id)
+    assert.deepEqual(stored?.banner, chosenBanner)
+    assert.equal(stored?.appearanceRevision, 2)
+    assert.equal(stored?.economyRevision, noOpWorld.revision,
+      'appearance-only writes do not invalidate layout/economy revisions')
+  })
+  assert.equal((await call('POST', '/player/banner', {
+    token,
+    body: { banner: chosenBanner }
+  })).status, 200)
+  await persistence.base.transaction(async tx => {
+    assert.equal((await tx.villages.get(session.player.id))?.appearanceRevision, 2,
+      'raising the already-current banner is a revision no-op')
   })
   assert.equal(persistence.sessionTouches, 0, 'hot requests do not rewrite the device session row')
   now = new Date(now.getTime() + 30_000)
@@ -348,23 +517,24 @@ test('MemoryPersistence serves the async core routes without global scans or che
     assert.equal(await tx.world.getPlayerPlot(logoutGuest.player.id), null)
   })
 
+  const beforeDebugGrants = await service.getWorld(principal)
   const oreGrant = await call('POST', '/resources/apply', {
     token,
     body: { resource: 'ore', delta: 1_000, reason: 'debug_grant', requestId: 'ore-cap' }
   })
   assert.equal(oreGrant.status, 200)
-  assert.equal(record(oreGrant.body).ore, 1_025)
+  assert.equal(record(oreGrant.body).ore, (beforeDebugGrants.resources.ore ?? 0) + 1_000)
   const foodGrant = await call('POST', '/resources/apply', {
     token,
     body: { resource: 'food', delta: 1_000, reason: 'debug_grant', requestId: 'food-over-cap' }
   })
   assert.equal(foodGrant.status, 200)
-  assert.equal(record(foodGrant.body).ore, 1_025, 'the following request does not collapse over-cap ore')
-  assert.equal(record(foodGrant.body).food, 1_050)
+  assert.equal(record(foodGrant.body).ore, record(oreGrant.body).ore, 'the following request does not collapse over-cap ore')
+  assert.equal(record(foodGrant.body).food, (beforeDebugGrants.resources.food ?? 0) + 1_000)
   now = new Date(now.getTime() + 1_000)
   const durableDebugWorld = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
-  assert.equal(durableDebugWorld.resources.ore, 1_025)
-  assert.equal(durableDebugWorld.resources.food, 1_050)
+  assert.equal(durableDebugWorld.resources.ore, record(oreGrant.body).ore)
+  assert.equal(durableDebugWorld.resources.food, record(foodGrant.body).food)
   await persistence.base.transaction(async tx => {
     assert.equal(await tx.balanceLedger.sumSince(
       session.player.id,
@@ -373,8 +543,8 @@ test('MemoryPersistence serves the async core routes without global scans or che
       new Date('2026-07-11T00:00:00.000Z')
     ), 1_000, 'the ledger records the full over-cap debug grant')
     const village = await tx.villages.get(session.player.id)
-    assert.equal(village?.ore, 1_025)
-    assert.equal(village?.food, 1_050)
+    assert.equal(village?.ore, record(oreGrant.body).ore)
+    assert.equal(village?.food, record(foodGrant.body).food)
   })
   const oreReplay = await call('POST', '/resources/apply', {
     token,
@@ -487,6 +657,11 @@ test('MemoryPersistence serves the async core routes without global scans or che
   persistence.bulkQueries = 0
   const homeMap = await service.map(principal, session.player.plotX, session.player.plotY, 1)
   assert.equal(record(homeMap).plots instanceof Array, true)
+  const ownPostcard = (record(homeMap).plots as unknown[])
+    .map(record)
+    .find(plot => plot.ownerId === session.player.id)
+  assert(ownPostcard)
+  assert.deepEqual(record(ownPostcard.world).banner, chosenBanner)
   assert.equal(persistence.incomingQueries, 1, 'only the owner lock check uses the single-player query')
   assert.equal(persistence.bulkQueries, 1, 'all visible attack edges use one bounded batch query')
   assert.equal(authorizationQueries, 0, 'the home center does not open an attack authorization transaction')
@@ -538,9 +713,15 @@ test('MemoryPersistence serves the async core routes without global scans or che
   const atlas = await call('GET', '/map/atlas', { token: loginSession.token })
   assert.equal(atlas.status, 200)
   assert.equal(Array.isArray(record(atlas.body).players), true)
+  const atlasSelf = (record(atlas.body).players as unknown[])
+    .map(record)
+    .find(player => player.me === true)
+  assert(atlasSelf)
+  assert.deepEqual(atlasSelf.banner, chosenBanner)
   const selfScout = await call('GET', `/players/${session.player.id}/world`, { token: loginSession.token })
   assert.equal(selfScout.status, 200)
   assert.equal(record(record(selfScout.body).world).ownerId, session.player.id)
+  assert.deepEqual(record(record(selfScout.body).world).banner, chosenBanner)
   assert.equal((await call('GET', '/notifications', { token: loginSession.token })).status, 200)
   assert.equal((await call('POST', '/notifications/read', { token: loginSession.token })).status, 200)
 
@@ -560,14 +741,32 @@ test('MemoryPersistence serves the async core routes without global scans or che
     error instanceof ApiError && error.status === 401
   ))
   assert.deepEqual(
-    persistence.lockOrder.slice(0, 3),
-    ['accounts', 'plots', 'sessions'],
-    'expired authentication cleanup locks account and plot before its token row'
+    persistence.lockOrder.slice(0, 4),
+    ['accounts', 'accounts', 'plots', 'sessions'],
+    'authentication fences moderation first, then cleanup locks account and plot before its token row'
   )
   await persistence.base.transaction(async tx => {
     assert.equal(await tx.world.getPlayerPlot(authExpiredGuest.player.id), null)
     assert.equal(await tx.accounts.getById(authExpiredGuest.player.id), null)
   })
+  const expiredCoordinate = `${expiringGuest.player.plotX},${expiringGuest.player.plotY}`
+  authorized.add(expiredCoordinate)
+  const hiddenBotBefore = await persistence.base.transaction(tx => tx.world.getBotVillageAt(
+    'main', expiringGuest.player.plotX, expiringGuest.player.plotY
+  ))
+  const expiredLeaseMap = record(await service.map(
+    principal, expiringGuest.player.plotX, expiringGuest.player.plotY, 0
+  ))
+  const expiredLeasePlot = (expiredLeaseMap.plots as unknown[]).map(record)[0]
+  assert.deepEqual(expiredLeasePlot, {
+    x: expiringGuest.player.plotX,
+    y: expiringGuest.player.plotY,
+    kind: 'empty',
+    settleable: false
+  }, 'an expired-but-unreaped claim cannot be exposed or provisioned as a bot')
+  assert.deepEqual(await persistence.base.transaction(tx => tx.world.getBotVillageAt(
+    'main', expiringGuest.player.plotX, expiringGuest.player.plotY
+  )), hiddenBotBefore, 'map leaves any bot hidden beneath an unreaped claim unchanged')
   persistence.failGuestArchive = true
   await assert.rejects(service.sweepExpiredGuestLeases(50), /injected guest archive failure/)
   await persistence.base.transaction(async tx => {
@@ -615,7 +814,7 @@ test('explicit infinite resources waive every player spend without weakening gam
   const principal: RuntimePrincipal = { playerId: session.player.id }
   const initial = { ...session.world.resources }
   assert.equal(session.features.infiniteResources, true)
-  assert.deepEqual(initial, { gold: 1_000, ore: 25, food: 50 })
+  assert.deepEqual(initial, { gold: 2_000, ore: 100, food: 100 })
 
   const freeSpend = record(await service.applyResources(principal, {
     resource: 'gold',
@@ -639,34 +838,34 @@ test('explicit infinite resources waive every player spend without weakening gam
       ...beforePlacement,
       buildings: [
         ...beforePlacement.buildings,
-        { id: 'infinite-storage', type: 'storage', gridX: 2, gridY: 18, level: 1 }
+        { id: 'infinite-prism', type: 'prism', gridX: 2, gridY: 18, level: 1 }
       ]
     },
-    requestId: 'infinite-place-storage'
+    requestId: 'infinite-place-prism'
   })
-  assert(placed.buildings.some(building => building.id === 'infinite-storage'))
+  assert(placed.buildings.some(building => building.id === 'infinite-prism'))
   assert.deepEqual(
     placed.resources,
     initial,
-    'a 40-ore storehouse can be placed from the starter 25 ore without charging either currency'
+    'an otherwise-unaffordable prism can be placed without charging either currency'
   )
 
   const upgrading = await service.saveWorld(principal, {
     world: {
       ...placed,
       buildings: placed.buildings.map(building => (
-        building.id === 'infinite-storage' ? { ...building, level: 2 } : building
+        building.id === 'infinite-prism' ? { ...building, level: 2 } : building
       ))
     },
-    requestId: 'infinite-upgrade-storage'
+    requestId: 'infinite-upgrade-prism'
   })
-  const pendingStorage = upgrading.buildings.find(building => building.id === 'infinite-storage')
-  assert.equal(pendingStorage?.level, 1)
-  assert.equal(pendingStorage?.upgradingTo, 2)
+  const pendingPrism = upgrading.buildings.find(building => building.id === 'infinite-prism')
+  assert.equal(pendingPrism?.level, 1)
+  assert.equal(pendingPrism?.upgradingTo, 2)
   assert.deepEqual(
     upgrading.resources,
     initial,
-    'an otherwise-unaffordable 1000-gold/200-ore upgrade starts without a debit'
+    'an otherwise-unaffordable prism upgrade starts without a debit'
   )
 
   const trained = record(await service.trainTroop(principal, {
@@ -678,7 +877,7 @@ test('explicit infinite resources waive every player spend without weakening gam
   assert.deepEqual(
     { gold: trained.gold, ore: trained.ore, food: trained.food },
     initial,
-    'training can exceed starter gold and food without changing stored balances'
+    'training can consume the full starter food stock without changing stored balances'
   )
   await assert.rejects(service.trainTroop(principal, {
     type: 'warrior',
@@ -738,31 +937,31 @@ test('finite persistence mode still rejects unaffordable layouts and charges spe
       ...session.world,
       buildings: [
         ...session.world.buildings,
-        { id: 'finite-storage', type: 'storage', gridX: 2, gridY: 18, level: 1 }
+        { id: 'finite-prism', type: 'prism', gridX: 2, gridY: 18, level: 1 }
       ]
     },
-    requestId: 'finite-place-storage'
+    requestId: 'finite-place-prism'
   }), error => (
     error instanceof ApiError
       && error.status === 409
       && error.code === 'INSUFFICIENT_RESOURCES'
       && error.details?.resource === 'ore'
-  ), 'the same storehouse is rejected at the starter ore balance')
+  ), 'the same prism is rejected at the starter ore balance')
 
   const trained = record(await service.trainTroop(principal, {
     type: 'warrior',
     count: 2,
     requestId: 'finite-train-two'
   }))
-  assert.equal(trained.gold, 950)
-  assert.equal(trained.food, 46)
+  assert.equal(trained.gold, 1_950)
+  assert.equal(trained.food, 96)
 
   const spent = record(await service.applyResources(principal, {
     resource: 'gold',
     delta: -10,
     requestId: 'finite-negative'
   }))
-  assert.equal(spent.gold, 940)
+  assert.equal(spent.gold, 1_940)
 
   const traded = record(await service.merchantTrade(principal, {
     offerId: 1,
@@ -880,7 +1079,8 @@ test('production registration wall: no guest villages, registration creates acco
     assert.equal(session.player.registered, true)
     assert.equal(session.player.username, 'WallChief')
     assert.equal(Number.isFinite(session.player.plotX) && Number.isFinite(session.player.plotY), true)
-    assert.equal(session.world.buildings.length >= 4, true, 'the new account starts with the starter base')
+    assert.deepEqual(session.world.resources, { gold: 2_000, ore: 100, food: 100 })
+    assert.deepEqual(starterBuildingPlacements(session.world), EXPECTED_STARTER_BUILDINGS)
     await persistence.transaction(async tx => {
       const plot = await tx.world.getPlayerPlot(session.player.id)
       assert(plot, 'registration claimed a plot through the shared allocation path')

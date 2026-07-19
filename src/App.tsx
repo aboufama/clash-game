@@ -7,7 +7,7 @@ import type { GameMode } from './game/types/GameMode';
 import { BUILDING_DEFINITIONS, FACTION_BARRACKS, PLAYER_TROOP_TYPES, TROOP_DEFINITIONS, TROOP_FACTIONS, type ArmyCampUnlockProgress, type BuildingType, type PlayerTroopType, type TroopFaction, type TroopType, armyCampUnlockProgress, getBuildingStats, upgradeOreCostOf, troopFoodCostOf } from './game/config/GameDefinitions';
 import { armySpaceUsed, campCapacityOf, campHousingAtLevel, effectiveTroopLevel, factionBarracksLevels, labUpgradeInFlight, placementCharge, productionRatesPerSecond, resourceCapacity, type FactionBarracksLevels } from './game/config/Economy';
 import { Backend, type IncomingAttackSession } from './game/backend/GameBackend';
-import type { SerializedWorld } from './game/data/Models';
+import { sanitizeVillageBanner, type SerializedWorld } from './game/data/Models';
 import { Auth, type AuthUser } from './game/backend/Auth';
 import { AuthGate } from './components/AuthGate';
 import { gameManager, type PlotPanelInfo, type PlotPanelAction } from './game/GameManager';
@@ -111,6 +111,7 @@ function App() {
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isJukeboxOpen, setIsJukeboxOpen] = useState(false);
   const [isBannerPickerOpen, setIsBannerPickerOpen] = useState(false);
+  const [isBannerRequired, setIsBannerRequired] = useState(false);
   const [merchantOffers, setMerchantOffers] = useState<MerchantOffer[] | null>(null);
   const [plotPanel, setPlotPanel] = useState<PlotPanelInfo | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -301,6 +302,12 @@ function App() {
       if (soundSystem.unlockTrack('merchants_tune')) {
         showToast("New track unlocked: Merchant's Tune!");
       }
+      // Every deal taken: no reason to linger on an empty trade sheet — close
+      // it and send the merchant packing, same as if he'd left on his own.
+      if (merchantOffers?.every(o => o.done)) {
+        setMerchantOffers(null);
+        gameManager.merchantSoldOut();
+      }
     } catch (error) {
       console.warn('Merchant trade failed:', error);
       offer.done = false;
@@ -310,7 +317,7 @@ function App() {
     } finally {
       merchantTradesInFlightRef.current.delete(offer.id);
     }
-  }, [spendableResources, showToast, userId, infiniteResources]);
+  }, [spendableResources, showToast, userId, infiniteResources, merchantOffers]);
 
 
   useEffect(() => {
@@ -568,6 +575,19 @@ function App() {
 
     init();
   }, [authReady, userId, isOnline, beginVillageLoadCloud, updateVillageLoadCloud, revealVillageFromCloud, clearCloudTimers, ensureSceneBaseLoaded, loadCloudWorldWithRetry]);
+
+  // A loaded village is not playable until it owns complete, explicit
+  // heraldry. Missing and legacy partial banners both enter the same blocking
+  // picker; complete banners remain editable later from the town hall.
+  useEffect(() => {
+    if (!userId || !worldReady) {
+      setIsBannerRequired(false);
+      return;
+    }
+    const requiresBanner = !sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner);
+    setIsBannerRequired(requiresBanner);
+    if (requiresBanner) setIsBannerPickerOpen(true);
+  }, [userId, worldReady]);
 
   // Persist resources & army
   useEffect(() => {
@@ -1877,11 +1897,21 @@ function App() {
         />
       )}
 
+      {/* ONE EVENT, ONE SURFACE; history goes to the bell. This card is THE
+          incoming-attack surface: while it shows, nothing else pops — the
+          scene raises no duplicate siege bubble and no toast echoes the
+          attack (WorldMapSystem.onSiegeStarted/onSiegeEnded keep only the
+          horn + villager panic, which are diegetic, not chrome). The
+          defense-log notification still lands silently in the bell (badge
+          increments, LIVE row inside the dropdown) for history. */}
       {view === 'HOME' && incomingAttack && (
         <div className="incoming-attack-popup">
           <div className="title">YOUR BASE IS UNDER ATTACK</div>
-          <div className="body">
-            {incomingAttack.attackerName} is raiding your village right now.
+          <div className="incoming-attack-meta">
+            <span className="incoming-attack-name">{incomingAttack.attackerName}</span>
+            <span className="incoming-attack-tag">
+              {incomingAttack.attackerId?.startsWith('bot') ? 'BOT' : 'PLAYER'}
+            </span>
           </div>
           <div className="incoming-attack-actions">
             <button
@@ -1899,12 +1929,16 @@ function App() {
                 gameManager.dismissSiegeBanner();
               }}
             >
-              LATER
+              DISMISS
             </button>
           </div>
         </div>
       )}
 
+      {/* ONE EVENT, ONE SURFACE; history goes to the bell. Spectating stacks
+          no status chrome: this single card carries who-vs-who + LIVE/REPLAY
+          + destruction + exit, and the Hud's separate battle-stats row stays
+          ATTACK-only (see Hud.tsx) so it never doubles this surface. */}
       {view === 'REPLAY' && activeReplay && (
         <div className="replay-status-overlay">
           <div className="replay-badge">
@@ -1913,8 +1947,11 @@ function App() {
           </div>
           <div className="replay-info">
             <span className="replay-title">{activeReplay.live ? 'Defense Watch' : 'Attack Replay'}</span>
-            <span className="replay-attacker">{activeReplay.attackerName}</span>
+            <span className="replay-attacker">
+              {activeReplay.attackerName} vs {user?.username ?? 'you'}
+            </span>
           </div>
+          <span className="replay-destruction">{battleStats.destruction}%</span>
           <button className="replay-exit-btn" onClick={() => { soundSystem.play('uiTap'); handleExitReplay(); }}>RETREAT</button>
         </div>
       )}
@@ -1922,7 +1959,13 @@ function App() {
       <DebugMenu isOpen={isDebugOpen} />
 
       <JukeboxModal isOpen={isJukeboxOpen} onClose={() => setIsJukeboxOpen(false)} />
-      <BannerPickerModal isOpen={isBannerPickerOpen} userId={userId ?? 'default_player'} onClose={() => setIsBannerPickerOpen(false)} />
+      <BannerPickerModal
+        isOpen={isBannerPickerOpen}
+        userId={userId ?? 'default_player'}
+        required={isBannerRequired}
+        onSaved={() => setIsBannerRequired(false)}
+        onClose={() => setIsBannerPickerOpen(false)}
+      />
 
       <MerchantModal
         offers={merchantOffers}

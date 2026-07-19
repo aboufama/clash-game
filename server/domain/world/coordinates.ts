@@ -5,6 +5,15 @@ export const DEFAULT_REGION_SIZE = 32
 // bound, not a preallocated world border: it exposes four trillion plots.
 export const MAX_WORLD_COORDINATE = 1_000_000
 
+/**
+ * The MAIN server's advertised world size: plots span ±this on both axes
+ * (49×49 = 2,401 plots — room for the ~1,000-player cap after lakes and
+ * preserves). This is the WORLD ATLAS frame, not an input-safety bound:
+ * the atlas charts every settled player and presents this square as "the
+ * world". Multi-server sharding can widen or page this later.
+ */
+export const WORLD_PLOT_RADIUS = 24
+
 export type GenerationVersion = number
 export type RegionId = string
 

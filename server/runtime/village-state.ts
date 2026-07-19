@@ -184,6 +184,7 @@ export function serializedWorldOf(
       simulatedThrough: village.simulatedThrough.getTime()
     },
     army: { ...villageArmy(village) },
+    ...(village.banner ? { banner: { ...village.banner } } : {}),
     // Own-world payloads carry trophies so a defense loss reaches the HUD on
     // the ordinary world poll instead of waiting for the next attack.
     trophies: account.trophies,
@@ -209,6 +210,7 @@ export function publicWorldOf(
     wallLevel: village.wallLevel,
     lastSaveTime: village.lastMutationAt.getTime(),
     revision: village.appearanceRevision,
+    ...(village.banner ? { banner: { ...village.banner } } : {}),
     life: {
       version: 1,
       identity: account.id,

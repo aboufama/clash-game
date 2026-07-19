@@ -1,5 +1,12 @@
 import type {
   AccountRecord,
+  AccountModerationRecord,
+  AdminAttackQuery,
+  AdminAuditRecord,
+  AdminOverviewRecord,
+  AdminPlayerQuery,
+  AdminPlayerRecord,
+  AdminRuntimeConfigRecord,
   AttackAuthorityCommandWrite,
   AttackAuthorityWrite,
   AttackCandidateQuery,
@@ -10,6 +17,7 @@ import type {
   AttackState,
   BalanceLedgerRecord,
   BalanceLedgerDaySummary,
+  BotVillageRecord,
   IdempotencyClaim,
   IdempotencyRecord,
   JsonValue,
@@ -28,12 +36,14 @@ import type {
   WorldAllocationRecord,
   WorldAtlasEntry,
   WorldAtlasQuery,
+  WorldPlayerDirectoryQuery,
   WorldPlayerEntry,
   WorldPlotRecord,
   WorldRegionRecord
 } from './model'
 import type {
   AccountRepository,
+  AdminRepository,
   AttackRepository,
   BalanceLedgerRepository,
   IdempotencyRepository,
@@ -50,12 +60,15 @@ import type {
 import { PersistenceConflictError } from './repositories'
 import {
   boundAttackCommandQuery,
+  boundAdminAttackQuery,
+  boundAdminPlayerQuery,
   boundAttackPlayerBatch,
   boundAttackCandidateQuery,
   boundedLimit,
   boundNotificationQuery,
   boundParticipantReplayQuery,
   boundWorldAtlasQuery,
+  boundWorldPlayerDirectoryQuery,
   boundWorldOccupancyBatch,
   QUERY_LIMITS
 } from './query-bounds'
@@ -76,6 +89,8 @@ interface MemoryState {
   releasedWorldPlots: Map<string, ReleasedWorldPlotRecord>
   plotsByPlayer: Map<string, WorldPlotRecord>
   plotOccupants: Map<string, string>
+  botVillages: Map<string, BotVillageRecord>
+  botVillageIdsByPlot: Map<string, string>
   attacks: Map<string, AttackRecord>
   commandsBySequence: Map<string, AttackCommandRecord>
   commandIds: Map<string, string>
@@ -88,6 +103,9 @@ interface MemoryState {
   outbox: Map<string, OutboxEventRecord>
   markers: Map<string, Date>
   balanceLedger: Map<string, BalanceLedgerRecord>
+  moderation: Map<string, AccountModerationRecord>
+  adminAudit: Map<string, AdminAuditRecord>
+  adminConfig: AdminRuntimeConfigRecord
   outboxSequence: number
 }
 
@@ -101,6 +119,8 @@ function emptyState(): MemoryState {
     releasedWorldPlots: new Map(),
     plotsByPlayer: new Map(),
     plotOccupants: new Map(),
+    botVillages: new Map(),
+    botVillageIdsByPlot: new Map(),
     attacks: new Map(),
     commandsBySequence: new Map(),
     commandIds: new Map(),
@@ -113,6 +133,14 @@ function emptyState(): MemoryState {
     outbox: new Map(),
     markers: new Map(),
     balanceLedger: new Map(),
+    moderation: new Map(),
+    adminAudit: new Map(),
+    adminConfig: {
+      maintenanceEnabled: false,
+      maintenanceMessage: null,
+      updatedAt: new Date(0),
+      revision: 1
+    },
     outboxSequence: 0
   }
 }
@@ -131,6 +159,45 @@ function regionKey(worldId: string, regionX: number, regionY: number): string {
 
 function releasedPlotKey(worldId: string, ordinal: number): string {
   return tupleKey(worldId, ordinal)
+}
+
+function assertBotVillageRecord(record: BotVillageRecord): void {
+  if (!record.id || !record.worldId || !record.username) throw new Error('Bot village identity is required')
+  if (!Number.isSafeInteger(record.x) || !Number.isSafeInteger(record.y)) {
+    throw new Error('Bot village coordinates must be safe integers')
+  }
+  for (const [field, value] of [
+    ['plotVersion', record.plotVersion],
+    ['worldGenerationVersion', record.worldGenerationVersion],
+    ['generatorVersion', record.generatorVersion],
+    ['seed', record.seed],
+    ['revision', record.revision]
+  ] as const) {
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`Bot village ${field} must be a positive safe integer`)
+  }
+  if (!Number.isSafeInteger(record.trophies) || record.trophies < 0) {
+    throw new Error('Bot village trophies must be a non-negative safe integer')
+  }
+  if (!(record.createdAt instanceof Date) || !Number.isFinite(record.createdAt.getTime())
+    || !(record.updatedAt instanceof Date) || !Number.isFinite(record.updatedAt.getTime())
+    || record.updatedAt < record.createdAt) {
+    throw new Error('Bot village timestamps are invalid')
+  }
+  if (!record.profile || typeof record.profile !== 'object' || Array.isArray(record.profile)) {
+    throw new Error('Bot village profile must be an object')
+  }
+  if (!record.world || record.world.id !== record.id || record.world.ownerId !== record.id
+    || !Array.isArray(record.world.buildings)
+    || !record.world.resources || typeof record.world.resources !== 'object') {
+    throw new Error('Bot village world must be a complete self-owned serialized world')
+  }
+}
+
+/** Concurrent first-read provisioners may stamp different wall-clock times. */
+function sameBotVillageProvision(left: BotVillageRecord, right: BotVillageRecord): boolean {
+  const { createdAt: _leftCreated, updatedAt: _leftUpdated, ...leftStable } = left
+  const { createdAt: _rightCreated, updatedAt: _rightUpdated, ...rightStable } = right
+  return isDeepStrictEqual(leftStable, rightStable)
 }
 
 function tupleKey(...parts: Array<string | number>): string {
@@ -158,6 +225,7 @@ function publicVillage(village: VillageRecord): WorldAtlasEntry['village'] {
     obstacles: village.obstacles,
     wallLevel: village.wallLevel,
     population: village.population,
+    banner: village.banner,
     simulatedThrough: village.simulatedThrough,
     lastMutationAt: village.lastMutationAt,
     layoutRevision: village.layoutRevision,
@@ -265,6 +333,7 @@ class MemoryAccounts implements AccountRepository {
       if (entry.playerId === id) throw new Error(`Account is retained by balance history: ${id}`)
     }
     this.state.accounts.delete(id)
+    this.state.moderation.delete(id)
     this.state.villages.delete(id)
     for (const [tokenHash, session] of this.state.sessions) {
       if (session.playerId === id) this.state.sessions.delete(tokenHash)
@@ -369,6 +438,18 @@ class MemoryVillages implements VillageRepository {
       throw new Error('Village economy revision must advance by exactly one')
     }
     this.state.villages.set(record.playerId, copy(record))
+    return true
+  }
+
+  async updateAppearance(record: VillageRecord, expectedAppearanceRevision: number): Promise<boolean> {
+    const current = this.state.villages.get(record.playerId)
+    if (!current || current.appearanceRevision !== expectedAppearanceRevision) return false
+    if (record.appearanceRevision !== expectedAppearanceRevision + 1) {
+      throw new Error('Village appearance revision must advance by exactly one')
+    }
+    current.banner = copy(record.banner)
+    current.lastMutationAt = copy(record.lastMutationAt)
+    current.appearanceRevision = record.appearanceRevision
     return true
   }
 }
@@ -490,6 +571,70 @@ class MemoryWorld implements WorldRepository {
     return copy(occupants)
   }
 
+  async getBotVillage(id: string): Promise<BotVillageRecord | null> {
+    const record = this.state.botVillages.get(id)
+    return record ? copy(record) : null
+  }
+
+  async getBotVillageAt(worldId: string, x: number, y: number): Promise<BotVillageRecord | null> {
+    const id = this.state.botVillageIdsByPlot.get(plotKey(worldId, x, y))
+    return id ? this.getBotVillage(id) : null
+  }
+
+  async listBotVillages(input: WorldAtlasQuery): Promise<BotVillageRecord[]> {
+    const query = boundWorldAtlasQuery(input)
+    return copy([...this.state.botVillages.values()]
+      .filter(record => record.worldId === query.worldId
+        && record.x >= query.minX && record.x <= query.maxX
+        && record.y >= query.minY && record.y <= query.maxY)
+      .sort((left, right) => left.y - right.y || left.x - right.x || left.id.localeCompare(right.id))
+      .slice(0, query.limit))
+  }
+
+  async insertBotVillage(record: BotVillageRecord): Promise<'inserted' | 'existing'> {
+    assertBotVillageRecord(record)
+    const coordinateKey = plotKey(record.worldId, record.x, record.y)
+    if (this.state.plotOccupants.has(coordinateKey)) {
+      throw new PersistenceConflictError('A player already occupies that bot village coordinate')
+    }
+    const currentById = this.state.botVillages.get(record.id)
+    const currentIdAtPlot = this.state.botVillageIdsByPlot.get(coordinateKey)
+    if (currentById || currentIdAtPlot) {
+      const current = currentById ?? this.state.botVillages.get(currentIdAtPlot!)
+      if (current && current.id === record.id && sameBotVillageProvision(current, record)) return 'existing'
+      throw new PersistenceConflictError('Bot village identity or coordinate already exists with different data')
+    }
+    this.state.botVillages.set(record.id, copy(record))
+    this.state.botVillageIdsByPlot.set(coordinateKey, record.id)
+    return 'inserted'
+  }
+
+  async updateBotVillage(record: BotVillageRecord, expectedRevision: number): Promise<boolean> {
+    assertBotVillageRecord(record)
+    const current = this.state.botVillages.get(record.id)
+    if (!current || current.revision !== expectedRevision) return false
+    if (record.revision !== expectedRevision + 1) {
+      throw new Error('Bot village revision must advance by exactly one')
+    }
+    if (record.worldId !== current.worldId || record.x !== current.x || record.y !== current.y
+      || record.plotVersion !== current.plotVersion
+      || record.worldGenerationVersion !== current.worldGenerationVersion
+      || record.generatorVersion !== current.generatorVersion || record.seed !== current.seed
+      || record.createdAt.getTime() !== current.createdAt.getTime()) {
+      throw new Error('Bot village identity, coordinate and generator provenance are immutable')
+    }
+    this.state.botVillages.set(record.id, copy(record))
+    return true
+  }
+
+  async deleteBotVillage(id: string): Promise<boolean> {
+    const current = this.state.botVillages.get(id)
+    if (!current) return false
+    this.state.botVillages.delete(id)
+    this.state.botVillageIdsByPlot.delete(plotKey(current.worldId, current.x, current.y))
+    return true
+  }
+
   async listAtlas(input: WorldAtlasQuery): Promise<WorldAtlasEntry[]> {
     const query = boundWorldAtlasQuery(input)
     const entries: WorldAtlasEntry[] = []
@@ -526,10 +671,46 @@ class MemoryWorld implements WorldRepository {
         || plot.y < query.minY || plot.y > query.maxY
         || (plot.leaseExpiresAt !== null && plot.leaseExpiresAt <= query.now)) continue
       const account = this.state.accounts.get(plot.playerId)
-      if (account) entries.push({ plot, player: playerSummary(account) })
+      const village = this.state.villages.get(plot.playerId)
+      if (account && village) entries.push({
+        plot,
+        player: playerSummary(account),
+        banner: village.banner
+      })
     }
     entries.sort((a, b) => a.plot.y - b.plot.y || a.plot.x - b.plot.x
       || a.plot.playerId.localeCompare(b.plot.playerId))
+    return copy(entries.slice(0, query.limit))
+  }
+
+  async listPlayersGlobal(input: WorldPlayerDirectoryQuery): Promise<WorldPlayerEntry[]> {
+    const query = boundWorldPlayerDirectoryQuery(input)
+    const entries: WorldPlayerEntry[] = []
+    for (const plot of this.state.plotsByPlayer.values()) {
+      if (plot.worldId !== query.worldId
+        || (plot.leaseExpiresAt !== null && plot.leaseExpiresAt <= query.now)) continue
+      const account = this.state.accounts.get(plot.playerId)
+      const village = this.state.villages.get(plot.playerId)
+      if (account && village) entries.push({
+        plot,
+        player: playerSummary(account),
+        banner: village.banner
+      })
+    }
+    entries.sort((left, right) => {
+      const leftDistance = Math.max(
+        Math.abs(left.plot.x - query.centerX),
+        Math.abs(left.plot.y - query.centerY)
+      )
+      const rightDistance = Math.max(
+        Math.abs(right.plot.x - query.centerX),
+        Math.abs(right.plot.y - query.centerY)
+      )
+      return leftDistance - rightDistance
+        || left.plot.y - right.plot.y
+        || left.plot.x - right.plot.x
+        || left.plot.playerId.localeCompare(right.plot.playerId)
+    })
     return copy(entries.slice(0, query.limit))
   }
 
@@ -1204,6 +1385,176 @@ class MemoryBalanceLedger implements BalanceLedgerRepository {
   }
 }
 
+function effectiveModeration(
+  record: AccountModerationRecord | undefined,
+  now: Date
+): Pick<AdminPlayerRecord, 'accessState' | 'accessReason' | 'accessUntil' | 'moderationUpdatedAt'> {
+  if (!record || record.state === 'active'
+    || (record.state === 'suspended' && record.until !== null && record.until <= now)) {
+    return {
+      accessState: 'active',
+      accessReason: null,
+      accessUntil: null,
+      moderationUpdatedAt: record?.updatedAt ?? null
+    }
+  }
+  return {
+    accessState: record.state,
+    accessReason: record.reason,
+    accessUntil: record.until,
+    moderationUpdatedAt: record.updatedAt
+  }
+}
+
+class MemoryAdmin implements AdminRepository {
+  private readonly state: MemoryState
+
+  constructor(state: MemoryState) {
+    this.state = state
+  }
+
+  async overview(now: Date, onlineSince: Date): Promise<AdminOverviewRecord> {
+    const accounts = [...this.state.accounts.values()]
+    const villages = [...this.state.villages.values()]
+    const attacks = [...this.state.attacks.values()]
+    let suspendedPlayers = 0
+    let bannedPlayers = 0
+    for (const moderation of this.state.moderation.values()) {
+      const effective = effectiveModeration(moderation, now).accessState
+      if (effective === 'suspended') suspendedPlayers += 1
+      if (effective === 'banned') bannedPlayers += 1
+    }
+    const byState = (state: AttackState) => attacks.filter(attack => attack.state === state).length
+    return {
+      players: accounts.length,
+      registeredPlayers: accounts.filter(account => account.registered).length,
+      onlinePlayers: accounts.filter(account => account.lastSeenAt >= onlineSince).length,
+      playerVillages: villages.length,
+      botVillages: this.state.botVillages.size,
+      preparingAttacks: byState('preparing'),
+      engagedAttacks: byState('engaged'),
+      activeAttacks: byState('active'),
+      finalizingAttacks: byState('finalizing'),
+      totalGold: villages.reduce((sum, village) => sum + village.gold, 0),
+      totalOre: villages.reduce((sum, village) => sum + village.ore, 0),
+      totalFood: villages.reduce((sum, village) => sum + village.food, 0),
+      averageTrophies: accounts.length === 0
+        ? 0
+        : accounts.reduce((sum, account) => sum + account.trophies, 0) / accounts.length,
+      suspendedPlayers,
+      bannedPlayers
+    }
+  }
+
+  private player(account: AccountRecord, now: Date): AdminPlayerRecord {
+    const village = this.state.villages.get(account.id)
+    const plot = this.state.plotsByPlayer.get(account.id)
+    const moderation = effectiveModeration(this.state.moderation.get(account.id), now)
+    return {
+      id: account.id,
+      username: account.username,
+      registered: account.registered,
+      trophies: account.trophies,
+      shieldUntil: account.shieldUntil,
+      createdAt: account.createdAt,
+      lastSeenAt: account.lastSeenAt,
+      profileRevision: account.revision,
+      ...moderation,
+      worldId: plot?.worldId ?? null,
+      x: plot?.x ?? null,
+      y: plot?.y ?? null,
+      plotVersion: plot?.plotVersion ?? null,
+      gold: village?.gold ?? 0,
+      ore: village?.ore ?? 0,
+      food: village?.food ?? 0,
+      economyRevision: village?.economyRevision ?? 0,
+      layoutRevision: village?.layoutRevision ?? 0,
+      appearanceRevision: village?.appearanceRevision ?? 0,
+      buildings: village?.buildings.length ?? 0,
+      obstacles: village?.obstacles.length ?? 0,
+      army: copy(village?.army ?? {}),
+      population: copy(village?.population ?? {}),
+      activeSessions: [...this.state.sessions.values()]
+        .filter(session => session.playerId === account.id && session.expiresAt > now).length,
+      activeAttacks: [...this.state.attacks.values()]
+        .filter(attack => ACTIVE_ATTACK_STATES.has(attack.state)
+          && (attack.attackerId === account.id || attack.defenderId === account.id)).length
+    }
+  }
+
+  async listPlayers(rawQuery: AdminPlayerQuery): Promise<AdminPlayerRecord[]> {
+    const query = boundAdminPlayerQuery(rawQuery)
+    const search = query.search.trim().toLocaleLowerCase('en-US')
+    return copy([...this.state.accounts.values()]
+      .filter(account => !search
+        || account.id.toLocaleLowerCase('en-US').includes(search)
+        || account.username.toLocaleLowerCase('en-US').includes(search))
+      .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, query.limit)
+      .map(account => this.player(account, query.now)))
+  }
+
+  async getPlayer(playerId: string, now: Date): Promise<AdminPlayerRecord | null> {
+    const account = this.state.accounts.get(playerId)
+    return account ? copy(this.player(account, now)) : null
+  }
+
+  async isUsernameTaken(usernameKey: string, excludingPlayerId: string): Promise<boolean> {
+    return [...this.state.accounts.values()].some(account => account.id !== excludingPlayerId
+      && account.username.trim().toLocaleLowerCase('en-US') === usernameKey)
+  }
+
+  async listAttacks(rawQuery: AdminAttackQuery): Promise<AttackRecord[]> {
+    const query = boundAdminAttackQuery(rawQuery)
+    return copy([...this.state.attacks.values()]
+      .filter(attack => query.state === null || attack.state === query.state)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || b.id.localeCompare(a.id))
+      .slice(0, query.limit))
+  }
+
+  async getModeration(playerId: string): Promise<AccountModerationRecord | null> {
+    const record = this.state.moderation.get(playerId)
+    return record ? copy(record) : null
+  }
+
+  async upsertModeration(record: AccountModerationRecord, expectedRevision: number | null): Promise<boolean> {
+    if (!this.state.accounts.has(record.playerId)) throw new Error(`Unknown moderation target: ${record.playerId}`)
+    const current = this.state.moderation.get(record.playerId)
+    if (expectedRevision === null) {
+      if (current) return false
+      if (record.revision !== 1) throw new Error('Initial moderation revision must be one')
+    } else {
+      if (!current || current.revision !== expectedRevision) return false
+      if (record.revision !== expectedRevision + 1) throw new Error('Moderation revision must advance by one')
+    }
+    this.state.moderation.set(record.playerId, copy(record))
+    return true
+  }
+
+  async getConfig(): Promise<AdminRuntimeConfigRecord> {
+    return copy(this.state.adminConfig)
+  }
+
+  async updateConfig(record: AdminRuntimeConfigRecord, expectedRevision: number): Promise<boolean> {
+    if (this.state.adminConfig.revision !== expectedRevision) return false
+    if (record.revision !== expectedRevision + 1) throw new Error('Admin config revision must advance by one')
+    this.state.adminConfig = copy(record)
+    return true
+  }
+
+  async listAudit(requestedLimit: number): Promise<AdminAuditRecord[]> {
+    const limit = boundedLimit(requestedLimit, QUERY_LIMITS.adminAudit)
+    return copy([...this.state.adminAudit.values()]
+      .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime() || b.id.localeCompare(a.id))
+      .slice(0, limit))
+  }
+
+  async appendAudit(record: AdminAuditRecord): Promise<void> {
+    if (this.state.adminAudit.has(record.id)) throw new Error(`Admin audit id already exists: ${record.id}`)
+    this.state.adminAudit.set(record.id, copy(record))
+  }
+}
+
 class MemoryUnitOfWork implements UnitOfWork {
   readonly accounts: AccountRepository
   readonly sessions: SessionRepository
@@ -1216,6 +1567,7 @@ class MemoryUnitOfWork implements UnitOfWork {
   readonly outbox: OutboxRepository
   readonly operationMarkers: OperationMarkerRepository
   readonly balanceLedger: BalanceLedgerRepository
+  readonly admin: AdminRepository
 
   constructor(state: MemoryState) {
     this.accounts = new MemoryAccounts(state)
@@ -1229,6 +1581,7 @@ class MemoryUnitOfWork implements UnitOfWork {
     this.outbox = new MemoryOutbox(state)
     this.operationMarkers = new MemoryOperationMarkers(state)
     this.balanceLedger = new MemoryBalanceLedger(state)
+    this.admin = new MemoryAdmin(state)
   }
 }
 

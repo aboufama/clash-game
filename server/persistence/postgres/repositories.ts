@@ -1,6 +1,13 @@
 import type { QueryResultRow } from 'pg'
 import type {
   AccountRecord,
+  AccountModerationRecord,
+  AdminAttackQuery,
+  AdminAuditRecord,
+  AdminOverviewRecord,
+  AdminPlayerQuery,
+  AdminPlayerRecord,
+  AdminRuntimeConfigRecord,
   AttackAuthorityCommandWrite,
   AttackAuthorityWrite,
   AttackCandidateQuery,
@@ -12,6 +19,7 @@ import type {
   AttackRecord,
   AttackState,
   IdempotencyClaim,
+  BotVillageRecord,
   JsonObject,
   JsonValue,
   LeaderboardPlayerRecord,
@@ -29,12 +37,14 @@ import type {
   WorldAllocationRecord,
   WorldAtlasEntry,
   WorldAtlasQuery,
+  WorldPlayerDirectoryQuery,
   WorldPlayerEntry,
   WorldPlotRecord,
   WorldRegionRecord
 } from '../model'
 import type {
   AccountRepository,
+  AdminRepository,
   AttackRepository,
   BalanceLedgerRepository,
   IdempotencyRepository,
@@ -50,12 +60,15 @@ import type {
 import { PersistenceConflictError } from '../repositories'
 import {
   boundAttackCandidateQuery,
+  boundAdminAttackQuery,
+  boundAdminPlayerQuery,
   boundAttackCommandQuery,
   boundAttackPlayerBatch,
   boundedLimit,
   boundNotificationQuery,
   boundParticipantReplayQuery,
   boundWorldAtlasQuery,
+  boundWorldPlayerDirectoryQuery,
   boundWorldOccupancyBatch,
   QUERY_LIMITS
 } from '../query-bounds'
@@ -387,6 +400,7 @@ interface VillageRow extends QueryResultRow {
   food: string | number
   production_remainders: { ore: number; food: number }
   population: JsonObject
+  banner: VillageRecord['banner']
   simulated_through: Date | string
   last_mutation_at: Date | string
   layout_revision: string | number
@@ -408,6 +422,7 @@ function villageFromRow(row: VillageRow): VillageRecord {
     food: Number(row.food),
     productionRemainders: row.production_remainders,
     population: row.population,
+    banner: row.banner,
     simulatedThrough: date(row.simulated_through),
     lastMutationAt: date(row.last_mutation_at),
     layoutRevision: Number(row.layout_revision),
@@ -420,7 +435,7 @@ function villageFromRow(row: VillageRow): VillageRecord {
 
 const VILLAGE_COLUMNS = String.raw`
   player_id, buildings, obstacles, army, wall_level, gold, ore, food,
-  production_remainders, population, simulated_through, last_mutation_at,
+  production_remainders, population, banner, simulated_through, last_mutation_at,
   layout_revision, appearance_revision, economy_revision, simulation_version, next_event_at
 `
 
@@ -442,7 +457,7 @@ class PgVillages implements VillageRepository {
   async insert(record: VillageRecord): Promise<void> {
     await this.sql.query(String.raw`
       INSERT INTO villages(${VILLAGE_COLUMNS})
-      VALUES ($1, $2::jsonb, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, $2::jsonb, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18)
     `, villageValues(record))
   }
 
@@ -456,11 +471,29 @@ class PgVillages implements VillageRepository {
       UPDATE villages SET
         buildings = $2::jsonb, obstacles = $3::jsonb, army = $4, wall_level = $5,
         gold = $6, ore = $7, food = $8, production_remainders = $9,
-        population = $10, simulated_through = $11, last_mutation_at = $12,
-        layout_revision = $13, appearance_revision = $14, economy_revision = $15,
-        simulation_version = $16, next_event_at = $17
-      WHERE player_id = $1 AND economy_revision = $18
+        population = $10, banner = $11::jsonb, simulated_through = $12, last_mutation_at = $13,
+        layout_revision = $14, appearance_revision = $15, economy_revision = $16,
+        simulation_version = $17, next_event_at = $18
+      WHERE player_id = $1 AND economy_revision = $19
     `, values)
+    return result.rowCount === 1
+  }
+
+  async updateAppearance(record: VillageRecord, expectedAppearanceRevision: number): Promise<boolean> {
+    if (record.appearanceRevision !== expectedAppearanceRevision + 1) {
+      throw new Error('Village appearance revision must advance by exactly one')
+    }
+    const result = await this.sql.query(String.raw`
+      UPDATE villages SET
+        banner = $2::jsonb, last_mutation_at = $3, appearance_revision = $4
+      WHERE player_id = $1 AND appearance_revision = $5
+    `, [
+      record.playerId,
+      record.banner,
+      record.lastMutationAt,
+      record.appearanceRevision,
+      expectedAppearanceRevision
+    ])
     return result.rowCount === 1
   }
 }
@@ -480,6 +513,7 @@ function villageValues(record: VillageRecord): unknown[] {
     record.food,
     record.productionRemainders,
     record.population,
+    record.banner,
     record.simulatedThrough,
     record.lastMutationAt,
     record.layoutRevision,
@@ -599,6 +633,90 @@ const PLOT_SELECT = String.raw`
   FROM world_plots
 `
 
+interface BotVillageRow extends QueryResultRow {
+  id: string
+  world_id: string
+  x: number
+  y: number
+  plot_version: string | number
+  world_generation_version: number
+  generator_version: number
+  seed: string | number
+  username: string
+  trophies: number
+  profile: JsonObject
+  world: BotVillageRecord['world']
+  revision: string | number
+  created_at: Date | string
+  updated_at: Date | string
+}
+
+function botVillageFromRow(row: BotVillageRow): BotVillageRecord {
+  return {
+    id: row.id,
+    worldId: row.world_id,
+    x: row.x,
+    y: row.y,
+    plotVersion: Number(row.plot_version),
+    worldGenerationVersion: row.world_generation_version,
+    generatorVersion: row.generator_version,
+    seed: Number(row.seed),
+    username: row.username,
+    trophies: row.trophies,
+    profile: row.profile,
+    world: row.world,
+    revision: Number(row.revision),
+    createdAt: date(row.created_at),
+    updatedAt: date(row.updated_at)
+  }
+}
+
+function assertBotVillageRecord(record: BotVillageRecord): void {
+  if (!record.id || !record.worldId || !record.username) throw new Error('Bot village identity is required')
+  if (!Number.isSafeInteger(record.x) || !Number.isSafeInteger(record.y)) {
+    throw new Error('Bot village coordinates must be safe integers')
+  }
+  for (const [field, value] of [
+    ['plotVersion', record.plotVersion],
+    ['worldGenerationVersion', record.worldGenerationVersion],
+    ['generatorVersion', record.generatorVersion],
+    ['seed', record.seed],
+    ['revision', record.revision]
+  ] as const) {
+    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`Bot village ${field} must be a positive safe integer`)
+  }
+  if (!Number.isSafeInteger(record.trophies) || record.trophies < 0) {
+    throw new Error('Bot village trophies must be a non-negative safe integer')
+  }
+  if (!(record.createdAt instanceof Date) || !Number.isFinite(record.createdAt.getTime())
+    || !(record.updatedAt instanceof Date) || !Number.isFinite(record.updatedAt.getTime())
+    || record.updatedAt < record.createdAt) {
+    throw new Error('Bot village timestamps are invalid')
+  }
+  if (!record.profile || typeof record.profile !== 'object' || Array.isArray(record.profile)) {
+    throw new Error('Bot village profile must be an object')
+  }
+  if (!record.world || record.world.id !== record.id || record.world.ownerId !== record.id
+    || !Array.isArray(record.world.buildings)
+    || !record.world.resources || typeof record.world.resources !== 'object') {
+    throw new Error('Bot village world must be a complete self-owned serialized world')
+  }
+}
+
+/** Concurrent first-read provisioners may stamp different wall-clock times. */
+function sameBotVillageProvision(left: BotVillageRecord, right: BotVillageRecord): boolean {
+  const { createdAt: _leftCreated, updatedAt: _leftUpdated, ...leftStable } = left
+  const { createdAt: _rightCreated, updatedAt: _rightUpdated, ...rightStable } = right
+  return isDeepStrictEqual(leftStable, rightStable)
+}
+
+const BOT_VILLAGE_SELECT = String.raw`
+  SELECT id, world_id, x, y, plot_version, world_generation_version,
+    generator_version, seed, username, trophies, profile, world, revision,
+    created_at, updated_at
+  FROM bot_villages
+`
+
 interface AtlasRow extends PlotRow {
   account_created_at: Date | string
   username: string
@@ -610,6 +728,7 @@ interface AtlasRow extends PlotRow {
   village_obstacles: JsonValue[]
   village_wall_level: number
   village_population: JsonObject
+  village_banner: VillageRecord['banner']
   village_simulated_through: Date | string
   village_last_mutation_at: Date | string
   village_layout_revision: string | number
@@ -633,6 +752,7 @@ function atlasFromRow(row: AtlasRow): WorldAtlasEntry {
       obstacles: row.village_obstacles,
       wallLevel: row.village_wall_level,
       population: row.village_population,
+      banner: row.village_banner,
       simulatedThrough: date(row.village_simulated_through),
       lastMutationAt: date(row.village_last_mutation_at),
       layoutRevision: Number(row.village_layout_revision),
@@ -839,6 +959,139 @@ class PgWorld implements WorldRepository {
     return result.rows.map(plotFromRow)
   }
 
+  async getBotVillage(
+    id: string,
+    options: { forUpdate?: boolean } = {}
+  ): Promise<BotVillageRecord | null> {
+    const result = await this.sql.query<BotVillageRow>(
+      `${BOT_VILLAGE_SELECT} WHERE id = $1${options.forUpdate ? ' FOR UPDATE' : ''}`,
+      [id]
+    )
+    return result.rows[0] ? botVillageFromRow(result.rows[0]) : null
+  }
+
+  async getBotVillageAt(
+    worldId: string,
+    x: number,
+    y: number,
+    options: { forUpdate?: boolean } = {}
+  ): Promise<BotVillageRecord | null> {
+    const result = await this.sql.query<BotVillageRow>(
+      `${BOT_VILLAGE_SELECT} WHERE world_id = $1 AND x = $2 AND y = $3${options.forUpdate ? ' FOR UPDATE' : ''}`,
+      [worldId, x, y]
+    )
+    return result.rows[0] ? botVillageFromRow(result.rows[0]) : null
+  }
+
+  async listBotVillages(input: WorldAtlasQuery): Promise<BotVillageRecord[]> {
+    const query = boundWorldAtlasQuery(input)
+    const result = await this.sql.query<BotVillageRow>(String.raw`
+      ${BOT_VILLAGE_SELECT}
+      WHERE world_id = $1
+        AND y BETWEEN $2 AND $3
+        AND x BETWEEN $4 AND $5
+      ORDER BY y, x, id
+      LIMIT $6
+    `, [query.worldId, query.minY, query.maxY, query.minX, query.maxX, query.limit])
+    return result.rows.map(botVillageFromRow)
+  }
+
+  async insertBotVillage(record: BotVillageRecord): Promise<'inserted' | 'existing'> {
+    assertBotVillageRecord(record)
+    const prior = await this.getBotVillage(record.id)
+      ?? await this.getBotVillageAt(record.worldId, record.x, record.y)
+    if (prior) {
+      if (prior.id === record.id && sameBotVillageProvision(prior, record)) return 'existing'
+      throw new PersistenceConflictError('Bot village identity or coordinate already exists with different data')
+    }
+
+    const result = await this.sql.query<BotVillageRow>(String.raw`
+      INSERT INTO bot_villages(
+        id, world_id, x, y, plot_version, world_generation_version,
+        generator_version, seed, username, trophies, profile, world, revision,
+        created_at, updated_at
+      )
+      SELECT
+        $1::text, $2::text, $3::integer, $4::integer, $5::bigint, $6::integer,
+        $7::integer, $8::bigint, $9::text, $10::integer, $11::jsonb,
+        $12::jsonb, $13::bigint, $14::timestamptz, $15::timestamptz
+      WHERE NOT EXISTS (
+        SELECT 1 FROM world_plots player_plot
+        WHERE player_plot.world_id = $2 AND player_plot.x = $3 AND player_plot.y = $4
+      )
+      ON CONFLICT (world_id, x, y) DO UPDATE SET
+        updated_at = bot_villages.updated_at
+      RETURNING id, world_id, x, y, plot_version, world_generation_version,
+        generator_version, seed, username, trophies, profile, world, revision,
+        created_at, updated_at
+    `, [
+      record.id,
+      record.worldId,
+      record.x,
+      record.y,
+      record.plotVersion,
+      record.worldGenerationVersion,
+      record.generatorVersion,
+      record.seed,
+      record.username,
+      record.trophies,
+      record.profile,
+      record.world,
+      record.revision,
+      record.createdAt,
+      record.updatedAt
+    ])
+    const current = result.rows[0] ? botVillageFromRow(result.rows[0]) : null
+    if (current && current.id === record.id && sameBotVillageProvision(current, record)) {
+      return current.createdAt.getTime() === record.createdAt.getTime()
+        && current.updatedAt.getTime() === record.updatedAt.getTime()
+        ? 'inserted'
+        : 'existing'
+    }
+    if (await this.getOccupant(record.worldId, record.x, record.y)) {
+      throw new PersistenceConflictError('A player already occupies that bot village coordinate')
+    }
+    throw new PersistenceConflictError('Bot village identity or coordinate already exists with different data')
+  }
+
+  async updateBotVillage(record: BotVillageRecord, expectedRevision: number): Promise<boolean> {
+    assertBotVillageRecord(record)
+    if (record.revision !== expectedRevision + 1) {
+      throw new Error('Bot village revision must advance by exactly one')
+    }
+    const result = await this.sql.query(String.raw`
+      UPDATE bot_villages SET
+        username = $10, trophies = $11, profile = $12::jsonb, world = $13::jsonb,
+        revision = $14, updated_at = $15
+      WHERE id = $1 AND world_id = $2 AND x = $3 AND y = $4
+        AND plot_version = $5 AND world_generation_version = $6
+        AND generator_version = $7 AND seed = $8 AND created_at = $9
+        AND revision = $16
+    `, [
+      record.id,
+      record.worldId,
+      record.x,
+      record.y,
+      record.plotVersion,
+      record.worldGenerationVersion,
+      record.generatorVersion,
+      record.seed,
+      record.createdAt,
+      record.username,
+      record.trophies,
+      record.profile,
+      record.world,
+      record.revision,
+      record.updatedAt,
+      expectedRevision
+    ])
+    return result.rowCount === 1
+  }
+
+  async deleteBotVillage(id: string): Promise<boolean> {
+    return (await this.sql.query('DELETE FROM bot_villages WHERE id = $1', [id])).rowCount === 1
+  }
+
   async listAtlas(input: WorldAtlasQuery): Promise<WorldAtlasEntry[]> {
     const query = boundWorldAtlasQuery(input)
     const result = await this.sql.query<AtlasRow>(String.raw`
@@ -852,6 +1105,7 @@ class PgWorld implements WorldRepository {
         v.obstacles AS village_obstacles,
         v.wall_level AS village_wall_level,
         v.population AS village_population,
+        v.banner AS village_banner,
         v.simulated_through AS village_simulated_through,
         v.last_mutation_at AS village_last_mutation_at,
         v.layout_revision AS village_layout_revision,
@@ -879,14 +1133,18 @@ class PgWorld implements WorldRepository {
 
   async listPlayers(input: WorldAtlasQuery): Promise<WorldPlayerEntry[]> {
     const query = boundWorldAtlasQuery(input)
-    const result = await this.sql.query<PlotRow & PlayerSummaryRow>(String.raw`
+    const result = await this.sql.query<PlotRow & PlayerSummaryRow & {
+      village_banner: VillageRecord['banner']
+    }>(String.raw`
       SELECT
         plot.world_id, plot.x, plot.y, plot.region_id, plot.player_id,
         plot.plot_version, plot.assigned_at, plot.lease_id, plot.lease_issued_at,
         plot.lease_renewed_at, plot.lease_expires_at,
-        p.username, p.trophies, p.shield_until, p.last_seen_at, p.revision
+        p.username, p.trophies, p.shield_until, p.last_seen_at, p.revision,
+        v.banner AS village_banner
       FROM world_plots plot
       JOIN player_profiles p ON p.player_id = plot.player_id
+      JOIN villages v ON v.player_id = plot.player_id
       WHERE plot.world_id = $1
         AND plot.y BETWEEN $2 AND $3
         AND plot.x BETWEEN $4 AND $5
@@ -894,7 +1152,40 @@ class PgWorld implements WorldRepository {
       ORDER BY plot.y, plot.x, plot.player_id
       LIMIT $7
     `, [query.worldId, query.minY, query.maxY, query.minX, query.maxX, query.now, query.limit])
-    return result.rows.map(row => ({ plot: plotFromRow(row), player: playerSummaryFromRow(row) }))
+    return result.rows.map(row => ({
+      plot: plotFromRow(row),
+      player: playerSummaryFromRow(row),
+      banner: row.village_banner
+    }))
+  }
+
+  async listPlayersGlobal(input: WorldPlayerDirectoryQuery): Promise<WorldPlayerEntry[]> {
+    const query = boundWorldPlayerDirectoryQuery(input)
+    const result = await this.sql.query<PlotRow & PlayerSummaryRow & {
+      village_banner: VillageRecord['banner']
+    }>(String.raw`
+      SELECT
+        plot.world_id, plot.x, plot.y, plot.region_id, plot.player_id,
+        plot.plot_version, plot.assigned_at, plot.lease_id, plot.lease_issued_at,
+        plot.lease_renewed_at, plot.lease_expires_at,
+        p.username, p.trophies, p.shield_until, p.last_seen_at, p.revision,
+        v.banner AS village_banner
+      FROM world_plots plot
+      JOIN player_profiles p ON p.player_id = plot.player_id
+      JOIN villages v ON v.player_id = plot.player_id
+      WHERE plot.world_id = $1
+        AND (plot.lease_expires_at IS NULL OR plot.lease_expires_at > $4)
+      ORDER BY GREATEST(
+        ABS(plot.x::bigint - $2::bigint),
+        ABS(plot.y::bigint - $3::bigint)
+      ), plot.y, plot.x, plot.player_id
+      LIMIT $5
+    `, [query.worldId, query.centerX, query.centerY, query.now, query.limit])
+    return result.rows.map(row => ({
+      plot: plotFromRow(row),
+      player: playerSummaryFromRow(row),
+      banner: row.village_banner
+    }))
   }
 
   async claimExpiredGuestAccountIds(worldId: string, now: Date, limit: number): Promise<string[]> {
@@ -922,17 +1213,17 @@ class PgWorld implements WorldRepository {
   async assign(record: WorldPlotRecord): Promise<void> {
     const result = await this.sql.query(String.raw`
       INSERT INTO world_plots(
-        world_id, x, y, region_id, player_id, plot_version, assigned_at,
-        lease_id, lease_issued_at, lease_renewed_at, lease_expires_at
-      )
-      SELECT
-        $1::text, $2::integer, $3::integer, $4::text, $5::text, $6::bigint,
-        $7::timestamptz, $8::text, $9::timestamptz, $10::timestamptz, $11::timestamptz
-      FROM world_regions region
-      WHERE region.world_id = $1 AND region.region_id = $4
-        AND region.region_x = floor($2::integer::numeric / region.size)::integer
-        AND region.region_y = floor($3::integer::numeric / region.size)::integer
-      RETURNING player_id
+          world_id, x, y, region_id, player_id, plot_version, assigned_at,
+          lease_id, lease_issued_at, lease_renewed_at, lease_expires_at
+        )
+        SELECT
+          $1::text, $2::integer, $3::integer, $4::text, $5::text, $6::bigint,
+          $7::timestamptz, $8::text, $9::timestamptz, $10::timestamptz, $11::timestamptz
+        FROM world_regions region
+        WHERE region.world_id = $1 AND region.region_id = $4
+          AND region.region_x = floor($2::integer::numeric / region.size)::integer
+          AND region.region_y = floor($3::integer::numeric / region.size)::integer
+        RETURNING player_id
     `, [
       record.worldId,
       record.x,
@@ -2053,6 +2344,362 @@ class PgBalanceLedger implements BalanceLedgerRepository {
   }
 }
 
+interface AdminPlayerRow extends QueryResultRow {
+  id: string
+  username: string
+  registered: boolean
+  trophies: number
+  shield_until: Date | string | null
+  created_at: Date | string
+  last_seen_at: Date | string
+  profile_revision: string | number
+  access_state: AccountModerationRecord['state']
+  access_reason: string | null
+  access_until: Date | string | null
+  moderation_updated_at: Date | string | null
+  world_id: string | null
+  x: number | null
+  y: number | null
+  plot_version: string | number | null
+  gold: string | number | null
+  ore: string | number | null
+  food: string | number | null
+  economy_revision: string | number | null
+  layout_revision: string | number | null
+  appearance_revision: string | number | null
+  buildings: number | null
+  obstacles: number | null
+  army: JsonObject | null
+  population: JsonObject | null
+  active_sessions: string | number
+  active_attacks: string | number
+}
+
+const ADMIN_PLAYER_COLUMNS = String.raw`
+  account.id,
+  profile.username,
+  account.registered,
+  profile.trophies,
+  profile.shield_until,
+  account.created_at,
+  profile.last_seen_at,
+  profile.revision AS profile_revision,
+  CASE
+    WHEN moderation.access_state = 'banned' THEN 'banned'
+    WHEN moderation.access_state = 'suspended'
+      AND (moderation.access_until IS NULL OR moderation.access_until > $1) THEN 'suspended'
+    ELSE 'active'
+  END AS access_state,
+  CASE
+    WHEN moderation.access_state = 'banned'
+      OR (moderation.access_state = 'suspended'
+        AND (moderation.access_until IS NULL OR moderation.access_until > $1))
+      THEN moderation.reason
+    ELSE NULL
+  END AS access_reason,
+  CASE
+    WHEN moderation.access_state = 'suspended'
+      AND (moderation.access_until IS NULL OR moderation.access_until > $1)
+      THEN moderation.access_until
+    ELSE NULL
+  END AS access_until,
+  moderation.updated_at AS moderation_updated_at,
+  plot.world_id,
+  plot.x,
+  plot.y,
+  plot.plot_version,
+  COALESCE(village.gold, 0) AS gold,
+  COALESCE(village.ore, 0) AS ore,
+  COALESCE(village.food, 0) AS food,
+  COALESCE(village.economy_revision, 0) AS economy_revision,
+  COALESCE(village.layout_revision, 0) AS layout_revision,
+  COALESCE(village.appearance_revision, 0) AS appearance_revision,
+  COALESCE(jsonb_array_length(village.buildings), 0) AS buildings,
+  COALESCE(jsonb_array_length(village.obstacles), 0) AS obstacles,
+  COALESCE(village.army, '{}'::jsonb) AS army,
+  COALESCE(village.population, '{}'::jsonb) AS population,
+  (SELECT COUNT(*) FROM sessions session
+    WHERE session.player_id = account.id AND session.expires_at > $1) AS active_sessions,
+  (SELECT COUNT(*) FROM attacks attack
+    WHERE (attack.attacker_id = account.id OR attack.defender_id = account.id)
+      AND attack.state IN ('preparing', 'engaged', 'active', 'finalizing')) AS active_attacks
+`
+
+function adminPlayerFromRow(row: AdminPlayerRow): AdminPlayerRecord {
+  return {
+    id: row.id,
+    username: row.username,
+    registered: row.registered,
+    trophies: row.trophies,
+    shieldUntil: optionalDate(row.shield_until),
+    createdAt: date(row.created_at),
+    lastSeenAt: date(row.last_seen_at),
+    profileRevision: Number(row.profile_revision),
+    accessState: row.access_state,
+    accessReason: row.access_reason,
+    accessUntil: optionalDate(row.access_until),
+    moderationUpdatedAt: optionalDate(row.moderation_updated_at),
+    worldId: row.world_id,
+    x: row.x,
+    y: row.y,
+    plotVersion: row.plot_version === null ? null : Number(row.plot_version),
+    gold: Number(row.gold ?? 0),
+    ore: Number(row.ore ?? 0),
+    food: Number(row.food ?? 0),
+    economyRevision: Number(row.economy_revision ?? 0),
+    layoutRevision: Number(row.layout_revision ?? 0),
+    appearanceRevision: Number(row.appearance_revision ?? 0),
+    buildings: Number(row.buildings ?? 0),
+    obstacles: Number(row.obstacles ?? 0),
+    army: row.army ?? {},
+    population: row.population ?? {},
+    activeSessions: Number(row.active_sessions),
+    activeAttacks: Number(row.active_attacks)
+  }
+}
+
+class PgAdmin implements AdminRepository {
+  private readonly sql: SqlExecutor
+
+  constructor(sql: SqlExecutor) {
+    this.sql = sql
+  }
+
+  async overview(now: Date, onlineSince: Date): Promise<AdminOverviewRecord> {
+    const result = await this.sql.query<{
+      players: string | number
+      registered_players: string | number
+      online_players: string | number
+      player_villages: string | number
+      bot_villages: string | number
+      preparing_attacks: string | number
+      engaged_attacks: string | number
+      active_attacks: string | number
+      finalizing_attacks: string | number
+      total_gold: string | number
+      total_ore: string | number
+      total_food: string | number
+      average_trophies: string | number
+      suspended_players: string | number
+      banned_players: string | number
+    }>(String.raw`
+      SELECT
+        (SELECT COUNT(*) FROM accounts) AS players,
+        (SELECT COUNT(*) FROM accounts WHERE registered) AS registered_players,
+        (SELECT COUNT(*) FROM player_profiles WHERE last_seen_at >= $2) AS online_players,
+        (SELECT COUNT(*) FROM villages) AS player_villages,
+        (SELECT COUNT(*) FROM bot_villages) AS bot_villages,
+        (SELECT COUNT(*) FROM attacks WHERE state = 'preparing') AS preparing_attacks,
+        (SELECT COUNT(*) FROM attacks WHERE state = 'engaged') AS engaged_attacks,
+        (SELECT COUNT(*) FROM attacks WHERE state = 'active') AS active_attacks,
+        (SELECT COUNT(*) FROM attacks WHERE state = 'finalizing') AS finalizing_attacks,
+        (SELECT COALESCE(SUM(gold), 0) FROM villages) AS total_gold,
+        (SELECT COALESCE(SUM(ore), 0) FROM villages) AS total_ore,
+        (SELECT COALESCE(SUM(food), 0) FROM villages) AS total_food,
+        (SELECT COALESCE(AVG(trophies), 0) FROM player_profiles) AS average_trophies,
+        (SELECT COUNT(*) FROM account_moderation
+          WHERE access_state = 'suspended' AND (access_until IS NULL OR access_until > $1)) AS suspended_players,
+        (SELECT COUNT(*) FROM account_moderation WHERE access_state = 'banned') AS banned_players
+    `, [now, onlineSince])
+    const row = result.rows[0]
+    if (!row) throw new Error('Admin overview query returned no row')
+    return {
+      players: Number(row.players),
+      registeredPlayers: Number(row.registered_players),
+      onlinePlayers: Number(row.online_players),
+      playerVillages: Number(row.player_villages),
+      botVillages: Number(row.bot_villages),
+      preparingAttacks: Number(row.preparing_attacks),
+      engagedAttacks: Number(row.engaged_attacks),
+      activeAttacks: Number(row.active_attacks),
+      finalizingAttacks: Number(row.finalizing_attacks),
+      totalGold: Number(row.total_gold),
+      totalOre: Number(row.total_ore),
+      totalFood: Number(row.total_food),
+      averageTrophies: Number(row.average_trophies),
+      suspendedPlayers: Number(row.suspended_players),
+      bannedPlayers: Number(row.banned_players)
+    }
+  }
+
+  async listPlayers(rawQuery: AdminPlayerQuery): Promise<AdminPlayerRecord[]> {
+    const query = boundAdminPlayerQuery(rawQuery)
+    const escaped = query.search.trim().replace(/[\\%_]/g, value => `\\${value}`)
+    const result = await this.sql.query<AdminPlayerRow>(String.raw`
+      SELECT ${ADMIN_PLAYER_COLUMNS}
+      FROM accounts account
+      JOIN player_profiles profile ON profile.player_id = account.id
+      LEFT JOIN villages village ON village.player_id = account.id
+      LEFT JOIN world_plots plot ON plot.player_id = account.id
+      LEFT JOIN account_moderation moderation ON moderation.player_id = account.id
+      WHERE $2 = '' OR account.id ILIKE $2 ESCAPE E'\\' OR profile.username ILIKE $2 ESCAPE E'\\'
+      ORDER BY profile.last_seen_at DESC, account.id
+      LIMIT $3
+    `, [query.now, `%${escaped}%`, query.limit])
+    return result.rows.map(adminPlayerFromRow)
+  }
+
+  async getPlayer(playerId: string, now: Date): Promise<AdminPlayerRecord | null> {
+    const result = await this.sql.query<AdminPlayerRow>(String.raw`
+      SELECT ${ADMIN_PLAYER_COLUMNS}
+      FROM accounts account
+      JOIN player_profiles profile ON profile.player_id = account.id
+      LEFT JOIN villages village ON village.player_id = account.id
+      LEFT JOIN world_plots plot ON plot.player_id = account.id
+      LEFT JOIN account_moderation moderation ON moderation.player_id = account.id
+      WHERE account.id = $2
+    `, [now, playerId])
+    return result.rows[0] ? adminPlayerFromRow(result.rows[0]) : null
+  }
+
+  async isUsernameTaken(usernameKey: string, excludingPlayerId: string): Promise<boolean> {
+    const result = await this.sql.query(String.raw`
+      SELECT 1 FROM player_profiles
+      WHERE player_id <> $2 AND lower(trim(username)) = $1
+      LIMIT 1
+    `, [usernameKey, excludingPlayerId])
+    return result.rowCount === 1
+  }
+
+  async listAttacks(rawQuery: AdminAttackQuery): Promise<AttackRecord[]> {
+    const query = boundAdminAttackQuery(rawQuery)
+    const result = await this.sql.query<AttackRow>(String.raw`
+      SELECT ${ATTACK_COLUMNS} FROM attacks
+      WHERE $1::text IS NULL OR state = $1
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $2
+    `, [query.state, query.limit])
+    return result.rows.map(attackFromRow)
+  }
+
+  async getModeration(
+    playerId: string,
+    options: { forUpdate?: boolean } = {}
+  ): Promise<AccountModerationRecord | null> {
+    const result = await this.sql.query<{
+      player_id: string
+      access_state: AccountModerationRecord['state']
+      reason: string | null
+      access_until: Date | string | null
+      updated_at: Date | string
+      revision: string | number
+    }>(String.raw`
+      SELECT player_id, access_state, reason, access_until, updated_at, revision
+      FROM account_moderation WHERE player_id = $1${options.forUpdate ? ' FOR UPDATE' : ''}
+    `, [playerId])
+    const row = result.rows[0]
+    return row ? {
+      playerId: row.player_id,
+      state: row.access_state,
+      reason: row.reason,
+      until: optionalDate(row.access_until),
+      updatedAt: date(row.updated_at),
+      revision: Number(row.revision)
+    } : null
+  }
+
+  async upsertModeration(record: AccountModerationRecord, expectedRevision: number | null): Promise<boolean> {
+    if (expectedRevision === null) {
+      if (record.revision !== 1) throw new Error('Initial moderation revision must be one')
+      return (await this.sql.query(String.raw`
+        INSERT INTO account_moderation(
+          player_id, access_state, reason, access_until, updated_at, revision
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (player_id) DO NOTHING
+      `, [record.playerId, record.state, record.reason, record.until, record.updatedAt, record.revision])).rowCount === 1
+    }
+    if (record.revision !== expectedRevision + 1) throw new Error('Moderation revision must advance by one')
+    return (await this.sql.query(String.raw`
+      UPDATE account_moderation SET
+        access_state = $3, reason = $4, access_until = $5, updated_at = $6, revision = $7
+      WHERE player_id = $1 AND revision = $2
+    `, [
+      record.playerId,
+      expectedRevision,
+      record.state,
+      record.reason,
+      record.until,
+      record.updatedAt,
+      record.revision
+    ])).rowCount === 1
+  }
+
+  async getConfig(options: { forUpdate?: boolean } = {}): Promise<AdminRuntimeConfigRecord> {
+    const result = await this.sql.query<{
+      maintenance_enabled: boolean
+      maintenance_message: string | null
+      updated_at: Date | string
+      revision: string | number
+    }>(String.raw`
+      SELECT maintenance_enabled, maintenance_message, updated_at, revision
+      FROM admin_runtime_config WHERE singleton = true${options.forUpdate ? ' FOR UPDATE' : ''}
+    `)
+    const row = result.rows[0]
+    if (!row) throw new Error('Admin runtime config is missing')
+    return {
+      maintenanceEnabled: row.maintenance_enabled,
+      maintenanceMessage: row.maintenance_message,
+      updatedAt: date(row.updated_at),
+      revision: Number(row.revision)
+    }
+  }
+
+  async updateConfig(record: AdminRuntimeConfigRecord, expectedRevision: number): Promise<boolean> {
+    if (record.revision !== expectedRevision + 1) throw new Error('Admin config revision must advance by one')
+    return (await this.sql.query(String.raw`
+      UPDATE admin_runtime_config SET maintenance_enabled = $1, maintenance_message = $2,
+        updated_at = $3, revision = $4
+      WHERE singleton = true AND revision = $5
+    `, [
+      record.maintenanceEnabled,
+      record.maintenanceMessage,
+      record.updatedAt,
+      record.revision,
+      expectedRevision
+    ])).rowCount === 1
+  }
+
+  async listAudit(requestedLimit: number): Promise<AdminAuditRecord[]> {
+    const limit = boundedLimit(requestedLimit, QUERY_LIMITS.adminAudit)
+    const result = await this.sql.query<{
+      id: string
+      actor: string
+      action: string
+      target_type: 'player' | 'system'
+      target_id: string | null
+      details: JsonObject
+      occurred_at: Date | string
+    }>(String.raw`
+      SELECT id, actor, action, target_type, target_id, details, occurred_at
+      FROM admin_audit_log ORDER BY occurred_at DESC, id DESC LIMIT $1
+    `, [limit])
+    return result.rows.map(row => ({
+      id: row.id,
+      actor: row.actor,
+      action: row.action,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      details: row.details,
+      occurredAt: date(row.occurred_at)
+    }))
+  }
+
+  async appendAudit(record: AdminAuditRecord): Promise<void> {
+    await this.sql.query(String.raw`
+      INSERT INTO admin_audit_log(id, actor, action, target_type, target_id, details, occurred_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+      record.id,
+      record.actor,
+      record.action,
+      record.targetType,
+      record.targetId,
+      record.details,
+      record.occurredAt
+    ])
+  }
+}
+
 export class PostgresUnitOfWork implements UnitOfWork {
   readonly accounts: AccountRepository
   readonly sessions: SessionRepository
@@ -2065,6 +2712,7 @@ export class PostgresUnitOfWork implements UnitOfWork {
   readonly outbox: OutboxRepository
   readonly operationMarkers: OperationMarkerRepository
   readonly balanceLedger: BalanceLedgerRepository
+  readonly admin: AdminRepository
 
   constructor(sql: SqlExecutor) {
     this.accounts = new PgAccounts(sql)
@@ -2078,5 +2726,6 @@ export class PostgresUnitOfWork implements UnitOfWork {
     this.outbox = new PgOutbox(sql)
     this.operationMarkers = new PgOperationMarkers(sql)
     this.balanceLedger = new PgBalanceLedger(sql)
+    this.admin = new PgAdmin(sql)
   }
 }

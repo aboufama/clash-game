@@ -936,79 +936,95 @@ export class WreckRenderer {
 
     // ── MORTAR 2x2 — cracked bowl half-buried, base ring shattered ──
     private static mortar(c: W) {
-        const { g, P, cx, cy, seed, level, time, fire } = c;
-        void time; void fire;
+        // THE BURST EMPLACEMENT (one-shot redesign 2026-07-19): the magazine
+        // cooked off. The bowl lies SPLIT in two half-shells, the heavy base
+        // ring is tilted half-buried, an asymmetric scorch fan blows out the
+        // east side, and dud shells spill from the shattered rack.
+        const { g, cx, cy, seed, level } = c;
         const L4 = level >= 4;
-        const body = L4 ? 0xb8860b : 0x3a3a3a;
-        const bodyLight = L4 ? 0xffd700 : 0x5a5a5a;
-        const bodyMid = L4 ? 0xdaa520 : 0x4a4a4a;
-        charField(c.base ?? g, cx, cy, 34, seed, 0.36);
+        const iron = L4 ? 0xb8860b : 0x3a3a3a;
+        const ironLit = L4 ? 0xe6c352 : 0x565656;
+        const ironDk = dk(iron, 0.62);
 
-        // Broken emplacement — torn dirt banks ringing the pit, stones kicked out
-        const bank = (a0: number, a1: number) => {
-            const pts: number[][] = [];
-            const N = 5;
-            for (let i = 0; i <= N; i++) {
-                const t = a0 + (a1 - a0) * (i / N);
-                pts.push([cx + Math.cos(t) * 21, cy + 1 + Math.sin(t) * 10.5]);
-            }
-            for (let i = N; i >= 0; i--) {
-                const t = a0 + (a1 - a0) * (i / N);
-                pts.push([cx + Math.cos(t) * 14, cy + 1 + Math.sin(t) * 7]);
-            }
-            poly(g, pts, dk(0x3a3020, 0.95), 0.85);
-        };
-        bank(Math.PI * 0.15, Math.PI * 0.7);
-        bank(Math.PI * 0.95, Math.PI * 1.45);
-        bank(Math.PI * 1.7, Math.PI * 2.05);
-        for (let i = 0; i < 6; i++) {
-            const th = R(seed, i, 3.9) * Math.PI * 2;
-            const rr = 17 + R(seed, i, 5.1) * 8;
-            chunk(g, cx + Math.cos(th) * rr, cy + 1 + Math.sin(th) * rr * 0.5, 3 + R(seed, i, 6.3) * 2.5, dk(0x6b655a, 0.85));
+        // ground pass: char + the blown-out scorch fan (east), never a plate
+        const base = c.base ?? g;
+        charField(base, cx, cy, 30, seed, 0.4);
+        const fan: number[][] = [[cx + 4, cy + 1]];
+        const FN = 6;
+        for (let i = 0; i <= FN; i++) {
+            const th = -0.62 + (1.24 * i) / FN;
+            const r = 24 + R(seed, i, 7.7) * 14;
+            fan.push([cx + 4 + Math.cos(th) * r, cy + 1 + Math.sin(th) * r * 0.5]);
+        }
+        poly(base, fan, 0x1c1712, 0.5);
+        poly(base, fan.map(p => [cx + 4 + (p[0] - cx - 4) * 0.62, cy + 1 + (p[1] - cy - 1) * 0.62]), 0x120e0a, 0.55);
+
+        // the base ring, tilted and half-sunk (a fat open ellipse ring)
+        g.lineStyle(4, ironDk, 1);
+        g.strokeEllipse(cx - 3, cy + 3, 24, 9.5);
+        g.lineStyle(2, iron, 1);
+        g.strokeEllipse(cx - 3.5, cy + 2, 24, 9.5);
+        g.fillStyle(0x14100b, 0.9); // the pit it guarded
+        g.fillEllipse(cx - 3, cy + 3.5, 17, 6.2);
+
+        // WEST half-shell: resting mouth-down like a turtle shell
+        const wx = cx - 14, wy = cy - 3;
+        g.fillStyle(iron, 1);
+        g.beginPath();
+        g.arc(wx, wy + 2, 9.5, Math.PI, Math.PI * 2);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(ironLit, 1);
+        g.beginPath();
+        g.arc(wx - 1.5, wy + 1.2, 6.4, Math.PI * 1.05, Math.PI * 1.75);
+        g.lineTo(wx - 1.5, wy + 1.8);
+        g.closePath();
+        g.fillPath();
+        g.lineStyle(1.4, ironDk, 1); // ragged split edge
+        g.beginPath();
+        g.moveTo(wx - 9.5, wy + 2);
+        g.lineTo(wx - 5, wy + 2.8);
+        g.lineTo(wx - 1, wy + 1.6);
+        g.lineTo(wx + 4, wy + 2.9);
+        g.lineTo(wx + 9.5, wy + 2);
+        g.strokePath();
+
+        // EAST half-shell: blown further, mouth up, cupping shadow
+        const ex = cx + 13, ey = cy - 1;
+        g.fillStyle(ironDk, 1);
+        g.beginPath();
+        g.arc(ex, ey, 8.6, Math.PI * 0.94, Math.PI * 2.06);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(0x0c0a08, 0.95); // the cupped hollow
+        g.fillEllipse(ex, ey - 1.2, 12.6, 4.6);
+        g.fillStyle(iron, 1); // near rim lip catches light
+        g.fillEllipse(ex, ey + 0.6, 13.5, 2.2);
+
+        // shattered shell rack: two splintered timbers crossing
+        g.lineStyle(2.6, 0x4a3520, 1);
+        g.lineBetween(cx - 6, cy + 10, cx + 6, cy + 6.5);
+        g.lineStyle(2.2, 0x5f472c, 1);
+        g.lineBetween(cx + 1, cy + 11.5, cx + 9, cy + 8);
+
+        // dud shells spilled along the fan (deterministic scatter)
+        for (let i = 0; i < 4; i++) {
+            const sx = cx + 8 + R(seed, i, 9.3) * 16;
+            const sy = cy + 4 + R(seed, i, 5.9) * 7 - i * 1.2;
+            g.fillStyle(0x23201c, 1);
+            g.fillEllipse(sx, sy, 5.4, 3.4);
+            g.fillStyle(0x39352f, 1);
+            g.fillEllipse(sx - 0.8, sy - 0.7, 2.8, 1.5);
+            if (L4) { g.fillStyle(0xffd700, 0.8); g.fillRect(sx + 1.2, sy - 1.4, 1.4, 1.4); }
         }
 
-        // The crater it now lies in
-        g.fillStyle(0x1a1510, 0.9);
-        g.fillEllipse(cx - 2, cy + 2, 30, 13);
-
-        // THE BOWL — tipped onto its side, mouth yawning east
-        const mx = cx - 4, my = cy - 2;
-        g.fillStyle(body, 1); // round belly
-        g.fillEllipse(mx, my, 24, 17);
-        g.fillStyle(bodyMid, 1); // lit crown (NW light)
-        g.fillEllipse(mx - 3, my - 4, 14, 8);
-        g.lineStyle(2, dk(body, 0.7), 1); // iron band across the belly
-        g.beginPath();
-        g.arc(mx, my + 1, 10.5, Math.PI * 0.15, Math.PI * 0.95);
-        g.strokePath();
-        // the flared rim, now facing sideways — a tall ring holding the black bore
-        g.lineStyle(3, bodyLight, 1);
-        g.strokeEllipse(mx + 12, my - 1, 7.5, 13);
-        g.fillStyle(0x0a0a0a, 1);
-        g.fillEllipse(mx + 12, my - 1, 5, 10);
-        g.fillStyle(0x000000, 0.9);
-        g.fillEllipse(mx + 12.5, my - 0.5, 3, 6.5);
-        // the crack — a jag of darkness across the dome
-        g.lineStyle(1.6, 0x0f0d0a, 0.95);
-        g.beginPath();
-        g.moveTo(mx - 8, my - 4);
-        g.lineTo(mx - 4, my - 0.5);
-        g.lineTo(mx - 6.5, my + 2.5);
-        g.lineTo(mx - 2, my + 6);
-        g.strokePath();
-
-        // A bitten-off rim shard lying flat + a dud shell
-        const rs = P(1.52, 1.5);
-        poly(g, [[rs[0] - 5, rs[1]], [rs[0] - 1, rs[1] - 2.6], [rs[0] + 4, rs[1] - 1.8], [rs[0] + 5, rs[1] + 0.4], [rs[0], rs[1] + 1.6], [rs[0] - 3, rs[1] + 2]], bodyMid, 0.95);
-        g.fillStyle(dk(body, 0.7), 0.95);
-        g.fillEllipse(rs[0] + 0.5, rs[1], 5.5, 2.4);
-        g.fillStyle(L4 ? 0xf3f3e6 : 0x22222a, 1);
-        g.fillCircle(cx + 14, cy + 9, 3.2);
-        g.fillStyle(0xffffff, 0.25);
-        g.fillRect(cx + 12.8, cy + 7.4, 1.6, 1.6);
+        // one ember pocket still glowing in the pit (static — wrecks bake 1 frame)
+        g.fillStyle(0x7a2c12, 0.85);
+        g.fillEllipse(cx - 5, cy + 3.2, 3.2, 1.7);
+        g.fillStyle(0xd96a2b, 0.7);
+        g.fillEllipse(cx - 5.4, cy + 2.9, 1.6, 0.9);
     }
 
-    // ── TESLA 1x1 — bent coil mast, drooped conductor, DYING SPARKS (animated) ──
     private static tesla(c: W) {
         const { g, cx, cy, seed, level, time, fire } = c;
         const L3 = level >= 3;

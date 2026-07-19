@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import { BOT_WORLD_GENERATION_VERSION, generateBotWorldFromSeed } from '../src/game/backend/BotWorlds';
-import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS } from '../src/game/config/GameDefinitions';
 import {
     ALWAYS_RESIDENT_RING,
     PLAYER_POSTCARD_RGBA_BYTES,
@@ -78,42 +76,4 @@ const expired = decidePostcardResidency({
 });
 assert.equal(expired.evict, true);
 
-const firstBot = generateBotWorldFromSeed(9_731);
-assert.deepEqual(firstBot, generateBotWorldFromSeed(9_731), 'one seed must reproduce the exact same village');
-assert.notDeepEqual(firstBot, generateBotWorldFromSeed(9_732), 'different seeds should not clone a village');
-assert.equal(firstBot.revision, BOT_WORLD_GENERATION_VERSION);
-
-for (let seed = 1; seed <= 128; seed++) {
-    const world = generateBotWorldFromSeed(seed);
-    assert.equal(world.life?.version, 1, `seed ${seed} needs an authoritative life manifest`);
-    assert.equal(world.life?.identity, `bot:${seed}`);
-    assert((world.life?.population ?? 0) >= 8 && (world.life?.population ?? 0) <= 24,
-        `seed ${seed} should have a visible but bounded census`);
-    const obstacleTypes = new Set((world.obstacles ?? []).map(obstacle => obstacle.type));
-    assert(obstacleTypes.has('grass_patch'), `seed ${seed} needs grass detail`);
-    assert(obstacleTypes.has('rock_small'), `seed ${seed} needs stone detail`);
-    assert(obstacleTypes.has('tree_oak') || obstacleTypes.has('tree_pine'), `seed ${seed} needs mature greenery`);
-
-    const occupied = new Set<string>();
-    const claim = (kind: string, x: number, y: number, width: number, height: number) => {
-        assert(x >= 0 && y >= 0 && x + width <= 25 && y + height <= 25,
-            `${kind} escaped the 25x25 village at seed ${seed}`);
-        for (let dx = 0; dx < width; dx++) {
-            for (let dy = 0; dy < height; dy++) {
-                const key = `${x + dx},${y + dy}`;
-                assert(!occupied.has(key), `${kind} overlaps occupied tile ${key} at seed ${seed}`);
-                occupied.add(key);
-            }
-        }
-    };
-    for (const building of world.buildings) {
-        const definition = BUILDING_DEFINITIONS[building.type];
-        claim(`building ${building.id}`, building.gridX, building.gridY, definition.width, definition.height);
-    }
-    for (const obstacle of world.obstacles ?? []) {
-        const definition = OBSTACLE_DEFINITIONS[obstacle.type];
-        claim(`obstacle ${obstacle.id}`, obstacle.gridX, obstacle.gridY, definition.width, definition.height);
-    }
-}
-
-console.log('world postcard regression passed: residency plus 128 deterministic full-detail bot villages');
+console.log('world postcard regression passed: authoritative-snapshot residency');

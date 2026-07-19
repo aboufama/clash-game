@@ -46,9 +46,11 @@ Clockwork Beetle B, Healer/Physician's Cart B, Siege Tower C, Necromancer B,
 Skeleton C, Trebuchet B, War Elephant A, and Ornithopter A. No new art was
 authored by this roster collapse.
 
-`ATTACK_SIMULATION_VERSION` remains **6** because surviving combat stats and
-damage timing are unchanged. The packed-asset count and exact icon set are
-pinned by `scripts/render-quality-regression.mjs`.
+`ATTACK_SIMULATION_VERSION` is **8**. V8 evaluates each Siege Tower's recorded
+deploy-to-nearest-Town-Hall ray and grants pathing credit only when it meets a
+wall. Stored v7 attacks preserve the closed-loop gate; stored v4-v6 attacks
+preserve the historical unconditional credit. The packed asset count and exact icon set are pinned by
+`scripts/render-quality-regression.mjs`.
 
 ## Verification handoff
 

@@ -12,6 +12,7 @@ here breaks the server build.
 ```
 config/
   GameDefinitions.ts        barrel re-export (the public import surface)
+  StarterVillage.ts         sole fresh-player layout + wallet tuning template
   Economy.ts                pricing, loot share, hashString/mulberry32, watchtowerSightOf
   WorldHydrology.ts         great-lake / river macro-cell seeding (see systems/AGENTS.md)
   definitions/
@@ -29,6 +30,16 @@ config/
 ```
 
 Import from the barrel: `import { BUILDING_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats } from '../config/GameDefinitions'`.
+
+## Fresh-village tuning
+
+`StarterVillage.ts` is the one source for a newly-created player's buildings,
+coordinates, resources, empty army/obstacles, and wall level. The legacy JSON
+server, normalized/PostgreSQL runtime, and offline client fallback all call
+`createStarterVillage()`; do not restate a starter layout in any of them.
+Tune `STARTER_VILLAGE` once and update its exact-template tests when the design
+changes. Persistent bot villages and transient practice layouts are separate
+from the starter template; only the server may provision the former.
 
 ## BuildingDef schema (`definitions/BuildingTypes.ts`)
 

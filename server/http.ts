@@ -1,4 +1,10 @@
 import { ApiError } from './errors'
+import { createAdminAuth, type AdminAuth } from './admin-auth'
+import type {
+  AdminApiService,
+  AdminOperationRequest,
+  AdminPlayerActionRequest
+} from './admin-contract'
 import type {
   ApiService,
   ArmyMutationRequest,
@@ -23,13 +29,45 @@ export interface ApiRequest {
   token: string | null
   /** Network identity used only for anonymous/auth abuse throttles. */
   clientAddress?: string
+  /** Raw Cookie request header. Player auth never reads this; admin auth does. */
+  cookie?: string | readonly string[]
+  /** Per-session admin CSRF proof supplied on state-changing operator routes. */
+  adminCsrfToken?: unknown
   body: unknown
 }
 
 export interface ApiResult {
   status: number
   body: unknown
+  headers?: Record<string, string | readonly string[]>
 }
+
+/**
+ * Authenticated POST routes which change durable game state. Auth/session
+ * routes are dispatched before authentication, and /player/banner is the one
+ * onboarding mutation deliberately exempt from this set. Keeping the gate at
+ * dispatch means every current and future runtime receives the same policy.
+ */
+const GAMEPLAY_MUTATION_PATHS = new Set([
+  '/player/rename',
+  '/world/save',
+  '/resources/apply',
+  '/army/train',
+  '/army/untrain',
+  '/merchant/trade',
+  '/attacks/bot-settle',
+  '/attacks/bot-start',
+  '/attacks/active/abort',
+  '/map/relocate',
+  '/debug/clear-shields',
+  '/debug/reseed-world',
+  '/attacks/start',
+  '/attacks/matchmake',
+  '/attacks/frames',
+  '/attacks/commands',
+  '/attacks/end',
+  '/notifications/read'
+])
 
 export function bearerToken(authorization: string | string[] | undefined): string | null {
   const header = Array.isArray(authorization) ? authorization[0] : authorization
@@ -47,14 +85,206 @@ export function bearerToken(authorization: string | string[] | undefined): strin
  * registering later upgrades that guest in place. Valid tokens always resume
  * their account either way.
  */
-export function createApiHandler<Principal>(game: ApiService<Principal>) {
+export function createApiHandler<Principal>(
+  game: ApiService<Principal>,
+  options: { adminAuth?: AdminAuth } = {}
+) {
+  const adminAuth = options.adminAuth ?? createAdminAuth()
+  let maintenanceCache: { checkedAt: number; enabled: boolean; message: string | null } | null = null
+
+  const requireAdminService = (): AdminApiService => {
+    const candidate = game as Partial<AdminApiService>
+    const required: Array<keyof AdminApiService> = [
+      'adminOverview', 'adminPlayers', 'adminPlayer', 'adminBots', 'adminAttacks',
+      'adminAudit', 'adminConfig', 'adminEconomy', 'adminPlayerAction', 'adminOperation'
+    ]
+    if (required.some(method => typeof candidate[method] !== 'function')) {
+      throw new ApiError(503, 'The admin data service is unavailable', 'ADMIN_SERVICE_UNAVAILABLE')
+    }
+    return candidate as AdminApiService
+  }
+
+  const adminSessionBody = (session: { username: string; expiresAt: number; csrfToken: string }) => ({
+    authenticated: true,
+    username: session.username,
+    expiresAt: session.expiresAt,
+    csrfToken: session.csrfToken
+  })
+
+  const maintenanceStatus = async () => {
+    const now = Date.now()
+    if (maintenanceCache && now - maintenanceCache.checkedAt < 1_000) return maintenanceCache
+    const adminCandidate = game as ApiService<Principal> & Partial<AdminApiService>
+    if (typeof adminCandidate.adminConfig !== 'function') {
+      maintenanceCache = { checkedAt: now, enabled: false, message: null }
+      return maintenanceCache
+    }
+    const config = await adminCandidate.adminConfig()
+    maintenanceCache = {
+      checkedAt: now,
+      enabled: config.maintenance.enabled,
+      message: config.maintenance.message
+    }
+    return maintenanceCache
+  }
+
   return async function handle(req: ApiRequest): Promise<ApiResult> {
-    const { method, path, query, token, clientAddress } = req
+    const { method, path, query, token, clientAddress, cookie, adminCsrfToken } = req
     const body = (req.body ?? {}) as Record<string, unknown>
 
     try {
       if (method === 'GET' && path === '/health') {
         return { status: 200, body: { ok: true, now: Date.now() } }
+      }
+
+      // Operator auth and data are deliberately dispatched before player
+      // bearer auth and maintenance checks. A broken/blocked player session
+      // must never prevent an operator from repairing the game.
+      if (method === 'POST' && path === '/admin/auth/login') {
+        const result = adminAuth.login({
+          username: body.username,
+          password: body.password,
+          clientAddress
+        })
+        if (result.ok === false) {
+          const retryHeaders = result.status === 429
+            ? { 'Retry-After': String(result.retryAfterSeconds) }
+            : undefined
+          return {
+            status: result.status,
+            body: {
+              error: result.status === 503
+                ? 'Admin authentication is not configured'
+                : result.status === 429
+                  ? 'Too many admin login attempts; retry later'
+                  : 'Invalid admin credentials',
+              code: result.code,
+              ...(result.status === 401 ? { remainingAttempts: result.remainingAttempts } : {})
+            },
+            ...(retryHeaders ? { headers: retryHeaders } : {})
+          }
+        }
+        return {
+          status: 200,
+          body: adminSessionBody(result.session),
+          headers: { [result.setCookie.headerName]: result.setCookie.headerValue }
+        }
+      }
+      if (method === 'GET' && path === '/admin/auth/session') {
+        const session = adminAuth.session(cookie)
+        if (!session) {
+          return { status: 401, body: { error: 'Admin session required', code: 'ADMIN_SESSION_REQUIRED' } }
+        }
+        return { status: 200, body: adminSessionBody(session) }
+      }
+      if (method === 'POST' && path === '/admin/auth/logout') {
+        const authorization = adminAuth.authorizeMutation(cookie, adminCsrfToken)
+        const logout = adminAuth.logout()
+        if (authorization.ok === false) {
+          return {
+            status: authorization.status,
+            body: {
+              error: authorization.status === 403 ? 'Invalid admin CSRF token' : 'Admin session required',
+              code: authorization.code
+            },
+            headers: { [logout.setCookie.headerName]: logout.setCookie.headerValue }
+          }
+        }
+        return {
+          status: 200,
+          body: { ok: true },
+          headers: { [logout.setCookie.headerName]: logout.setCookie.headerValue }
+        }
+      }
+
+      if (path.startsWith('/admin/')) {
+        const session = adminAuth.session(cookie)
+        if (!session) {
+          return { status: 401, body: { error: 'Admin session required', code: 'ADMIN_SESSION_REQUIRED' } }
+        }
+        if (method !== 'GET' && method !== 'HEAD') {
+          const authorization = adminAuth.authorizeMutation(cookie, adminCsrfToken)
+          if (authorization.ok === false) {
+            return {
+              status: authorization.status,
+              body: {
+                error: authorization.status === 403 ? 'Invalid admin CSRF token' : 'Admin session required',
+                code: authorization.code
+              }
+            }
+          }
+        }
+        const admin = requireAdminService()
+        if (method === 'GET' && path === '/admin/overview') {
+          return { status: 200, body: await admin.adminOverview() }
+        }
+        if (method === 'GET' && path === '/admin/players') {
+          return { status: 200, body: { players: await admin.adminPlayers(query.get('q') ?? undefined, query.get('limit') ?? undefined) } }
+        }
+        const adminPlayerMatch = path.match(/^\/admin\/players\/([^/]+)$/)
+        if (method === 'GET' && adminPlayerMatch) {
+          return { status: 200, body: await admin.adminPlayer(adminPlayerMatch[1]) }
+        }
+        const adminPlayerActionMatch = path.match(/^\/admin\/players\/([^/]+)\/actions$/)
+        if (method === 'POST' && adminPlayerActionMatch) {
+          return {
+            status: 200,
+            body: await admin.adminPlayerAction(
+              adminPlayerActionMatch[1],
+              body as unknown as AdminPlayerActionRequest
+            )
+          }
+        }
+        if (method === 'GET' && path === '/admin/bots') {
+          const worldId = query.get('worldId') ?? undefined
+          const x = query.get('x') ?? undefined
+          const y = query.get('y') ?? undefined
+          return {
+            status: 200,
+            body: {
+              bots: await admin.adminBots(
+                worldId !== undefined || x !== undefined || y !== undefined ? { worldId, x, y } : undefined,
+                query.get('radius') ?? undefined,
+                query.get('limit') ?? undefined
+              )
+            }
+          }
+        }
+        if (method === 'GET' && path === '/admin/attacks') {
+          return { status: 200, body: { attacks: await admin.adminAttacks(query.get('state') ?? undefined, query.get('limit') ?? undefined) } }
+        }
+        if (method === 'GET' && path === '/admin/economy') {
+          return { status: 200, body: await admin.adminEconomy(query.get('days') ?? undefined) }
+        }
+        if (method === 'GET' && path === '/admin/audit') {
+          return { status: 200, body: { entries: await admin.adminAudit(query.get('limit') ?? undefined) } }
+        }
+        if (method === 'GET' && path === '/admin/config') {
+          return { status: 200, body: await admin.adminConfig() }
+        }
+        if (method === 'POST' && path === '/admin/operations') {
+          const result = await admin.adminOperation(body as unknown as AdminOperationRequest)
+          maintenanceCache = null
+          return { status: 200, body: result }
+        }
+        return { status: 404, body: { error: `Unknown route: ${method} /api${path}` } }
+      }
+
+      // Maintenance keeps health, logout and the complete admin plane alive,
+      // while preventing new player sessions and stale clients from mutating
+      // or reading a half-maintained world.
+      if (!(method === 'POST' && path === '/auth/logout')) {
+        const maintenance = await maintenanceStatus()
+        if (maintenance.enabled) {
+          return {
+            status: 503,
+            body: {
+              error: maintenance.message || 'The game is temporarily under maintenance',
+              code: 'MAINTENANCE'
+            },
+            headers: { 'Retry-After': '60' }
+          }
+        }
       }
 
       if (method === 'POST' && path === '/auth/session') {
@@ -78,14 +308,17 @@ export function createApiHandler<Principal>(game: ApiService<Principal>) {
       // Everything below requires a valid device token.
       const player = await game.authenticate(token)
 
-      if (method === 'POST' && path === '/player/rename') {
-        return { status: 200, body: { player: await game.rename(player, body.name) } }
-      }
       if (method === 'POST' && path === '/player/banner') {
         if (!game.setBanner) {
           return { status: 404, body: { error: `Unknown route: ${method} /api${path}` } }
         }
         return { status: 200, body: await game.setBanner(player, body.banner) }
+      }
+      if (method === 'POST' && GAMEPLAY_MUTATION_PATHS.has(path)) {
+        await game.assertGameplayReady(player)
+      }
+      if (method === 'POST' && path === '/player/rename') {
+        return { status: 200, body: { player: await game.rename(player, body.name) } }
       }
       if (method === 'GET' && path === '/world') {
         return { status: 200, body: { world: await game.getWorld(player) } }

@@ -9,7 +9,6 @@ import {
 } from '../../src/game/config/Economy'
 import type { SerializedWorld } from '../../src/game/data/Models'
 import { GENERATED_ONLY } from '../../src/game/config/GameDefinitions'
-import { generateBotWorldFromSeed } from '../../src/game/backend/BotWorlds'
 import {
   applyAttackCommand,
   cancelAttack,
@@ -54,6 +53,7 @@ import {
   outboxEvent,
   type AccountRecord,
   type AttackRecord,
+  type BotVillageRecord,
   type JsonObject,
   type JsonValue,
   type Persistence,
@@ -82,6 +82,7 @@ import {
   villageArmy,
   villageBuildings
 } from './village-state'
+import { botWorldForAttack, ensurePersistedBotVillage } from './bot-villages'
 
 const WORLD_COORD_LIMIT = 1_000_000
 const START_IDEMPOTENCY_TTL_MS = 24 * 60 * 60_000
@@ -813,8 +814,16 @@ export class PersistenceAttackService implements RuntimeAttackService {
         if (accountFingerprint(attacker.account) !== attackerAccountBefore) {
           await updateAccount(tx, attacker.account, attackerAccountRevision)
         }
+        const bot = await ensurePersistedBotVillage(tx, {
+          worldId: attacker.plot.worldId,
+          worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
+          x: camp.x,
+          y: camp.y,
+          seed: camp.seed,
+          now
+        })
         const attackId = this.createId('botraid')
-        const world = generateBotWorldFromSeed(camp.seed)
+        const world = botWorldForAttack(bot)
         const expiresAt = now.getTime() + BOT_RAID_SESSION_MS
         const authority = prepareBotAttack({
           attackId,
@@ -823,10 +832,13 @@ export class PersistenceAttackService implements RuntimeAttackService {
           sourceArmyVersion: attacker.village.economyRevision,
           selectionSource: camp.visible ? 'BOT_MAP' : 'BOT_MATCHMADE',
           worldId: attacker.plot.worldId,
-          worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
+          botId: bot.id,
+          botGeneratorVersion: bot.generatorVersion,
+          botVillageRevision: bot.revision,
+          botPlotVersion: bot.plotVersion,
           x: camp.x,
           y: camp.y,
-          seed: camp.seed,
+          seed: bot.seed,
           world,
           reservedArmy: attacker.reservedArmy,
           troopLevel: attacker.troopLevel,
@@ -836,7 +848,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
         })
         await tx.attacks.insert(attackRecordFromAuthority(authority, {
           fencingTokenHash: tokenHash(rawToken),
-          targetPlotVersion: 1,
+          targetPlotVersion: bot.plotVersion,
           updatedAt: now
         }))
         await this.persistStartChunk(tx, authority, world, now)
@@ -844,7 +856,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
           topic: 'combat', aggregateType: 'attack', aggregateId: attackId,
           eventType: 'attack.prepared', payload: { targetKind: 'bot', x: camp.x, y: camp.y }, now
         }))
-        return jsonValue({ raidId: attackId, x: camp.x, y: camp.y, seed: camp.seed, world, expiresAt })
+        return jsonValue({ raidId: attackId, x: camp.x, y: camp.y, seed: bot.seed, world, expiresAt })
       })
       return result.response as unknown as StartedBotAttack
     })
@@ -1153,6 +1165,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
 
     let defenderAccount: AccountRecord | null = null
     let defenderVillage: VillageRecord | null = null
+    let botVillage: BotVillageRecord | null = null
     let defenderAccountRevision = 0
     let defenderVillageRevision = 0
     let defenderAccountBefore = ''
@@ -1165,6 +1178,15 @@ export class PersistenceAttackService implements RuntimeAttackService {
       defenderAccountBefore = accountFingerprint(defenderAccount)
       defenderVillageBefore = villageFingerprint(defenderVillage)
       await this.materializeWithAudit(tx, defenderVillage, now, true)
+    } else if (authority.target.kind === 'BOT') {
+      botVillage = await tx.world.getBotVillage(authority.target.botId, { forUpdate: true })
+      if (!botVillage
+        || botVillage.worldId !== authority.target.plot.worldId
+        || botVillage.x !== authority.target.plot.x
+        || botVillage.y !== authority.target.plot.y
+        || botVillage.plotVersion !== record.targetPlotVersion) {
+        throw new ApiError(409, 'The persisted bot village for this attack is no longer available')
+      }
     }
 
     const result = authority.finalization.result
@@ -1172,7 +1194,13 @@ export class PersistenceAttackService implements RuntimeAttackService {
     const requested = result.loot
     const available: ResourceAmounts = defenderVillage
       ? { gold: Math.floor(defenderVillage.gold), ore: defenderVillage.ore, food: defenderVillage.food }
-      : requested
+      : botVillage
+        ? {
+            gold: Math.floor(Math.max(0, botVillage.world.resources.gold)),
+            ore: Math.floor(Math.max(0, botVillage.world.resources.ore ?? 0)),
+            food: Math.floor(Math.max(0, botVillage.world.resources.food ?? 0))
+          }
+        : requested
     const loot: ResourceAmounts = {
       gold: Math.min(requested.gold, available.gold, Math.max(0, Math.floor(MAX_PLAYER_GOLD - attackerVillage.gold))),
       ore: Math.min(requested.ore, available.ore, Math.max(0, caps.ore - attackerVillage.ore)),
@@ -1217,6 +1245,22 @@ export class PersistenceAttackService implements RuntimeAttackService {
       }
       if (accountFingerprint(defenderAccount) !== defenderAccountBefore) {
         await updateAccount(tx, defenderAccount, defenderAccountRevision)
+      }
+    }
+
+    if (botVillage && (loot.gold > 0 || loot.ore > 0 || loot.food > 0)) {
+      const expectedRevision = botVillage.revision
+      botVillage.world.resources = {
+        gold: Math.max(0, botVillage.world.resources.gold - loot.gold),
+        ore: Math.max(0, (botVillage.world.resources.ore ?? 0) - loot.ore),
+        food: Math.max(0, (botVillage.world.resources.food ?? 0) - loot.food)
+      }
+      botVillage.revision += 1
+      botVillage.updatedAt = now
+      botVillage.world.revision = botVillage.revision
+      botVillage.world.lastSaveTime = now.getTime()
+      if (!await tx.world.updateBotVillage(botVillage, expectedRevision)) {
+        throw new PersistenceConflictError('Bot village settlement compare-and-swap failed')
       }
     }
 

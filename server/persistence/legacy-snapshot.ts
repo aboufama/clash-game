@@ -29,6 +29,7 @@ export const LEGACY_COLLECTIONS = [
   'replays',
   'settlements',
   'bot-raids',
+  'bot-villages',
   'notifications',
   'ledger',
   'world-state'

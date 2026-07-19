@@ -151,6 +151,227 @@ const SIEGE_TOWER_PATHING_CREDIT_MS = 2_000
  *  that value here rather than reading today's shared troop definition. */
 const LEGACY_V5_CLOCKWORK_BEETLE_FUSE_MS = 1_000
 
+/** A cyclic wall clump is useful only if it protects actual grid space. Flood
+ * the component's one-cell-expanded bounds; an unreachable non-wall cell is
+ * genuine interior. This rejects solid 2x2 blocks, which are graph cycles but
+ * cannot contain a building or a traversable lane. */
+function wallComponentEnclosesGridCell(component: ReadonlySet<string>): boolean {
+  const points = [...component].map(cell => {
+    const separator = cell.indexOf(',')
+    return {
+      x: Number(cell.slice(0, separator)),
+      y: Number(cell.slice(separator + 1))
+    }
+  })
+  const minWallX = Math.min(...points.map(point => point.x))
+  const maxWallX = Math.max(...points.map(point => point.x))
+  const minWallY = Math.min(...points.map(point => point.y))
+  const maxWallY = Math.max(...points.map(point => point.y))
+  const minX = minWallX - 1
+  const maxX = maxWallX + 1
+  const minY = minWallY - 1
+  const maxY = maxWallY + 1
+  const exterior = new Set<string>()
+  const queue: Array<{ x: number; y: number }> = []
+  const enqueue = (x: number, y: number): void => {
+    const key = `${x},${y}`
+    if (component.has(key) || exterior.has(key)) return
+    exterior.add(key)
+    queue.push({ x, y })
+  }
+  for (let x = minX; x <= maxX; x += 1) {
+    enqueue(x, minY)
+    enqueue(x, maxY)
+  }
+  for (let y = minY + 1; y < maxY; y += 1) {
+    enqueue(minX, y)
+    enqueue(maxX, y)
+  }
+  for (let index = 0; index < queue.length; index += 1) {
+    const cell = queue[index]
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const x = cell.x + dx
+      const y = cell.y + dy
+      if (x < minX || x > maxX || y < minY || y > maxY) continue
+      enqueue(x, y)
+    }
+  }
+  for (let y = minWallY; y <= maxWallY; y += 1) {
+    for (let x = minWallX; x <= maxWallX; x += 1) {
+      const key = `${x},${y}`
+      if (!component.has(key) && !exterior.has(key)) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Rules v7: a siege ramp only exists when the frozen target snapshot has a
+ * cardinally-connected wall component containing a cycle around at least one
+ * grid cell. In an undirected connected graph, edgeCount >= vertexCount is
+ * exactly the condition for at least one cycle. Duplicate wall rows are
+ * collapsed by coordinate so a malformed legacy snapshot cannot manufacture
+ * a loop.
+ *
+ * This deliberately models only the deploy/no-deploy contract. The live
+ * client chooses the closest reachable component and wall; authoritative
+ * settlement remains an aspatial credit model and does not guess a specific
+ * wall from Euclidean distance.
+ */
+function snapshotHasClosedWallLoop(snapshot: CombatVillageSnapshot): boolean {
+  const wallCells = new Set<string>()
+  for (const building of snapshot.buildings) {
+    if (building.type !== 'wall') continue
+    wallCells.add(`${building.gridX},${building.gridY}`)
+  }
+
+  const visited = new Set<string>()
+  for (const start of wallCells) {
+    if (visited.has(start)) continue
+    const queue = [start]
+    visited.add(start)
+    let vertices = 0
+    let twiceEdges = 0
+    const component = new Set<string>()
+
+    for (let index = 0; index < queue.length; index += 1) {
+      const cell = queue[index]
+      component.add(cell)
+      const separator = cell.indexOf(',')
+      const x = Number(cell.slice(0, separator))
+      const y = Number(cell.slice(separator + 1))
+      vertices += 1
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const neighbor = `${x + dx},${y + dy}`
+        if (!wallCells.has(neighbor)) continue
+        twiceEdges += 1
+        if (visited.has(neighbor)) continue
+        visited.add(neighbor)
+        queue.push(neighbor)
+      }
+    }
+
+    if (twiceEdges / 2 >= vertices && wallComponentEnclosesGridCell(component)) return true
+  }
+  return false
+}
+
+/** Smallest t in [0, 1] at which origin + t * delta enters the rectangle. */
+function segmentEntryIntoRect(
+  originX: number,
+  originY: number,
+  deltaX: number,
+  deltaY: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number
+): number | null {
+  let entry = 0
+  let exit = 1
+  if (Math.abs(deltaX) < 0.000_000_001) {
+    if (originX < minX || originX > maxX) return null
+  } else {
+    const first = (minX - originX) / deltaX
+    const second = (maxX - originX) / deltaX
+    entry = Math.max(entry, Math.min(first, second))
+    exit = Math.min(exit, Math.max(first, second))
+  }
+  if (Math.abs(deltaY) < 0.000_000_001) {
+    if (originY < minY || originY > maxY) return null
+  } else {
+    const first = (minY - originY) / deltaY
+    const second = (maxY - originY) / deltaY
+    entry = Math.max(entry, Math.min(first, second))
+    exit = Math.min(exit, Math.max(first, second))
+  }
+  return entry <= exit ? entry : null
+}
+
+function pointDistanceToBuilding(
+  x: number,
+  y: number,
+  building: CombatVillageSnapshot['buildings'][number]
+): number {
+  const definition = BUILDING_DEFINITIONS[building.type]
+  const minX = building.gridX
+  const minY = building.gridY
+  const maxX = minX + definition.width
+  const maxY = minY + definition.height
+  const deltaX = x < minX ? minX - x : x > maxX ? x - maxX : 0
+  const deltaY = y < minY ? minY - y : y > maxY ? y - maxY : 0
+  return Math.hypot(deltaX, deltaY)
+}
+
+/**
+ * Rules v8: mirror the live Siege Tower's straight Town Hall ray. The tower
+ * heads for the nearest hall's footprint center and can deploy only when its
+ * radius-inflated path meets a wall first. Returning the wall id makes the
+ * first-hit/tie-break contract explicit even though authoritative settlement
+ * currently needs only the deploy/no-deploy answer.
+ */
+function firstWallOnSiegeTowerRay(
+  snapshot: CombatVillageSnapshot,
+  deploy: TroopDeployedEvent,
+  troopLevel: number
+): string | null {
+  const originX = deploy.gridXQ / 1_000
+  const originY = deploy.gridYQ / 1_000
+  const townHall = snapshot.buildings
+    .filter(building => building.type === 'town_hall')
+    .sort((left, right) => {
+      const distance = pointDistanceToBuilding(originX, originY, left)
+        - pointDistanceToBuilding(originX, originY, right)
+      return distance || left.id.localeCompare(right.id)
+    })[0]
+  if (!townHall) return null
+
+  const hallDefinition = BUILDING_DEFINITIONS.town_hall
+  const deltaX = townHall.gridX + hallDefinition.width / 2 - originX
+  const deltaY = townHall.gridY + hallDefinition.height / 2 - originY
+  const segmentLength = Math.hypot(deltaX, deltaY)
+  if (segmentLength < 0.000_001) return null
+
+  // Keep byte-for-byte parity with CombatNavigationSystem.agentRadius.
+  const towerStats = getTroopStats('siegetower', troopLevel)
+  const radius = 0.12 + Math.min(0.12, Math.sqrt(Math.max(1, towerStats.space)) * 0.018)
+  const range = Math.max(0.1, towerStats.range)
+  const step = 0.05 / segmentLength
+  let hallStop = 1
+  for (let progress = 0; progress <= 1; progress += step) {
+    if (pointDistanceToBuilding(
+      originX + deltaX * progress,
+      originY + deltaY * progress,
+      townHall
+    ) <= range) {
+      hallStop = progress
+      break
+    }
+  }
+  let firstWallId: string | null = null
+  let firstEntry = Number.POSITIVE_INFINITY
+  for (const wall of snapshot.buildings) {
+    if (wall.type !== 'wall') continue
+    const entry = segmentEntryIntoRect(
+      originX,
+      originY,
+      deltaX,
+      deltaY,
+      wall.gridX - radius,
+      wall.gridY - radius,
+      wall.gridX + BUILDING_DEFINITIONS.wall.width + radius,
+      wall.gridY + BUILDING_DEFINITIONS.wall.height + radius
+    )
+    if (entry === null) continue
+    if (entry >= hallStop) continue
+    if (entry < firstEntry || (entry === firstEntry && wall.id < (firstWallId ?? ''))) {
+      firstEntry = entry
+      firstWallId = wall.id
+    }
+  }
+  return firstWallId
+}
+
 function baseCreditWindowsV4(
   attack: AttackAggregate,
   deploys: TroopDeployedEvent[],
@@ -177,7 +398,10 @@ function baseCreditWindowsV4(
  *   same per-troop defense DPS the v3 attrition model burns at.
  * - Siege tower ('siegetower', the one type-keyed support until a
  *   declarative ramp field exists): a parked ramp spares each overlapping
- *   ally a flat SIEGE_TOWER_PATHING_CREDIT_MS of wall-line pathing.
+ *   ally a flat SIEGE_TOWER_PATHING_CREDIT_MS of wall-line pathing. Rules v7
+ *   requires a closed wall loop in the snapshot; v8 requires that this exact
+ *   tower's deploy-to-Town-Hall ray intersects a wall. V4-v6 retain the
+ *   historical unconditional credit.
  * The extended lifetime stays clamped by maxDamageCreditMs.
  */
 function supportExtendedLifetimeMs(
@@ -187,7 +411,8 @@ function supportExtendedLifetimeMs(
   deploys: TroopDeployedEvent[],
   baseWindows: Map<string, CreditWindow>,
   totalDefenseDps: number,
-  deployedCount: number
+  deployedCount: number,
+  siegeRampTowerIds: ReadonlySet<string>
 ): number {
   if (totalDefenseDps <= 0) return baseLifetimeMs
   if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return baseLifetimeMs
@@ -208,7 +433,7 @@ function supportExtendedLifetimeMs(
       const pulses = Math.floor(overlapMs / pulseMs)
       if (pulses > 0) bonusMs += Math.round(pulses * (supportStats.healAmount ?? 0) * 1_000 / perTroopDps)
     }
-    if (support.troopType === 'siegetower') {
+    if (support.troopType === 'siegetower' && siegeRampTowerIds.has(support.troopInstanceId)) {
       bonusMs += SIEGE_TOWER_PATHING_CREDIT_MS
     }
   }
@@ -354,6 +579,19 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   // windows), keeping the v4 credit deterministic and non-recursive.
   const versionAtLeast4 = attack.rules.simulationVersion >= 4
   const troopDeploys = attack.events.filter((event): event is TroopDeployedEvent => event.type === 'TROOP_DEPLOYED')
+  // Stored v4-v6 attacks granted every tower unconditional support credit;
+  // v7 admitted every tower only when the snapshot had a closed wall loop.
+  // V8 evaluates each tower's immutable deploy point independently so two
+  // towers approaching the same base from different sides need not agree.
+  const v7HasClosedLoop = attack.rules.simulationVersion === 7
+    && snapshotHasClosedWallLoop(attack.snapshot)
+  const siegeRampTowerIds = new Set(troopDeploys
+    .filter(deploy => deploy.troopType === 'siegetower')
+    .filter(deploy => attack.rules.simulationVersion < 7
+      || v7HasClosedLoop
+      || (attack.rules.simulationVersion >= 8
+        && firstWallOnSiegeTowerRay(attack.snapshot, deploy, attack.reservation.troopLevel) !== null))
+    .map(deploy => deploy.troopInstanceId))
   const baseWindows = versionAtLeast4
     ? baseCreditWindowsV4(attack, troopDeploys, durationMs, totalDefenseDps, deployedCount)
     : new Map<string, CreditWindow>()
@@ -363,7 +601,16 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
     if (event.type === 'TROOP_DEPLOYED') {
       const baseLifetime = attritionLifetimeMs(attack, event, totalDefenseDps, deployedCount)
       const lifetime = versionAtLeast4
-        ? supportExtendedLifetimeMs(attack, event, baseLifetime, troopDeploys, baseWindows, totalDefenseDps, deployedCount)
+        ? supportExtendedLifetimeMs(
+            attack,
+            event,
+            baseLifetime,
+            troopDeploys,
+            baseWindows,
+            totalDefenseDps,
+            deployedCount,
+            siegeRampTowerIds
+          )
         : baseLifetime
       actions.push({
         atMs: event.atMs,

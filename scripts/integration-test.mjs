@@ -3,7 +3,7 @@
  * Usage: npm run build:server && node scripts/integration-test.mjs
  */
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -14,6 +14,9 @@ const dataDir = mkdtempSync(path.join(tmpdir(), 'clash-test-'))
 let server = null
 let failures = 0
 let checks = 0
+let autoConfigureFreshGuestBanners = false
+
+const AUTOMATIC_TEST_BANNER = { palette: 0, emblem: 0, pattern: 0 }
 
 function ok(condition, label) {
   checks += 1
@@ -90,7 +93,45 @@ async function api(method, pathName, { token, body, headers } = {}) {
     body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined
   })
   const json = await response.json().catch(() => null)
+  // The suite creates many disposable guest actors for combat/concurrency
+  // scenarios. Once the focused onboarding checks below finish, explicitly
+  // configure every new actor so those tests exercise their intended rule.
+  if (autoConfigureFreshGuestBanners
+    && method === 'POST'
+    && pathName === '/auth/session'
+    && response.status === 200
+    && json?.created === true
+    && json?.token) {
+    const bannerResponse = await fetch(`${BASE}/api/player/banner`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${json.token}`
+      },
+      body: JSON.stringify({ banner: AUTOMATIC_TEST_BANNER })
+    })
+    if (bannerResponse.status !== 200) {
+      throw new Error(`could not complete test actor banner onboarding (${bannerResponse.status})`)
+    }
+  }
   return { status: response.status, json }
+}
+
+const EXPECTED_STARTER_BUILDINGS = [
+  { type: 'army_camp', level: 1, gridX: 11, gridY: 15 },
+  { type: 'mine', level: 1, gridX: 8, gridY: 11 },
+  { type: 'town_hall', level: 1, gridX: 11, gridY: 11 }
+]
+
+function hasExpectedStarterVillage(world) {
+  if (!world || !Array.isArray(world.buildings)) return false
+  const buildings = world.buildings
+    .map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY }))
+    .sort((left, right) => left.type.localeCompare(right.type))
+  return JSON.stringify(buildings) === JSON.stringify(EXPECTED_STARTER_BUILDINGS)
+    && world.resources?.gold === 2_000
+    && world.resources?.ore === 100
+    && world.resources?.food === 100
 }
 
 async function armWarriors(token, count, requestId) {
@@ -163,7 +204,28 @@ async function main() {
   console.log('\nAuth:')
   const a = (await api('POST', '/auth/session')).json
   ok(a.created === true && a.token && a.player?.id, 'first visit auto-creates an account')
-  ok(Array.isArray(a.world?.buildings) && a.world.buildings.length >= 4, 'new account gets a starter base')
+  ok(hasExpectedStarterVillage(a.world), 'new account gets the exact shared starter village')
+
+  for (const pathName of ['/world', '/map', '/map/atlas', '/notifications']) {
+    ok((await api('GET', pathName, { token: a.token })).status === 200,
+      `${pathName} stays readable while banner onboarding is incomplete`)
+  }
+  for (const [pathName, body] of [
+    ['/world/save', { world: a.world, requestId: 'banner-gate-save' }],
+    ['/resources/apply', { delta: 1, reason: 'debug_grant', requestId: 'banner-gate-resource' }],
+    ['/army/train', { type: 'warrior', count: 1, requestId: 'banner-gate-train' }],
+    ['/attacks/matchmake', { requestId: 'banner-gate-match' }],
+    ['/map/relocate', { x: 3, y: 3 }]
+  ]) {
+    const blocked = await api('POST', pathName, { token: a.token, body })
+    ok(blocked.status === 409 && blocked.json?.code === 'BANNER_REQUIRED',
+      `${pathName} is authoritatively gated until a banner is chosen`)
+  }
+  const aBanner = await api('POST', '/player/banner', {
+    token: a.token,
+    body: { banner: { palette: 1, emblem: 2, pattern: 3 } }
+  })
+  ok(aBanner.status === 200, 'banner selection remains available during onboarding')
 
   const again = (await api('POST', '/auth/session', { body: { token: a.token } })).json
   ok(again.created === false && again.player.id === a.player.id, 'same token resumes the same account')
@@ -173,6 +235,11 @@ async function main() {
 
   const b = (await api('POST', '/auth/session')).json
   ok(b.player.id !== a.player.id, 'second device gets its own account')
+  ok((await api('POST', '/player/banner', {
+    token: b.token,
+    body: { banner: AUTOMATIC_TEST_BANNER }
+  })).status === 200, 'a second player can complete banner onboarding')
+  autoConfigureFreshGuestBanners = true
 
   // --- Base persistence ---
   console.log('\nPersistence:')
@@ -208,9 +275,10 @@ async function main() {
   const legacyPlayerPath = path.join(dataDir, 'players', `${legacyLayoutOwner.player.id}.json`)
   const legacyPlayer = JSON.parse(readFileSync(legacyPlayerPath, 'utf8'))
   const legacyHall = legacyPlayer.buildings.find(building => building.type === 'town_hall')
-  const legacyCannon = legacyPlayer.buildings.find(building => building.type === 'cannon')
-  const legacyBarracks = legacyPlayer.buildings.find(building => building.type === 'barracks')
   const legacyCamp = legacyPlayer.buildings.find(building => building.type === 'army_camp')
+  const legacyCannon = { id: 'legacy-overlap-cannon', type: 'cannon', gridX: 2, gridY: 2, level: 1 }
+  const legacyBarracks = { id: 'legacy-overlap-barracks', type: 'barracks', gridX: 15, gridY: 11, level: 1 }
+  legacyPlayer.buildings.push(legacyCannon, legacyBarracks)
   legacyCannon.gridX = legacyHall.gridX
   legacyCannon.gridY = legacyHall.gridY
   legacyCamp.gridX = legacyBarracks.gridX
@@ -524,7 +592,10 @@ async function main() {
 
   // Village banner: bounded heraldry choice, public in scout snapshots.
   const bannerBefore = (await api('GET', `/players/${b.player.id}/world`, { token: b.token })).json
-  ok(bannerBefore.world?.banner === undefined, 'a fresh village has no explicit banner (identity default)')
+  ok(bannerBefore.world?.banner?.palette === 0
+    && bannerBefore.world?.banner?.emblem === 0
+    && bannerBefore.world?.banner?.pattern === 0,
+  'the player explicitly completed banner onboarding before gameplay')
   const bannerSet = (await api('POST', '/player/banner', { token: b.token, body: { banner: { palette: 3, emblem: 4, pattern: 2 } } })).json
   ok(bannerSet.banner?.palette === 3 && bannerSet.banner?.emblem === 4 && bannerSet.banner?.pattern === 2, 'banner choice is accepted and echoed')
   const bannerBad = await api('POST', '/player/banner', { token: b.token, body: { banner: { palette: 99, emblem: 0 } } })
@@ -538,10 +609,13 @@ async function main() {
     'banner changes bump the public appearance revision (postcards refresh)')
   const bannerOwn = (await api('GET', '/world', { token: b.token })).json
   ok(bannerOwn.world?.banner?.palette === 3, 'the owner world payload carries the banner')
-  const bannerReset = (await api('POST', '/player/banner', { token: b.token, body: { banner: null } })).json
-  ok(bannerReset.banner === null, 'explicit null returns the village to its identity default')
+  const bannerReset = await api('POST', '/player/banner', { token: b.token, body: { banner: null } })
+  ok(bannerReset.status === 400, 'an explicit banner cannot be reset to an implicit default')
   const bannerAfterReset = (await api('GET', `/players/${b.player.id}/world`, { token: b.token })).json
-  ok(bannerAfterReset.world?.banner === undefined, 'a reset banner disappears from public snapshots')
+  ok(bannerAfterReset.world?.banner?.palette === 3
+    && bannerAfterReset.world?.banner?.emblem === 4
+    && bannerAfterReset.world?.banner?.pattern === 2,
+  'a rejected reset preserves the chosen public banner')
 
   const lb = (await api('GET', '/leaderboard', { token: a.token })).json
   ok(lb.players?.[0]?.username === 'TestRaider', 'leaderboard is sorted by trophies')
@@ -663,9 +737,9 @@ async function main() {
   const popSaved = (await api('POST', '/world/save', { token: a.token, body: { world: moreHousing, requestId: 'pop-save-1' } })).json
   ok(popSaved.world.population.capacity === popCapBefore + 1, 'adding housing raises the population capacity')
 
-  // Workforce: the mine + farm added earlier need 4 hands.
+  // Workforce: the starter mine plus the mine + farm added earlier need 6 hands.
   const wf = popSaved.world.population
-  ok(wf.workersNeeded === 4, `mine + farm need 4 workers (${wf.workersNeeded})`)
+  ok(wf.workersNeeded === 6, `two mines + farm need 6 workers (${wf.workersNeeded})`)
   const expectedStaffing = Math.min(1, wf.count / wf.workersNeeded)
   ok(Math.abs(wf.staffing - expectedStaffing) < 0.001,
     `staffing = population/needed, capped at 1 (${wf.staffing.toFixed(2)} for ${wf.count}/${wf.workersNeeded})`)
@@ -791,8 +865,13 @@ async function main() {
 
   const atlas = await api('GET', '/map/atlas', { token: m1.json.token })
   ok(atlas.status === 200 && atlas.json.players.some(p => p.me) && atlas.json.players.length >= 2, 'the atlas charts every settled chief, self included')
-  ok(atlas.json.players.length <= 500 && atlas.json.window.maxX - atlas.json.window.minX <= 48,
-    'atlas responses have a fixed coordinate window and player cap')
+  ok(atlas.json.players.length <= 1000
+    && atlas.json.worldPlotLimit === 24
+    && atlas.json.players.every(player => player.x >= atlas.json.window.minX
+      && player.x <= atlas.json.window.maxX
+      && player.y >= atlas.json.window.minY
+      && player.y <= atlas.json.window.maxY),
+  'the capped global atlas frame covers every returned settled chief')
   const edgeGuest = (await api('POST', '/auth/session')).json
   const edgeMove = await api('POST', '/map/relocate', { token: edgeGuest.token, body: { x: 1000001, y: 1000001 } })
   ok(edgeMove.status === 400, 'out-of-world relocation coordinates are rejected instead of clamped to another plot')
@@ -832,10 +911,11 @@ async function main() {
   ok(Boolean(preserve), 'every earned 3x3 window retains a permanent wilderness preserve')
   ok((await api('POST', '/map/relocate', { token: m1.json.token, body: { x: preserve.x, y: preserve.y } })).status === 409,
     'permanent wilderness preserves cannot be consumed by relocation')
-  const known = mapA.json.plots.filter(q => q.kind === 'player').map(q => `${q.x},${q.y}:${q.ownerId}:${q.revision}`).join(';')
+  const known = mapA.json.plots.filter(q => q.kind === 'player' || q.kind === 'bot')
+    .map(q => `${q.x},${q.y}:${q.ownerId}:${q.revision}`).join(';')
   const unchangedMap = await api('GET', `/map?x=${p1.plotX}&y=${p1.plotY}&r=1&known=${encodeURIComponent(known)}`, { token: m1.json.token })
-  ok(unchangedMap.json.plots.filter(q => q.kind === 'player').every(q => q.world === undefined),
-    'known plot revisions suppress unchanged postcard payloads')
+  ok(unchangedMap.json.plots.filter(q => q.kind === 'player' || q.kind === 'bot').every(q => q.world === undefined),
+    'known player and bot revisions suppress unchanged authoritative postcards')
   const farMap = await api('GET', `/map?x=${p1.plotX + 10}&y=${p1.plotY + 10}&r=0`, { token: m1.json.token })
   ok(farMap.status === 403, 'arbitrary far map centers are rejected outside earned sight')
   ok((await api('GET', '/map?x=1000001&y=1000001&r=1', { token: m1.json.token })).status === 400,
@@ -845,7 +925,18 @@ async function main() {
   const botsA = mapA.json.plots.filter(q => q.kind === 'bot').map(q => `${q.x},${q.y}:${q.seed}`)
   const botsB = mapB.json.plots.filter(q => q.kind === 'bot').map(q => `${q.x},${q.y}:${q.seed}`)
   ok(botsA.length > 0, 'wilderness near the origin hosts bot villages')
-  ok(botsA.join('|') === botsB.join('|'), 'bot plots are stable across repeated server map generation')
+  const botPlots = mapA.json.plots.filter(q => q.kind === 'bot')
+  ok(botPlots.every(q => q.ownerId && Number.isInteger(q.revision) && q.world?.ownerId === q.ownerId
+    && Array.isArray(q.world?.buildings) && q.world?.resources === undefined && q.world?.army === undefined),
+    'every presented bot is a revisioned server postcard with no client-generated or private payload')
+  ok(botPlots.every(q => {
+    const file = path.join(dataDir, 'bot-villages', `${q.ownerId}.json`)
+    if (!existsSync(file)) return false
+    const stored = JSON.parse(readFileSync(file, 'utf8'))
+    return stored.id === q.ownerId && stored.x === q.x && stored.y === q.y
+      && stored.revision === q.revision && stored.world?.ownerId === q.ownerId
+  }), 'every bot is durably stored before the map response exposes it')
+  ok(botsA.join('|') === botsB.join('|'), 'bot plots retain the same persisted identities across map refreshes')
 
   // The level-2 watchtower opens the full 5x5 horizon (the upgrade's ore
   // bill needs a storehouse first — the cap gates it deliberately).
@@ -1145,11 +1236,11 @@ async function main() {
   const clockDone = (await api('GET', '/world', { token: clockUser.token })).json.world
   ok(clockDone.buildings.find(b => b.id === 'clock-store').level === 3,
     'the second work also lands on schedule')
-  // Multi-level jumps: use the cannon (13 levels, so the sanitizer's
-  // max-level clamp cannot fold the jump back into a single step).
+  // Multi-level jumps: the starter mine can jump from L1 to its L3 cap
+  // without the sanitizer folding it back into a single step.
   const clockLeapWorld = JSON.parse(JSON.stringify(clockDone))
-  const clockCannon = clockLeapWorld.buildings.find(b => b.type === 'cannon')
-  clockCannon.level = (clockCannon.level ?? 1) + 2
+  const clockMine = clockLeapWorld.buildings.find(b => b.type === 'mine')
+  clockMine.level = (clockMine.level ?? 1) + 2
   const clockLeap = await api('POST', '/world/save', { token: clockUser.token, body: { world: clockLeapWorld, requestId: 'clock-leap' } })
   ok(clockLeap.status === 400, 'multi-level jumps are refused: one step per work')
 
@@ -1396,7 +1487,7 @@ async function main() {
     buildings: [...eco.world.buildings, { id: 'forged_wall_l4', type: 'wall', gridX: 0, gridY: 0, level: 4 }]
   }
   const wallRefusal = await api('POST', '/world/save', { token: eco.token, body: { world: forgedWall, requestId: 'wall-ladder-forge' } })
-  ok(wallRefusal.status === 409 && wallRefusal.json.code === 'INSUFFICIENT_RESOURCES' && wallRefusal.json.resource === 'gold',
+  ok(wallRefusal.status === 409 && wallRefusal.json.code === 'INSUFFICIENT_RESOURCES' && wallRefusal.json.resource === 'ore',
     'an unaffordable L4 wall returns a structured resource error after full ladder pricing')
   const mixedWalls = {
     ...eco.world,
@@ -1418,7 +1509,7 @@ async function main() {
   const refusal = await api('POST', '/world/save', { token: eco.token, body: { world: ecoForged, requestId: 'eco-forge-1' } })
   ok(refusal.status === 409, `a forged max-level save is refused, not granted (${refusal.status})`)
   const afterRefusal = await ecoGold()
-  ok(afterRefusal.gold === 1000 && !((await api('GET', '/world', { token: eco.token })).json.world.buildings.some(bl => bl.id === 'forged_mine')),
+  ok(afterRefusal.gold === 2000 && !((await api('GET', '/world', { token: eco.token })).json.world.buildings.some(bl => bl.id === 'forged_mine')),
     'a refused save changes nothing (balance intact, building absent)')
 
   // Fund and buy honestly: a level-1 mine costs 350 gold + 35 ore.
@@ -1649,7 +1740,7 @@ async function main() {
     body: { world: accrualWorld, requestId: 'fractional-farm-save' }
   })).json.world
   const foodBeforeFrequentPolls = accrualSaved.resources.food
-  for (let poll = 0; poll < 45; poll++) {
+  for (let poll = 0; poll < 90; poll++) {
     await new Promise(resolve => setTimeout(resolve, 200))
     await api('GET', '/world', { token: eco.token })
   }
@@ -1699,7 +1790,7 @@ async function main() {
   ok(botStart.raidId && botStart.x === camp.x && botStart.seed === camp.seed, 'a visible camp starts a server-issued bot raid')
   const botStartRetry = (await api('POST', '/attacks/bot-start', { token: eco.token, body: { x: camp.x, y: camp.y, requestId: 'eco-bot-start-1' } })).json
   ok(botStartRetry.raidId === botStart.raidId && JSON.stringify(botStartRetry.world) === JSON.stringify(botStart.world),
-    'bot-start retry returns the same session and deterministic seeded world')
+    'bot-start retry returns the same session and persisted village snapshot')
   const botFocus = await api('GET', `/map?x=${camp.x}&y=${camp.y}&r=1`, { token: eco.token })
   ok(botFocus.status === 200 && botFocus.json.plots.length === 9, 'a visible active bot raid authorizes its full battle focus ring')
   ok((await api('POST', '/attacks/start', { token: eco.token, body: { targetId: ecoVictim.player.id } })).status === 409,
@@ -1979,7 +2070,7 @@ async function main() {
   const infiniteInitial = { ...infinite.world.resources }
   ok(infinite.features?.infiniteResources === true,
     'the authenticated session advertises server-authorized infinite resources')
-  ok(infiniteInitial.gold === 1000 && infiniteInitial.ore === 25 && infiniteInitial.food === 50,
+  ok(infiniteInitial.gold === 2000 && infiniteInitial.ore === 100 && infiniteInitial.food === 100,
     'infinite mode keeps ordinary finite balances instead of persisting a sentinel')
   ok((await api('POST', '/resources/apply', {
     token: infinite.token,
@@ -2010,18 +2101,18 @@ async function main() {
         ...infiniteBeforePlacement,
         buildings: [
           ...infiniteBeforePlacement.buildings,
-          { id: 'infinite_storage', type: 'storage', gridX: 2, gridY: 18, level: 1 }
+          { id: 'infinite_prism', type: 'prism', gridX: 2, gridY: 18, level: 1 }
         ]
       },
-      requestId: 'infinite-place-storage'
+      requestId: 'infinite-place-prism'
     }
   })
   const infinitePlaced = infinitePlacement.json?.world
   ok(infinitePlacement.status === 200
-    && infinitePlaced.buildings.some(building => building.id === 'infinite_storage')
+    && infinitePlaced.buildings.some(building => building.id === 'infinite_prism')
     && infinitePlaced.resources.gold === infiniteInitial.gold
     && infinitePlaced.resources.ore === infiniteInitial.ore,
-  'a 40-ore storehouse can be placed from the starter 25 ore without charging')
+  'an otherwise-unaffordable prism can be placed without charging')
 
   const infiniteUpgrade = await api('POST', '/world/save', {
     token: infinite.token,
@@ -2029,20 +2120,20 @@ async function main() {
       world: {
         ...infinitePlaced,
         buildings: infinitePlaced.buildings.map(building => (
-          building.id === 'infinite_storage' ? { ...building, level: 2 } : building
+          building.id === 'infinite_prism' ? { ...building, level: 2 } : building
         ))
       },
-      requestId: 'infinite-upgrade-storage'
+      requestId: 'infinite-upgrade-prism'
     }
   })
   const infiniteUpgraded = infiniteUpgrade.json?.world
-  const infinitePendingStorage = infiniteUpgraded?.buildings.find(building => building.id === 'infinite_storage')
+  const infinitePendingPrism = infiniteUpgraded?.buildings.find(building => building.id === 'infinite_prism')
   ok(infiniteUpgrade.status === 200
-    && infinitePendingStorage?.level === 1
-    && infinitePendingStorage?.upgradingTo === 2
+    && infinitePendingPrism?.level === 1
+    && infinitePendingPrism?.upgradingTo === 2
     && infiniteUpgraded.resources.gold === infiniteInitial.gold
     && infiniteUpgraded.resources.ore === infiniteInitial.ore,
-  'an otherwise-unaffordable storehouse upgrade starts without a debit')
+  'an otherwise-unaffordable prism upgrade starts without a debit')
 
   const infiniteArmy = await api('POST', '/army/train', {
     token: infinite.token,
@@ -2052,7 +2143,7 @@ async function main() {
     && infiniteArmy.json.army.warrior === 50
     && infiniteArmy.json.gold === infiniteInitial.gold
     && infiniteArmy.json.food === infiniteInitial.food,
-  'training beyond starter gold and food succeeds without charging')
+  'training can consume the full starter food stock without charging')
   const infiniteOverHousing = await api('POST', '/army/train', {
     token: infinite.token,
     body: { type: 'warrior', count: 1, requestId: 'infinite-over-housing' }
@@ -2102,21 +2193,21 @@ async function main() {
   ok(finiteSpend.gold === infiniteInitial.gold - 10,
     'the same direct spend debits normally after infinite mode is disabled')
   const finiteWorld = (await api('GET', '/world', { token: infinite.token })).json.world
-  const finiteMine = await api('POST', '/world/save', {
+  const finiteSpikeLauncher = await api('POST', '/world/save', {
     token: infinite.token,
     body: {
       world: {
         ...finiteWorld,
         buildings: [
           ...finiteWorld.buildings,
-          { id: 'finite_mine_control', type: 'mine', gridX: 6, gridY: 18, level: 1 }
+          { id: 'finite_spike_launcher_control', type: 'spike_launcher', gridX: 6, gridY: 18, level: 1 }
         ]
       },
-      requestId: 'finite-place-mine-control'
+      requestId: 'finite-place-spike-launcher-control'
     }
   })
-  ok(finiteMine.status === 409 && finiteMine.json?.code === 'INSUFFICIENT_RESOURCES',
-    'finite mode again rejects a 35-ore mine at the stored 25 ore balance')
+  ok(finiteSpikeLauncher.status === 409 && finiteSpikeLauncher.json?.code === 'INSUFFICIENT_RESOURCES',
+    'finite mode again rejects a 145-ore Spike Launcher at the stored 100 ore balance')
 
   // --- FIND MATCH: real players first, NEXT cycling, bot-fallback signal ---
   console.log('\nMatchmaking pool (fresh worlds):')
@@ -2237,10 +2328,23 @@ async function main() {
   const wallReg = (await api('POST', '/auth/register', { body: { username: 'WallChief', password: 'hunter2hunter2' } })).json
   ok(Boolean(wallReg.token) && wallReg.player?.registered === true && wallReg.player.username === 'WallChief',
     'registering through the wall creates the account and issues a session')
-  ok(Array.isArray(wallReg.world?.buildings) && wallReg.world.buildings.length >= 4,
-    'the new account gets a starter base')
+  ok(hasExpectedStarterVillage(wallReg.world),
+    'registration creates the exact shared starter village')
   ok(Number.isFinite(wallReg.player.plotX) && Number.isFinite(wallReg.player.plotY),
     'the new account owns world plot coordinates (allocation ran at registration)')
+
+  ok((await api('GET', '/world', { token: wallReg.token })).status === 200,
+    'a newly registered account can read its starter world before choosing a banner')
+  const wallBlockedSave = await api('POST', '/world/save', {
+    token: wallReg.token,
+    body: { world: wallReg.world, requestId: 'wall-banner-gate-save' }
+  })
+  ok(wallBlockedSave.status === 409 && wallBlockedSave.json?.code === 'BANNER_REQUIRED',
+    'production registration cannot mutate gameplay before banner onboarding')
+  ok((await api('POST', '/player/banner', {
+    token: wallReg.token,
+    body: { banner: { palette: 7, emblem: 5, pattern: 4 } }
+  })).status === 200, 'the production registration path can complete banner onboarding')
 
   const wallResume = (await api('POST', '/auth/session', { body: { token: wallReg.token } })).json
   ok(wallResume.player?.id === wallReg.player.id && wallResume.created === false,

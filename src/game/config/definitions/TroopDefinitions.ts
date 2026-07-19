@@ -178,6 +178,8 @@ export interface TroopDef {
     wallTraversalCost?: number;
     /** Charger: plans a straight ray to its objective and attacks the first structure on it. */
     straightCharge?: boolean;
+    /** Siege Tower: follows a direct Town Hall ray and ramps its first wall. */
+    wallRamp?: boolean;
 }
 
 export const TROOP_DEFINITIONS: Record<TroopType, TroopDef> = {
@@ -198,10 +200,10 @@ export const TROOP_DEFINITIONS: Record<TroopType, TroopDef> = {
     goblinplunderer: { id: 'goblinplunderer', name: 'Goblin Plunderer', cost: 30, space: 1, desc: 'Manic thief. Beelines for resources and hits them 3x harder.', health: 80, range: 0.5, damage: 6, speed: 0.0038, color: 0x7ec850, targetPriority: 'resource', resourceDamageMultiplier: 3, attackDelay: 700 },
     clockworkbeetle: { id: 'clockworkbeetle', name: 'Clockwork Beetle', cost: 60, space: 1, desc: 'Leaps onto a building, clamps on, and detonates almost instantly.', health: 60, range: 0.5, damage: 150, speed: 0.0035, color: 0x7a5c20, splashRadius: 1.8, attackDelay: 500, detonateOnAttack: true, detonationDelayMs: 125 },
     physicianscart: { id: 'physicianscart', name: 'Healer', cost: 120, space: 5, desc: 'Army Camp L3 support cart that restores nearby allied troops.', health: 600, range: 0.5, damage: 0, speed: 0.0012, color: 0x8fd98f, healRadius: 5.5, healAmount: 120, attackDelay: 6000 },
-    // Siege tower rides the ram's straight-charge lane: the ray to the town
-    // hall finds the nearest wall on its line; the tower PARKS there (damage 0
-    // — it never fights) and the wall becomes the ally ramp.
-    siegetower: { id: 'siegetower', name: 'Siege Tower', cost: 300, space: 14, desc: 'Rolling belfry. Parks tight against a wall and turns it into a ramp for allies.', health: 3500, range: 0.2, damage: 0, speed: 0.001, color: 0x9a7b4f, targetPriority: 'town_hall', straightCharge: true },
+    // A wall-ramp unit is not a Ram: it does no normal structure damage. It
+    // rolls directly toward the Town Hall, parks at the first wall on that
+    // line, and never deploys when the line is wall-free.
+    siegetower: { id: 'siegetower', name: 'Siege Tower', cost: 300, space: 14, desc: 'Rolling belfry. Drives straight at the Town Hall and turns the first wall in its path into an allied ramp.', health: 3500, range: 0.2, damage: 0, speed: 0.001, color: 0x9a7b4f, targetPriority: 'town_hall', wallRamp: true },
     necromancer: { id: 'necromancer', name: 'Necromancer', cost: 320, space: 12, desc: 'Raises skeletons from the battlefield while blasting from range.', health: 900, range: 4.0, damage: 25, speed: 0.0014, color: 0x6a4c93, summonType: 'skeleton', summonCount: 2, summonIntervalMs: 5000, summonCap: 8, attackDelay: 1600 },
     trebuchet: { id: 'trebuchet', name: 'Trebuchet Crew', cost: 450, space: 16, desc: 'Counterweight artillery. Outranges every defense but one.', health: 1200, range: 11.0, damage: 320, speed: 0.0006, color: 0x8a6d4a, splashRadius: 2.0, attackDelay: 4000, firstAttackDelay: 1500 },
     warelephant: { id: 'warelephant', name: 'War Elephant', cost: 420, space: 12, desc: 'Armored titan. Tramples straight through walls.', health: 4200, range: 0.6, damage: 85, speed: 0.0011, color: 0x8d8d99, wallDamageMultiplier: 20, attackDelay: 2000 },

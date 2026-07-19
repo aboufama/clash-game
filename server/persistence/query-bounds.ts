@@ -1,9 +1,12 @@
 import type {
+  AdminAttackQuery,
+  AdminPlayerQuery,
   AttackCandidateQuery,
   AttackCommandQuery,
   NotificationQuery,
   ParticipantReplayQuery,
-  WorldAtlasQuery
+  WorldAtlasQuery,
+  WorldPlayerDirectoryQuery
 } from './model'
 
 /** Hard request-path caps. Repository callers must always supply a limit. */
@@ -23,8 +26,31 @@ export const QUERY_LIMITS = Object.freeze({
   idempotencyPrune: 500,
   outboxPrune: 500,
   operationMarkerPrune: 500,
-  trophyRadius: 10_000
+  trophyRadius: 10_000,
+  adminPlayers: 100,
+  adminBots: 200,
+  adminAttacks: 200,
+  adminAudit: 250,
+  adminBotRadius: 127
 })
+
+export function boundAdminPlayerQuery(query: AdminPlayerQuery): AdminPlayerQuery {
+  if (typeof query.search !== 'string' || query.search.length > 64) {
+    throw new RangeError('Admin player search may not exceed 64 characters')
+  }
+  if (!(query.now instanceof Date) || !Number.isFinite(query.now.getTime())
+    || !(query.onlineSince instanceof Date) || !Number.isFinite(query.onlineSince.getTime())) {
+    throw new RangeError('Admin player query timestamps must be valid Dates')
+  }
+  return { ...query, limit: boundedLimit(query.limit, QUERY_LIMITS.adminPlayers) }
+}
+
+export function boundAdminAttackQuery(query: AdminAttackQuery): AdminAttackQuery {
+  if (query.state !== null && ![
+    'preparing', 'engaged', 'active', 'finalizing', 'settled', 'cancelled', 'expired'
+  ].includes(query.state)) throw new RangeError('Unknown admin attack state')
+  return { ...query, limit: boundedLimit(query.limit, QUERY_LIMITS.adminAttacks) }
+}
 
 export function boundedLimit(value: number, maximum: number, name = 'limit'): number {
   if (!Number.isSafeInteger(value) || value < 1) {
@@ -113,6 +139,25 @@ export function boundWorldAtlasQuery(query: WorldAtlasQuery): WorldAtlasQuery {
     maxX,
     minY,
     maxY,
+    now: validDate(query.now, 'now'),
+    limit: boundedLimit(query.limit, QUERY_LIMITS.worldAtlas)
+  }
+}
+
+export function boundWorldPlayerDirectoryQuery(
+  query: WorldPlayerDirectoryQuery
+): WorldPlayerDirectoryQuery {
+  const centerX = safeInteger(query.centerX, 'centerX')
+  const centerY = safeInteger(query.centerY, 'centerY')
+  for (const [name, value] of [['centerX', centerX], ['centerY', centerY]] as const) {
+    if (value < -2_147_483_648 || value > 2_147_483_647) {
+      throw new RangeError(`${name} must fit a PostgreSQL integer`)
+    }
+  }
+  return {
+    ...query,
+    centerX,
+    centerY,
     now: validDate(query.now, 'now'),
     limit: boundedLimit(query.limit, QUERY_LIMITS.worldAtlas)
   }

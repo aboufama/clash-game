@@ -92,6 +92,7 @@ function village(playerId: string, army: Record<string, number> = { warrior: 2 }
     food: playerId.startsWith('defender') ? 100 : 0,
     productionRemainders: { ore: 0, food: 0 },
     population: { count: 3, lastGrowthAt: START.getTime(), bornAt: [] },
+    banner: null,
     simulatedThrough: START,
     lastMutationAt: START,
     layoutRevision: 1,
@@ -524,14 +525,18 @@ test('bot raids use the same command aggregate, retry safely, and ignore client 
   }), settled)
   const stored = await persistence.transaction(async tx => ({
     attack: await tx.attacks.get(started.raidId),
-    account: await tx.accounts.getById('attacker')
+    account: await tx.accounts.getById('attacker'),
+    bot: await tx.world.getBotVillageAt('main', started.x, started.y)
   }))
   assert.equal(stored.attack?.authority?.target.kind, 'BOT')
   assert.equal(stored.attack?.authority?.phase, 'SETTLED')
+  assert.equal(stored.bot?.id, stored.attack?.targetId,
+    'the attack and settlement retain one persisted bot authority record')
   assert.equal(typeof stored.account?.botRaidCooldowns[`${started.x},${started.y}`], 'number')
   const day = Math.floor(now.value.getTime() / 86_400_000)
   const ledger = await persistence.transaction(tx => tx.balanceLedger.summarizeDays(day, day))
-  assert.ok(ledger.some(row => row.operation === 'bot-attack-settlement'))
+  assert.equal(ledger.some(row => row.operation === 'bot-attack-settlement'), settled.lootApplied > 0,
+    'zero-loot hard bases emit no balance delta; positive bot loot uses the bot ledger operation')
   assert.equal(ledger.some(row => row.operation === 'attack-settlement'), false)
 })
 

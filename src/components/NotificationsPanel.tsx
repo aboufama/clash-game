@@ -5,9 +5,13 @@ import { soundSystem } from '../game/systems/SoundSystem';
 
 interface Notification {
   id: string;
+  kind?: 'attack' | 'admin_notice';
   attackId?: string;
   attackerId?: string;
   attackerName: string;
+  title?: string;
+  message?: string;
+  severity?: 'info' | 'warning' | 'critical';
   goldLost?: number;
   oreLost?: number;
   foodLost?: number;
@@ -121,7 +125,7 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
           <div className="notifications-backdrop" onClick={() => { soundSystem.play('uiClose'); handleClose(); }}></div>
           <div className="notifications-dropdown">
             <div className="notifications-header">
-              <h3>DEFENSE LOG</h3>
+              <h3>MESSAGES &amp; DEFENSE</h3>
               {notifications.some(n => !n.read) && (
                 <button className="mark-read-btn" onClick={() => { soundSystem.play('uiTap'); void handleMarkAllRead(); }}>
                   Mark all read
@@ -129,6 +133,10 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
               )}
             </div>
 
+            {/* One event, one surface; history goes to the bell: the pxf
+                incoming-attack card (App.tsx) is the popup surface — this
+                LIVE row lands here SILENTLY as history (badge only, no
+                popup duplication, no toast). */}
             {incomingAttack && onWatchLive && (
               <div className="notification-item live-attack">
                 <div className="live-indicator">LIVE</div>
@@ -151,6 +159,21 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
               </div>
             ) : (
               notifications.map(notif => {
+                if (notif.kind === 'admin_notice') {
+                  return (
+                    <div
+                      key={notif.id}
+                      className={`notification-item admin-notice ${notif.severity ?? 'info'} ${!notif.read ? 'unread' : ''}`}
+                    >
+                      <div className="admin-notice-label">
+                        {notif.severity === 'critical' ? 'URGENT NOTICE' : notif.severity === 'warning' ? 'KINGDOM WARNING' : 'KINGDOM NOTICE'}
+                      </div>
+                      <div className="attacker">{notif.title || 'Message from the keep'}</div>
+                      <div className="admin-notice-message">{notif.message || 'The keep has sent an update.'}</div>
+                      <div className="timestamp">{formatTimeAgo(notif.timestamp)}</div>
+                    </div>
+                  );
+                }
                 const goldLost = notif.goldLost ?? 0;
                 return (
                 <div key={notif.id} className={`notification-item ${!notif.read ? 'unread' : ''}`}>

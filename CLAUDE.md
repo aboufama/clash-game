@@ -198,10 +198,24 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   moved to Mechanica. `romanwarrior` and `skeleton` remain generated-only.
   The removed A/B/C and Rift design rounds, candidate deaths, icons, visual
   routes, and packed assets are gone; exact portraits remain for all 20
-  live/generated troop manifests. Authoritative
-  settlement remains `ATTACK_SIMULATION_VERSION` **6** (Clockwork Beetle's
-  125 ms live fuse; stored v5 keeps 1,000 ms). See
+  live/generated troop manifests. Authoritative settlement is now
+  `ATTACK_SIMULATION_VERSION` **8**: each Siege Tower's recorded deploy point
+  rays directly to the nearest Town Hall and receives pathing credit only when
+  that ray meets a wall (stored v7 keeps its closed-loop gate; v4-v6 keep the
+  old unconditional credit), while the Clockwork Beetle keeps its 125 ms live
+  fuse (stored v5 keeps 1,000 ms). See
   `src/game/config/TROOP_FACTION_ARCHITECTURE.md`.
+- **DONE — persistent procedural bot villages (2026-07-19):** bot layouts are
+  never synthesized by a client or reconstructed at attack start. The fresh
+  server-only generator (`server/domain/world/procedural-village.ts`) drafts
+  3–4 closed, separately leveled wall compartments and heterogeneous defenses
+  across established/strong/elite/fortress/extreme bands; only 8% are the
+  lowest band. Provisioning commits the complete village to `bot_villages`
+  (PostgreSQL migration 13) or `bot-villages/` (legacy JSON) before map/attack
+  consumers can see it. Player claims hide rather than erase the durable bot;
+  it resurfaces with the same ID/revision when the plot is released. Map
+  postcards are server snapshots, attacks pin persisted provenance, and bot
+  loot debits the stored village with CAS/crash-journal protection.
 - The vector draw functions remain in the bundle as the AUTHORING source and
   per-unit fallback. Iron rules still govern them — they are what gets baked.
   See `tools/art-preview/AGENTS_SPRITE_PIPELINE.md` for the full architecture and the
@@ -210,7 +224,10 @@ defenses and troops become sprite sheets (one frame per angle + animation).
 
 ## Iron rules
 
-1. **Never ship art you haven't screenshotted** (`tools/art-preview/`, needs
+1. **Never ship art you haven't screenshotted POST-BAKE** — judge the baked
+   pixel frames, never the raw vector drawing (owner hard rule 2026-07-19:
+   quantization changes how art reads; scratch-bake with `DESIGN=`/`UNITS=`/
+   `OUT=` for pre-approval work). Screenshot via (`tools/art-preview/`, needs
    `npm run dev` running). Typechecking is not seeing.
 2. Renderers keep the base/elevated split (`skipBase` / `onlyBase`) — ground
    paint bakes into the ground texture; breaking the split breaks layering.

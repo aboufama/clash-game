@@ -1287,7 +1287,12 @@ export class VillageLifeSystem {
             return;
         }
 
-        // Trading: stand at the stall until it's time to go.
+        // Trading: stand at the stall until it's time to go. An un-drawn
+        // stall (its draw landed under SpriteBank's pre-ready hold, or
+        // onSpriteBankReady re-armed it mid-trade) repaints here until it
+        // sticks — drawStall's stallDrawn gate keeps the normal case
+        // one-shot, so this is inert once the finished stall has painted.
+        if (!m.stallDrawn) this.drawStall(m, 1);
         if (time >= m.leaveAt) {
             this.merchantDepart(m);
         }
@@ -1387,6 +1392,40 @@ export class VillageLifeSystem {
 
     getMerchantOffers(): MerchantOffer[] {
         return this.merchant?.offers ?? [];
+    }
+
+    /** Every deal on the sheet is taken: pack up early instead of waiting out leaveAt. */
+    departMerchant() {
+        if (this.merchant) this.merchantDepart(this.merchant);
+    }
+
+    /**
+     * Forced-repaint hook for the scene's 'spritebank:ready' once-handler
+     * (and Design Lab's clash:design-changed). Everything drawn before the
+     * bank settled was held EMPTY (SpriteBank.holdVector — the owner's
+     * never-show-vector rule) or, on older saves under the kill switch, drew
+     * vector. Continuously-redrawn figures (villagers/animals on the 3-frame
+     * stagger; merchant/thief/owl on the 24 Hz figure tick) self-heal on
+     * their next tick, but two members are one-shot and would keep the stale
+     * paint forever:
+     *  - camp figures: idle ones draw exactly once (drawCampFigure), with a
+     *    3-12s idleUntil reshuffle as the only natural repaint. Re-arm
+     *    needsIdleDraw AND clear the 24 Hz draw-tick gate — a forced draw
+     *    whose needsIdleDraw was consumed in the same 41.7 ms figure tick
+     *    would otherwise be swallowed by lastDrawTick. State, idleUntil and
+     *    positions stay untouched: the army must not visibly reshuffle.
+     *  - the merchant's stall: drawStall paints the finished stall once
+     *    (stallDrawn) and never again — re-arm it; the building/packing
+     *    branches call drawStall every frame, and the trading branch
+     *    repaints whenever stallDrawn is false, so it lands on the next
+     *    merchant tick.
+     */
+    onSpriteBankReady() {
+        for (const f of this.campFigures) {
+            f.needsIdleDraw = true;
+            f.lastDrawTick = undefined;
+        }
+        if (this.merchant) this.merchant.stallDrawn = false;
     }
 
     private placeMerchant() {
@@ -1507,6 +1546,17 @@ export class VillageLifeSystem {
     private drawStall(m: MerchantState, progress = 1) {
         const p = Math.max(0, Math.min(1, progress));
         if (m.stallDrawn && p >= 1) return;
+        // Pre-ready hold (owner's rule): neither the finished vector stall
+        // nor the vector assembly may show while the bank is loading. The
+        // build-phase honest-state check below (stallReady) would otherwise
+        // bypass syncFigure's own hold straight into the vector assembly.
+        // stallDrawn stays false, so once the bank settles the merchant
+        // update repaints the baked stall (build/packing call drawStall every
+        // frame; the trading branch calls it whenever stallDrawn is false).
+        if (SpriteBank.holdVector) {
+            m.stallGfx.clear();
+            return;
+        }
         m.stallDrawn = p >= 1;
         const g = m.stallGfx;
         g.clear();
@@ -2870,8 +2920,10 @@ export class VillageLifeSystem {
         const depth = e.kind === 'bird'
             // The dragon's shadow is ONE multiply pass cast over the whole
             // scene (grass, roofs, walls alike) — accurate everywhere with no
-            // per-roof seams. Real birds still fly under the UI.
-            ? (e.birdType === 3 ? 29_500 : 28000)
+            // per-roof seams. It must stay BELOW the fog/cloud banks (28_500):
+            // a shadow printed onto clouds reads as an artifact (owner call).
+            // Real birds still fly under the UI.
+            ? (e.birdType === 3 ? 28_400 : 28000)
             : this.characterDepth(e.x, e.y);
         if (depth !== e.lastDepth) {
             e.lastDepth = depth;

@@ -1,12 +1,6 @@
 import { Component, StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
-import { installPixelKit } from './ui/pixelKit'
-
-// The DOM UI's pixel-art frames (border-image data URIs on :root) must exist
-// before anything styled renders.
-installPixelKit()
 
 // Last line of defence: nothing that slips every other guard may die silently.
 // Throttled so an error storm cannot itself become the problem.
@@ -65,14 +59,32 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { crashed: bo
 }
 
 const rootNode = document.getElementById('root')
-if (rootNode) {
-  createRoot(rootNode).render(
-    <StrictMode>
-      <RootErrorBoundary>
-        <App />
-      </RootErrorBoundary>
-    </StrictMode>,
-  )
-} else {
+if (!rootNode) {
   document.body.innerHTML = '<p style="font-family:monospace;padding:24px">Boot failed: missing #root. Please reload.</p>'
 }
+
+async function boot() {
+  if (!rootNode) return
+
+  // Keep the privileged surface out of the game bootstrap entirely: visiting
+  // /admin never imports App, Phaser, the player auth client, or pixel-kit.
+  const surface: ReactNode = window.location.pathname.startsWith('/admin')
+    ? await import('./admin/AdminPortal.tsx').then(module => <module.AdminPortal />)
+    : await Promise.all([import('./App.tsx'), import('./ui/pixelKit')]).then(([appModule, pixelKit]) => {
+        // Game DOM chrome expects these variables before its first render.
+        pixelKit.installPixelKit()
+        const App = appModule.default
+        return <App />
+      })
+
+  createRoot(rootNode).render(
+    <StrictMode>
+      <RootErrorBoundary>{surface}</RootErrorBoundary>
+    </StrictMode>,
+  )
+}
+
+void boot().catch(error => {
+  logGlobal('boot', error)
+  if (rootNode) rootNode.innerHTML = '<p style="font-family:monospace;padding:24px">Boot failed. Please reload.</p>'
+})

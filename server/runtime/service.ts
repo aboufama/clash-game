@@ -7,7 +7,6 @@ import {
 } from '../../src/game/config/GameDefinitions'
 import {
   armySpaceUsed,
-  botNameFor,
   campCapacityOf,
   isWildernessPreserveAt,
   barracksLevelForTroop,
@@ -17,7 +16,13 @@ import {
   watchtowerSightOf,
   worldDayIndex
 } from '../../src/game/config/Economy'
-import type { SerializedWorld } from '../../src/game/data/Models'
+import {
+  VILLAGE_BANNER_EMBLEMS,
+  VILLAGE_BANNER_PALETTES,
+  VILLAGE_BANNER_PATTERNS,
+  type SerializedWorld,
+  type VillageBanner
+} from '../../src/game/data/Models'
 import {
   VillageRuleError,
   populationCapacity,
@@ -29,13 +34,30 @@ import {
 import {
   CURRENT_WORLD_GENERATION_VERSION,
   MAX_WORLD_COORDINATE,
+  WORLD_PLOT_RADIUS,
   botFrontierRadiusForCursor,
   classifyPlot,
   settledFrontierBotVillageSeedAt
 } from '../domain/world'
-import { ApiError } from '../errors'
+import { ApiError, bannerRequiredError } from '../errors'
+import { isValidUsername, normalizeUsernameKey } from '../domain/auth'
+import type {
+  AdminApiService,
+  AdminAttackSummary,
+  AdminAuditEntry,
+  AdminBotSummary,
+  AdminConfig,
+  AdminEconomy,
+  AdminMutationResult,
+  AdminOperationRequest,
+  AdminOverview,
+  AdminPlayerActionRequest,
+  AdminPlayerDetail,
+  AdminPlayerSummary
+} from '../admin-contract'
 import type {
   AccountRecord,
+  AdminPlayerRecord,
   JsonObject,
   JsonValue,
   Persistence,
@@ -43,7 +65,7 @@ import type {
   VillageRecord,
   WorldAtlasEntry
 } from '../persistence'
-import { outboxEvent } from '../persistence'
+import { outboxEvent, QUERY_LIMITS } from '../persistence'
 import { AuthSessionService } from './auth-service'
 import type {
   ApiService,
@@ -84,14 +106,16 @@ import {
   claimSpecificPlayerPlot,
   releasePlayerPlotClaim
 } from './world-authority'
+import { ensurePersistedBotVillage, publicBotWorldOf } from './bot-villages'
 
 const ONLINE_WINDOW_MS = 60_000
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60_000
 const OUTBOX_PUBLISHED_RETENTION_MS = 24 * 60 * 60_000
 const OUTBOX_DELIVERY_WINDOW_MS = 7 * 24 * 60 * 60_000
 const OPERATION_MARKER_RETENTION_MS = 2 * 24 * 60 * 60_000
-const ATLAS_RADIUS = 24
-const ATLAS_LIMIT = 500
+// One main server for now: the atlas lists literally everyone, capped at the
+// server's intended player capacity. Multi-server paging can come later.
+const ATLAS_LIMIT = 1000
 const HOME_COORD_LIMIT = MAX_WORLD_COORDINATE - 2
 
 const AMBIENT_GRANTS: Record<string, { resource: 'ore' | 'food'; perCall: number; perHour: number }> = {
@@ -177,6 +201,33 @@ function requestId(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, 160) : ''
 }
 
+/** Banner mutations never accept implicit/default axes or numeric coercion. */
+function explicitVillageBanner(raw: unknown): VillageBanner | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const candidate = raw as { palette?: unknown; emblem?: unknown; pattern?: unknown }
+  if (!Number.isInteger(candidate.palette)
+    || (candidate.palette as number) < 0
+    || (candidate.palette as number) >= VILLAGE_BANNER_PALETTES
+    || !Number.isInteger(candidate.emblem)
+    || (candidate.emblem as number) < 0
+    || (candidate.emblem as number) >= VILLAGE_BANNER_EMBLEMS
+    || !Number.isInteger(candidate.pattern)
+    || (candidate.pattern as number) < 0
+    || (candidate.pattern as number) >= VILLAGE_BANNER_PATTERNS) return null
+  return {
+    palette: candidate.palette as number,
+    emblem: candidate.emblem as number,
+    pattern: candidate.pattern as number
+  }
+}
+
+function sameBanner(left: VillageBanner | null, right: VillageBanner): boolean {
+  return left !== null
+    && left.palette === right.palette
+    && left.emblem === right.emblem
+    && left.pattern === right.pattern
+}
+
 function asJson(value: unknown): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue
 }
@@ -227,6 +278,7 @@ function villageForPostcard(entry: WorldAtlasEntry): VillageRecord {
     food: entry.simulation.food,
     productionRemainders: cloneJson(entry.simulation.productionRemainders),
     population: cloneJson(entry.village.population),
+    banner: entry.village.banner ? { ...entry.village.banner } : null,
     simulatedThrough: entry.village.simulatedThrough,
     lastMutationAt: entry.village.lastMutationAt,
     layoutRevision: entry.village.layoutRevision,
@@ -268,8 +320,87 @@ function villageRule<T>(operation: () => T): T {
   }
 }
 
+function adminInteger(raw: unknown, name: string, minimum: number, maximum: number): number {
+  const parsed = Number(raw)
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new ApiError(400, `${name} must be an integer between ${minimum} and ${maximum}`, 'ADMIN_INVALID_INPUT')
+  }
+  return parsed
+}
+
+function adminOptionalText(raw: unknown, name: string, maximum: number): string | null {
+  if (raw === undefined || raw === null) return null
+  if (typeof raw !== 'string') throw new ApiError(400, `${name} must be text`, 'ADMIN_INVALID_INPUT')
+  const value = raw.trim()
+  if (value.length > maximum) {
+    throw new ApiError(400, `${name} may not exceed ${maximum} characters`, 'ADMIN_INVALID_INPUT')
+  }
+  return value || null
+}
+
+function adminRequiredText(raw: unknown, name: string, maximum: number): string {
+  const value = adminOptionalText(raw, name, maximum)
+  if (!value) throw new ApiError(400, `${name} is required`, 'ADMIN_INVALID_INPUT')
+  return value
+}
+
+function adminReason(raw: unknown): string {
+  const reason = adminRequiredText(raw, 'reason', 500)
+  if (reason.length < 3) {
+    throw new ApiError(400, 'reason must contain at least 3 characters', 'ADMIN_INVALID_INPUT')
+  }
+  return reason
+}
+
+function adminPlayerSummaryOf(row: AdminPlayerRecord, now: Date): AdminPlayerSummary {
+  return {
+    id: row.id,
+    username: row.username,
+    registered: row.registered,
+    trophies: row.trophies,
+    shieldUntil: row.shieldUntil?.getTime() ?? null,
+    createdAt: row.createdAt.getTime(),
+    lastSeenAt: row.lastSeenAt.getTime(),
+    online: row.lastSeenAt.getTime() >= now.getTime() - ONLINE_WINDOW_MS,
+    access: row.accessState,
+    accessUntil: row.accessUntil?.getTime() ?? null,
+    world: row.worldId !== null && row.x !== null && row.y !== null && row.plotVersion !== null
+      ? { worldId: row.worldId, x: row.x, y: row.y, plotVersion: row.plotVersion }
+      : null
+  }
+}
+
+function adminPlayerDetailOf(row: AdminPlayerRecord, now: Date): AdminPlayerDetail {
+  const summary = adminPlayerSummaryOf(row, now)
+  const army: Record<string, number> = {}
+  for (const [type, count] of Object.entries(row.army)) {
+    if (typeof count === 'number' && Number.isFinite(count)) army[type] = count
+  }
+  const population = typeof row.population.count === 'number'
+    ? Math.max(0, Math.floor(row.population.count))
+    : 0
+  return {
+    ...summary,
+    resources: { gold: row.gold, ore: row.ore, food: row.food },
+    revisions: {
+      profile: row.profileRevision,
+      economy: row.economyRevision,
+      layout: row.layoutRevision,
+      appearance: row.appearanceRevision
+    },
+    buildingCount: row.buildings,
+    obstacleCount: row.obstacles,
+    army,
+    population,
+    activeSessions: row.activeSessions,
+    activeAttacks: row.activeAttacks,
+    moderationReason: row.accessReason,
+    moderationUpdatedAt: row.moderationUpdatedAt?.getTime() ?? null
+  }
+}
+
 /** Transactional application service over normalized persistence. */
-export class PersistenceGameService implements ApiService<RuntimePrincipal> {
+export class PersistenceGameService implements ApiService<RuntimePrincipal>, AdminApiService {
   private readonly persistence: Persistence
   private readonly attacks: RuntimeAttackService
   private readonly clock: () => Date
@@ -421,8 +552,56 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
     return this.auth.logout(rawToken)
   }
 
+  /**
+   * This principal was issued only after authentication, so it represents a
+   * persisted player account. Generated wilderness/bot identities are map
+   * projections, never RuntimePrincipals, and intentionally bypass onboarding.
+   */
+  async assertGameplayReady(principal: RuntimePrincipal): Promise<void> {
+    await this.persistence.transaction(async tx => {
+      const village = await tx.villages.get(principal.playerId)
+      if (!village) throw new ApiError(401, 'Player authority is incomplete')
+      if (!explicitVillageBanner(village.banner)) throw bannerRequiredError()
+    })
+  }
+
   async rename(principal: RuntimePrincipal, rawName: unknown) {
     return this.auth.rename(principal, rawName)
+  }
+
+  async setBanner(principal: RuntimePrincipal, rawBanner: unknown) {
+    const banner = explicitVillageBanner(rawBanner)
+    if (!banner) {
+      throw new ApiError(
+        400,
+        'Invalid banner: palette 0-7, emblem 0-5, and pattern 0-4 are all required',
+        'INVALID_BANNER'
+      )
+    }
+    const now = this.clock()
+    return this.persistence.transaction(async tx => {
+      const state = await this.authority.owned(tx, principal.playerId, true)
+      if (sameBanner(state.village.banner, banner)) return { banner: { ...banner } }
+      const expectedAppearanceRevision = state.village.appearanceRevision
+      state.village.banner = { ...banner }
+      state.village.appearanceRevision = expectedAppearanceRevision + 1
+      state.village.lastMutationAt = now
+      if (!await tx.villages.updateAppearance(state.village, expectedAppearanceRevision)) {
+        throw new ApiError(409, 'Village appearance changed; reload and retry', 'APPEARANCE_REVISION_CONFLICT')
+      }
+      await tx.outbox.add(outboxEvent({
+        topic: 'villages',
+        aggregateType: 'village',
+        aggregateId: principal.playerId,
+        eventType: 'VILLAGE_BANNER_CHANGED',
+        now,
+        payload: {
+          appearanceRevision: state.village.appearanceRevision,
+          banner: { palette: banner.palette, emblem: banner.emblem, pattern: banner.pattern }
+        }
+      }))
+      return { banner: { ...banner } }
+    })
   }
 
   async getWorld(principal: RuntimePrincipal): Promise<SerializedWorld> {
@@ -899,6 +1078,20 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
         minX, maxX, minY, maxY, now, limit: 25
       })
       const byCoordinate = new Map(entries.map(entry => [`${entry.plot.x},${entry.plot.y}`, entry]))
+      // listAtlas deliberately omits expired guest leases, while their claim
+      // row remains authoritative until the bounded reaper releases it. Do
+      // one exact, bounded preflight so such a hidden claim is neither
+      // presented as a bot nor allowed to collide with first provisioning.
+      const missingCoordinates: Array<{ x: number; y: number }> = []
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+          if (!byCoordinate.has(`${x},${y}`)) missingCoordinates.push({ x, y })
+        }
+      }
+      const hiddenClaims = new Set(
+        (await tx.world.listOccupantsAt(viewer.plot.worldId, missingCoordinates))
+          .map(plot => `${plot.x},${plot.y}`)
+      )
       const activeByDefender = new Map<string, string>()
       const playerIds = entries.map(entry => entry.player.playerId)
       for (const attack of await this.authority.leasedIncomingForPlayers(tx, playerIds)) {
@@ -934,10 +1127,38 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
             plots.push(plot)
             continue
           }
+          if (hiddenClaims.has(`${x},${y}`)) {
+            plots.push({ x, y, kind: 'empty', settleable: false })
+            continue
+          }
           const seed = settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius })
-          plots.push(seed === null
-            ? { x, y, kind: 'empty', settleable: !isWildernessPreserveAt(x, y) }
-            : { x, y, kind: 'bot', seed, username: botNameFor(seed, x, y), trophies: 100 + seed % 900 })
+          if (seed === null) {
+            plots.push({ x, y, kind: 'empty', settleable: !isWildernessPreserveAt(x, y) })
+            continue
+          }
+          const bot = await ensurePersistedBotVillage(tx, {
+            worldId: viewer.plot.worldId,
+            worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
+            x,
+            y,
+            seed,
+            now
+          })
+          const plot: Record<string, unknown> = {
+            x,
+            y,
+            kind: 'bot',
+            seed: bot.seed,
+            ownerId: bot.id,
+            username: bot.username,
+            trophies: bot.trophies,
+            revision: bot.revision
+          }
+          const cached = known.get(`${x},${y}`)
+          if (!cached || cached.ownerId !== bot.id || cached.revision !== bot.revision) {
+            plot.world = publicBotWorldOf(bot)
+          }
+          plots.push(plot)
         }
       }
       return {
@@ -952,14 +1173,31 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
     const now = this.clock()
     return this.persistence.transaction(async tx => {
       const viewer = await this.authority.owned(tx, principal.playerId)
-      const minX = Math.max(-MAX_WORLD_COORDINATE, viewer.plot.x - ATLAS_RADIUS)
-      const maxX = Math.min(MAX_WORLD_COORDINATE, viewer.plot.x + ATLAS_RADIUS)
-      const minY = Math.max(-MAX_WORLD_COORDINATE, viewer.plot.y - ATLAS_RADIUS)
-      const maxY = Math.min(MAX_WORLD_COORDINATE, viewer.plot.y + ATLAS_RADIUS)
-      const entries = await tx.world.listPlayers({
+      // The watchtower's own default-sight radius (0-2 plots) — the atlas
+      // marks this ring so a chief can see it against the wider chart window.
+      const sight = watchtowerSightOf(villageBuildings(viewer.village))
+      // The WORLD atlas lists literally everyone on the (single, for now)
+      // server — query the full coordinate space, capped at the server's
+      // intended 1,000-player capacity.
+      const entries = await tx.world.listPlayersGlobal({
         worldId: viewer.plot.worldId,
-        minX, maxX, minY, maxY, now, limit: ATLAS_LIMIT
+        centerX: viewer.plot.x,
+        centerY: viewer.plot.y,
+        now,
+        limit: ATLAS_LIMIT
       })
+      // The chart frame: the ±WORLD_PLOT_RADIUS world square, grown to
+      // include any legacy outlier plot so nobody charts off-map.
+      let minX = -WORLD_PLOT_RADIUS
+      let maxX = WORLD_PLOT_RADIUS
+      let minY = -WORLD_PLOT_RADIUS
+      let maxY = WORLD_PLOT_RADIUS
+      for (const entry of entries) {
+        minX = Math.min(minX, entry.plot.x)
+        maxX = Math.max(maxX, entry.plot.x)
+        minY = Math.min(minY, entry.plot.y)
+        maxY = Math.max(maxY, entry.plot.y)
+      }
       const activeByDefender = new Map<string, Awaited<ReturnType<UnitOfWork['attacks']['listLeasedIncomingForDefenders']>>[number]>()
       for (const attack of await this.authority.leasedIncomingForPlayers(tx, entries.map(entry => entry.player.playerId))) {
         if (attack.defenderId && ACTIVE_INCOMING_STATES.has(attack.state)) {
@@ -975,11 +1213,14 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
       }
       return {
         me: { x: viewer.plot.x, y: viewer.plot.y },
+        sight,
+        worldPlotLimit: WORLD_PLOT_RADIUS,
         players: entries.map(entry => ({
           x: entry.plot.x,
           y: entry.plot.y,
           username: entry.player.username,
           trophies: entry.player.trophies,
+          banner: entry.banner ? { ...entry.banner } : null,
           shielded: (entry.player.shieldUntil?.getTime() ?? 0) > now.getTime(),
           underAttack: activeByDefender.has(entry.player.playerId),
           me: entry.player.playerId === principal.playerId,
@@ -1083,6 +1324,485 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
     })
   }
 
+  private async appendAdminAudit(
+    tx: UnitOfWork,
+    input: {
+      id: string
+      action: string
+      targetId: string | null
+      details: JsonObject
+      now: Date
+    }
+  ): Promise<void> {
+    await tx.admin.appendAudit({
+      id: input.id,
+      actor: 'admin',
+      action: input.action,
+      targetType: input.targetId === null ? 'system' : 'player',
+      targetId: input.targetId,
+      details: input.details,
+      occurredAt: input.now
+    })
+  }
+
+  async adminOverview(): Promise<AdminOverview> {
+    const now = this.clock()
+    return this.persistence.transaction(async tx => {
+      const overview = await tx.admin.overview(now, new Date(now.getTime() - ONLINE_WINDOW_MS))
+      const config = await tx.admin.getConfig()
+      return {
+        generatedAt: now.getTime(),
+        players: {
+          total: overview.players,
+          registered: overview.registeredPlayers,
+          guests: overview.players - overview.registeredPlayers,
+          online: overview.onlinePlayers
+        },
+        villages: {
+          playerVillages: overview.playerVillages,
+          botVillages: overview.botVillages
+        },
+        attacks: {
+          active: overview.preparingAttacks + overview.engagedAttacks
+            + overview.activeAttacks + overview.finalizingAttacks,
+          preparing: overview.preparingAttacks,
+          engaged: overview.engagedAttacks + overview.activeAttacks,
+          finalizing: overview.finalizingAttacks
+        },
+        economy: {
+          gold: overview.totalGold,
+          ore: overview.totalOre,
+          food: overview.totalFood,
+          averageTrophies: overview.averageTrophies
+        },
+        moderation: {
+          suspended: overview.suspendedPlayers,
+          banned: overview.bannedPlayers
+        },
+        maintenance: config.maintenanceEnabled
+      }
+    }, { isolation: 'read committed' })
+  }
+
+  async adminPlayers(rawSearch?: unknown, rawLimit?: unknown): Promise<AdminPlayerSummary[]> {
+    const search = rawSearch === undefined || rawSearch === null ? '' : String(rawSearch).trim()
+    if (search.length > 64) throw new ApiError(400, 'Player search may not exceed 64 characters', 'ADMIN_INVALID_INPUT')
+    const limit = rawLimit === undefined
+      ? 50
+      : adminInteger(rawLimit, 'limit', 1, QUERY_LIMITS.adminPlayers)
+    const now = this.clock()
+    return this.persistence.transaction(async tx => (
+      await tx.admin.listPlayers({
+        search,
+        limit,
+        now,
+        onlineSince: new Date(now.getTime() - ONLINE_WINDOW_MS)
+      })
+    ).map(row => adminPlayerSummaryOf(row, now)), { isolation: 'read committed' })
+  }
+
+  async adminPlayer(rawId: unknown): Promise<AdminPlayerDetail> {
+    const id = adminRequiredText(rawId, 'player id', 96)
+    if (sanitizeId(id) !== id) throw new ApiError(400, 'Player id is invalid', 'ADMIN_INVALID_INPUT')
+    const now = this.clock()
+    return this.persistence.transaction(async tx => {
+      const player = await tx.admin.getPlayer(id, now)
+      if (!player) throw new ApiError(404, 'Player not found', 'ADMIN_PLAYER_NOT_FOUND')
+      return adminPlayerDetailOf(player, now)
+    }, { isolation: 'read committed' })
+  }
+
+  async adminBots(
+    rawCenter: { worldId?: unknown; x?: unknown; y?: unknown } = {},
+    rawRadius?: unknown,
+    rawLimit?: unknown
+  ): Promise<AdminBotSummary[]> {
+    const worldId = rawCenter.worldId === undefined
+      ? 'main'
+      : adminRequiredText(rawCenter.worldId, 'world id', 64)
+    if (!/^[a-zA-Z0-9_-]+$/.test(worldId)) throw new ApiError(400, 'World id is invalid', 'ADMIN_INVALID_INPUT')
+    const x = rawCenter.x === undefined
+      ? 0
+      : adminInteger(rawCenter.x, 'center x', -MAX_WORLD_COORDINATE, MAX_WORLD_COORDINATE)
+    const y = rawCenter.y === undefined
+      ? 0
+      : adminInteger(rawCenter.y, 'center y', -MAX_WORLD_COORDINATE, MAX_WORLD_COORDINATE)
+    const radius = rawRadius === undefined
+      ? 25
+      : adminInteger(rawRadius, 'radius', 0, QUERY_LIMITS.adminBotRadius)
+    const limit = rawLimit === undefined
+      ? 100
+      : adminInteger(rawLimit, 'limit', 1, QUERY_LIMITS.adminBots)
+    const now = this.clock()
+    return this.persistence.transaction(async tx => {
+      const bots = await tx.world.listBotVillages({
+        worldId,
+        minX: x - radius,
+        maxX: x + radius,
+        minY: y - radius,
+        maxY: y + radius,
+        now,
+        limit
+      })
+      return bots.map((bot): AdminBotSummary => ({
+        id: bot.id,
+        username: bot.username,
+        worldId: bot.worldId,
+        x: bot.x,
+        y: bot.y,
+        plotVersion: bot.plotVersion,
+        generatorVersion: bot.generatorVersion,
+        seed: bot.seed,
+        difficulty: typeof bot.profile.difficulty === 'string' ? bot.profile.difficulty : null,
+        trophies: bot.trophies,
+        revision: bot.revision,
+        resources: {
+          gold: Number(bot.world.resources.gold ?? 0),
+          ore: Number(bot.world.resources.ore ?? 0),
+          food: Number(bot.world.resources.food ?? 0)
+        },
+        buildingCount: bot.world.buildings.length,
+        createdAt: bot.createdAt.getTime(),
+        updatedAt: bot.updatedAt.getTime()
+      }))
+    }, { isolation: 'read committed' })
+  }
+
+  async adminAttacks(rawState?: unknown, rawLimit?: unknown): Promise<AdminAttackSummary[]> {
+    const state = rawState === undefined || rawState === null || rawState === ''
+      ? null
+      : String(rawState)
+    if (state !== null && ![
+      'preparing', 'engaged', 'active', 'finalizing', 'settled', 'cancelled', 'expired'
+    ].includes(state)) throw new ApiError(400, 'Unknown attack state', 'ADMIN_INVALID_INPUT')
+    const limit = rawLimit === undefined
+      ? 100
+      : adminInteger(rawLimit, 'limit', 1, QUERY_LIMITS.adminAttacks)
+    return this.persistence.transaction(async tx => (
+      await tx.admin.listAttacks({ state: state as Parameters<typeof tx.admin.listAttacks>[0]['state'], limit })
+    ).map((attack): AdminAttackSummary => ({
+      id: attack.id,
+      attackerId: attack.attackerId,
+      defenderId: attack.defenderId,
+      targetKind: attack.targetKind,
+      targetId: attack.targetId,
+      worldId: attack.worldId,
+      targetX: attack.targetX,
+      targetY: attack.targetY,
+      state: attack.state,
+      stateVersion: attack.stateVersion,
+      simulationVersion: attack.simulationVersion,
+      createdAt: attack.createdAt.getTime(),
+      engagedAt: attack.engagedAt?.getTime() ?? null,
+      updatedAt: attack.updatedAt.getTime(),
+      deadlineAt: attack.deadlineAt.getTime(),
+      endedAt: attack.endedAt?.getTime() ?? null
+    })), { isolation: 'read committed' })
+  }
+
+  async adminAudit(rawLimit?: unknown): Promise<AdminAuditEntry[]> {
+    const limit = rawLimit === undefined
+      ? 100
+      : adminInteger(rawLimit, 'limit', 1, QUERY_LIMITS.adminAudit)
+    return this.persistence.transaction(async tx => (
+      await tx.admin.listAudit(limit)
+    ).map((entry): AdminAuditEntry => ({
+      id: entry.id,
+      actor: entry.actor,
+      action: entry.action,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      reason: typeof entry.details.reason === 'string' ? entry.details.reason : '',
+      outcome: 'success',
+      requestId: entry.id,
+      details: entry.details as Record<string, unknown>,
+      createdAt: entry.occurredAt.getTime(),
+      occurredAt: entry.occurredAt.getTime()
+    })), { isolation: 'read committed' })
+  }
+
+  async adminConfig(): Promise<AdminConfig> {
+    return this.persistence.transaction(async tx => {
+      const config = await tx.admin.getConfig()
+      return {
+        maintenance: {
+          enabled: config.maintenanceEnabled,
+          message: config.maintenanceMessage
+        },
+        accessPolicy: {
+          suspendedSessionsRevoked: true,
+          bannedSessionsRevoked: true
+        },
+        safeLimits: {
+          playerList: QUERY_LIMITS.adminPlayers,
+          botList: QUERY_LIMITS.adminBots,
+          attackList: QUERY_LIMITS.adminAttacks,
+          auditList: QUERY_LIMITS.adminAudit,
+          botRadius: QUERY_LIMITS.adminBotRadius
+        },
+        updatedAt: config.updatedAt.getTime(),
+        revision: config.revision
+      }
+    }, { isolation: 'read committed' })
+  }
+
+  async adminPlayerAction(rawId: unknown, rawAction: AdminPlayerActionRequest): Promise<AdminMutationResult> {
+    const id = adminRequiredText(rawId, 'player id', 96)
+    if (sanitizeId(id) !== id) throw new ApiError(400, 'Player id is invalid', 'ADMIN_INVALID_INPUT')
+    if (!rawAction || typeof rawAction !== 'object') {
+      throw new ApiError(400, 'Admin action is required', 'ADMIN_INVALID_INPUT')
+    }
+    const action = rawAction as AdminPlayerActionRequest
+    const type = String(action.type ?? '')
+    const now = this.clock()
+    const auditId = randomId('admin_audit', 10)
+    const reason = adminReason(action.reason)
+
+    return this.persistence.transaction(async tx => {
+      const account = await tx.accounts.getById(id, { forUpdate: true })
+      if (!account) throw new ApiError(404, 'Player not found', 'ADMIN_PLAYER_NOT_FOUND')
+      let changed = false
+      let affected = 0
+      let details: JsonObject = { reason }
+
+      if (type === 'adjust_resources') {
+        const input = action as Extract<AdminPlayerActionRequest, { type: 'adjust_resources' }>
+        const deltas = {
+          gold: input.gold === undefined ? 0 : adminInteger(input.gold, 'gold delta', -1_000_000_000, 1_000_000_000),
+          ore: input.ore === undefined ? 0 : adminInteger(input.ore, 'ore delta', -1_000_000_000, 1_000_000_000),
+          food: input.food === undefined ? 0 : adminInteger(input.food, 'food delta', -1_000_000_000, 1_000_000_000)
+        }
+        const village = await tx.villages.get(id, { forUpdate: true })
+        if (!village) throw new ApiError(409, 'Player village is missing', 'ADMIN_VILLAGE_MISSING')
+        const before = { gold: village.gold, ore: village.ore, food: village.food }
+        const after = {
+          gold: clamp(before.gold + deltas.gold, 0, MAX_PLAYER_GOLD),
+          ore: clamp(before.ore + deltas.ore, 0, MAX_PLAYER_GOLD),
+          food: clamp(before.food + deltas.food, 0, MAX_PLAYER_GOLD)
+        }
+        changed = before.gold !== after.gold || before.ore !== after.ore || before.food !== after.food
+        if (changed) {
+          const revision = village.economyRevision
+          village.gold = after.gold
+          village.ore = after.ore
+          village.food = after.food
+          village.lastMutationAt = now
+          village.economyRevision += 1
+          if (!await tx.villages.update(village, revision)) throw new ApiError(409, 'Village changed concurrently')
+          for (const resource of ['gold', 'ore', 'food'] as const) {
+            const delta = after[resource] - before[resource]
+            if (delta === 0) continue
+            affected += 1
+            await tx.balanceLedger.append({
+              playerId: id,
+              operation: 'admin.adjust_resources',
+              requestId: auditId,
+              currency: resource,
+              delta,
+              balanceAfter: after[resource],
+              metadata: { actor: 'admin', reason },
+              createdAt: now
+            })
+          }
+        }
+        details = { reason, deltas, before, after }
+      } else if (type === 'set_trophies') {
+        const input = action as Extract<AdminPlayerActionRequest, { type: 'set_trophies' }>
+        const trophies = adminInteger(input.trophies, 'trophies', 0, 2_147_483_647)
+        const before = account.trophies
+        changed = before !== trophies
+        if (changed) {
+          const revision = account.revision
+          account.trophies = trophies
+          account.revision += 1
+          if (!await tx.accounts.update(account, revision)) throw new ApiError(409, 'Player changed concurrently')
+          await tx.balanceLedger.append({
+            playerId: id,
+            operation: 'admin.set_trophies',
+            requestId: auditId,
+            currency: 'trophies',
+            delta: trophies - before,
+            balanceAfter: trophies,
+            metadata: { actor: 'admin', reason },
+            createdAt: now
+          })
+          affected = 1
+        }
+        details = { reason, before, after: trophies }
+      } else if (type === 'set_shield') {
+        const input = action as Extract<AdminPlayerActionRequest, { type: 'set_shield' }>
+        let until: Date | null = null
+        if (input.until !== undefined && input.until !== null) {
+          const timestamp = adminInteger(
+            input.until,
+            'shield expiry',
+            now.getTime(),
+            now.getTime() + 365 * 24 * 60 * 60_000
+          )
+          until = new Date(timestamp)
+        }
+        const before = account.shieldUntil?.getTime() ?? null
+        const after = until?.getTime() ?? null
+        changed = before !== after
+        if (changed) {
+          const revision = account.revision
+          account.shieldUntil = until
+          account.revision += 1
+          if (!await tx.accounts.update(account, revision)) throw new ApiError(409, 'Player changed concurrently')
+          affected = 1
+        }
+        details = { reason, before, after }
+      } else if (type === 'rename') {
+        const input = action as Extract<AdminPlayerActionRequest, { type: 'rename' }>
+        const username = adminRequiredText(input.username, 'username', 18)
+        if (!isValidUsername(username)) throw new ApiError(400, 'Username must be 3-18 letters, numbers, _ or -')
+        const usernameKey = normalizeUsernameKey(username)
+        if (await tx.admin.isUsernameTaken(usernameKey, id)) {
+          throw new ApiError(409, 'That username is already taken', 'USERNAME_TAKEN')
+        }
+        const before = account.username
+        changed = before !== username
+        if (changed) {
+          const revision = account.revision
+          account.username = username
+          if (account.registered) account.usernameKey = usernameKey
+          account.revision += 1
+          if (!await tx.accounts.update(account, revision)) throw new ApiError(409, 'Player changed concurrently')
+          affected = 1
+        }
+        details = { reason, before, after: username }
+      } else if (type === 'revoke_sessions') {
+        affected = await tx.sessions.deleteForPlayer(id)
+        changed = affected > 0
+        details = { reason, revoked: affected }
+      } else if (type === 'set_access') {
+        const input = action as Extract<AdminPlayerActionRequest, { type: 'set_access' }>
+        const state = String(input.state ?? '')
+        if (!['active', 'suspended', 'banned'].includes(state)) {
+          throw new ApiError(400, 'Access state must be active, suspended, or banned', 'ADMIN_INVALID_INPUT')
+        }
+        let until: Date | null = null
+        if (state === 'suspended' && input.until !== undefined && input.until !== null) {
+          until = new Date(adminInteger(
+            input.until,
+            'suspension expiry',
+            now.getTime() + 1,
+            now.getTime() + 10 * 365 * 24 * 60 * 60_000
+          ))
+        } else if (state !== 'suspended' && input.until !== undefined && input.until !== null) {
+          throw new ApiError(400, 'Only suspensions may have an expiry', 'ADMIN_INVALID_INPUT')
+        }
+        const current = await tx.admin.getModeration(id, { forUpdate: true })
+        changed = !current || current.state !== state || current.reason !== (state === 'active' ? null : reason)
+          || current.until?.getTime() !== until?.getTime()
+        if (changed) {
+          const expectedRevision = current?.revision ?? null
+          const updated = await tx.admin.upsertModeration({
+            playerId: id,
+            state: state as 'active' | 'suspended' | 'banned',
+            reason: state === 'active' ? null : reason,
+            until,
+            updatedAt: now,
+            revision: (expectedRevision ?? 0) + 1
+          }, expectedRevision)
+          if (!updated) throw new ApiError(409, 'Moderation state changed concurrently')
+          affected = 1
+        }
+        let revoked = 0
+        if (state !== 'active') {
+          revoked = await tx.sessions.deleteForPlayer(id)
+          if (revoked > 0) changed = true
+          affected += revoked
+        }
+        details = {
+          reason,
+          before: current?.state ?? 'active',
+          after: state,
+          until: until?.getTime() ?? null,
+          sessionsRevoked: revoked
+        }
+      } else if (type === 'send_notice') {
+        const input = action as Extract<AdminPlayerActionRequest, { type: 'send_notice' }>
+        const title = adminRequiredText(input.title, 'notice title', 80)
+        const message = adminRequiredText(input.message, 'notice message', 500)
+        const severity = String(input.severity ?? 'info')
+        if (!['info', 'warning', 'critical'].includes(severity)) {
+          throw new ApiError(400, 'Notice severity must be info, warning, or critical', 'ADMIN_INVALID_INPUT')
+        }
+        await tx.notifications.add({
+          playerId: id,
+          id: randomId('notice', 10),
+          eventType: 'admin_notice',
+          payload: {
+            kind: 'admin_notice',
+            title,
+            message,
+            severity
+          },
+          occurredAt: now,
+          readAt: null
+        })
+        changed = true
+        affected = 1
+        details = { reason, title, severity }
+      } else {
+        throw new ApiError(400, 'Unknown admin player action', 'ADMIN_INVALID_INPUT')
+      }
+
+      await this.appendAdminAudit(tx, { id: auditId, action: type, targetId: id, details, now })
+      return { ok: true, action: type, targetId: id, changed, affected, auditId }
+    }, { isolation: 'serializable', maxRetries: 3 })
+  }
+
+  async adminOperation(rawAction: AdminOperationRequest): Promise<AdminMutationResult> {
+    if (!rawAction || typeof rawAction !== 'object') {
+      throw new ApiError(400, 'Admin operation is required', 'ADMIN_INVALID_INPUT')
+    }
+    const type = String(rawAction.type ?? '')
+    const reason = adminReason(rawAction.reason)
+    const now = this.clock()
+    const auditId = randomId('admin_audit', 10)
+    return this.persistence.transaction(async tx => {
+      let changed = false
+      let affected = 0
+      let details: JsonObject = { reason }
+      if (type === 'clear_shields') {
+        affected = await tx.accounts.clearShields(now, 1_000)
+        changed = affected > 0
+        details = { reason, cleared: affected, truncated: affected === 1_000 }
+      } else if (type === 'set_maintenance') {
+        const input = rawAction as Extract<AdminOperationRequest, { type: 'set_maintenance' }>
+        if (typeof input.enabled !== 'boolean') {
+          throw new ApiError(400, 'Maintenance enabled must be a boolean', 'ADMIN_INVALID_INPUT')
+        }
+        const message = adminOptionalText(input.message, 'maintenance message', 500)
+        const current = await tx.admin.getConfig({ forUpdate: true })
+        changed = current.maintenanceEnabled !== input.enabled
+          || current.maintenanceMessage !== (input.enabled ? message : null)
+        if (changed) {
+          const updated = await tx.admin.updateConfig({
+            maintenanceEnabled: input.enabled,
+            maintenanceMessage: input.enabled ? message : null,
+            updatedAt: now,
+            revision: current.revision + 1
+          }, current.revision)
+          if (!updated) throw new ApiError(409, 'Admin config changed concurrently')
+          affected = 1
+        }
+        details = {
+          reason,
+          before: current.maintenanceEnabled,
+          after: input.enabled,
+          message: input.enabled ? message : null
+        }
+      } else {
+        throw new ApiError(400, 'Unknown admin operation', 'ADMIN_INVALID_INPUT')
+      }
+      await this.appendAdminAudit(tx, { id: auditId, action: type, targetId: null, details, now })
+      return { ok: true, action: type, targetId: null, changed, affected, auditId }
+    }, { isolation: 'serializable', maxRetries: 3 })
+  }
+
   async debugClearShields() {
     if (!this.allowDebugGrants) throw new ApiError(403, 'Debug tools are disabled')
     const now = this.clock()
@@ -1094,6 +1814,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal> {
 
   async economyLedger(rawDays?: unknown) {
     if (!this.allowDebugGrants) throw new ApiError(403, 'Debug tools are disabled')
+    return this.adminEconomy(rawDays)
+  }
+
+  async adminEconomy(rawDays?: unknown): Promise<AdminEconomy> {
     const days = clamp(toInteger(rawDays, 7), 1, 30)
     const today = worldDayIndex(this.clock().getTime())
     return this.persistence.transaction(async tx => {

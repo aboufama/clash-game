@@ -307,17 +307,19 @@ test('normalized runtime materializes and persists known buildings at their curr
       const village = await tx.villages.get(principal.playerId, { forUpdate: true })
       assert(village)
       const expectedRevision = village.economyRevision
-      village.buildings = (village.buildings as Array<Record<string, unknown>>).map(building => (
-        building.type === 'barracks'
-          ? {
-              ...building,
-              level: 13,
-              upgradingTo: 14,
-              upgradeStartedAt: now.getTime(),
-              upgradeEndsAt: now.getTime() + 60_000
-            }
-          : building
-      )) as JsonValue[]
+      village.buildings = [
+        ...village.buildings,
+        {
+          id: 'overlevel-barracks-runtime',
+          type: 'barracks',
+          gridX: 18,
+          gridY: 3,
+          level: 13,
+          upgradingTo: 14,
+          upgradeStartedAt: now.getTime(),
+          upgradeEndsAt: now.getTime() + 60_000
+        }
+      ] as JsonValue[]
       village.economyRevision = expectedRevision + 1
       assert.equal(await tx.villages.update(village, expectedRevision), true)
       return {
@@ -419,15 +421,19 @@ test('legacy runtime hydrates and persists known buildings at their current leve
       layoutRevision: player.layoutRevision ?? player.revision,
       appearanceRevision: player.appearanceRevision ?? player.revision
     }
-    player.buildings = player.buildings.map(building => building.type === 'barracks'
-      ? {
-          ...building,
-          level: 13,
-          upgradingTo: 14,
-          upgradeStartedAt: Date.now(),
-          upgradeEndsAt: Date.now() + 60_000
-        }
-      : building)
+    player.buildings = [
+      ...player.buildings,
+      {
+        id: 'overlevel-barracks-legacy',
+        type: 'barracks',
+        gridX: 18,
+        gridY: 3,
+        level: 13,
+        upgradingTo: 14,
+        upgradeStartedAt: Date.now(),
+        upgradeEndsAt: Date.now() + 60_000
+      }
+    ]
     assert.equal(writer.flush(), true)
     active = undefined
 

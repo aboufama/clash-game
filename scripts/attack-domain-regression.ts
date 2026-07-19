@@ -129,7 +129,7 @@ function deployGolem(engaged: AttackAggregate, now = T0 + 200): AttackAggregate 
 function run(): void {
   const prepared = prepareAttack(playerInput(), { reserveArmy })
   check(prepared.phase === 'PREPARING' && prepared.version === 1, 'preparation starts at PREPARING v1')
-  check(prepared.rules.simulationVersion === 6, 'new attacks pin the current combat simulation version')
+  check(prepared.rules.simulationVersion === 8, 'new attacks pin the current combat simulation version')
   check(prepared.reservation.state === 'HELD' && prepared.reservation.reserved.golem === 1, 'preparation holds an exact army reservation')
   check(prepared.target.kind === 'PLAYER' && prepared.target.plot.x === 7, 'matchmade PLAYER target retains its real world plot')
 
@@ -269,10 +269,18 @@ function run(): void {
   check(longFightV5.simulationVersion === 5 && longFightV5.damageDealt === longFightV4.damageDealt
     && longFightV5.destruction === longFightV4.destruction,
     'v5 preserves v4 combat for troops without an explicit detonation fuse')
-  const longFightV6 = simulateCombat(partialActive, 75_000)
+  const longFightV6 = simulateCombat(atVersion(partialActive, 6), 75_000)
   check(longFightV6.simulationVersion === 6 && longFightV6.damageDealt === longFightV5.damageDealt
     && longFightV6.destruction === longFightV5.destruction,
     'v6 preserves v5 combat for troops without a changed detonation fuse')
+  const longFightV7 = simulateCombat(atVersion(partialActive, 7), 75_000)
+  check(longFightV7.simulationVersion === 7 && longFightV7.damageDealt === longFightV6.damageDealt
+    && longFightV7.destruction === longFightV6.destruction,
+    'v7 preserves v6 combat for armies without a siege tower')
+  const longFightV8 = simulateCombat(partialActive, 75_000)
+  check(longFightV8.simulationVersion === 8 && longFightV8.damageDealt === longFightV7.damageDealt
+    && longFightV8.destruction === longFightV7.destruction,
+    'v8 preserves v7 combat for armies without a siege tower')
   const staleBuildingAttack: AttackAggregate = {
     ...partialActive,
     snapshot: {
@@ -285,7 +293,7 @@ function run(): void {
   }
   const staleBuildingResult = simulateCombat(staleBuildingAttack, 75_000)
   check(!staleBuildingResult.buildings.some(building => building.id === 'retired_defense')
-    && staleBuildingResult.totalHitPoints === longFightV6.totalHitPoints,
+    && staleBuildingResult.totalHitPoints === longFightV8.totalHitPoints,
     'stored snapshots self-clean a retired building type instead of crashing settlement')
   check(finalizedA.finalization?.settlement.resourceMode === 'TRANSFER' && Boolean(finalizedA.finalization.settlement.defender), 'PLAYER outcome creates one self-contained transfer plan')
   check(finalizedA.finalization?.settlement.consumeArmy.golem === 1 && finalizedA.finalization.settlement.releaseArmy.warrior === 2, 'settlement consumes deployed troops and releases unused reservation')
@@ -369,7 +377,12 @@ function run(): void {
     attackId: string,
     combat: CombatVillageSnapshot,
     army: PrepareAttackInput['requestedArmy'],
-    deploys: Array<{ id: string; type: keyof PrepareAttackInput['requestedArmy'] }>,
+    deploys: Array<{
+      id: string
+      type: keyof PrepareAttackInput['requestedArmy']
+      gridX?: number
+      gridY?: number
+    }>,
     rules?: PrepareAttackInput['rules']
   ): AttackAggregate {
     const target: WorldAttackTarget = {
@@ -393,8 +406,8 @@ function run(): void {
         sequence: index + 1,
         troopInstanceId: `${attackId}_${deploy.id}`,
         troopType: deploy.type,
-        gridX: -1,
-        gridY: 12
+        gridX: deploy.gridX ?? -1,
+        gridY: deploy.gridY ?? 12
       }, T0 + 200 + index * 100).attack
     })
     return attack
@@ -479,10 +492,112 @@ function run(): void {
     { id: 't1', type: 'siegetower' },
     { id: 'w1', type: 'warrior' }
   ])
-  const towerV4 = simulateCombat(towerAttack, 75_000)
+  const towerV4 = simulateCombat(atVersion(towerAttack, 4), 75_000)
   const towerV3 = simulateCombat(atVersion(towerAttack, 3), 75_000)
   check(towerV4.damageDealt > towerV3.damageDealt,
     'v4 siege tower grants overlapping allies the flat pathing-time credit')
+
+  const towerNoLoopV7 = simulateCombat(atVersion(towerAttack, 7), 75_000)
+  const towerNoWallV8 = simulateCombat(towerAttack, 75_000)
+  const towerNoLoopV6 = simulateCombat(atVersion(towerAttack, 6), 75_000)
+  check(towerNoLoopV7.damageDealt === towerNoWallV8.damageDealt
+    && towerNoLoopV7.damageDealt < towerNoLoopV6.damageDealt,
+    'v7 and v8 grant no tower credit without walls, while v6 replay credit is preserved')
+
+  const openWallSnapshot = kitSnapshot('snap_kit_open_wall', [
+    ...defSnapshot.buildings,
+    { id: 'open_wall_1', type: 'wall', level: 1, gridX: 7, gridY: 7 },
+    { id: 'open_wall_2', type: 'wall', level: 1, gridX: 8, gridY: 7 },
+    { id: 'open_wall_3', type: 'wall', level: 1, gridX: 9, gridY: 7 },
+    { id: 'open_wall_4', type: 'wall', level: 1, gridX: 9, gridY: 8 },
+    { id: 'open_wall_5', type: 'wall', level: 1, gridX: 9, gridY: 9 },
+    { id: 'open_wall_6', type: 'wall', level: 1, gridX: 8, gridY: 9 },
+    { id: 'open_wall_7', type: 'wall', level: 1, gridX: 7, gridY: 9 }
+  ])
+  const openWallAttack = kitAttack('attack_kit_open_wall', openWallSnapshot, { siegetower: 1, warrior: 1 }, [
+    { id: 't1', type: 'siegetower' },
+    { id: 'w1', type: 'warrior' }
+  ])
+  check(
+    simulateCombat(atVersion(openWallAttack, 7), 75_000).damageDealt
+      < simulateCombat(atVersion(openWallAttack, 6), 75_000).damageDealt,
+    'v7 siege tower does not deploy for an open wall component'
+  )
+
+  const wallClumpSnapshot = kitSnapshot('snap_kit_wall_clump', [
+    ...defSnapshot.buildings,
+    { id: 'clump_wall_1', type: 'wall', level: 1, gridX: 7, gridY: 7 },
+    { id: 'clump_wall_2', type: 'wall', level: 1, gridX: 8, gridY: 7 },
+    { id: 'clump_wall_3', type: 'wall', level: 1, gridX: 7, gridY: 8 },
+    { id: 'clump_wall_4', type: 'wall', level: 1, gridX: 8, gridY: 8 }
+  ])
+  const wallClumpAttack = kitAttack('attack_kit_wall_clump', wallClumpSnapshot, { siegetower: 1, warrior: 1 }, [
+    { id: 't1', type: 'siegetower' },
+    { id: 'w1', type: 'warrior' }
+  ])
+  check(
+    simulateCombat(atVersion(wallClumpAttack, 7), 75_000).damageDealt
+      < simulateCombat(atVersion(wallClumpAttack, 6), 75_000).damageDealt,
+    'v7 siege tower ignores a graph-cyclic wall clump that encloses no grid cell'
+  )
+
+  const closedWallSnapshot = kitSnapshot('snap_kit_closed_wall', [
+    ...openWallSnapshot.buildings,
+    { id: 'closed_wall_8', type: 'wall', level: 1, gridX: 7, gridY: 8 }
+  ])
+  const closedWallAttack = kitAttack('attack_kit_closed_wall', closedWallSnapshot, { siegetower: 1, warrior: 1 }, [
+    { id: 't1', type: 'siegetower' },
+    { id: 'w1', type: 'warrior' }
+  ])
+  const closedWallV7 = simulateCombat(atVersion(closedWallAttack, 7), 75_000)
+  const closedWallV6 = simulateCombat(atVersion(closedWallAttack, 6), 75_000)
+  const closedWallV3 = simulateCombat(atVersion(closedWallAttack, 3), 75_000)
+  check(closedWallV7.damageDealt === closedWallV6.damageDealt && closedWallV7.damageDealt > closedWallV3.damageDealt,
+    'v7 siege tower keeps its pathing credit when the target has a cardinally closed wall loop')
+
+  const directWallSnapshot = kitSnapshot('snap_kit_direct_wall', [
+    ...defSnapshot.buildings,
+    { id: 'direct_wall', type: 'wall', level: 1, gridX: 7, gridY: 12 }
+  ])
+  const directWallAttack = kitAttack('attack_kit_direct_wall', directWallSnapshot,
+    { siegetower: 1, warrior: 1 }, [
+      { id: 't1', type: 'siegetower' },
+      { id: 'w1', type: 'warrior' }
+    ])
+  const directWallV8 = simulateCombat(directWallAttack, 75_000)
+  const directWallV7 = simulateCombat(atVersion(directWallAttack, 7), 75_000)
+  const directWallV6 = simulateCombat(atVersion(directWallAttack, 6), 75_000)
+  check(directWallV8.damageDealt === directWallV6.damageDealt
+    && directWallV8.damageDealt > directWallV7.damageDealt,
+    'v8 grants tower credit for one open wall intersecting its direct Town Hall ray while v7 keeps its loop gate')
+
+  const offRayWallSnapshot = kitSnapshot('snap_kit_off_ray_wall', [
+    ...defSnapshot.buildings,
+    { id: 'off_ray_wall', type: 'wall', level: 1, gridX: 7, gridY: 7 }
+  ])
+  const offRayWallAttack = kitAttack('attack_kit_off_ray_wall', offRayWallSnapshot,
+    { siegetower: 1, warrior: 1 }, [
+      { id: 't1', type: 'siegetower' },
+      { id: 'w1', type: 'warrior' }
+    ])
+  const offRayWallV8 = simulateCombat(offRayWallAttack, 75_000)
+  const offRayWallV7 = simulateCombat(atVersion(offRayWallAttack, 7), 75_000)
+  check(offRayWallV8.damageDealt === offRayWallV7.damageDealt
+    && offRayWallV8.damageDealt < simulateCombat(atVersion(offRayWallAttack, 6), 75_000).damageDealt,
+    'v8 ignores a wall that does not intersect the tower-to-Town-Hall ray')
+
+  const splitApproachAttack = kitAttack('attack_kit_split_towers', directWallSnapshot,
+    { siegetower: 2, warrior: 1 }, [
+      { id: 'on_ray', type: 'siegetower', gridX: -1, gridY: 12 },
+      { id: 'off_ray', type: 'siegetower', gridX: -1, gridY: 2 },
+      { id: 'w1', type: 'warrior', gridX: -1, gridY: 12 }
+    ])
+  const splitApproachV8 = simulateCombat(splitApproachAttack, 75_000)
+  const splitApproachV7 = simulateCombat(atVersion(splitApproachAttack, 7), 75_000)
+  const splitApproachV6 = simulateCombat(atVersion(splitApproachAttack, 6), 75_000)
+  check(splitApproachV8.damageDealt > splitApproachV7.damageDealt
+    && splitApproachV8.damageDealt < splitApproachV6.damageDealt,
+    'v8 gates pathing credit per tower when two towers approach the same wall from different rays')
 
   // --- (d) clockwork beetle contact fuse (v5 pinned, v6 snap-fuse) ----------
   const beetleStats = getTroopStats('clockworkbeetle', 1)
@@ -496,9 +611,9 @@ function run(): void {
   const beetleLater = simulateCombat(beetleAttack, 10_000)
   const oneBeetleSplash = Math.floor(Math.max(0, beetleStats.damage) * 12_500 / 10_000)
   check(beetleBeforeFuse.damageDealt === 0,
-    'v6 clockwork beetle earns no damage before its exact 125 ms snap-fuse')
+    'v8 preserves the v6 clockwork beetle rule: no damage before its exact 125 ms snap-fuse')
   check(beetleAtFuse.damageDealt === oneBeetleSplash && beetleLater.damageDealt === oneBeetleSplash,
-    'v6 clockwork beetle earns exactly one detonation at 125 ms and never repeats')
+    'v8 preserves the v6 clockwork beetle rule: exactly one detonation at 125 ms and never repeats')
   const beetlePinnedV5Before = simulateCombat(atVersion(beetleAttack, 5), 999)
   const beetlePinnedV5AtFuse = simulateCombat(atVersion(beetleAttack, 5), 1_000)
   check(beetlePinnedV5Before.damageDealt === 0 && beetlePinnedV5AtFuse.damageDealt === oneBeetleSplash,
@@ -517,7 +632,7 @@ function run(): void {
   check(pinnedV3Result.simulationVersion === 3 && pinnedV3Result.damageDealt === goblinBudget,
     'a stored v3 attack with a v4-kit troop still takes the v3 branches (no multiplier, no tiering)')
   check(simulateCombat(pinnedV3Attack, 10_000).resultHash === pinnedV3Result.resultHash,
-    'pinned v3 results regenerate hash-identically under the v6 code')
+    'pinned v3 results regenerate hash-identically under the v8 code')
 
   console.log(`attack-domain regression: ${checks} checks passed`)
 }

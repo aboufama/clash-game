@@ -44,6 +44,20 @@ point). A charge plan's blocker may therefore be any structure, not only a
 wall; it still never replaces `strategicTarget`, and chargers move through
 the same collision resolver as everyone else.
 
+Wall-ramp units (`wallRamp`, currently the Siege Tower) use a separate
+contract. They keep the nearest Town Hall as strategic intent, travel on the
+exact ray from their current position to its footprint center, and interact
+only with the first live enemy wall intersecting that ray. Open segments and
+isolated walls are eligible; off-ray walls and every non-wall structure are
+ignored. The plan's `rampWallId` is the explicit deployment authorization.
+Once the ramp opens, that wall is omitted from allied targeting, traversal
+cost, and continuous collision exactly like a destroyed wall. With no wall
+on the ray, the tower continues to the Town Hall and never deploys.
+
+Short-range routes may end with one collision-checked sub-cell waypoint.
+This lets large units reach the narrow legal band at a wall corner without
+weakening structural collision or requiring cell centers to be in range.
+
 Nearby allies committed to the same objective apply a bounded affinity to a
 popular breach. This keeps a cohort from wasting damage across adjacent wall
 segments, but the affinity is intentionally weaker than wall break cost, so a
@@ -55,6 +69,11 @@ Local separation may adjust the desired direction, but it never owns
 collision. `resolveMovement` checks the final displacement in at most
 0.08-tile substeps, tries a route-preserving fallback, then safe axis slides.
 There is no direct-steering fallback after planning failure.
+
+Siege Towers are path infrastructure rather than troop intersectors: they do
+not contribute global crowd cost or local separation, and they do not steer
+away from allied bodies. Only live, non-ramped walls collide with the tower;
+ordinary structures are transparent to its direct Town Hall movement.
 
 Every structural add/remove increments the scene topology revision. Additions
 invalidate old routes. A removal can only open geometry, so unrelated troops
@@ -75,8 +94,11 @@ deployment apron, deterministic/coordinated breach choice, opened gaps,
 ranged attacks over walls, diagonal corners, large-delta tunneling, target
 priority and lock hysteresis, and 150-troop planning. The browser suite covers
 the real combat loop, including abandoning an obsolete wall, resuming through
-a breach, ranged fire, cohort convergence, and Ram and Wall Breaker
-behavior.
+a breach, ranged fire, cohort convergence, and Ram and Wall Breaker behavior.
+The pure suite also pins Siege Tower diagonal approaches, first-on-ray wall
+selection, open-segment eligibility, off-ray rejection, wall-free Town Hall
+travel, subsequent-wall selection after a ramp, non-wall transparency, and
+non-intersector crowd parity.
 
 When adding a troop, preserve these invariants:
 
@@ -86,3 +108,5 @@ When adding a troop, preserve these invariants:
    already in range.
 4. Rams and special units use the same collision resolver as everyone else.
 5. Identical inputs produce identical blockers and waypoints.
+6. Siege Tower deployment requires `rampWallId`; a wall blocker alone is not
+   permission to unfold.

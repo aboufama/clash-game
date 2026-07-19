@@ -46,15 +46,15 @@ const troop = (id: string, type: TroopType, gridX: number, gridY: number): Troop
     } as unknown as Troop;
 };
 
-const wallLoop = (min: number, max: number): PlacedBuilding[] => {
+const wallLoop = (min: number, max: number, prefix = 'wall'): PlacedBuilding[] => {
     const walls: PlacedBuilding[] = [];
     for (let x = min; x <= max; x++) {
-        walls.push(building(`wall-n-${x}`, 'wall', x, min));
-        walls.push(building(`wall-s-${x}`, 'wall', x, max));
+        walls.push(building(`${prefix}-n-${x}`, 'wall', x, min));
+        walls.push(building(`${prefix}-s-${x}`, 'wall', x, max));
     }
     for (let y = min + 1; y < max; y++) {
-        walls.push(building(`wall-w-${y}`, 'wall', min, y));
-        walls.push(building(`wall-e-${y}`, 'wall', max, y));
+        walls.push(building(`${prefix}-w-${y}`, 'wall', min, y));
+        walls.push(building(`${prefix}-e-${y}`, 'wall', max, y));
     }
     return walls;
 };
@@ -256,34 +256,178 @@ assert.equal(ramSelection.plan.blockerId, 'wall-w-11', 'ram did not attack the w
 assert.equal(ramSelection.plan.activeTargetId, 'wall-w-11');
 assertOnChargeLine(ramSelection.plan, { x: ram.gridX, y: ram.gridY }, townHallCenter, closed);
 
-// The siege tower should park almost flush with the first wall on its charge
-// line. Keep the authored 0.20-tile range and the measured collision-limited
-// 0.20-tile stop pinned so the old half-tile visual gap cannot return.
-const siegeTower = troop('siege-tight-stop', 'siegetower', 4.5, 11.5);
+// SIEGE TOWER: Town Hall is always the strategic intent. The tower follows
+// that exact ray and parks almost flush with the first wall on it, regardless
+// of whether the wall is isolated, part of an open segment, or part of a loop.
+const siegeTownHall = building('siege-line-th', 'town_hall', 16, 4);
+const siegeNearWall = building('siege-line-wall-near', 'wall', 8, 5);
+const siegeFarWall = building('siege-line-wall-far', 'wall', 12, 5);
+const siegeOffRayWall = building('siege-off-ray-closer', 'wall', 4, 8);
+const siegeLineStorage = building('siege-line-storage', 'storage', 5, 4);
+const siegeTower = troop('siege-tight-stop', 'siegetower', 2.5, 5.5);
 const siegeTowerStats = getTroopStats('siegetower', 1);
 assert.equal(siegeTowerStats.range, 0.2, 'siege tower attack range drifted from its tight wall stop');
+assert.equal(siegeTowerStats.wallRamp, true, 'siege tower lost its declarative wall-ramp behavior');
+assert.equal(siegeTowerStats.straightCharge, undefined, 'siege tower regressed into Ram charge behavior');
 const siegeTowerSelection = CombatNavigationSystem.selectTargetAndPlan(
     siegeTower,
-    closed,
+    [siegeOffRayWall, siegeLineStorage, siegeFarWall, siegeTownHall, siegeNearWall],
     [siegeTower],
     1,
     0
 );
-assert.equal(siegeTowerSelection.plan?.blockerId, 'wall-w-11',
-    'siege tower did not park against the first wall on its charge line');
-assert(siegeTowerSelection.plan, 'siege tower produced no straight-charge wall plan');
-const siegeTowerWallGap = CombatNavigationSystem.edgeDistance(
-    siegeTowerSelection.plan.goal.x,
-    siegeTowerSelection.plan.goal.y,
-    closed.find(item => item.id === 'wall-w-11')!
-);
-assert(siegeTowerWallGap <= 0.201,
-    `siege tower stopped too far from the wall (${siegeTowerWallGap.toFixed(3)} tiles)`);
+assert.equal(siegeTowerSelection.strategicTarget?.id, siegeTownHall.id,
+    'Siege Tower replaced its Town Hall intent with a wall');
+assert.equal(siegeTowerSelection.activeTarget?.id, siegeNearWall.id,
+    'Siege Tower did not stop at the first wall on the Town Hall ray');
+assert.equal(siegeTowerSelection.plan?.blockerId, siegeNearWall.id);
+assert.equal(siegeTowerSelection.plan?.rampWallId, siegeNearWall.id,
+    'first on-ray wall was not authorized as a ramp');
+assert(siegeTowerSelection.plan, 'Siege Tower produced no direct Town Hall plan');
 assertOnChargeLine(
     siegeTowerSelection.plan,
     { x: siegeTower.gridX, y: siegeTower.gridY },
-    townHallCenter,
-    closed
+    { x: 17.5, y: 5.5 },
+    [siegeTownHall, siegeNearWall, siegeFarWall, siegeOffRayWall]
+);
+const refreshedSiegePlan = CombatNavigationSystem.planToBuilding(
+    siegeTower,
+    siegeTowerSelection.strategicTarget!,
+    [siegeOffRayWall, siegeLineStorage, siegeFarWall, siegeTownHall, siegeNearWall],
+    [siegeTower],
+    1,
+    1
+);
+assert.equal(refreshedSiegePlan?.rampWallId, siegeTowerSelection.plan.rampWallId,
+    'locked-target refresh dropped Siege Tower ramp authorization');
+const siegeTowerWallGap = CombatNavigationSystem.edgeDistance(
+    siegeTowerSelection.plan.goal.x,
+    siegeTowerSelection.plan.goal.y,
+    siegeNearWall
+);
+assert(siegeTowerWallGap <= 0.201,
+    `siege tower stopped too far from the wall (${siegeTowerWallGap.toFixed(3)} tiles)`);
+
+// The wall selection is ray-order, not nearest-wall order: the closer off-ray
+// wall above is ignored. Once the first ray wall becomes a ramp, the same
+// straight line exposes and selects the next wall behind it.
+const openedNearWall = new Set([siegeNearWall.id]);
+const nextRayWallSelection = CombatNavigationSystem.selectTargetAndPlan(
+    siegeTower,
+    [siegeOffRayWall, siegeLineStorage, siegeFarWall, siegeTownHall, siegeNearWall],
+    [siegeTower],
+    2,
+    1,
+    undefined,
+    openedNearWall
+);
+assert.equal(nextRayWallSelection.strategicTarget?.id, siegeTownHall.id);
+assert.equal(nextRayWallSelection.plan?.rampWallId, siegeFarWall.id,
+    'opening the first ray wall did not expose the wall behind it');
+
+// L1's 0.20 range must also produce a collision-safe diagonal endpoint.
+const diagonalTownHall = building('siege-diagonal-th', 'town_hall', 12, 12);
+const diagonalRayWall = building('siege-diagonal-wall', 'wall', 8, 8);
+const diagonalTower = troop('siege-diagonal-l1', 'siegetower', 2.5, 2.5);
+const diagonalSelection = CombatNavigationSystem.selectTargetAndPlan(
+    diagonalTower,
+    [diagonalTownHall, diagonalRayWall],
+    [diagonalTower],
+    1,
+    0
+);
+assert.equal(diagonalSelection.plan?.rampWallId, diagonalRayWall.id,
+    'L1 diagonal Siege Tower produced no on-ray ramp plan');
+assert(diagonalSelection.plan);
+const diagonalGap = CombatNavigationSystem.edgeDistance(
+    diagonalSelection.plan.goal.x,
+    diagonalSelection.plan.goal.y,
+    diagonalRayWall
+);
+assert(diagonalGap <= siegeTowerStats.range + 0.08 + 0.000_001,
+    `L1 diagonal Siege Tower stopped out of range (${diagonalGap.toFixed(3)} tiles)`);
+assert(CombatNavigationSystem.isPositionWalkable(
+    diagonalTower,
+    diagonalSelection.plan.goal.x,
+    diagonalSelection.plan.goal.y,
+    [diagonalTownHall, diagonalRayWall]
+), 'L1 diagonal Siege Tower endpoint overlaps live geometry');
+assertOnChargeLine(
+    diagonalSelection.plan,
+    { x: diagonalTower.gridX, y: diagonalTower.gridY },
+    { x: 13.5, y: 13.5 },
+    [diagonalTownHall, diagonalRayWall]
+);
+
+// With no wall on the ray, the tower passes through ordinary structures,
+// continues straight to the Town Hall, and never receives deployment auth.
+const fallbackTower = troop('siege-fallback', 'siegetower', 2.5, 5.5);
+const noWallSelection = CombatNavigationSystem.selectTargetAndPlan(
+    fallbackTower,
+    [siegeLineStorage, siegeTownHall, siegeOffRayWall],
+    [fallbackTower],
+    1,
+    0
+);
+assert.equal(noWallSelection.strategicTarget?.id, siegeTownHall.id,
+    'wall-less Siege Tower did not retain the Town Hall');
+assert.equal(noWallSelection.activeTarget?.id, siegeTownHall.id);
+assert.equal(noWallSelection.plan?.blockerId, undefined);
+assert.equal(noWallSelection.plan?.rampWallId, undefined,
+    'wall-less Town Hall approach incorrectly authorized ramp deployment');
+assert(noWallSelection.plan);
+const fallbackGap = CombatNavigationSystem.edgeDistance(
+    noWallSelection.plan.goal.x,
+    noWallSelection.plan.goal.y,
+    siegeTownHall
+);
+assert(fallbackGap <= 0.2,
+    `Town Hall fallback lacks final-waypoint range margin (${fallbackGap.toFixed(3)} tiles)`);
+assertOnChargeLine(
+    noWallSelection.plan,
+    { x: fallbackTower.gridX, y: fallbackTower.gridY },
+    { x: 17.5, y: 5.5 },
+    [siegeTownHall, siegeOffRayWall]
+);
+const passThroughStorage = CombatNavigationSystem.resolveMovement(
+    fallbackTower,
+    4,
+    0,
+    4,
+    0,
+    [siegeLineStorage]
+);
+assert.equal(passThroughStorage.blocked, false,
+    'ordinary structure blocked the Siege Tower Town Hall ray');
+assert(passThroughStorage.x > siegeLineStorage.gridX + 1.4,
+    'Siege Tower failed to pass through a non-wall structure');
+
+// Siege Towers are path infrastructure, not crowd-cost agents. Their cell
+// must not bend another troop's global route away from the future ramp.
+const towerPatherTroop = troop('tower-pather-warrior', 'warrior', 2.5, 18.5);
+const towerPatherTarget = building('tower-pather-target', 'storage', 12, 18);
+const towerInfrastructure = troop('tower-pather-infrastructure', 'siegetower', 7.5, 18.5);
+const routeWithoutTower = CombatNavigationSystem.planToBuilding(
+    towerPatherTroop,
+    towerPatherTarget,
+    [towerPatherTarget],
+    [towerPatherTroop],
+    1,
+    0
+);
+const routeWithTower = CombatNavigationSystem.planToBuilding(
+    towerPatherTroop,
+    towerPatherTarget,
+    [towerPatherTarget],
+    [towerPatherTroop, towerInfrastructure],
+    1,
+    0
+);
+assert(routeWithoutTower && routeWithTower);
+assert.deepEqual(
+    { cost: routeWithTower.routeCost, waypoints: routeWithTower.waypoints },
+    { cost: routeWithoutTower.routeCost, waypoints: routeWithoutTower.waypoints },
+    'Siege Tower was treated as a crowd-cost intersector instead of path infrastructure'
 );
 
 // Identical inputs must produce the byte-identical charge plan.

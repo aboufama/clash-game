@@ -11,7 +11,8 @@ Target selection happens before combat. Neighbor, direct, matchmade, and
 revenge players all become a `WorldAttackTarget` with `kind: 'PLAYER'` and an
 exact world plot, plot occupancy version, village appearance/combat version,
 and immutable snapshot hash. Bots use the same aggregate and commands with
-`kind: 'BOT'`; scenarios use `kind: 'SCENARIO'`.
+`kind: 'BOT'`, pinned to a persisted bot ID, plot version, generator version,
+village revision, and immutable snapshot hash; scenarios use `kind: 'SCENARIO'`.
 
 Selection source is audit metadata. It never chooses a second combat
 implementation.
@@ -30,7 +31,7 @@ PREPARING -> ENGAGED -> ACTIVE -> FINALIZING -> SETTLED
   records an army reservation grant.
 - The first real deploy engages the target. PLAYER engagement rechecks target
   identity, plot version, village version, shield, and an exclusive defender
-  lease. BOT engagement validates its immutable seeded target.
+  lease. BOT engagement retains its immutable persisted target snapshot.
 - `applyAttackCommand` accepts contiguous, idempotent deploy/ability/surrender
   commands with phase/version compare-and-swap semantics.
 - `finalizeAttack` regenerates the result from snapshot, seed, rules version,
@@ -75,8 +76,12 @@ and defender leases, and bounded `SKIP LOCKED` expiry workers.
 
 `ATTACK_SIMULATION_VERSION` pins result behavior. Stored version-1 attacks keep
 their legacy destroyed-building-count branch; version 2 uses HP-weighted
-partial structural damage. New behavior must get a new version rather than
-silently changing old replays.
+partial structural damage. Version 7 only grants Siege Tower pathing credit
+when the frozen base has a cardinally-connected closed wall loop; versions
+4–6 retain the prior unconditional credit. Version 8 checks each tower's
+recorded deploy-to-nearest-Town-Hall ray and grants credit only when that ray
+meets a wall. New behavior must get a new version rather than silently changing
+old replays.
 
 `compactReplay` contains immutable snapshot identity plus sequenced deploy,
 ability, and lifecycle events. Any process with the matching simulation

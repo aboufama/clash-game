@@ -8,7 +8,6 @@ import {
     type WorldMapWindow,
     type WorldPostcard
 } from '../backend/GameBackend';
-import { BOT_WORLD_GENERATION_VERSION, generateBotWorldFromSeed } from '../backend/BotWorlds';
 import { drawBuildingVisual } from '../renderers/BuildingVisualDispatcher';
 import { IsoUtils, TILE_WIDTH, TILE_HEIGHT } from '../utils/IsoUtils';
 import { bannerDesignFor, drawFlagBearer, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
@@ -70,7 +69,7 @@ import {
  * THE GLOBAL MAP — every village in the game tiles onto one shared,
  * persistent grid. Your village lives at its permanent plot; this system
  * renders the neighbourhood around it so other players' bases (and the
- * deterministic bot clans between them) are physically THERE, one lawn over.
+ * server-persisted bot clans between them) are physically THERE, one lawn over.
  *
  * Performance model (the whole trick):
  *   - YOUR village is the only fully interactive simulation.
@@ -656,15 +655,12 @@ export class WorldMapSystem {
                 try {
                     let world: PostcardWorld | null = null;
                     let revision: number | string = 0;
-                    if (plot.kind === 'bot') {
-                        world = generateBotWorldFromSeed(plot.seed ?? 1);
-                        revision = `bot_v${BOT_WORLD_GENERATION_VERSION}_${plot.seed}`;
-                    } else if (plot.kind === 'player' && plot.ownerId) {
+                    if ((plot.kind === 'bot' || plot.kind === 'player') && plot.ownerId) {
                         const enriched = plot as MapPlotWithSnapshot;
                         // An unconditioned focus request carries all snapshots.
                         // Do not fall back to one request per player.
                         world = enriched.world ?? null;
-                        revision = `player_${plot.ownerId}_${enriched.revision ?? world?.revision ?? 0}`;
+                        revision = `${plot.kind}_${plot.ownerId}_${enriched.revision ?? world?.revision ?? 0}`;
                     }
 
                     if (world) {
@@ -1914,7 +1910,8 @@ export class WorldMapSystem {
         const radius = this.computeViewRadius();
         const knownPlots: Record<string, KnownMapPlot> = {};
         for (const view of this.views.values()) {
-            if (view.plot.kind === 'player' && view.plot.ownerId && view.knownRevision !== null) {
+            if ((view.plot.kind === 'player' || view.plot.kind === 'bot')
+                && view.plot.ownerId && view.knownRevision !== null) {
                 knownPlots[`${view.plot.x},${view.plot.y}`] = {
                     ownerId: view.plot.ownerId,
                     revision: view.knownRevision,
@@ -2033,14 +2030,9 @@ export class WorldMapSystem {
         // while an evicted texture still rematerializes locally at 1:1.
         let world: PostcardWorld | null = null;
         let revision: number | string = 0;
-        if (plot.kind === 'bot') {
-            revision = `bot_v${BOT_WORLD_GENERATION_VERSION}_${plot.seed}`;
-            if (view.sourceRevision !== revision || !view.sourceWorld) {
-                world = generateBotWorldFromSeed(plot.seed ?? 1);
-            }
-        } else if (plot.ownerId) {
+        if (plot.ownerId) {
             const enriched = plot as MapPlotWithSnapshot;
-            revision = `player_${plot.ownerId}_${enriched.revision ?? enriched.world?.revision ?? 0}`;
+            revision = `${plot.kind}_${plot.ownerId}_${enriched.revision ?? enriched.world?.revision ?? 0}`;
             if (view.sourceRevision !== revision || !view.sourceWorld) world = enriched.world ?? null;
         }
         if (!this.sceneLive()) return; // mode switched (or scene died) mid-await
@@ -2056,9 +2048,7 @@ export class WorldMapSystem {
         if (world) {
             view.sourceWorld = world;
             view.sourceRevision = revision;
-            if (plot.kind === 'player') {
-                view.knownRevision = (plot as MapPlotWithSnapshot).revision ?? world.revision ?? null;
-            }
+            view.knownRevision = (plot as MapPlotWithSnapshot).revision ?? world.revision ?? null;
         }
 
         const interested = this.villageTextureInterested(view, this.scene.time.now);
@@ -3354,28 +3344,22 @@ export class WorldMapSystem {
     }
 
     private onSiegeStarted(attackId: string) {
+        void attackId;
+        // ONE EVENT, ONE SURFACE; history goes to the bell. The pxf
+        // incoming-attack card in App.tsx (same 2.5s poll) is THE surface —
+        // the watchtower bubble that used to raise here duplicated its text
+        // AND its WATCH action, so it stays suppressed. The scene keeps only
+        // the diegetic alarm: the horn below and the villager panic that
+        // MainScene.setUnderAttack drives.
         soundSystem.play('horn');
-        const requests = gameManager as unknown as {
-            requestWatchLiveAttack(id: string, username: string): void;
-        };
-        // The WATCHTOWER sounds the alarm — a danger bubble over its deck
-        // (the town hall bell rings it for tower-less villages). Same pixel
-        // speech-bubble system as every other village report.
-        this.scene.villageBubbles?.raise({
-            key: 'siege',
-            kind: 'danger',
-            buildingType: 'watchtower',
-            text: 'RAIDERS AT THE GATES!',
-            ttlMs: 0,
-            closable: true,
-            action: { label: 'WATCH THE DEFENCE', run: () => requests.requestWatchLiveAttack(attackId, 'Raiders') }
-        });
     }
 
     private onSiegeEnded() {
         this.scene.villageBubbles?.clear('siege');
         this.dismissedSiegeId = null;
-        gameManager.showToast('The attack on your village has ended.');
+        // No end-of-attack toast: one event, one surface — the outcome lands
+        // in the bell as the defense-log notification (badge increments),
+        // and the shield bubble already reports any granted protection.
     }
 
     // ================= home defence heartbeat =================

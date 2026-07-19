@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { test } from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 import type { QueryResult, QueryResultRow } from 'pg'
-import { migrate } from '../migrations'
+import { MIGRATIONS, migrate } from '../migrations'
 import { PostgresPersistence } from './persistence'
 import type { SqlDatabase, SqlExecutor } from './database'
 import { PersistenceGameService } from '../../runtime/service'
@@ -12,7 +15,10 @@ import { createPersistenceAttackService } from '../../runtime/attack-service'
 import { outboxEvent } from '../repositories'
 import { createApiMiddleware } from '../../node-adapter'
 import { grantedSession } from '../../domain/auth'
-import { allocationOrdinalOf, nextPlotVersion } from '../../domain/world'
+import { allocationOrdinalOf, nextPlotVersion, persistentBotVillageIdAt } from '../../domain/world'
+import type { AccountRecord, BotVillageRecord, VillageRecord } from '../model'
+import { buildLegacyImportPlan, importLegacyPlan, verifyLegacyImport } from '../legacy-import'
+import { LEGACY_COLLECTIONS, materializeLegacySnapshot } from '../legacy-snapshot'
 
 interface EmbeddedResult {
   rows: unknown[]
@@ -70,6 +76,39 @@ class EmbeddedPostgres implements SqlDatabase {
 const NOW = new Date('2026-07-11T18:00:00.000Z')
 const DAY_MS = 86_400_000
 
+function persistedBot(id = 'bot-pglite', x = 7, y = -5): BotVillageRecord {
+  return {
+    id,
+    worldId: 'main',
+    x,
+    y,
+    plotVersion: 1,
+    worldGenerationVersion: 1,
+    generatorVersion: 1,
+    seed: 4_000_000_007,
+    username: 'PGlite Iron Citadel',
+    trophies: 3_100,
+    profile: { difficulty: 'extreme', archetype: 'three-ward-citadel' },
+    world: {
+      id,
+      ownerId: id,
+      username: 'PGlite Iron Citadel',
+      buildings: [
+        { id: `${id}-hall`, type: 'town_hall', gridX: 11, gridY: 11, level: 4 },
+        { id: `${id}-wall`, type: 'wall', gridX: 8, gridY: 11, level: 3 }
+      ],
+      obstacles: [],
+      resources: { gold: 250_000, ore: 30_000, food: 40_000 },
+      wallLevel: 3,
+      lastSaveTime: NOW.getTime(),
+      revision: 1
+    },
+    revision: 1,
+    createdAt: NOW,
+    updatedAt: NOW
+  }
+}
+
 interface HttpRequestOptions {
   method?: 'GET' | 'POST'
   token?: string
@@ -119,6 +158,244 @@ async function closeServer(server: Server): Promise<void> {
   })
 }
 
+test('embedded PostgreSQL durably stores bot villages before map or attack consumers can read them', async () => {
+  const database = new EmbeddedPostgres()
+  try {
+    await migrate(database)
+    const persistence = new PostgresPersistence(database)
+    const stored = persistedBot()
+    await persistence.transaction(async tx => {
+      assert.equal(await tx.world.insertBotVillage(stored), 'inserted')
+      assert.equal(await tx.world.insertBotVillage({
+        ...stored,
+        createdAt: new Date(stored.createdAt.getTime() + 10),
+        updatedAt: new Date(stored.updatedAt.getTime() + 10)
+      }), 'existing')
+      assert.deepEqual(await tx.world.getBotVillage(stored.id), stored)
+      assert.deepEqual(await tx.world.getBotVillageAt('main', stored.x, stored.y), stored)
+      assert.deepEqual(await tx.world.listBotVillages({
+        worldId: 'main', minX: 0, maxX: 10, minY: -10, maxY: 0, now: NOW, limit: 5
+      }), [stored])
+
+      const advanced: BotVillageRecord = {
+        ...stored,
+        trophies: 3_250,
+        world: { ...stored.world, revision: 2 },
+        revision: 2,
+        updatedAt: new Date(NOW.getTime() + 1_000)
+      }
+      assert.equal(await tx.world.updateBotVillage(advanced, 1), true)
+      assert.deepEqual(await tx.world.getBotVillage(stored.id), advanced)
+    })
+
+    const collision = persistedBot('bot-pglite-collision', stored.x, stored.y)
+    await assert.rejects(
+      persistence.transaction(tx => tx.world.insertBotVillage(collision)),
+      /coordinate already exists/i
+    )
+    const rows = await database.query<{ count: number }>(
+      'SELECT count(*)::integer AS count FROM bot_villages WHERE world_id = $1',
+      ['main']
+    )
+    assert.equal(rows.rows[0]?.count, 1)
+
+    await database.query(
+      'INSERT INTO accounts(id, username_key, password_hash, registered, created_at) VALUES ($1, NULL, NULL, false, $2)',
+      ['bot-plot-claimant', NOW]
+    )
+    await persistence.transaction(async tx => {
+      await tx.world.ensureRegion({
+        worldId: 'main', regionId: 'main:bot-claim-region', regionX: 0, regionY: -1,
+        size: 32, generationVersion: 1, createdAt: NOW
+      })
+      await tx.world.assign({
+        worldId: 'main', x: stored.x, y: stored.y, regionId: 'main:bot-claim-region',
+        playerId: 'bot-plot-claimant', plotVersion: 2, assignedAt: NOW,
+        leaseId: null, leaseIssuedAt: null, leaseRenewedAt: null, leaseExpiresAt: null
+      })
+      assert.deepEqual(await tx.world.getBotVillage(stored.id), {
+        ...stored,
+        trophies: 3_250,
+        world: { ...stored.world, revision: 2 },
+        revision: 2,
+        updatedAt: new Date(NOW.getTime() + 1_000)
+      }, 'a player claim hides but does not erase persisted bot authority')
+      assert.equal((await tx.world.getOccupant('main', stored.x, stored.y))?.playerId, 'bot-plot-claimant')
+      assert.equal(await tx.world.release('bot-plot-claimant'), true)
+      assert.equal((await tx.world.getBotVillageAt('main', stored.x, stored.y))?.id, stored.id)
+    })
+  } finally {
+    await database.close()
+  }
+})
+
+test('embedded PostgreSQL admin authority matches memory semantics and audit rows are append-only', async () => {
+  const database = new EmbeddedPostgres()
+  try {
+    await migrate(database)
+    const persistence = new PostgresPersistence(database)
+    const account: AccountRecord = {
+      id: 'pg-admin-player',
+      username: 'PgAdminChief',
+      usernameKey: 'pgadminchief',
+      passwordHash: 'scrypt:private-test-hash',
+      registered: true,
+      trophies: 20,
+      shieldUntil: new Date(NOW.getTime() + 60_000),
+      createdAt: new Date(NOW.getTime() - 60_000),
+      lastSeenAt: NOW,
+      revision: 1,
+      revengeRights: {},
+      botRaidCooldowns: {}
+    }
+    const village: VillageRecord = {
+      playerId: account.id,
+      buildings: [],
+      obstacles: [],
+      army: {},
+      wallLevel: 1,
+      gold: 10,
+      ore: 20,
+      food: 30,
+      productionRemainders: { ore: 0, food: 0 },
+      population: { count: 1 },
+      banner: null,
+      simulatedThrough: NOW,
+      lastMutationAt: NOW,
+      layoutRevision: 1,
+      appearanceRevision: 1,
+      economyRevision: 1,
+      simulationVersion: 1,
+      nextEventAt: null
+    }
+    await persistence.transaction(async tx => {
+      await tx.accounts.insert(account)
+      await tx.villages.insert(village)
+      await tx.sessions.insert({
+        tokenHash: 'b'.repeat(64), playerId: account.id, createdAt: NOW, lastUsedAt: NOW,
+        expiresAt: new Date(NOW.getTime() + 60_000), deviceId: 'pg-admin-spec'
+      })
+    })
+    const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+    assert.equal((await service.adminPlayers('PgAdmin', 5))[0]?.id, account.id)
+    await service.adminPlayerAction(account.id, {
+      type: 'adjust_resources', gold: 90, food: -10, reason: 'postgres parity'
+    })
+    await service.adminPlayerAction(account.id, {
+      type: 'set_access', state: 'banned', reason: 'postgres parity'
+    })
+    await service.adminOperation({
+      type: 'set_maintenance', enabled: true, message: 'PG maintenance', reason: 'postgres parity'
+    })
+
+    const player = await service.adminPlayer(account.id)
+    assert.deepEqual(player.resources, { gold: 100, ore: 20, food: 20 })
+    assert.equal(player.access, 'banned')
+    assert.equal(player.activeSessions, 0)
+    assert.equal((await service.adminConfig()).maintenance.enabled, true)
+    assert.equal((await service.adminAudit(10)).length, 3)
+    assert.equal(JSON.stringify(player).includes('private-test-hash'), false)
+
+    await assert.rejects(
+      database.query('DELETE FROM admin_audit_log WHERE target_id = $1', [account.id]),
+      /append-only/i
+    )
+    assert.equal((await service.adminAudit(10)).length, 3)
+  } finally {
+    await database.close()
+  }
+})
+
+test('legacy cutover preserves every persisted bot field and depleted resource', async () => {
+  const database = new EmbeddedPostgres()
+  const parent = mkdtempSync(path.join(tmpdir(), 'clash-bot-cutover-'))
+  const sourceRoot = path.join(parent, 'source')
+  const frozenRoot = path.join(parent, 'frozen')
+  mkdirSync(sourceRoot)
+  for (const collection of LEGACY_COLLECTIONS) {
+    mkdirSync(path.join(sourceRoot, collection), { recursive: true })
+  }
+  const x = 1
+  const y = 0
+  const id = persistentBotVillageIdAt('main', x, y)
+  const createdAt = NOW.getTime() - 20_000
+  const updatedAt = NOW.getTime() - 1_000
+  const record = persistedBot(id, x, y)
+  record.revision = 7
+  record.updatedAt = new Date(updatedAt)
+  record.createdAt = new Date(createdAt)
+  record.world.revision = 7
+  record.world.lastSaveTime = updatedAt
+  record.world.resources = { gold: 12_345, ore: 2_222, food: 3_333 }
+  writeFileSync(path.join(sourceRoot, 'bot-villages', `${id}.json`), JSON.stringify({
+    ...record,
+    presentationSeedVersion: 0,
+    createdAt,
+    updatedAt
+  }))
+  writeFileSync(path.join(sourceRoot, 'players', 'cutover-player.json'), JSON.stringify({
+    id: 'cutover-player',
+    tokenHashes: ['b'.repeat(64)],
+    username: 'Camp Settler',
+    createdAt,
+    lastSeen: updatedAt,
+    trophies: 17,
+    balance: 1_000,
+    lastAccrualAt: updatedAt,
+    lastMutationAt: updatedAt,
+    revision: 2,
+    buildings: [{ id: 'cutover-hall', type: 'town_hall', gridX: 11, gridY: 11, level: 1 }],
+    obstacles: [],
+    army: {},
+    wallLevel: 1,
+    requestKeys: [],
+    population: { count: 1, lastGrowthAt: updatedAt },
+    ore: 25,
+    food: 50,
+    plotX: x,
+    plotY: y,
+    plotVersion: 3,
+    productionRemainders: { ore: 0, food: 0 }
+  }))
+  writeFileSync(path.join(sourceRoot, 'world-state', 'main.json'), JSON.stringify({
+    allocation: {
+      schemaVersion: 1,
+      worldId: 'main',
+      regionSize: 32,
+      currentGenerationVersion: 1,
+      nextOrdinal: 8
+    },
+    releasedSlots: [],
+    presentationSeedVersion: 0
+  }))
+
+  try {
+    materializeLegacySnapshot({ dataRoot: sourceRoot, outputRoot: frozenRoot, cutoffAt: NOW })
+    const plan = buildLegacyImportPlan(frozenRoot, NOW)
+    assert.deepEqual(plan.issues, [])
+    assert.equal(plan.counts['bot-villages'], 1)
+    await migrate(database)
+    await importLegacyPlan(database, plan)
+
+    const persistence = new PostgresPersistence(database)
+    const imported = await persistence.transaction(tx => tx.world.getBotVillage(id))
+    assert.deepEqual(imported, record)
+    await persistence.transaction(async tx => {
+      assert.equal((await tx.world.getOccupant('main', x, y))?.playerId, 'cutover-player')
+      assert.equal((await tx.world.getBotVillageAt('main', x, y))?.id, id)
+    })
+    assert.deepEqual(await verifyLegacyImport(database, plan), {
+      ok: true,
+      issues: [],
+      sourceRecords: 3,
+      importedRecords: 3
+    })
+  } finally {
+    await database.close()
+    rmSync(parent, { recursive: true, force: true })
+  }
+})
+
 test('embedded PostgreSQL semantics cover migration, world, attack, replay, and retention paths', async () => {
   const database = new EmbeddedPostgres()
   await migrate(database)
@@ -137,6 +414,41 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
     const second = grantedSession(await service.ensureSession('', 'pglite-b'))
     const third = grantedSession(await service.ensureSession('', 'pglite-c'))
     const attacker = { playerId: first.player.id }
+
+    const bannerBefore = await database.query<{
+      banner: { palette: number; emblem: number; pattern: number } | null
+      appearance_revision: string | number
+      economy_revision: string | number
+    }>('SELECT banner, appearance_revision, economy_revision FROM villages WHERE player_id = $1', [attacker.playerId])
+    const chosenBanner = { palette: 5, emblem: 2, pattern: 4 }
+    assert.deepEqual(await service.setBanner(attacker, chosenBanner), { banner: chosenBanner })
+    const bannerAfter = await database.query<{
+      banner: { palette: number; emblem: number; pattern: number } | null
+      appearance_revision: string | number
+      economy_revision: string | number
+    }>('SELECT banner, appearance_revision, economy_revision FROM villages WHERE player_id = $1', [attacker.playerId])
+    assert.deepEqual(bannerAfter.rows[0]?.banner, chosenBanner)
+    assert.equal(
+      Number(bannerAfter.rows[0]?.appearance_revision),
+      Number(bannerBefore.rows[0]?.appearance_revision) + 1
+    )
+    assert.equal(
+      Number(bannerAfter.rows[0]?.economy_revision),
+      Number(bannerBefore.rows[0]?.economy_revision),
+      'the PostgreSQL appearance CAS leaves the economy revision untouched'
+    )
+    assert.deepEqual((await service.getWorld(attacker)).banner, chosenBanner)
+    const bannerMap = await service.map(attacker, first.player.plotX, first.player.plotY, 0) as {
+      plots: Array<{ ownerId?: string; world?: { banner?: typeof chosenBanner } }>
+    }
+    assert.deepEqual(
+      bannerMap.plots.find(plot => plot.ownerId === attacker.playerId)?.world?.banner,
+      chosenBanner
+    )
+    const bannerAtlas = await service.atlas(attacker) as {
+      players: Array<{ me?: boolean; banner?: typeof chosenBanner | null }>
+    }
+    assert.deepEqual(bannerAtlas.players.find(player => player.me)?.banner, chosenBanner)
 
     // This path exercises region creation and PgWorld.assign. In particular,
     // it catches ambiguous integer/numeric inference in coordinate parameters.
@@ -348,7 +660,7 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
     const migrationCount = await database.query<{ count: number }>(
       'SELECT count(*)::integer AS count FROM schema_migrations'
     )
-    assert.equal(migrationCount.rows[0]?.count, 11)
+    assert.equal(migrationCount.rows[0]?.count, MIGRATIONS.length)
   } finally {
     await service.close()
   }
@@ -416,6 +728,10 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
     })
     assert.ok(map.plots.some(plot => plot.ownerId === attacker.player.id))
 
+    await requestJson(origin, '/player/banner', {
+      method: 'POST', token: attacker.token,
+      body: { banner: { palette: 2, emblem: 1, pattern: 3 } }
+    })
     await requestJson(origin, '/resources/apply', {
       method: 'POST', token: attacker.token,
       body: { delta: 2_000, reason: 'debug_grant', requestId: 'http-pglite-gold' }
@@ -529,6 +845,28 @@ test('embedded PostgreSQL keeps release, frontier, and guest-reaper fencing cons
     })
 
     now = new Date(now.getTime() + 8 * DAY_MS)
+    // This direct service call intentionally bypasses HTTP authentication to
+    // inspect map classification at the lease boundary. Pin simulation first
+    // so the probe itself does not create an economy-ledger reference that
+    // would (correctly) keep the guest account archived separately.
+    await database.query(
+      'UPDATE villages SET simulated_through = $2 WHERE player_id = $1',
+      [guest.player.id, now]
+    )
+    const expiredMap = await service.map(
+      { playerId: guest.player.id }, coordinate.x, coordinate.y, 0
+    ) as { plots: Array<Record<string, unknown>> }
+    assert.deepEqual(expiredMap.plots, [{
+      x: coordinate.x,
+      y: coordinate.y,
+      kind: 'empty',
+      settleable: false
+    }], 'PostgreSQL map hides an expired claim until the reaper releases it')
+    const botBeforeReap = await database.query<{ count: number }>(String.raw`
+      SELECT count(*)::integer AS count FROM bot_villages
+      WHERE world_id = $1 AND x = $2 AND y = $3
+    `, ['main', coordinate.x, coordinate.y])
+    assert.equal(botBeforeReap.rows[0]?.count, 0, 'map never provisions through an unreaped claim')
     assert.deepEqual(await service.sweepExpiredGuestLeases(50), { released: 1, archived: 1 })
     const afterReap = await database.query<{
       next_ordinal: string

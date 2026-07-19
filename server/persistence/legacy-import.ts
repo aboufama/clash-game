@@ -1,21 +1,29 @@
 import { createHash } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import {
   allocationOrdinalOf,
   coordinateAtAllocationOrdinal
 } from '../domain/world/allocation'
+import { persistentBotVillageIdAt } from '../domain/world/bot-village-identity'
 import { regionAddressForPlot } from '../domain/world/coordinates'
-import { classifyPlot, LEGACY_WORLD_COORD_LIMIT } from '../domain/world/generation'
+import {
+  INITIAL_WORLD_PRESENTATION_SEED_VERSION,
+  isSpiralSettleable,
+  LEGACY_WORLD_COORD_LIMIT,
+  normalizeWorldPresentationSeedVersion
+} from '../domain/world/generation'
 import { VILLAGE_SIMULATION_VERSION } from '../domain/village/simulation'
 import { assertAttackInvariants } from '../attack-domain/domain'
 import type { AttackAggregate } from '../attack-domain/types'
+import { sanitizeVillageBanner } from '../../src/game/data/Models'
 import {
   LEGACY_COLLECTIONS,
   verifyFrozenLegacySnapshot,
   type LegacyCollection
 } from './legacy-snapshot'
-import type { AttackRecord, JsonObject, JsonValue } from './model'
+import type { AttackRecord, BotVillageRecord, JsonObject, JsonValue } from './model'
 import {
   attackCommandsFromAuthority,
   attackRecordFromAuthority
@@ -209,7 +217,9 @@ function validatePlayer(
   usernames: Map<string, string>,
   tokens: Map<string, string>,
   plots: Map<string, string>,
-  cutoffAt: Date
+  cutoffAt: Date,
+  generationVersion: number,
+  presentationSeedVersion: number
 ): void {
   const value = record.value
   const id = string(value.id)
@@ -262,13 +272,13 @@ function validatePlayer(
         'LEGACY_PLOT_RANGE',
         `Legacy plot coordinates must remain within +/-${LEGACY_WORLD_COORD_LIMIT}`
       )
-    } else if (classifyPlot({ x, y }, 1).kind !== 'PLAYER') {
+    } else if (!isSpiralSettleable({ x, y }, generationVersion, presentationSeedVersion)) {
       pushIssue(
         issues,
         record,
         'error',
         'INELIGIBLE_PLAYER_PLOT',
-        `Legacy player occupies non-player plot ${x},${y}`
+        `Legacy player occupies protected plot ${x},${y}`
       )
     }
     const key = `${x},${y}`
@@ -318,6 +328,126 @@ function validatePlayer(
   }
 }
 
+function validateBotVillages(
+  records: LegacySourceRecord[],
+  issues: ImportIssue[],
+  cutoffAt: Date
+): void {
+  const bots = records.filter(record => record.collection === 'bot-villages')
+  const coordinates = new Map<string, string>()
+  const worldState = records.find(record => record.collection === 'world-state' && record.key === 'main')
+  const expectedPresentationSeedVersion = normalizeWorldPresentationSeedVersion(
+    worldState?.value.presentationSeedVersion
+  )
+  for (const record of bots) {
+    const source = record.value
+    const id = string(source.id)
+    const worldId = string(source.worldId)
+    const x = number(source.x, NaN)
+    const y = number(source.y, NaN)
+    if (!id || id !== record.key) {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_ID', 'Bot village id must match its filename')
+    }
+    if (worldId !== 'main') {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_WORLD', 'Legacy bot village must belong to the main world')
+    }
+    if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)
+      || Math.abs(x) > LEGACY_WORLD_COORD_LIMIT || Math.abs(y) > LEGACY_WORLD_COORD_LIMIT) {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_COORDINATE', 'Bot village coordinates are outside the legacy world')
+    } else {
+      const expectedId = persistentBotVillageIdAt(worldId, x, y)
+      if (id !== expectedId) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_IDENTITY', 'Bot village id is not scoped to its world coordinate')
+      }
+      const coordinate = `${worldId}:${x},${y}`
+      const prior = coordinates.get(coordinate)
+      if (prior && prior !== id) {
+        pushIssue(issues, record, 'error', 'DUPLICATE_BOT_VILLAGE', `Coordinate ${coordinate} is also owned by ${prior}`)
+      }
+      coordinates.set(coordinate, id)
+    }
+    for (const field of [
+      'plotVersion',
+      'worldGenerationVersion',
+      'generatorVersion',
+      'seed',
+      'revision'
+    ] as const) {
+      const value = number(source[field], NaN)
+      if (!Number.isSafeInteger(value) || value < 1) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_PROVENANCE', `${field} must be a positive safe integer`)
+      }
+    }
+    const presentationSeedVersion = number(source.presentationSeedVersion, NaN)
+    if (!Number.isSafeInteger(presentationSeedVersion) || presentationSeedVersion < 0) {
+      pushIssue(
+        issues,
+        record,
+        'error',
+        'BOT_VILLAGE_PRESENTATION_SEED',
+        'presentationSeedVersion must be a non-negative safe integer'
+      )
+    } else if (presentationSeedVersion !== expectedPresentationSeedVersion) {
+      pushIssue(
+        issues,
+        record,
+        'error',
+        'BOT_VILLAGE_PRESENTATION_SEED',
+        `Bot village epoch ${presentationSeedVersion} differs from world epoch ${expectedPresentationSeedVersion}`
+      )
+    }
+    if (!string(source.username).trim()) {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_USERNAME', 'Bot village username is required')
+    }
+    const trophies = number(source.trophies, NaN)
+    if (!Number.isSafeInteger(trophies) || trophies < 0) {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_TROPHIES', 'Bot village trophies must be a non-negative safe integer')
+    }
+    if (!isObject(source.profile)) {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_PROFILE', 'Bot village profile must be an object')
+    }
+    const world = source.world
+    if (!isObject(world)) {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_PAYLOAD', 'Bot village world must be an object')
+    } else {
+      if (string(world.id) !== id || string(world.ownerId) !== id) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_PAYLOAD_ID', 'Bot village world must be self-owned')
+      }
+      if (!Array.isArray(world.buildings)) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_BUILDINGS', 'Bot village buildings must be an array')
+      }
+      if (world.obstacles !== undefined && !Array.isArray(world.obstacles)) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_OBSTACLES', 'Bot village obstacles must be an array when present')
+      }
+      if (!isObject(world.resources)) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_RESOURCES', 'Bot village resources must be an object')
+      } else {
+        for (const resource of ['gold', 'ore', 'food'] as const) {
+          if (world.resources[resource] === undefined && resource !== 'gold') continue
+          const amount = number(world.resources[resource], NaN)
+          if (!Number.isFinite(amount) || amount < 0) {
+            pushIssue(issues, record, 'error', 'BOT_VILLAGE_RESOURCES', `${resource} must be non-negative`)
+          }
+        }
+      }
+      const worldRevision = number(world.revision, NaN)
+      if (!Number.isSafeInteger(worldRevision) || worldRevision !== number(source.revision, NaN)) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_REVISION', 'Bot village record and world revisions must match')
+      }
+      const lastSaveTime = number(world.lastSaveTime, NaN)
+      if (!Number.isFinite(lastSaveTime) || lastSaveTime < 0 || lastSaveTime > cutoffAt.getTime()) {
+        pushIssue(issues, record, 'error', 'BOT_VILLAGE_CHECKPOINT', 'Bot village lastSaveTime is outside the cutover')
+      }
+    }
+    const createdAt = number(source.createdAt, NaN)
+    const updatedAt = number(source.updatedAt, NaN)
+    if (!Number.isFinite(createdAt) || !Number.isFinite(updatedAt)
+      || createdAt < 0 || updatedAt < createdAt || updatedAt > cutoffAt.getTime()) {
+      pushIssue(issues, record, 'error', 'BOT_VILLAGE_TIMESTAMP', 'Bot village timestamps are invalid at the cutover')
+    }
+  }
+}
+
 function validateWorldStates(
   records: LegacySourceRecord[],
   issues: ImportIssue[],
@@ -329,6 +459,8 @@ function validateWorldStates(
   }
   for (const record of states) {
     const allocation = object(record.value.allocation)
+    const generationVersion = integer(allocation.currentGenerationVersion, 1)
+    const presentationSeedVersion = normalizeWorldPresentationSeedVersion(record.value.presentationSeedVersion)
     if (record.key !== 'main' || string(allocation.worldId) !== 'main') {
       pushIssue(issues, record, 'error', 'WORLD_STATE_ID', 'World allocation record must be main')
     }
@@ -341,6 +473,15 @@ function validateWorldStates(
         'error',
         'WORLD_STATE_VERSION',
         'Legacy PostgreSQL cutover requires allocation schema 1, region size 32, and generation 1'
+      )
+    }
+    if (presentationSeedVersion !== INITIAL_WORLD_PRESENTATION_SEED_VERSION) {
+      pushIssue(
+        issues,
+        record,
+        'error',
+        'WORLD_PRESENTATION_SEED',
+        'PostgreSQL cutover requires production presentation epoch zero; reseeded development worlds must be reset first'
       )
     }
     const nextOrdinal = number(allocation.nextOrdinal, -1)
@@ -377,8 +518,12 @@ function validateWorldStates(
       released.add(ordinal)
       if (occupied.has(ordinal)) {
         pushIssue(issues, record, 'error', 'WORLD_RELEASED_OCCUPIED', `Released ordinal ${ordinal} is occupied`)
-      } else if (classifyPlot(coordinateAtAllocationOrdinal(ordinal), 1).kind !== 'PLAYER') {
-        pushIssue(issues, record, 'error', 'WORLD_RELEASED_INELIGIBLE', `Released ordinal ${ordinal} is not a player plot`)
+      } else if (!isSpiralSettleable(
+        coordinateAtAllocationOrdinal(ordinal),
+        generationVersion,
+        presentationSeedVersion
+      )) {
+        pushIssue(issues, record, 'error', 'WORLD_RELEASED_INELIGIBLE', `Released ordinal ${ordinal} is protected`)
       }
     }
   }
@@ -439,11 +584,26 @@ export function buildLegacyImportPlan(dataRoot: string, cutoffAt: Date): LegacyI
   const usernames = new Map<string, string>()
   const tokens = new Map<string, string>()
   const plots = new Map<string, string>()
+  const storedWorld = records.find(record => record.collection === 'world-state' && record.key === 'main')
+  const storedAllocation = object(storedWorld?.value.allocation)
+  const generationVersion = integer(storedAllocation.currentGenerationVersion, 1)
+  const presentationSeedVersion = normalizeWorldPresentationSeedVersion(storedWorld?.value.presentationSeedVersion)
   for (const record of records) {
     if (record.collection === 'players') {
-      validatePlayer(record, issues, playerIds, usernames, tokens, plots, cutoffAt)
+      validatePlayer(
+        record,
+        issues,
+        playerIds,
+        usernames,
+        tokens,
+        plots,
+        cutoffAt,
+        generationVersion,
+        presentationSeedVersion
+      )
     }
   }
+  validateBotVillages(records, issues, cutoffAt)
   validateRelationships(records, issues, playerIds)
   validateWorldStates(records, issues, plots)
   for (const message of verifyFrozenLegacySnapshot(resolvedRoot, cutoffAt)) {
@@ -499,6 +659,7 @@ function playerVillage(record: LegacySourceRecord) {
       food: Math.max(0, Math.min(0.999999, number(remainder.food)))
     },
     population: object(source.population),
+    banner: sanitizeVillageBanner(source.banner),
     simulatedThrough: millis(source.simulatedThrough, new Date(0)),
     lastMutationAt: millis(source.lastMutationAt, new Date(0)),
     layoutRevision: Math.max(0, integer(source.layoutRevision, integer(source.revision))),
@@ -507,6 +668,33 @@ function playerVillage(record: LegacySourceRecord) {
     simulationVersion: Math.max(1, integer(source.simulationVersion, VILLAGE_SIMULATION_VERSION)),
     nextEventAt: nullableMillis(source.nextEventAt)
   }
+}
+
+/** Lossless canonical mapping for one already-persisted legacy bot village. */
+export function mapLegacyBotVillage(record: LegacySourceRecord): BotVillageRecord {
+  const source = record.value
+  return {
+    id: string(source.id),
+    worldId: string(source.worldId),
+    x: integer(source.x),
+    y: integer(source.y),
+    plotVersion: integer(source.plotVersion),
+    worldGenerationVersion: integer(source.worldGenerationVersion),
+    generatorVersion: integer(source.generatorVersion),
+    seed: integer(source.seed),
+    username: string(source.username),
+    trophies: integer(source.trophies),
+    profile: structuredClone(object(source.profile)),
+    world: structuredClone(object(source.world)) as unknown as BotVillageRecord['world'],
+    revision: integer(source.revision),
+    createdAt: millis(source.createdAt, new Date(0)),
+    updatedAt: millis(source.updatedAt, new Date(0))
+  }
+}
+
+async function importBotVillage(uow: PostgresUnitOfWork, record: LegacySourceRecord): Promise<void> {
+  const result = await uow.world.insertBotVillage(mapLegacyBotVillage(record))
+  if (result !== 'inserted') throw new Error(`Legacy bot village already exists: ${record.key}`)
 }
 
 async function importPlayer(
@@ -606,6 +794,8 @@ async function seedLegacyWorldAllocation(
   const occupied = new Set(plots.rows.map(row => allocationOrdinalOf({ x: row.x, y: row.y })))
   const stored = plan.records.find(record => record.collection === 'world-state' && record.key === 'main')
   const storedAllocation = stored ? object(stored.value.allocation) : null
+  const generationVersion = integer(storedAllocation?.currentGenerationVersion, 1)
+  const presentationSeedVersion = normalizeWorldPresentationSeedVersion(stored?.value.presentationSeedVersion)
   const nextOrdinal = storedAllocation
     ? integer(storedAllocation.nextOrdinal)
     : (occupied.size === 0 ? 0 : Math.max(...occupied) + 1)
@@ -616,7 +806,11 @@ async function seedLegacyWorldAllocation(
     }))
     : Array.from({ length: nextOrdinal }, (_, ordinal) => ({ ordinal, plotVersion: 1 }))
       .filter(slot => !occupied.has(slot.ordinal)
-        && classifyPlot(coordinateAtAllocationOrdinal(slot.ordinal), 1).kind === 'PLAYER')
+        && isSpiralSettleable(
+          coordinateAtAllocationOrdinal(slot.ordinal),
+          generationVersion,
+          presentationSeedVersion
+        ))
   for (const slot of releasedSlots) {
     await uow.world.putReleasedSlot({
       worldId: 'main',
@@ -806,6 +1000,11 @@ export async function importLegacyPlan(database: SqlDatabase, plan: LegacyImport
     const existing = await sql.query<{ count: string }>('SELECT count(*)::text AS count FROM accounts')
     if (existing.rows[0]?.count !== '0') throw new Error('Legacy import requires an empty accounts table')
     const uow = new PostgresUnitOfWork(sql)
+    // Bot rows go first so a real-player claim at the same coordinate can
+    // continue hiding (rather than erasing) the durable camp after cutover.
+    for (const record of plan.records.filter(item => item.collection === 'bot-villages')) {
+      await importBotVillage(uow, record)
+    }
     for (const record of plan.records.filter(item => item.collection === 'players')) {
       await importPlayer(uow, record, counters)
     }
@@ -883,6 +1082,7 @@ export async function verifyLegacyImport(database: SqlDatabase, plan: LegacyImpo
       villages: string
       sessions: string
       plots: string
+      bot_villages: string
       attacks: string
       attack_commands: string
       notifications: string
@@ -893,6 +1093,7 @@ export async function verifyLegacyImport(database: SqlDatabase, plan: LegacyImpo
         (SELECT count(*) FROM villages)::text AS villages,
         (SELECT count(*) FROM sessions)::text AS sessions,
         (SELECT count(*) FROM world_plots)::text AS plots,
+        (SELECT count(*) FROM bot_villages)::text AS bot_villages,
         (SELECT count(*) FROM attacks)::text AS attacks,
         (SELECT count(*) FROM attack_commands)::text AS attack_commands,
         (SELECT count(*) FROM notifications)::text AS notifications,
@@ -906,6 +1107,7 @@ export async function verifyLegacyImport(database: SqlDatabase, plan: LegacyImpo
       sessions: expectedSessionCount(plan),
       plots: plan.records.filter(record => record.collection === 'players'
         && typeof record.value.plotX === 'number' && typeof record.value.plotY === 'number').length,
+      bot_villages: plan.counts['bot-villages'],
       attacks: plan.counts.replays + plan.counts['bot-raids'],
       attack_commands: expectedAttackCommandCount(plan),
       notifications: expectedNotificationCount(plan),
@@ -917,6 +1119,55 @@ export async function verifyLegacyImport(database: SqlDatabase, plan: LegacyImpo
       for (const [name, expectedCount] of Object.entries(expected)) {
         const actualCount = Number(actual[name as keyof typeof actual])
         if (actualCount !== expectedCount) issues.push(`${name}: expected ${expectedCount}, found ${actualCount}`)
+      }
+    }
+
+    const botRows = await sql.query<{
+      id: string
+      world_id: string
+      x: number
+      y: number
+      plot_version: string | number
+      world_generation_version: number
+      generator_version: number
+      seed: string | number
+      username: string
+      trophies: number
+      profile: JsonObject
+      world: BotVillageRecord['world']
+      revision: string | number
+      created_at: Date | string
+      updated_at: Date | string
+    }>(String.raw`
+      SELECT id, world_id, x, y, plot_version, world_generation_version,
+        generator_version, seed, username, trophies, profile, world, revision,
+        created_at, updated_at
+      FROM bot_villages ORDER BY id
+    `)
+    const botsById = new Map(botRows.rows.map(row => [row.id, {
+      id: row.id,
+      worldId: row.world_id,
+      x: row.x,
+      y: row.y,
+      plotVersion: Number(row.plot_version),
+      worldGenerationVersion: row.world_generation_version,
+      generatorVersion: row.generator_version,
+      seed: Number(row.seed),
+      username: row.username,
+      trophies: row.trophies,
+      profile: row.profile,
+      world: row.world,
+      revision: Number(row.revision),
+      createdAt: new Date(row.created_at instanceof Date ? row.created_at.getTime() : row.created_at),
+      updatedAt: new Date(row.updated_at instanceof Date ? row.updated_at.getTime() : row.updated_at)
+    } satisfies BotVillageRecord]))
+    for (const sourceBot of plan.records.filter(record => record.collection === 'bot-villages')) {
+      const expectedBot = mapLegacyBotVillage(sourceBot)
+      const actualBot = botsById.get(expectedBot.id)
+      if (!actualBot) {
+        issues.push(`Missing canonical bot village ${expectedBot.id}`)
+      } else if (!isDeepStrictEqual(actualBot, expectedBot)) {
+        issues.push(`Canonical bot village ${expectedBot.id} differs from its frozen full-world record`)
       }
     }
 
@@ -940,14 +1191,23 @@ export async function verifyLegacyImport(database: SqlDatabase, plan: LegacyImpo
       .map(record => ({ x: integer(record.value.plotX), y: integer(record.value.plotY) }))
     const occupiedOrdinals = new Set(sourceCoordinates.map(allocationOrdinalOf))
     const storedWorld = plan.records.find(record => record.collection === 'world-state' && record.key === 'main')
+    const storedAllocation = object(storedWorld?.value.allocation)
+    const generationVersion = integer(storedAllocation.currentGenerationVersion, 1)
+    const presentationSeedVersion = normalizeWorldPresentationSeedVersion(
+      storedWorld?.value.presentationSeedVersion
+    )
     const expectedNextOrdinal = storedWorld
-      ? integer(object(storedWorld.value.allocation).nextOrdinal)
+      ? integer(storedAllocation.nextOrdinal)
       : (occupiedOrdinals.size === 0 ? 0 : Math.max(...occupiedOrdinals) + 1)
     let expectedReleasedSlots = storedWorld ? array(storedWorld.value.releasedSlots).length : 0
     if (!storedWorld) {
       for (let ordinal = 0; ordinal < expectedNextOrdinal; ordinal += 1) {
         if (!occupiedOrdinals.has(ordinal)
-          && classifyPlot(coordinateAtAllocationOrdinal(ordinal), 1).kind === 'PLAYER') {
+          && isSpiralSettleable(
+            coordinateAtAllocationOrdinal(ordinal),
+            generationVersion,
+            presentationSeedVersion
+          )) {
           expectedReleasedSlots += 1
         }
       }

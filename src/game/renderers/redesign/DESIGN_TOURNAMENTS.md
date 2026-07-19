@@ -56,10 +56,19 @@ for.
      `localStorage['clash.design.<unit>']='<slot>'`: every level, day AND
      night, idle-motion series, fire/attack sequences, and for
      direction-aware units 8+ headings. Curate 4–6 labeled finals.
+   - **OWNER HARD RULE — FINAL verification is POST-BAKE (2026-07-19):** the
+     vector-mode shots above are the designer's inner iteration loop ONLY.
+     Before a design is presented, bake it (`bake-sprites.mjs` with
+     `DESIGN=<slot>` and `ONLY=<unit>`, into a scratch out-dir — committed
+     assets stay untouched pre-pick) and re-screenshot with sprites ON (or
+     composite the baked frames). Quantization, alpha-snapping and the
+     1.35px grid change how art reads; the owner judges what ships, never
+     the raw vector drawing.
 
 3. **Showcase artifact** for the owner: one card per design (concept
-   statement, animation notes, screenshots, live-preview keys). The owner
-   picks winners or mixes.
+   statement, animation notes, screenshots, live-preview keys). The
+   screenshots MUST be post-bake (hard rule above). The owner picks winners
+   or mixes.
 
 4. **Bake all variants** under the `@slot` convention
    (`public/assets/sprites/<kind>/<unit>@<slot>/`): the bake pipeline's
@@ -91,11 +100,15 @@ support:
   including tournament sources and baked assets. The later Biopunk faction
   removal also deleted Needleback, Razorwing, Vat Brute, Apex Chimera, their
   A/B/C sources and death atlases, plus Rift Djinn's A/B round.
-- The two surviving faction Barracks are canonical single designs by explicit
-  owner direction, not unresolved tournaments. They live under `barracks`
-  and `mystic_barracks` with no variant registry entries.
+- The two surviving faction Barracks were canonical single designs by explicit
+  owner direction until 2026-07-19, when the owner reopened BOTH as a live
+  2-variant redesign round: units `barracks` and `mystic_barracks`, slots A/B,
+  shape `BuildingDesignFn`. Their old canonical bodies were stubbed out of
+  `FactionBarracksRenderer.ts` (clean-room; git history holds them for
+  revert-to-old), and the registry carries their A/B anchors.
 
-No unresolved tournament is currently live in the Design Lab. The resulting
+Apart from the live barracks round above, no unresolved tournament is live in
+the Design Lab. The resulting
 committed normal sprite bank is exactly **33,443 frames across 94 manifests**.
 The death bank is **3,888 frames across 6 manifests**, and the strict full gate
 is **37,331 frames across 100 manifests**. `scripts/render-quality-regression.mjs`

@@ -35,6 +35,11 @@ import { troopWorldVisualScale } from '../renderers/TroopVisualScale';
  * 'bank:*' texture is registered as a pixel surface (NEAREST outside legacy).
  *
  * Kill switch: localStorage 'clash.sprites.off' = '1' falls back to vectors.
+ *
+ * Pre-ready hold (owner's hard rule): while the bank is enabled but still
+ * LOADING, every sync* entry point returns true having stamped NOTHING — the
+ * vector fallback is reserved for the kill switch and for a bank that failed
+ * to load (both leave/downgrade `enabled` to false). See `holdVector`.
  */
 
 interface FrameMeta {
@@ -174,6 +179,22 @@ class SpriteBankImpl {
      *  failed. MainScene uses this to keep the first village reveal behind
      *  cloud cover, so a slow network can never expose the vector fallback. */
     private loadPromise: Promise<void> | null = null;
+    /** The scene the in-flight load is bound to (its loader + settle emit).
+     *  Non-null only while a load is pending: App destroys and recreates the
+     *  whole Phaser game on connectivity blips, so a pending load can end up
+     *  bound to a DEAD scene — its loader never fires COMPLETE and its
+     *  'spritebank:ready' emit targets a dead emitter. init() detects that
+     *  (sceneLive) and restarts the load on the new scene. */
+    private loadingScene: Phaser.Scene | null = null;
+    /** Resolver of the CURRENT loadPromise — abandonLoad() calls it so any
+     *  live waitUntilSettled() chaser wakes and re-chases the swapped
+     *  promise instead of hanging on a loader that can never COMPLETE. */
+    private loadResolve: (() => void) | null = null;
+    /** Monotonic load generation. Every async hop of a load checks it and
+     *  bails when superseded, so an abandoned dead-scene load can never
+     *  clobber singleton state (e.g. its dead-scene throw landing in .catch
+     *  and downgrading enabled=false under the RESTARTED load). */
+    private loadGen = 0;
     private units = new Map<string, UnitRecord>();
     /** Design-variant slots present in the bank: 'kind:unit' → slots (sorted).
      *  Populated from '@'-tagged atlas dirs ('cannon@A') at load time. */
@@ -187,12 +208,33 @@ class SpriteBankImpl {
     private hooked = new WeakSet<Phaser.GameObjects.Graphics>();
     /** Stable maximum silhouette top per resolved troop atlas/level/palette. */
     private troopTopOffsets = new Map<string, number>();
+    /** Stable body-surface ellipse per resolved troop atlas/level/palette
+     *  (impact-point math — see troopBodyEllipse). */
+    private troopBodyEllipses = new Map<string, { cx: number; cy: number; rx: number; ry: number }>();
     private lastSweep = 0;
+
+    /** Abandon a pending load: bump the generation (inert-izing the old
+     *  load's remaining callbacks), release any waitUntilSettled() chasers
+     *  (they re-chase whatever loadPromise is by then), and clear the load
+     *  state so the next init()/watchdog starts fresh. */
+    private abandonLoad() {
+        this.loadGen++;
+        const release = this.loadResolve;
+        this.loadResolve = null;
+        this.loadPromise = null;
+        this.loadingScene = null;
+        this.loadProgress = 0;
+        release?.();
+    }
 
     /** Kick off loading; call from scene create(). Safe to call once. */
     init(scene: Phaser.Scene): Promise<void> {
         try {
             if (localStorage.getItem('clash.sprites.off') === '1') {
+                // The kill switch must also release any pending load — a
+                // stuck dead-scene loadPromise would otherwise hang every
+                // future waitUntilSettled() (boot clouds never open).
+                if (this.loadPromise) this.abandonLoad();
                 this.enabled = false;
                 this.loadProgress = 1;
                 return Promise.resolve();
@@ -218,9 +260,25 @@ class SpriteBankImpl {
             this.loadPromise = null;
             this.loadProgress = 0;
         }
-        if (this.loadPromise) return this.loadPromise;
+        if (this.loadPromise) {
+            // A pending load bound to a scene that is still alive: share it.
+            // Bound to a DEAD scene (App destroyed/recreated the game on a
+            // connectivity blip mid-load): its loader can never fire COMPLETE
+            // and its settle emit would target the dead scene's emitter — the
+            // live scene would hold-empty forever. Abandon it (the gen bump
+            // below inert-izes its remaining callbacks) and restart fresh on
+            // this scene; waitUntilSettled follows the swap to the new
+            // promise.
+            if (this.loadingScene === null || this.sceneLive(this.loadingScene)) {
+                return this.loadPromise;
+            }
+            this.abandonLoad();
+        }
 
+        this.loadingScene = scene;
+        const gen = ++this.loadGen;
         this.loadPromise = new Promise<void>((resolve) => {
+            this.loadResolve = resolve;
             fetch('/assets/sprites/index.json')
                 .then(async r => {
                     if (!r.ok) return null;
@@ -233,9 +291,26 @@ class SpriteBankImpl {
                     };
                 })
                 .then(async payload => {
-                    if (!payload || !scene.scene.isActive()) {
+                    if (gen !== this.loadGen) { resolve(); return; } // superseded — a newer load owns the state
+                    if (!this.sceneLive(scene)) {
+                        // The loading scene died mid-fetch (game destroyed on
+                        // a connectivity blip). NOT a bank failure — don't
+                        // downgrade to vector; abandon so the next scene's
+                        // init() restarts the load fresh.
+                        this.loadPromise = null;
+                        this.loadingScene = null;
+                        resolve();
+                        return;
+                    }
+                    if (!payload) {
                         this.enabled = false;
                         this.loadProgress = 1;
+                        this.loadingScene = null;
+                        // Draws made under the pre-ready hold stamped nothing;
+                        // now that the bank is permanently unavailable they
+                        // must repaint through the vector path — same settle
+                        // emit as the ready case.
+                        scene.events.emit('spritebank:ready');
                         resolve();
                         return;
                     }
@@ -254,6 +329,7 @@ class SpriteBankImpl {
                     scene.load.on(Phaser.Loader.Events.PROGRESS, trackProgress);
                     scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
                         scene.load.off(Phaser.Loader.Events.PROGRESS, trackProgress);
+                        if (gen !== this.loadGen) { resolve(); return; } // superseded — a newer load owns the state
                         for (const u of index.units) {
                             const atlasKey = `bank:${u.kind}:${u.unit}`;
                             const manifest = scene.cache.json.get(`${atlasKey}:man`);
@@ -273,29 +349,86 @@ class SpriteBankImpl {
                             }
                         }
                         this.ready = this.units.size > 0;
+                        // A COMPLETE with ZERO usable units (every atlas or
+                        // manifest failed) must not strand the game enabled-
+                        // but-never-ready — the pre-ready hold would draw
+                        // nothing forever. The bank is unavailable: downgrade
+                        // to the deliberate vector fallback, exactly like the
+                        // index-fetch failure path below.
+                        if (!this.ready) this.enabled = false;
                         this.loadProgress = 1;
+                        this.loadingScene = null;
                         console.info(`SpriteBank: ${this.units.size} unit atlases live`);
-                        // Anything painted before this moment fell back to vector.
-                        // Most surfaces repaint themselves every few frames, but
-                        // one-shot art (walls!) never would — announce readiness
-                        // so the scene can force one full repaint.
-                        if (this.ready) scene.events.emit('spritebank:ready');
+                        // Anything painted before this moment fell back to
+                        // vector — or, under the pre-ready hold, to nothing at
+                        // all. Most surfaces repaint themselves every few
+                        // frames, but one-shot art (walls, idle camp figures,
+                        // the merchant's stall) never would — announce
+                        // settlement UNCONDITIONALLY so the scene forces one
+                        // full repaint: from the bank when ready, from the
+                        // vector path when the load downgraded to
+                        // enabled=false.
+                        scene.events.emit('spritebank:ready');
                         resolve();
                     });
                     scene.load.start();
                 })
                 .catch(() => {
+                    if (gen !== this.loadGen) { resolve(); return; } // superseded — a newer load owns the state
+                    if (!this.sceneLive(scene)) {
+                        // A throw caused by the loading scene dying (nulled
+                        // loader/plugins), not by the bank itself — abandon so
+                        // the next scene's init() restarts, exactly like the
+                        // mid-fetch dead-scene branch above.
+                        this.loadPromise = null;
+                        this.loadingScene = null;
+                        resolve();
+                        return;
+                    }
                     this.enabled = false;
                     this.loadProgress = 1;
+                    this.loadingScene = null;
+                    // Same settle emit as above: held-empty pre-ready draws
+                    // (idle camp figures, walls) repaint via vector now.
+                    scene.events.emit('spritebank:ready');
                     resolve();
                 });
         });
         return this.loadPromise;
     }
 
-    /** Await the current boot load without starting another one. */
+    /** True while a scene can still receive loader events and settle emits;
+     *  false once it (or its whole game) was destroyed. Never throws:
+     *  Systems.destroy sets settings.status=DESTROYED and nulls sys.game but
+     *  keeps settings readable, whereas ScenePlugin.isActive() would
+     *  dereference the nulled manager. */
+    private sceneLive(scene: Phaser.Scene | null): boolean {
+        if (!scene) return false;
+        try {
+            const status = scene.sys.settings.status;
+            return !!scene.sys.game
+                && status !== Phaser.Scenes.SHUTDOWN
+                && status !== Phaser.Scenes.DESTROYED;
+        } catch {
+            return false;
+        }
+    }
+
+    /** Await the current boot load without starting another one. "Settled"
+     *  means the pre-ready hold is over: this resolves only with ready=true
+     *  (atlases live) or enabled=false (kill switch, or a load failure that
+     *  downgraded to the deliberate vector fallback) — NEVER while
+     *  enabled && !ready. A reveal gated on this promise therefore cannot
+     *  expose the held-empty stage or the vector fallback. Follows RESTARTS:
+     *  if the awaited load was abandoned (dead loading scene → init()
+     *  restarted on a new scene, resolving the abandoned promise), this
+     *  chases the NEW loadPromise instead of reporting a false settle. */
     waitUntilSettled(): Promise<void> {
-        return this.loadPromise ?? Promise.resolve();
+        const p = this.loadPromise;
+        if (!p) return Promise.resolve();
+        return p.then(() => {
+            if (p !== this.loadPromise) return this.waitUntilSettled();
+        });
     }
 
     /**
@@ -340,6 +473,28 @@ class SpriteBankImpl {
 
     backed(kind: string, unit: string): boolean {
         return this.enabled && this.ready && this.units.has(`${kind}:${this.resolveVariantUnit(kind, unit)}`);
+    }
+
+    /**
+     * OWNER'S HARD RULE — the smooth vector fallback must never be visible
+     * outside the explicit kill switch. While the initial atlas bank is
+     * still LOADING (enabled but not ready), every sync* entry point returns
+     * true having stamped NOTHING: callers skip their vector fallback and
+     * the stage simply stays empty until the 'spritebank:ready' settle emit
+     * forces one full repaint (the App boot clouds cover the whole window in
+     * the normal path — loadBase gates the reveal on waitUntilSettled(); in
+     * a dev-HMR bank reload a brief blink is the deliberate trade). The hold
+     * is always FINITE: the load ends either ready=true (settle emit →
+     * repaint from the bank) or permanently downgraded to enabled=false
+     * (settle emit → repaint from vector — kill-switch semantics for a bank
+     * that failed to load), so nothing can stay held-empty forever. A load
+     * orphaned by its scene's DESTRUCTION (App recreates the game on
+     * connectivity blips) doesn't break the guarantee: init() on the new
+     * scene detects the dead loading scene and restarts (see loadingScene),
+     * and loadBase re-runs the settle bust directly after waitUntilSettled.
+     */
+    get holdVector(): boolean {
+        return this.enabled && !this.ready;
     }
 
     // ------------------------------------------------------------ shadows --
@@ -476,7 +631,17 @@ class SpriteBankImpl {
      *  Call once at the END of the scene update in every mode — nothing else
      *  propagates carrier changes (hide-inside fades, night hiding, move-carry
      *  hiding, off-screen walking) to the baked sprite between stamps. */
-    update(time: number) {
+    update(time: number, scene?: Phaser.Scene) {
+        // Watchdog for the two-live-games window: a load SHARED while the old
+        // scene still looked alive has no restarter once that scene dies
+        // (init() already ran on the live scene). The live scene's per-frame
+        // update detects the orphaned load and restarts it here.
+        if (scene && this.loadPromise && this.loadingScene
+            && this.loadingScene !== scene
+            && !this.sceneLive(this.loadingScene) && this.sceneLive(scene)) {
+            this.abandonLoad();
+            void this.init(scene);
+        }
         for (const [carrier, rec] of this.shadows) {
             if (!carrier.scene || !carrier.active) continue; // reaped by sweep below
             if (rec.body?.scene && rec.bodyBind) this.apply(carrier, rec.body, rec.bodyBind);
@@ -518,6 +683,24 @@ class SpriteBankImpl {
     /** The wall variant tag for a neighbor topology. */
     wallTag(n: { nN: boolean; nE: boolean; nS: boolean; nW: boolean }): string {
         return `m${['N', 'E', 'S', 'W'].filter((_, i) => [n.nN, n.nE, n.nS, n.nW][i]).join('') || '0'}`;
+    }
+
+    /**
+     * The quantized aim bucket pickBuildingFrame would select for `angle` on
+     * this building's idle sheet (16 for the rotating turrets — same
+     * rounding as the `angleIdx` closure below). Lets the scene gate
+     * angle-driven redraws on the BUCKET changing while a turret smoothly
+     * tracks a target, instead of re-stamping the same frame every raw
+     * radian tick. Returns null when the bank isn't serving the type
+     * (kill-switch vector mode renders continuous angles — callers keep
+     * their fine-grained threshold then).
+     */
+    buildingAngleBucket(type: string, level: number, angle: number): number | null {
+        if (!this.backed('buildings', type)) return null;
+        const n = this.buildingEntry(type, level)?.entry.states?.idle?.angles ?? 1;
+        if (n <= 1) return 0;
+        const TAU = Math.PI * 2;
+        return ((Math.round(((angle % TAU) + TAU) % TAU / (TAU / n)) % n) + n) % n;
     }
 
     /** Pick the frame for a building's CURRENT state. */
@@ -634,6 +817,7 @@ class SpriteBankImpl {
         time: number,
         opts: { wallTag?: string; jukeboxPlaying?: boolean } = {}
     ): boolean {
+        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
         if (!this.backed('buildings', type)) return false;
         const pick = this.pickBuildingFrame(type, level, building, time, opts);
         if (!pick) return false;
@@ -795,6 +979,68 @@ class SpriteBankImpl {
         return worldTop;
     }
 
+    /**
+     * Screen-space body ellipse of a troop's baked silhouette, relative to
+     * its ground-contact anchor: center offset (cx, cy — negative cy is above
+     * the anchor, ornithopter-style flyers land far above it) and semi-axes
+     * (rx, ry), presentation-only visual scale included. Bounds are the union
+     * of the trimmed idle/walk frame rects across all directions — attack
+     * outliers (a swung blade, the phalanx spear thrust) must not inflate the
+     * hull that impacts land on. Impact FX use this so beams and projectiles
+     * terminate on a large troop's visible surface instead of inside its
+     * middle. null (kill switch / unbacked / loading) keeps the deterministic
+     * vector-fallback path honest.
+     */
+    troopBodyEllipse(type: string, owner: 'PLAYER' | 'ENEMY', level: number): { cx: number; cy: number; rx: number; ry: number } | null {
+        if (!this.backed('troops', type)) return null;
+        const rec = this.unitOf('troops', type)!;
+        const man = rec.manifest as TroopManifest;
+        const levels = Object.keys(man.levels).map(Number);
+        const lv = man.levels[level] ? level : Math.min(Math.max(...levels), Math.max(1, level));
+        const ownerTag = owner === 'PLAYER' ? 'P' : 'E';
+        const dirs = man.levels[lv]?.[ownerTag];
+        if (!dirs) return null;
+        const visualScale = troopWorldVisualScale(type);
+        const key = `${rec.atlasKey}:${lv}:${ownerTag}:${visualScale}`;
+        const cached = this.troopBodyEllipses.get(key);
+        if (cached) return cached;
+
+        // Frame extents relative to the anchor, screen coords (+y down):
+        // x ∈ [−originX·W, (1−originX)·W], y ∈ [−originY·H, (1−originY)·H].
+        // Origins may lie outside 0..1 (a flyer's anchor sits below its
+        // cropped frame) — never clamp them. First pass: rest poses only;
+        // an all-states pass only if a manifest somehow bakes no rest pose.
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const restOnly of [true, false]) {
+            for (const dir of dirs) {
+                for (const f of dir.frames) {
+                    // Rest poses only — attack outliers (swung weapons) would
+                    // bloat the body. 'deactivated' IS a rest pose: the parked
+                    // siege tower renders it exclusively for the rest of the
+                    // battle, so its silhouette must shape the ellipse too.
+                    if (restOnly && f.state !== 'idle' && f.state !== 'walk'
+                        && f.state !== 'deactivated') continue;
+                    const w = f.texelW * f.cellWorldPx;
+                    const h = f.texelH * f.cellWorldPx;
+                    minX = Math.min(minX, -f.originX * w);
+                    maxX = Math.max(maxX, (1 - f.originX) * w);
+                    minY = Math.min(minY, -f.originY * h);
+                    maxY = Math.max(maxY, (1 - f.originY) * h);
+                }
+            }
+            if (maxX > minX && maxY > minY) break;
+        }
+        if (!(maxX > minX && maxY > minY)) return null;
+        const ell = {
+            cx: ((minX + maxX) / 2) * visualScale,
+            cy: ((minY + maxY) / 2) * visualScale,
+            rx: ((maxX - minX) / 2) * visualScale,
+            ry: ((maxY - minY) / 2) * visualScale
+        };
+        this.troopBodyEllipses.set(key, ell);
+        return ell;
+    }
+
     /** Shadow-stamp a troop; returns false → caller draws vector. */
     syncTroop(
         scene: Phaser.Scene,
@@ -809,6 +1055,7 @@ class SpriteBankImpl {
         attackAge: number,
         time: number
     ): boolean {
+        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
         const pick = this.pickTroopFrame(
             troop.type, troop.owner, troop.level ?? 1, troop.facingAngle ?? 0,
             isMoving, attackAge, time,
@@ -834,6 +1081,7 @@ class SpriteBankImpl {
         facingAngle: number,
         pose: string
     ): boolean {
+        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
         const pick = this.pickTroopFrame(type, owner, level, facingAngle, false, -1, 0, { pose });
         if (!pick) return false;
         this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, {
@@ -889,6 +1137,7 @@ class SpriteBankImpl {
         time: number,
         flipX = false
     ): boolean {
+        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
         const pick = this.pickTroopFrame(type, owner, level, facingAngle, isMoving, -1, time);
         if (!pick) return false;
         // Multi-direction manifests carry facing in the frame itself (the
@@ -966,6 +1215,7 @@ class SpriteBankImpl {
         flipX = false,
         opts: { kind?: string; depthBias?: number; at?: { x: number; y: number }; scaleMul?: number } = {}
     ): boolean {
+        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
         const pick = this.pickFigureFrame(opts.kind ?? 'villagers', unit, variant, state, phase);
         if (!pick) return false;
         // depthBias sinks the sprite a hair below its carrier so overlays the
@@ -998,6 +1248,11 @@ class SpriteBankImpl {
         width: number,
         height: number
     ): boolean {
+        // Pre-ready hold. Wrecks are one-shot draws, but they can only spawn
+        // from battle destruction and battles sit behind the boot reveal
+        // (loadBase awaits waitUntilSettled) — this hold is reachable only in
+        // a dev-HMR bank reload, where an empty wreck beats a vector one.
+        if (this.holdVector) return true;
         if (!this.backed('wrecks', type)) return false;
         const rec = this.unitOf('wrecks', type)!;
         const man = rec.manifest as WreckManifest;
@@ -1065,6 +1320,7 @@ class SpriteBankImpl {
         gridY: number,
         time: number
     ): boolean {
+        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
         const pick = this.pickObstacleFrame(type, id, gridX, gridY, time);
         if (!pick) return false;
         const cx = (gridX + 0.5 - (gridY + 0.5)) * (TILE_WIDTH / 2);

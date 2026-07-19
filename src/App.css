@@ -2513,6 +2513,43 @@ body.is-touch {
     color: #666;
 }
 
+.notification-item.admin-notice {
+    background: linear-gradient(135deg, rgba(34, 58, 74, 0.92), rgba(22, 31, 39, 0.96));
+    border-left: 3px solid #67b8db;
+}
+
+.notification-item.admin-notice.warning {
+    border-left-color: #e4ad45;
+    background: linear-gradient(135deg, rgba(75, 57, 24, 0.92), rgba(35, 31, 24, 0.96));
+}
+
+.notification-item.admin-notice.critical {
+    border-left-color: #e56464;
+    background: linear-gradient(135deg, rgba(76, 31, 31, 0.94), rgba(37, 24, 24, 0.97));
+}
+
+.notification-item.admin-notice .attacker {
+    color: #f2e5ba;
+}
+
+.admin-notice-label {
+    margin-bottom: 5px;
+    color: #7fd6f4;
+    font-size: 7px;
+    letter-spacing: 1px;
+}
+
+.admin-notice.warning .admin-notice-label { color: #efbd5e; }
+.admin-notice.critical .admin-notice-label { color: #ff8181; }
+
+.admin-notice-message {
+    margin-bottom: 7px;
+    color: var(--text-primary);
+    font-size: 8px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
 /* Chrome (pxf danger frame) lives in the PIXEL RESKIN section. */
 .notification-item.live-attack {
     display: flex;

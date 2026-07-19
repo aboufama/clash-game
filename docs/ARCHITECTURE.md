@@ -213,11 +213,13 @@ ordinal block reservations rather than an in-process cache.
 
 `GET /api/map` returns a watchtower-bounded window (maximum radius 2) containing
 players, deterministic bot plots, wilderness/preserves, live-battle metadata,
-and `serverNow`. A client may focus beyond normal sight only on the canonical
+and `serverNow`. Bot coordinates are deterministic, but every bot payload is a
+persisted server record before it enters this response. A client may focus
+beyond normal sight only on the canonical
 target of its active player or bot attack; that focused battlefield always gets
 at least its immediate 3x3 world context so a new account never falls back to a
-detached-looking island. `known` appearance revisions let unchanged player
-layouts be omitted without an N+1 fetch.
+detached-looking island. `known` appearance revisions let unchanged player and
+bot layouts be omitted without an N+1 fetch.
 
 ### Accurate neighboring villages without full simulation cost
 
@@ -254,6 +256,10 @@ client derives repeatable presentation, and static geometry is cached.
 Target discovery and combat are separate. Neighbor, direct, matchmade, and
 revenge choices all become a PLAYER `WorldAttackTarget`; map and matchmade bot
 choices become a BOT target. They then use the same `AttackAggregate` phases:
+
+Bot layout generation exists only inside server-side provisioning. The full
+village is committed to bot-village storage before a map response or attack
+can use it; clients never rebuild a bot from its seed.
 
 ```text
 PREPARING -> ENGAGED -> ACTIVE -> FINALIZING -> SETTLED

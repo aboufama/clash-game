@@ -187,8 +187,11 @@ export function createApiMiddleware<Principal>(
     const address = clientAddress(req)
     const stateChanging = req.method === 'POST' || req.method === 'PUT'
       || req.method === 'PATCH' || req.method === 'DELETE'
-    if (stateChanging && rawToken) {
-      const tokenKey = createHash('sha256').update(rawToken).digest('hex')
+    const adminPath = url.pathname.startsWith('/api/admin/')
+    if (stateChanging && (rawToken || adminPath)) {
+      const adminCookie = Array.isArray(req.headers.cookie) ? req.headers.cookie[0] : req.headers.cookie
+      const identity = rawToken || (adminCookie ? `admin-cookie:${adminCookie}` : `admin-address:${address}`)
+      const tokenKey = createHash('sha256').update(identity).digest('hex')
       const isBattleStream = url.pathname === '/api/attacks/frames' || url.pathname === '/api/attacks/commands'
       const windows = isBattleStream ? frameWindows : durableMutationWindows
       const limit = isBattleStream ? frameLimit : mutationLimit
@@ -207,13 +210,15 @@ export function createApiMiddleware<Principal>(
     let status = 500
     let payload: unknown = { error: 'Internal server error' }
     try {
-      const body = req.method === 'POST' || req.method === 'PUT' ? await readBody(req) : undefined
+      const body = stateChanging ? await readBody(req) : undefined
       const result = await handle({
         method: req.method ?? 'GET',
         path: url.pathname.slice('/api'.length),
         query: url.searchParams,
         token: rawToken,
         clientAddress: address,
+        cookie: req.headers.cookie,
+        adminCsrfToken: req.headers['x-admin-csrf'] ?? req.headers['x-csrf-token'],
         body
       })
       status = result.status
@@ -222,6 +227,11 @@ export function createApiMiddleware<Principal>(
       if (status >= 200 && status < 300 && requiresDurableFlush && !await flushDurably()) {
         status = 503
         payload = { error: 'The server could not durably save that change', code: 'PERSISTENCE_FAILED' }
+      }
+      if (result.headers) {
+        for (const [name, value] of Object.entries(result.headers)) {
+          res.setHeader(name, Array.isArray(value) ? [...value] : value)
+        }
       }
     } catch (error) {
       status = 400

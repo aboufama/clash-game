@@ -75,17 +75,16 @@ export interface VillageLifeManifest {
  * The village banner — the owner's explicit heraldry choice, persisted
  * server-side and rendered identically everywhere the village flies a flag
  * (town hall, war camp, world-map postcards). All axes are bounded enums;
- * anything missing/invalid falls back to the deterministic identity-derived
- * default (`villageFlagFor`), so pre-banner villages need no migration.
+ * an explicit banner is complete only when all three axes are present and
+ * valid. Villages without a complete banner must choose one during onboarding.
  */
 export interface VillageBanner {
     /** Index into the shared heraldry field palette (VillageFlagRenderer FIELDS). */
     palette: number;
     /** Charge: 0 tower · 1 blade · 2 oak leaf · 3 star · 4 crescent · 5 hammer. */
     emblem: number;
-    /** Field division: 0 solid+border · 1 per-fess · 2 per-pale · 3 per-bend · 4 chevron.
-     *  Omitted = keep the village's identity-derived pattern. */
-    pattern?: number;
+    /** Field division: 0 solid+border · 1 per-fess · 2 per-pale · 3 per-bend · 4 chevron. */
+    pattern: number;
 }
 
 export const VILLAGE_BANNER_PALETTES = 8;
@@ -96,20 +95,19 @@ export const VILLAGE_BANNER_PATTERNS = 5;
 export function sanitizeVillageBanner(raw: unknown): VillageBanner | null {
     if (!raw || typeof raw !== 'object') return null;
     const record = raw as { palette?: unknown; emblem?: unknown; pattern?: unknown };
-    const palette = Number(record.palette);
-    const emblem = Number(record.emblem);
+    const palette = record.palette;
+    const emblem = record.emblem;
+    const pattern = record.pattern;
+    if (typeof palette !== 'number' || typeof emblem !== 'number' || typeof pattern !== 'number') return null;
     if (!Number.isInteger(palette) || palette < 0 || palette >= VILLAGE_BANNER_PALETTES) return null;
     if (!Number.isInteger(emblem) || emblem < 0 || emblem >= VILLAGE_BANNER_EMBLEMS) return null;
-    const rawPattern = record.pattern === undefined || record.pattern === null ? undefined : Number(record.pattern);
-    const pattern = rawPattern !== undefined && Number.isInteger(rawPattern) && rawPattern >= 0 && rawPattern < VILLAGE_BANNER_PATTERNS
-        ? rawPattern
-        : undefined;
-    return pattern === undefined ? { palette, emblem } : { palette, emblem, pattern };
+    if (!Number.isInteger(pattern) || pattern < 0 || pattern >= VILLAGE_BANNER_PATTERNS) return null;
+    return { palette, emblem, pattern };
 }
 
 export function villageBannersEqual(a: VillageBanner | null | undefined, b: VillageBanner | null | undefined): boolean {
     if (!a || !b) return !a === !b;
-    return a.palette === b.palette && a.emblem === b.emblem && (a.pattern ?? -1) === (b.pattern ?? -1);
+    return a.palette === b.palette && a.emblem === b.emblem && a.pattern === b.pattern;
 }
 
 export interface SerializedWorld {
@@ -125,7 +123,7 @@ export interface SerializedWorld {
     /** Public resident authority used by postcards and attack snapshots. */
     life?: VillageLifeManifest;
     /** Owner-chosen heraldry (server-validated; ignored on save — use the
-     *  banner mutation endpoint). Missing = identity-derived default. */
+     *  banner mutation endpoint). Missing = banner onboarding required. */
     banner?: VillageBanner;
     army?: Record<string, number>; // Persisted army state
     /** Server-computed paving age 0..1 (read-only; ignored on save). */
