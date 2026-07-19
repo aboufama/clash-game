@@ -1,7 +1,7 @@
 export const meta = {
   name: 'design-tournament',
   description: 'Clean-room design tournament: N isolated designers per unit produce divergent art variants, live-switchable, showcase-ready',
-  whenToUse: 'When the owner asks for a NEW or REDESIGNED building/troop/unit. ALWAYS ask the owner how many variations first (default 3). Args: { units: [{unit, kind: "building"|"troop", brief, levels?, dirs?}], variants?: 3, mode?: "redesign"|"new" }. Bake + Design Lab integration happen AFTER the owner picks from the showcase (see docs/DESIGN_TOURNAMENTS.md).',
+  whenToUse: 'When the owner asks for a NEW or REDESIGNED building/troop/unit. ALWAYS ask the owner how many variations first (default 3). Args: { units: [{unit, kind: "building"|"troop", brief, levels?, dirs?}], variants?: 3, mode?: "redesign"|"new" }. Bake + Design Lab integration happen AFTER the owner picks from the showcase (see src/game/renderers/redesign/DESIGN_TOURNAMENTS.md).',
   phases: [
     { title: 'Prep', detail: 'visual-info-free contracts; stub old art (redesign) or wire data plumbing (new); registry slots' },
     { title: 'Art', detail: 'N isolated designers per unit, screenshot-iterated' },
@@ -40,11 +40,11 @@ phase('Prep')
 const unitList = UNITS.map(u => `${u.unit} (${u.kind})`).join(', ')
 const prep = await agent(`You are the CLEAN-ROOM PREP agent in the clash-game repo (find it: the cwd of this session). Units for a ${N}-variant design tournament: ${unitList}. Mode: ${MODE}.
 
-For EACH unit produce a TECHNICAL CONTRACT with ZERO visual information (no colors/shapes/motifs/poses): draw signature(s) + dispatcher wiring; registry stats + one-line mechanical identity; every sim state field the art must read (grep MainScene/DefenseSystem writes); projectile-origin coupling constants if a shooter (artists may NOT edit MainScene); iso/grounding basics; ambient-period rules (idle terms exact harmonics of a 250ms-multiple period, surviving quantization >=1.5 world px or >=16/255 RGB over >=1% texels); required reading list (docs/BUILDING_ART_GUIDE.md whole, docs/AGENTS_SPRITE_PIPELINE.md, docs/ADDING_BUILDINGS.md or ADDING_TROOPS.md).
+For EACH unit produce a TECHNICAL CONTRACT with ZERO visual information (no colors/shapes/motifs/poses): draw signature(s) + dispatcher wiring; registry stats + one-line mechanical identity; every sim state field the art must read (grep MainScene/DefenseSystem writes); projectile-origin coupling constants if a shooter (artists may NOT edit MainScene); iso/grounding basics; ambient-period rules (idle terms exact harmonics of a 250ms-multiple period, surviving quantization >=1.5 world px or >=16/255 RGB over >=1% texels); required reading list (src/game/renderers/BUILDING_ART_GUIDE.md whole, tools/art-preview/AGENTS_SPRITE_PIPELINE.md, src/game/config/ADDING_BUILDINGS.md or ADDING_TROOPS.md).
 
 MODE '${MODE}': ${MODE === 'redesign'
   ? 'STUB the old art — replace each unit draw fn body with an activeDesign(unit) delegator + neutral placeholder ("// CLEAN-ROOM REDESIGN IN PROGRESS"); signatures unchanged; artists must never see the old bodies.'
-  : 'WIRE the data half per docs/ADDING_BUILDINGS.md / ADDING_TROOPS.md: type union, definitions registry entry (stats supplied in the unit brief), visual catalog + dispatcher route, behavior catalog if an active defense, GameTypes state fields — with the draw fn as an activeDesign(unit) delegator + placeholder.'}
+  : 'WIRE the data half per src/game/config/ADDING_BUILDINGS.md / ADDING_TROOPS.md: type union, definitions registry entry (stats supplied in the unit brief), visual catalog + dispatcher route, behavior catalog if an active defense, GameTypes state fields — with the draw fn as an activeDesign(unit) delegator + placeholder.'}
 
 Ensure src/game/renderers/redesign/DesignRegistry.ts has ${N} slots per unit with unique anchors ('// IMPORT <unit> <slot>' and '// SLOT <unit> <slot>' for slots ${SLOTS.join('/')}), activeDesign(unit) reading localStorage['clash.design.<unit>'] live. npx tsc --noEmit -p tsconfig.app.json must be clean when done. Return contracts keyed by unit name. Final message goes to the orchestrator.`, { label: 'prep', phase: 'Prep', schema: PREP_SCHEMA })
 
@@ -54,7 +54,7 @@ const artists = await parallel(UNITS.flatMap(u => SLOTS.map(slot => () => agent(
 
 CONTEXT ISOLATION — ABSOLUTE: FORBIDDEN: git log/diff/show on renderer files or sprite dirs; opening public/assets/sprites/** for this unit; opening tools/art-preview/shots/**; reading ANY file in src/game/renderers/redesign/ other than DesignRegistry.ts and your own new file.
 
-REQUIRED READING first: docs/BUILDING_ART_GUIDE.md (all), the ambient/bake rules in docs/AGENTS_SPRITE_PIPELINE.md, docs/${u.kind === 'troop' ? 'ADDING_TROOPS' : 'ADDING_BUILDINGS'}.md. Iron rules: base/elevated split; contact shadow + compact pad only, NO ground plates; deterministic f(time); idle terms exact harmonics of ONE 250ms-multiple period surviving quantization; max level = warm sandstone + gold/white ACCENTS only; never Math.random per frame.
+REQUIRED READING first: src/game/renderers/BUILDING_ART_GUIDE.md (all), the ambient/bake rules in tools/art-preview/AGENTS_SPRITE_PIPELINE.md, src/game/config/${u.kind === 'troop' ? 'ADDING_TROOPS' : 'ADDING_BUILDINGS'}.md. Iron rules: base/elevated split; contact shadow + compact pad only, NO ground plates; deterministic f(time); idle terms exact harmonics of ONE 250ms-multiple period surviving quantization; max level = warm sandstone + gold/white ACCENTS only; never Math.random per frame.
 
 BRIEF: ${u.brief}
 
@@ -72,4 +72,4 @@ const gate = await agent(`Light gate in the clash-game repo after a ${UNITS.leng
   type: 'object', required: ['tscClean', 'assetsUntouched', 'slotsFilled', 'notes'],
   properties: { tscClean: { type: 'boolean' }, assetsUntouched: { type: 'boolean' }, slotsFilled: { type: 'array', items: { type: 'string' } }, notes: { type: 'string' } } } })
 
-return { designs: artists.filter(Boolean), gate, next: 'Build the showcase artifact from the designs’ screenshots for the owner to pick; then bake winners (or all variants) under the @slot convention with DESIGN=<slot> and reconcile regression counts — see docs/DESIGN_TOURNAMENTS.md steps 4-5.' }
+return { designs: artists.filter(Boolean), gate, next: 'Build the showcase artifact from the designs’ screenshots for the owner to pick; then bake winners (or all variants) under the @slot convention with DESIGN=<slot> and reconcile regression counts — see src/game/renderers/redesign/DESIGN_TOURNAMENTS.md steps 4-5.' }

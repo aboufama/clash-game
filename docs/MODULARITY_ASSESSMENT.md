@@ -1,7 +1,7 @@
 # Modularity Assessment — buildings, defenses, troops
 
 *Written 2026-07 as the groundwork for the sprite-asset rework. Companion:
-`docs/AGENTS_SPRITE_PIPELINE.md`.*
+`tools/art-preview/AGENTS_SPRITE_PIPELINE.md`.*
 
 ## Verdict in one paragraph
 
@@ -157,4 +157,4 @@ type.** The rework keeps the registry and swaps the plug-in from
    swaps procedural drawing for frame selection.
 
 Full asset spec, generation pipeline, runtime loader, friction points, and
-phased migration order: **`docs/AGENTS_SPRITE_PIPELINE.md`**.
+phased migration order: **`tools/art-preview/AGENTS_SPRITE_PIPELINE.md`**.

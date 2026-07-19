@@ -1135,7 +1135,7 @@ export class WorldMapSystem {
         const c = this.caravan;
         if (!c) return;
         // Marching column + camp are per-frame vector figures: smooth until
-        // their sprite bake lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
+        // their sprite bake lands (tools/art-preview/AGENTS_SPRITE_PIPELINE.md step 5).
         // Any other transition (cloud raid, replay) cancels the march — but a
         // caravan that has ARRIVED is mid-handover to the battle: leave it be.
         if (this.scene.mode !== 'HOME' && !c.arriving) {
@@ -3640,7 +3640,7 @@ export class WorldMapSystem {
                 }
                 if (!view.life) {
                     // Per-frame vector life: smooth until its sprite bake
-                    // lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
+                    // lands (tools/art-preview/AGENTS_SPRITE_PIPELINE.md step 5).
                     view.life = this.scene.add.graphics();
                 }
                 const hydrologyLife = String(view.renderedRevision).includes('_hydroart_');
@@ -4184,7 +4184,7 @@ export class WorldMapSystem {
         this.nextFogEdgeAt = time + 66;
         if (!this.fogEdge) {
             // Living rampart is per-frame vector: smooth until its sprite
-            // bake lands (docs/AGENTS_SPRITE_PIPELINE.md step 5).
+            // bake lands (tools/art-preview/AGENTS_SPRITE_PIPELINE.md step 5).
             this.fogEdge = this.scene.add.graphics();
             this.fogEdge.setDepth(28_502);
         }

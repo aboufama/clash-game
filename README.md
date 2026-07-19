@@ -4,7 +4,7 @@ An isometric shared-world base builder: React owns the UI, Phaser renders the
 world, and a Node server owns accounts, villages, the economy, world plots,
 attacks, and replays. Building and troop art is authored as hand-drawn vector
 code and baked into committed pixel-art sprite sheets that the game renders
-from (see [`docs/AGENTS_SPRITE_PIPELINE.md`](docs/AGENTS_SPRITE_PIPELINE.md)).
+from (see [`tools/art-preview/AGENTS_SPRITE_PIPELINE.md`](tools/art-preview/AGENTS_SPRITE_PIPELINE.md)).
 
 ## Codebase knowledge graph (graphify)
 
@@ -129,7 +129,7 @@ database or connection-pool load test. Run
 remains an operational staging boundary.
 
 Before changing building art, read
-[`docs/BUILDING_ART_GUIDE.md`](docs/BUILDING_ART_GUIDE.md) and verify screenshots
+[`src/game/renderers/BUILDING_ART_GUIDE.md`](src/game/renderers/BUILDING_ART_GUIDE.md) and verify screenshots
 with `tools/art-preview/`; typechecking cannot validate isometric layering.
 
 The documentation entry point is [`docs/README.md`](docs/README.md).

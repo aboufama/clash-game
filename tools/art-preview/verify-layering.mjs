@@ -2,7 +2,7 @@
 // (a level-3 wall row + corner + east column), walks representative
 // characters (warrior, 16-dir golem, davincitank, and a home
 // villager) through sub-tile offsets behind and in front of segments, and
-// PIXEL-asserts the occluder-band contract from docs/RENDERING_AND_DEPTH.md:
+// PIXEL-asserts the occluder-band contract from src/game/renderers/RENDERING_AND_DEPTH.md:
 // no character pixel may render over a wall crest while the character's
 // anchor row is behind the wall's tile-center row, and a character in front
 // MUST paint over the crest. Also asserts the building band end-to-end
@@ -537,7 +537,7 @@ try {
   // and reads as perched on the roof (painter order is pixel-correct — the
   // body shows against sky INSIDE the art's rect). The contract: ambient
   // tile pickers never return dead-zone tiles, and a walk that ends in the
-  // zone immediately walks out. See docs/RENDERING_AND_DEPTH.md.
+  // zone immediately walks out. See src/game/renderers/RENDERING_AND_DEPTH.md.
   const zone = await page.evaluate(([hall]) => {
     const scene = window.__clashGame.scene.keys.MainScene
     const vl = scene.villageLife

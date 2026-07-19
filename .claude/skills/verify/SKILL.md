@@ -120,7 +120,7 @@ Key handles:
   `dayNight.resyncLights()` does the same for night light rigs (both are
   called automatically — sample `views.size`/`rigs.size` at the moment
   `.cloud-overlay` gains class `opening` to test).
-- ART: read docs/BUILDING_ART_GUIDE.md BEFORE touching building/prop art.
+- ART: read src/game/renderers/BUILDING_ART_GUIDE.md BEFORE touching building/prop art.
   Screenshot loop is mandatory: add the building to SHOWCASE in
   tools/art-preview/shoot-defenses.mjs, `npm run dev`, then
   `TAG=x node shoot-defenses.mjs` (PHASE=0.8 for night) and LOOK at the png.

@@ -130,7 +130,7 @@ interface TroopDef {
 4. Behaviour expressible via `targetPriority`/`splashRadius`/`chainCount`/… needs no code. Anything novel touches `TargetingSystem` / `CombatNavigationSystem` and the server sim (bump `simulationVersion`).
 5. `TrainingModal` groups directly from the faction trees — only add its
    `TROOP_FLAVOR` string.
-6. New or redesigned art MUST go through `docs/DESIGN_TOURNAMENTS.md`: ask
+6. New or redesigned art MUST go through `src/game/renderers/redesign/DESIGN_TOURNAMENTS.md`: ask
    the owner for the number of variants first, screenshot every candidate,
    promote only the selected winner, then bake and update exact sprite gates.
 

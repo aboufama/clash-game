@@ -1,35 +1,31 @@
-# Documentation
+# docs/ — global documentation index
 
-Entry point for the docs. Start here, then open the specific guide.
+Global, cross-cutting docs live here. **Folder-specific docs live in the
+folders they document** (owner mandate, 2026-07-18: keeps per-area context
+load small — read the docs of the folder you are working in).
 
-## The important one
+## Global (this directory)
 
-- **[BUILDING_ART_GUIDE.md](./BUILDING_ART_GUIDE.md)** — how building art is
-  actually made in this game (layered vector graphics in
-  `BuildingRenderer.ts`): iso math, the renderer contract, lighting/palette
-  rules, roofs, doors, turret math, walls, day/night light rigs, and the
-  screenshot-verification workflow in `tools/art-preview/`. Required reading
-  before any visual work.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — the whole-system map: client/server
+  split, authority boundaries, persistence, attack pipeline.
+- [`MODULARITY_ASSESSMENT.md`](MODULARITY_ASSESSMENT.md) — why the art layer
+  (not data) is the scaling wall.
+- [`REWRITE_REVIEW.md`](REWRITE_REVIEW.md) — historical rewrite review.
 
-## Task guides
+## Folder-specific (moved to their homes)
 
-- [ADDING_BUILDINGS.md](./ADDING_BUILDINGS.md) — end-to-end wiring checklist
-  for a new building type.
-- [ADDING_TROOPS.md](./ADDING_TROOPS.md) — same for troops.
-- [RENDERING_AND_DEPTH.md](./RENDERING_AND_DEPTH.md) — depth sorting and the
-  base/elevated (ground-bake) contract. Read when something layers wrong.
-- [COMBAT_NAVIGATION.md](./COMBAT_NAVIGATION.md) — strategic targets, wall
-  breaches, legal attack positions, collision, and regression requirements.
+| Doc | Lives at |
+| --- | --- |
+| Building art guide (REQUIRED for any art) | `src/game/renderers/BUILDING_ART_GUIDE.md` |
+| Rendering & depth contracts | `src/game/renderers/RENDERING_AND_DEPTH.md` |
+| Design tournaments (clean-room process) | `src/game/renderers/redesign/DESIGN_TOURNAMENTS.md` |
+| Combat navigation contracts | `src/game/systems/COMBAT_NAVIGATION.md` |
+| Adding buildings | `src/game/config/ADDING_BUILDINGS.md` |
+| Adding troops | `src/game/config/ADDING_TROOPS.md` |
+| Troop faction architecture (roster authority) | `src/game/config/TROOP_FACTION_ARCHITECTURE.md` |
+| Troop overhaul handoff | `src/game/config/TROOP_OVERHAUL_HANDOFF.md` |
+| Sprite/bake pipeline | `tools/art-preview/AGENTS_SPRITE_PIPELINE.md` |
 
-## Reference
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — where everything lives (client,
-  scene, `server/`).
-- [MainScene_Organization.md](../src/game/scenes/MainScene_Organization.md) —
-  scene responsibilities, focused collaborators, and extension seams.
-- [attack-domain/README.md](../server/attack-domain/README.md) — unified
-  attack state machine, transaction contract, and replay authority.
-- [persistence/README.md](../server/persistence/README.md) — normalized schema,
-  production runtime selection, bounded MMO queries, and cutover runbook.
-- [REWRITE_REVIEW.md](./REWRITE_REVIEW.md) — historical: findings from the
-  2026-07 backend rewrite review.
+Directory `AGENTS.md` files (config, renderers, systems, server) remain the
+first-read maps for each area. The graphify knowledge graph
+(`graphify-out/graph.json`) indexes all of it — query before grepping.

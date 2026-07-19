@@ -14,7 +14,7 @@ export class BuildingRenderer {
      * Vapor and powder effects (chimney smoke, muzzle smoke, launch columns)
      * are a RUNTIME effect layer, not part of a building's body art. The
      * sprite bake turns this off so baked frames stay clean — smoke returns
-     * as a separately-added effect (docs/AGENTS_SPRITE_PIPELINE.md).
+     * as a separately-added effect (tools/art-preview/AGENTS_SPRITE_PIPELINE.md).
      */
     static AMBIENT_VAPOR = true;
 

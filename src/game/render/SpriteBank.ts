@@ -8,7 +8,7 @@ import { troopWorldVisualScale } from '../renderers/TroopVisualScale';
 
 /**
  * SpriteBank — the runtime half of the bake pipeline
- * (docs/AGENTS_SPRITE_PIPELINE.md).
+ * (tools/art-preview/AGENTS_SPRITE_PIPELINE.md).
  *
  * Loads the baked atlases + manifests from public/assets/sprites/ and swaps
  * every unit's per-frame vector drawing for baked-frame selection. The

@@ -2934,7 +2934,7 @@ export class VillageLifeSystem {
      * sky region, so the rule is behavioural: ambient figures may WALK
      * through this band but never STOP in it — wander/door-step picks
      * reject it and arrivals that end here immediately walk out.
-     * See docs/RENDERING_AND_DEPTH.md ("Silhouette dead zone").
+     * See src/game/renderers/RENDERING_AND_DEPTH.md ("Silhouette dead zone").
      */
     private inSilhouetteShadow(x: number, y: number): boolean {
         const PAD = 0.75;

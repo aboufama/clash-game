@@ -24,13 +24,13 @@ less context:
 
 ## Read before working
 
-- **Any building/art/visual work:** `docs/BUILDING_ART_GUIDE.md` — REQUIRED.
+- **Any building/art/visual work:** `src/game/renderers/BUILDING_ART_GUIDE.md` — REQUIRED.
   It encodes the owner's calibrated taste and the iso-rendering math; art that
   ignores it gets rejected. Verify visually with `tools/art-preview/`
   screenshots before calling anything done.
-- Layering/depth bugs: `docs/RENDERING_AND_DEPTH.md`
-- New building wiring: `docs/ADDING_BUILDINGS.md` · troops: `docs/ADDING_TROOPS.md`
-- **Creating/redesigning ANY unit's art:** `docs/DESIGN_TOURNAMENTS.md` — the
+- Layering/depth bugs: `src/game/renderers/RENDERING_AND_DEPTH.md`
+- New building wiring: `src/game/config/ADDING_BUILDINGS.md` · troops: `src/game/config/ADDING_TROOPS.md`
+- **Creating/redesigning ANY unit's art:** `src/game/renderers/redesign/DESIGN_TOURNAMENTS.md` — the
   clean-room variant process (ALWAYS ask the owner how many design variations
   first; saved workflow `design-tournament`).
 - Code map: `docs/ARCHITECTURE.md` · scene internals: `src/game/scenes/MainScene_Organization.md`
@@ -46,7 +46,7 @@ touch-point checklists — read the one for the area you're editing:
   `src/game/systems/AGENTS.md`
 - **Server authority, API, saves:** `server/AGENTS.md`
 - **Why the art (not the data) is the scaling wall:** `docs/MODULARITY_ASSESSMENT.md`
-- **The sprite-asset rework + asset-creation pipeline:** `docs/AGENTS_SPRITE_PIPELINE.md`
+- **The sprite-asset rework + asset-creation pipeline:** `tools/art-preview/AGENTS_SPRITE_PIPELINE.md`
 
 `CLAUDE.md` is a byte-for-byte mirror of this file — keep them in sync.
 
@@ -201,10 +201,10 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   live/generated troop manifests. Authoritative
   settlement remains `ATTACK_SIMULATION_VERSION` **6** (Clockwork Beetle's
   125 ms live fuse; stored v5 keeps 1,000 ms). See
-  `docs/TROOP_FACTION_ARCHITECTURE.md`.
+  `src/game/config/TROOP_FACTION_ARCHITECTURE.md`.
 - The vector draw functions remain in the bundle as the AUTHORING source and
   per-unit fallback. Iron rules still govern them — they are what gets baked.
-  See `docs/AGENTS_SPRITE_PIPELINE.md` for the full architecture and the
+  See `tools/art-preview/AGENTS_SPRITE_PIPELINE.md` for the full architecture and the
   remaining follow-ups (per-figure carriers for caravan/postcard life,
   projectile impact FX, flag-cloth treatment).
 

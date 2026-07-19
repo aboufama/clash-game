@@ -1,4 +1,4 @@
-// Sprite bake pipeline v3 (docs/AGENTS_SPRITE_PIPELINE.md).
+// Sprite bake pipeline v3 (tools/art-preview/AGENTS_SPRITE_PIPELINE.md).
 //
 // Renders every unit's vector art through the REAL game renderer (via the
 // window.__clashBake bridge) and quantizes it into pixel-art texels with the

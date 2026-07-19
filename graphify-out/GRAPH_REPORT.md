@@ -1,16 +1,16 @@
 # Graph Report - clash-game  (2026-07-18)
 
 ## Corpus Check
-- 495 files · ~4,730,274 words
+- 495 files · ~4,730,653 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 8014 nodes · 18209 edges · 781 communities (287 shown, 494 thin omitted)
+- 8015 nodes · 18203 edges · 764 communities (269 shown, 495 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 184 edges (avg confidence: 0.7)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `da82a6d9`
+- Built from commit: `156ff033`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -79,7 +79,6 @@
 - idle
 - idle
 - .reconcileInterruptedBattle
-- world-hydrology-regression.ts
 - simulation.ts
 - RuntimePrincipal
 - Backend rewrite — self-review findings (2026-07-07)
@@ -157,7 +156,6 @@
 - params
 - params
 - world-postcard-residency-regression.ts
-- SerializedWorld
 - TroopRenderer.ts
 - .chooseNextAction
 - Sprite-Asset Pipeline — vector-authored, pixel-baked
@@ -277,6 +275,7 @@
 - GolemB.ts
 - IceGolem.ts
 - src/game/systems — the simulation layer
+- .cancelMarch
 - vercel.json
 - Adding Buildings
 - Design tournaments — the clean-room asset creation process
@@ -317,7 +316,6 @@
 - shoot-walls.mjs
 - phaser-math-stub.ts
 - errors.ts
-- CanvasGraphicsShim
 - shoot-clockworkbeetle-b.mjs
 - shoot-golem-c.mjs
 - shoot-icegolem.mjs
@@ -340,8 +338,6 @@
 - manifest.json
 - manifest.json
 - manifest.json
-- manifest.json
-- manifest.json
 - run-attack-domain-regression.mjs
 - shoot-golem-b.mjs
 - shoot-life.mjs
@@ -351,21 +347,7 @@
 - verify-seamless.mjs
 - tsconfig.json
 - eslint-plugin-react-hooks
-- @types/pg
 - @types/react
-- states
-- states
-- states
-- states
-- states
-- states
-- states
-- states
-- states
-- states
-- states
-- states
-- states
 - states
 - states
 - states
@@ -807,29 +789,29 @@
 ## Surprising Connections (you probably didn't know these)
 - `generateWaterBodyContours()` --indirect_call--> `area()`  [INFERRED]
   src/game/renderers/WildernessTerrain.ts → scripts/world-hydrology-renderer-regression.mjs
-- `Hud()` --indirect_call--> `handler()`  [INFERRED]
-  src/components/Hud.tsx → api/[...path].ts
 - `main()` --indirect_call--> `slug()`  [INFERRED]
   scripts/fetch-runescape-music.mjs → tools/art-preview/shoot-wilderness.mjs
 - `priceVillageMutation()` --indirect_call--> `building()`  [INFERRED]
   server/domain/village/economy.ts → scripts/pathing-regression.ts
 - `sameCombatLayout()` --indirect_call--> `building()`  [INFERRED]
   server/domain/village/layout.ts → scripts/pathing-regression.ts
+- `rebaseLayout()` --indirect_call--> `building()`  [INFERRED]
+  src/game/backend/GameBackend.ts → scripts/pathing-regression.ts
 
 ## Import Cycles
 - 3-file cycle: `src/game/GameManager.ts -> src/game/systems/VillageLifeSystem.ts -> src/game/systems/SoundSystem.ts -> src/game/GameManager.ts`
 - 4-file cycle: `src/game/config/GameDefinitions.ts -> src/game/config/definitions/index.ts -> src/game/config/definitions/TroopDefinitions.ts -> src/game/data/Models.ts -> src/game/config/GameDefinitions.ts`
 - 5-file cycle: `src/game/config/GameDefinitions.ts -> src/game/config/definitions/index.ts -> src/game/config/definitions/CostDefinitions.ts -> src/game/config/definitions/TroopDefinitions.ts -> src/game/data/Models.ts -> src/game/config/GameDefinitions.ts`
 
-## Communities (781 total, 494 thin omitted)
+## Communities (764 total, 495 thin omitted)
 
 ### Community 0 - "MainScene.ts"
 Cohesion: 0.03
-Nodes (114): definitionTypes, intentionalGeneric, knownRoutes, visualTypes, BattleStats, HudProps, ReplayFrameSnapshot, ReplayTroopSnapshot (+106 more)
+Nodes (129): definitionTypes, intentionalGeneric, knownRoutes, visualTypes, ReplayTroopSnapshot, BUILDING_DEFINITIONS, BuildingType, OBSTACLE_DEFINITIONS (+121 more)
 
 ### Community 1 - "MainScene"
-Cohesion: 0.05
-Nodes (10): building(), AttackEndResult, MatchmakingOptions, serverUpgradeDurationMs(), grassPaletteFor(), settleLogicalZoom(), zoomSettleEnabled(), wreckNeedsAnimation() (+2 more)
+Cohesion: 0.06
+Nodes (6): AttackEndResult, MatchmakingOptions, ReplayFrameSnapshot, serverUpgradeDurationMs(), ReplayWatchState, depthForGroundPlane()
 
 ### Community 2 - "pathing-regression.ts"
 Cohesion: 0.02
@@ -837,23 +819,23 @@ Nodes (104): ambientBarracks, ambientCamp, ambientClosedPath, ambientGapPath, am
 
 ### Community 3 - ".cartToIso"
 Cohesion: 0.09
-Nodes (12): SpriteBank, ProjectileRenderer, isLargeTroopDeathType(), clockworkBeetleLatchRotation(), baseDepth(), depthForGroundDecal(), depthForGroundEffect(), depthForProjectile() (+4 more)
+Nodes (15): pixelBitmap(), pixelEllipse(), pixelLine(), pixelRect(), ProjectileRenderer, isLargeTroopDeathType(), drawDuck(), depthForGroundDecal() (+7 more)
 
 ### Community 4 - "WorldMapSystem.ts"
-Cohesion: 0.05
-Nodes (52): hashString(), mulberry32(), floorTo(), G, pixelBitmap(), pixelBlob(), pixelEllipse(), pixelLine() (+44 more)
+Cohesion: 0.18
+Nodes (4): pixelDot(), pixelRing(), WeatherHost, WeatherSystem
 
 ### Community 5 - "DisplayResolution.ts"
-Cohesion: 0.05
-Nodes (25): desktop1440, desktopRetina, fourK, mobile, oneX, createGameConfig(), SceneInputController, DEFAULT_SMOKE_TINTS (+17 more)
+Cohesion: 0.07
+Nodes (34): desktop1440, desktopRetina, fourK, mobile, oneX, createGameConfig(), settleLogicalZoom(), zoomSettleEnabled() (+26 more)
 
 ### Community 6 - "attack-service.ts"
-Cohesion: 0.09
-Nodes (44): AttackAggregate, CombatVillageSnapshot, BotRaidRecord, idempotentMutation(), outboxEvent(), UnitOfWork, accountFingerprint(), armyCount() (+36 more)
+Cohesion: 0.06
+Nodes (56): prepareBotAttack(), AttackAggregate, CombatVillageSnapshot, BotRaidCooldowns, coordinateKey(), finiteInteger(), grantRevengeRight(), normalizeBotRaidCooldowns() (+48 more)
 
 ### Community 7 - "copy"
 Cohesion: 0.07
-Nodes (12): copy(), findMemoryCommand(), MemoryAccounts, MemoryIdempotency, MemoryReplays, MemorySessions, MemoryVillages, MemoryWorld (+4 more)
+Nodes (15): copy(), findMemoryCommand(), MemoryAccounts, memoryCommandMatches(), MemoryIdempotency, MemoryOperationMarkers, MemoryReplays, MemorySessions (+7 more)
 
 ### Community 8 - "cheer"
 Cohesion: 0.09
@@ -861,35 +843,35 @@ Nodes (69): cellWorldPx, frames, loopMs, frames, loopMs, frames, loopMs, frames 
 
 ### Community 9 - "BuildingRenderer"
 Cohesion: 0.06
-Nodes (35): BuildingRenderer, drawGeneric(), BarracksState, drawDoor(), drawFactionBarracks(), drawHippedRoof(), drawMechanicaDetails(), drawMysticDetails() (+27 more)
+Nodes (36): BuildingRenderer, BarracksState, drawDoor(), drawFactionBarracks(), drawHippedRoof(), drawMechanicaDetails(), drawMysticDetails(), FactionBarracksTheme (+28 more)
 
 ### Community 10 - "idle"
 Cohesion: 0.09
 Nodes (66): variants, variants, variants, angles, cellWorldPx, cellWorldPx, file, originX (+58 more)
 
 ### Community 11 - "auth.spec.ts"
-Cohesion: 0.05
-Nodes (40): addressLimitedLogin, encoded, existing, firstLogin, issued, limiter, lockedLogin, secondLogin (+32 more)
+Cohesion: 0.06
+Nodes (41): addressLimitedLogin, encoded, existing, firstLogin, issued, limiter, lockedLogin, secondLogin (+33 more)
 
 ### Community 12 - "memory.ts"
 Cohesion: 0.08
-Nodes (33): MemoryNotifications, playerSummary(), publicVillage(), ATTACK_STATES, AttackAuthorityCas, AttackAuthorityCommandWrite, AttackAuthorityWrite, AttackCandidateQuery (+25 more)
+Nodes (32): MemoryState, playerSummary(), publicVillage(), ATTACK_STATES, AttackCandidateQuery, AttackCandidateRecord, AttackCommandQuery, AttackCommandRecord (+24 more)
 
 ### Community 13 - "WorldHydrologyRenderer.ts"
-Cohesion: 0.09
-Nodes (58): boundsIntersect(), buildDecorations(), buildVariableWidthRibbon(), chaikinWithWidths(), clamp(), ClipEdge, clipPolygonToRect(), clipSegmentToRect() (+50 more)
+Cohesion: 0.07
+Nodes (71): GreatLakeFeature, TerrainBounds, boundsIntersect(), buildDecorations(), buildVariableWidthRibbon(), chaikinWithWidths(), clamp(), ClipEdge (+63 more)
 
 ### Community 14 - "service.ts"
-Cohesion: 0.10
-Nodes (41): ApiRequest, ArmyMutationRequest, AttackCommandRequest, AttackEndRequest, AttackFrameRequest, AttackStartRequest, BotSettleRequest, BotStartRequest (+33 more)
+Cohesion: 0.06
+Nodes (31): 1. Add the focused definition, 2. Wire presentation, 3. Add special behavior only when needed, 4. Verify, Adding Troops, Army Camp progression, Canonical specialist paths, One shared authority (+23 more)
 
 ### Community 15 - "game.ts"
-Cohesion: 0.06
-Nodes (44): dataRoot, VillageMutationPricing, PersistedBuildingNormalization, VillageLayoutProposal, AMBIENT_GRANTS, clampInt(), emptyLedgerDay(), FIXED_UPGRADE_DURATION_MS (+36 more)
+Cohesion: 0.05
+Nodes (47): AttackDomainError, AttackDomainErrorCode, dataRoot, VillageMutationPricing, PersistedBuildingNormalization, VillageLayoutProposal, SimulatableVillage, advanceFrequently() (+39 more)
 
 ### Community 16 - "PlacedBuilding"
-Cohesion: 0.09
-Nodes (11): getTroopStats(), TroopDef, CombatMovementResult, CombatNavigationPlan, CombatNavigationSelection, CombatNavigationSystem, CombatPoint, SearchResult (+3 more)
+Cohesion: 0.06
+Nodes (14): getTroopStats(), TroopDef, wreckNeedsAnimation(), clockworkBeetleLatchRotation(), MainScene, CombatMovementResult, CombatNavigationPlan, CombatNavigationSelection (+6 more)
 
 ### Community 17 - "render-quality-regression.mjs"
 Cohesion: 0.03
@@ -900,36 +882,36 @@ Cohesion: 0.11
 Nodes (51): clamp01(), drawSiegetowerC(), easeIn(), easeOut(), G, palFor(), shade(), SiegePal (+43 more)
 
 ### Community 19 - "WreckRenderer.ts"
-Cohesion: 0.13
-Nodes (32): RubbleRenderer, ANIMATED_WRECKS, BarracksWreckTheme, barrel(), beam(), burnFx(), charField(), chip() (+24 more)
+Cohesion: 0.12
+Nodes (34): RubbleRenderer, ANIMATED_WRECKS, BarracksWreckPalette, BarracksWreckTheme, barrel(), beam(), burnFx(), charField() (+26 more)
 
 ### Community 20 - "repositories.ts"
-Cohesion: 0.06
-Nodes (45): SnapshotFile, AttackState, JsonObject, JsonValue, ACCOUNT_SELECT, accountFromRow(), AccountRow, ACTIVE_ATTACK_STATE_VALUES (+37 more)
+Cohesion: 0.07
+Nodes (42): SnapshotFile, AttackState, JsonObject, JsonValue, ACCOUNT_SELECT, accountFromRow(), AccountRow, ACTIVE_ATTACK_STATE_VALUES (+34 more)
 
 ### Community 21 - "WorldHydrology.ts"
-Cohesion: 0.08
-Nodes (52): anchorHydrologyFeature(), assertPlotCoordinate(), boundsIntersect(), buildCoverage(), buildGreatLake(), buildNetwork(), buildOwnerVistaGreatLake(), buildWaterBody() (+44 more)
+Cohesion: 0.04
+Nodes (84): adjacentPair, beforeClear, coveredKeys, firstAnchor, maxPlotX, maxPlotY, minPlotX, minPlotY (+76 more)
 
 ### Community 22 - "pglite.spec.ts"
-Cohesion: 0.07
-Nodes (31): createServerlessRuntime(), handler(), runtime(), ServerlessRuntime, bearerToken(), createApiHandler(), AuthorityRuntime, createAuthorityRuntime() (+23 more)
+Cohesion: 0.06
+Nodes (43): bearerToken(), createApiHandler(), AuthorityRuntime, createAuthorityRuntime(), DIST_DIR, finalize(), MIME, server (+35 more)
 
 ### Community 23 - "GameService"
-Cohesion: 0.13
-Nodes (8): clamp(), debugGrantsEnabled(), GameService, infiniteResourcesEnabled(), storedResourceAfterDelta(), toInt(), troopFoodCostOf(), worldDayIndex()
+Cohesion: 0.06
+Nodes (33): AttackCommand, sanitizeArmy(), appearanceRevisionOf(), chebyshevDistance(), clamp(), clampInt(), debugGrantsEnabled(), emptyLedgerDay() (+25 more)
 
 ### Community 24 - "AttackRecord"
 Cohesion: 0.09
-Nodes (19): assertAttackRecordAuthority(), attackRecordWithAuthority(), ACTIVE_ATTACK_STATES, assertAttackLeaseAvailable(), DEFENDER_LEASE_STATES, MemoryAttacks, memoryCommandMatches(), AttackCommandQuery (+11 more)
+Nodes (17): ACTIVE_ATTACK_STATES, assertAttackLeaseAvailable(), DEFENDER_LEASE_STATES, MemoryAttacks, AttackAuthorityCas, AttackAuthorityCommandWrite, AttackAuthorityWrite, AttackRecord (+9 more)
 
 ### Community 25 - ".query"
-Cohesion: 0.07
-Nodes (11): IdempotencyClaim, SqlExecutor, PgAccounts, PgIdempotency, PgNotifications, PgOperationMarkers, PgOutbox, PgVillages (+3 more)
+Cohesion: 0.08
+Nodes (10): SqlExecutor, PgAccounts, PgIdempotency, PgNotifications, PgOperationMarkers, PgReplays, PgSessions, PgVillages (+2 more)
 
 ### Community 26 - "layout-economy.spec.ts"
 Cohesion: 0.07
-Nodes (43): assertCollisionFreeLayout(), clamp(), camp, campPlacement, cannonUpgrade, capacityConflict, collisionSignatures, context (+35 more)
+Nodes (40): assertCollisionFreeLayout(), clamp(), camp, campPlacement, cannonUpgrade, capacityConflict, collisionSignatures, context (+32 more)
 
 ### Community 28 - "walk"
 Cohesion: 0.06
@@ -940,12 +922,12 @@ Cohesion: 0.05
 Nodes (28): area(), clippedOuter, entry, feature, GraphicsDouble, left, leftGraphics, leftRect (+20 more)
 
 ### Community 30 - "allocation.ts"
-Cohesion: 0.09
-Nodes (43): allocateNextPlayerPlot(), AllocatePlotOptions, allocationOrdinalOf(), AllocationSource, createAllocationIndex(), normalizeAllocationIndex(), normalizeReleasedSlots(), PlotAllocationCandidate (+35 more)
+Cohesion: 0.06
+Nodes (81): allocateNextPlayerPlot(), AllocatePlotOptions, AllocationSource, createAllocationIndex(), normalizeAllocationIndex(), normalizeReleasedSlots(), PlotAllocationCandidate, PlotAllocationResult (+73 more)
 
 ### Community 31 - "WildernessTerrain.ts"
-Cohesion: 0.10
-Nodes (43): BasinLobe, bilinearSample(), buildLobes(), chaikin(), chainLargestLoop(), clamp(), coherentNoise2D(), componentFromAnchor() (+35 more)
+Cohesion: 0.08
+Nodes (50): bands, bowl, different, first, options, second, started, BasinLobe (+42 more)
 
 ### Community 32 - "idle"
 Cohesion: 0.11
@@ -956,24 +938,24 @@ Cohesion: 0.11
 Nodes (44): ground, states, ground, states, ground, states, ground, states (+36 more)
 
 ### Community 34 - "types.ts"
-Cohesion: 0.06
-Nodes (42): AbilityAuthorization, AbilityUsedEvent, AbilityValidationRequest, AppliedSettlementOutcome, ArmyReservation, ArmyReservationGrant, ArmyReservationRequest, ATTACK_PHASES (+34 more)
+Cohesion: 0.05
+Nodes (45): AbilityAuthorization, AbilityUsedEvent, AbilityValidationRequest, AppliedSettlementOutcome, ArmyReservation, ArmyReservationGrant, ATTACK_PHASES, AttackAbilityValidationHooks (+37 more)
 
 ### Community 35 - "auth-service.ts"
-Cohesion: 0.09
-Nodes (23): ApiError, ApiResult, MemoryPersistence, AccountRecord, VillageRecord, account(), fixture(), OccupancyCountingPersistence (+15 more)
+Cohesion: 0.31
+Nodes (7): account(), fixture(), OccupancyCountingPersistence, patchAccount(), START, village(), villageOf()
 
 ### Community 36 - "legacy-import.ts"
-Cohesion: 0.17
-Nodes (42): coordinateAtAllocationOrdinal(), array(), attachImportedAuthority(), authorityFromSource(), buildLegacyImportPlan(), expectedAttackCommandCount(), expectedNotificationCount(), expectedSessionCount() (+34 more)
+Cohesion: 0.15
+Nodes (45): coordinateAtAllocationOrdinal(), attackCommandsFromAuthority(), array(), attachImportedAuthority(), authorityFromSource(), buildLegacyImportPlan(), expectedAttackCommandCount(), expectedNotificationCount() (+37 more)
 
 ### Community 37 - "App.tsx"
-Cohesion: 0.07
-Nodes (32): App(), buildingList, CATEGORY_ORDER, DEFENSE_ORDER_INDEX, DEFENSE_SHOP_ORDER, EMPTY_ARMY_CAMP_PROGRESS, emptyFactionBarracksLevels(), emptyFactionUpgradeState() (+24 more)
+Cohesion: 0.05
+Nodes (40): buildingList, CATEGORY_ORDER, DEFENSE_ORDER_INDEX, DEFENSE_SHOP_ORDER, EMPTY_ARMY_CAMP_PROGRESS, emptyFactionBarracksLevels(), emptyFactionUpgradeState(), hasRenderableWorldPayload() (+32 more)
 
 ### Community 38 - "WildernessTopology.ts"
-Cohesion: 0.06
-Nodes (38): assertTopologyCoordinate(), assertTopologyRadius(), buildWildernessTopology(), CellState, classifyJoinedWildernessGapTap(), DEFAULT_WILDERNESS_GAP_GEOMETRY, isJoinedWildernessHorizontalEdge(), isJoinedWildernessJunction() (+30 more)
+Cohesion: 0.07
+Nodes (30): CellState, classifyJoinedWildernessGapTap(), DEFAULT_WILDERNESS_GAP_GEOMETRY, isJoinedWildernessHorizontalEdge(), isJoinedWildernessJunction(), isJoinedWildernessVerticalEdge(), JoinedWildernessGapTap, JUNCTION_CORNERS (+22 more)
 
 ### Community 39 - "idle"
 Cohesion: 0.07
@@ -988,16 +970,16 @@ Cohesion: 0.05
 Nodes (36): anchorA, anchorB, bend, bendShoulders, bendTopology, centerOccupied, cross, crossTopology (+28 more)
 
 ### Community 42 - "migrations.ts"
-Cohesion: 0.08
-Nodes (26): main(), option(), requiredCutoff(), ATTACK_AGGREGATE_AUTHORITY_SQL, BATTLES_SQL, BOUNDED_AUXILIARY_RETENTION_SQL, BOUNDED_PRESENTATION_REPLAYS_SQL, BOUNDED_QUERY_PATHS_SQL (+18 more)
+Cohesion: 0.27
+Nodes (5): TransactionOptions, ISOLATION_SQL, PostgresDatabase, retryable(), rollback()
 
 ### Community 44 - "legacy-snapshot.ts"
-Cohesion: 0.11
-Nodes (35): appearanceRevisionDelta(), VillageAdvanceResult, aggregateChecksum(), assertNoLiveAttacks(), assertNoLiveDataOwner(), assertSeparateOutput(), canonicalFuturePath(), collectionChecksums() (+27 more)
+Cohesion: 0.12
+Nodes (33): VillageAdvanceResult, aggregateChecksum(), assertNoLiveAttacks(), assertNoLiveDataOwner(), assertSeparateOutput(), canonicalFuturePath(), collectionChecksums(), compareText() (+25 more)
 
 ### Community 45 - "Backend"
-Cohesion: 0.11
-Nodes (5): Notification, NotificationsPanel(), NotificationsPanelProps, ReplayTheatreModal(), Backend
+Cohesion: 0.10
+Nodes (4): App(), NotificationsPanel(), Backend, makeRequestId()
 
 ### Community 47 - "GolemDeaths.ts"
 Cohesion: 0.14
@@ -1005,47 +987,35 @@ Nodes (35): berg8(), clamp01(), drawGolemDeath(), drawIceDeath(), drawStoneDeath
 
 ### Community 48 - "DesignRegistry.ts"
 Cohesion: 0.09
-Nodes (32): AccountModalProps, AccountUser, BusyAction, DesignLabSection(), Tab, TroopIcon(), TroopIconProps, DevWorldReseedResult (+24 more)
+Nodes (33): AccountModal(), AccountModalProps, AccountUser, BusyAction, DesignLabSection(), Tab, TroopIcon(), TroopIconProps (+25 more)
 
 ### Community 49 - "SpriteBankImpl"
 Cohesion: 0.14
 Nodes (3): fnv(), SpriteBankImpl, troopWorldVisualScale()
 
 ### Community 50 - "TroopDefinitions.ts"
-Cohesion: 0.10
-Nodes (31): BARRACKS_TYPES, REMOVED_TROOPS, TrainingModal(), armyCampUnlockProgress, BARRACKS_TROOP_UNLOCK_ORDER, CORE_TROOP_TYPE_SET, CoreTroopTrainingRequirement, CoreTroopType (+23 more)
+Cohesion: 0.03
+Nodes (109): hasOwn(), priceVillageMutation(), ApiError, BARRACKS_TYPES, REMOVED_TROOPS, ApiRequest, ApiResult, MemoryPersistence (+101 more)
 
 ### Community 52 - "GameBackend.ts"
-Cohesion: 0.07
-Nodes (30): ReplayTheatreModalProps, activeBattleKey(), ApiErrorPayload, ArmyTransactionResult, AttackNotification, AttackReplayState, AuthorityFields, BackendApiError (+22 more)
-
-### Community 53 - "WorldMapSystem"
-Cohesion: 0.12
-Nodes (6): WorldMapPlot, clearPostcardLights(), raise(), setPostcardLights(), WorldMapSystem, ScreenRect
+Cohesion: 0.09
+Nodes (38): activeBattleKey(), ApiErrorPayload, ArmyTransactionResult, AttackReplayState, AuthorityFields, BackendApiError, BotSettleResult, currentBattleTabId() (+30 more)
 
 ### Community 54 - "ground"
 Cohesion: 0.10
 Nodes (32): ground, states, ground, states, ground, states, angles, cellWorldPx (+24 more)
 
 ### Community 55 - "domain.ts"
-Cohesion: 0.15
-Nodes (31): boundedInt(), buildSettlementPlan(), combatAtMs(), countsEqual(), DEFAULT_ATTACK_RULES, domainAssert(), finiteTime(), negateResources() (+23 more)
-
-### Community 56 - ".transaction"
-Cohesion: 0.14
-Nodes (9): hashSessionToken(), createOpaqueSessionToken(), Persistence, account(), village(), AuthSessionService, VillageAuthority, profileOf() (+1 more)
+Cohesion: 0.23
+Nodes (24): boundedInt(), buildSettlementPlan(), countsEqual(), DEFAULT_ATTACK_RULES, domainAssert(), finiteTime(), negateResources(), normalizedAbilityAuthorization() (+16 more)
 
 ### Community 57 - "Economy.ts"
-Cohesion: 0.12
-Nodes (27): hasOwn(), priceVillageMutation(), botVillagePresentationSeed(), botVillageSeedAt(), isPlayerPlotEligible(), LEGACY_WORLD_GENERATION, nextWorldPresentationSeedVersion(), normalizeWorldPresentationSeedVersion() (+19 more)
+Cohesion: 0.13
+Nodes (9): SqlDatabase, PostgresPersistence, closeServer(), EmbeddedPostgres, EmbeddedQueryable, EmbeddedResult, executor(), HttpRequestOptions (+1 more)
 
 ### Community 58 - "WildernessRenderer.ts"
-Cohesion: 0.18
-Nodes (30): renderSummary(), ancientTree(), ARCHETYPE_LABELS, at(), boulder(), brambleMass(), broadleaf(), brookRapids() (+22 more)
-
-### Community 59 - ".findAmbientPath"
-Cohesion: 0.12
-Nodes (3): figureTick(), PathfindingSystem, CAMP_RENDERABLE
+Cohesion: 0.14
+Nodes (33): renderSummary(), ancientTree(), ARCHETYPE_LABELS, at(), boulder(), brambleMass(), broadleaf(), brookRapids() (+25 more)
 
 ### Community 60 - "idle"
 Cohesion: 0.12
@@ -1060,16 +1030,16 @@ Cohesion: 0.12
 Nodes (29): ground, states, ground, states, ground, states, ground, states (+21 more)
 
 ### Community 63 - ".reconcileInterruptedBattle"
-Cohesion: 0.23
-Nodes (9): currentBattleTabId(), forgetBattle(), forgetPendingBattleStart(), makeRequestId(), ownedByAnotherLiveTab(), readPendingBattleStart(), readRememberedBattle(), rememberBattle() (+1 more)
-
-### Community 64 - "world-hydrology-regression.ts"
-Cohesion: 0.07
-Nodes (27): adjacentPair, beforeClear, coveredKeys, firstAnchor, maxPlotX, maxPlotY, minPlotX, minPlotY (+19 more)
+Cohesion: 0.20
+Nodes (4): WorldMapPlot, classifyHydrologyPlot(), hydrologyFeaturesForPlot(), clearPostcardLights()
 
 ### Community 65 - "simulation.ts"
-Cohesion: 0.16
-Nodes (23): accrueSegment(), advanceVillage(), clamp(), finiteInt(), foodReadyAt(), nextSimulationEventAt(), nextUpgradeAt(), normalizeState() (+15 more)
+Cohesion: 0.13
+Nodes (35): accrueSegment(), advanceVillage(), appearanceRevisionDelta(), clamp(), finiteInt(), foodReadyAt(), nextSimulationEventAt(), nextUpgradeAt() (+27 more)
+
+### Community 66 - "RuntimePrincipal"
+Cohesion: 0.09
+Nodes (19): coordinate(), RuntimePrincipal, randomId(), accountForSummary(), asJson(), chebyshev(), clamp(), cloneJson() (+11 more)
 
 ### Community 67 - "Backend rewrite — self-review findings (2026-07-07)"
 Cohesion: 0.07
@@ -1077,7 +1047,7 @@ Nodes (28): 10. [HIGH] `/Users/andreboufama/Documents/clash-game/server/game.ts:
 
 ### Community 68 - "scripts"
 Cohesion: 0.07
-Nodes (28): scripts, build, build:persistence, build:server, db:import-legacy, db:materialize-legacy, db:migrate, db:validate-legacy (+20 more)
+Nodes (30): scripts, build, build:persistence, build:server, build:vercel, build:vercel-api, db:import-legacy, db:materialize-legacy (+22 more)
 
 ### Community 69 - "ground"
 Cohesion: 0.13
@@ -1088,16 +1058,16 @@ Cohesion: 0.10
 Nodes (27): cellWorldPx, frames, loopMs, frames, loopMs, states, states, states (+19 more)
 
 ### Community 71 - ".startAttack"
-Cohesion: 0.13
-Nodes (10): chebyshevDistance(), parseKnownRevisions(), plotKey(), publicWorldOf(), sanitizeId(), strictSafeId(), worldCoord(), LeaderboardEntry (+2 more)
+Cohesion: 0.12
+Nodes (17): Canonical roster gate (2026-07-18), Commit policy, Coverage matrix (what gets which treatment), Design variants (tournament infrastructure), Fidelity contract (measured, cannon pilot), Keep, don't touch, Manifest schema (as emitted), Migration order (each step shippable) (+9 more)
 
 ### Community 72 - ".getCachedWorld"
-Cohesion: 0.18
-Nodes (7): BannerPickerModal(), cloneWorld(), getCacheKey(), randomId(), rebaseLayout(), sameBuildingLayout(), sameObstacleLayout()
+Cohesion: 0.20
+Nodes (5): cloneWorld(), getCacheKey(), randomId(), rebaseLayout(), SerializedWorld
 
 ### Community 73 - "TextureRenderPolicy.ts"
-Cohesion: 0.13
-Nodes (21): applyPixelArtManifestFrame(), applyTextureSampling(), currentPixelMode(), FILTER_FOR_SAMPLING, finiteField(), installPixelModeHandle(), isPixelMode(), ManifestFramePlacement (+13 more)
+Cohesion: 0.11
+Nodes (22): applyPixelArtManifestFrame(), applyTextureSampling(), currentPixelMode(), FILTER_FOR_SAMPLING, finiteField(), installPixelModeHandle(), isPixelMode(), ManifestFramePlacement (+14 more)
 
 ### Community 75 - "idle"
 Cohesion: 0.13
@@ -1136,12 +1106,12 @@ Cohesion: 0.07
 Nodes (26): DOM, DOM.Iterable, ES2022, src, vite/client, compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly (+18 more)
 
 ### Community 84 - "WorldRepository"
-Cohesion: 0.11
-Nodes (8): MemoryState, IdempotencyRecord, ReleasedWorldPlotRecord, WorldAllocationRecord, WorldPlotRecord, WorldRegionRecord, releasedPlotFromRow(), WorldRepository
+Cohesion: 0.06
+Nodes (11): ReleasedWorldPlotRecord, WorldAllocationRecord, WorldPlotRecord, WorldRegionRecord, allocationFromRow(), candidateFromRow(), PgWorld, plotFromRow() (+3 more)
 
 ### Community 85 - "GrassRenderer.ts"
-Cohesion: 0.14
-Nodes (20): BASE_COLORS, GrassPalette, grassTileColorAt(), grassTilePatternAt(), hashKey(), paletteCache, wildernessPaletteCache, ARCHETYPES (+12 more)
+Cohesion: 0.23
+Nodes (12): ARCHETYPES, WildernessRenderer, hashText(), integerCoordinate(), mix32(), mixWorldNatureSeed(), normalizeWorldNatureSeedVersion(), positiveModulo() (+4 more)
 
 ### Community 86 - "params"
 Cohesion: 0.08
@@ -1157,11 +1127,11 @@ Nodes (25): ES2023, node, server/**/*.ts, src/game/config/GameDefinitions.ts, sr
 
 ### Community 89 - ".constructor"
 Cohesion: 0.19
-Nodes (7): exactReplayBytes(), sanitizeFrame(), serializedBytes(), player(), AttackRecord, ReplayFrame, clearWorldHydrologyCache()
+Nodes (9): SpriteBank, drawEmblem(), drawFlagBearer(), drawVillageFlag(), fieldAt(), pixelTriangleRows(), clear(), nightFactor() (+1 more)
 
 ### Community 90 - "PostgresUnitOfWork"
-Cohesion: 0.10
-Nodes (9): MemoryOperationMarkers, MemoryUnitOfWork, ReplayChunkRecord, PgReplays, PostgresUnitOfWork, replayChunkFromRow(), IdempotencyRepository, OperationMarkerRepository (+1 more)
+Cohesion: 0.07
+Nodes (10): MemoryNotifications, MemoryUnitOfWork, SessionRecord, PostgresUnitOfWork, sessionFromRow(), IdempotencyRepository, NotificationRepository, OperationMarkerRepository (+2 more)
 
 ### Community 92 - "devDependencies"
 Cohesion: 0.08
@@ -1188,12 +1158,8 @@ Cohesion: 0.14
 Nodes (24): commandDigest(), receiptMatches(), applyRawDamage(), attackCount(), attackCountInWindow(), attritionLifetimeMs(), baseCreditWindowsV4(), CreditWindow (+16 more)
 
 ### Community 98 - "world.spec.ts"
-Cohesion: 0.19
-Nodes (22): plotKey(), classifyPlot(), assertGuestPlotLease(), assertIdentifier(), assertPlotVersion(), assertTimestamp(), claimKey(), createGuestPlotLease() (+14 more)
-
-### Community 99 - "DepthSystem.ts"
-Cohesion: 0.13
-Nodes (13): ObstacleRenderer, clampBias(), depthForBuilding(), depthForFootprint(), depthForGroundPlane(), depthForObstacle(), depthForRubble(), GROUND_DECAL_DEPTHS (+5 more)
+Cohesion: 0.14
+Nodes (13): Core Rule, Depth Source of Truth, Footprint Anchor, Ground-Decal Band (absolute, below 1000), Ground Plane Contract, Overlay Scene, Quick Layering Test, Renderer Contract (Required) (+5 more)
 
 ### Community 100 - "ground"
 Cohesion: 0.11
@@ -1212,8 +1178,8 @@ Cohesion: 0.09
 Nodes (22): E, P, E, P, E, P, key, values (+14 more)
 
 ### Community 105 - "InfoPanel.tsx"
-Cohesion: 0.13
-Nodes (19): formatDuration(), InfoPanel(), InfoPanelProps, factionUnlocksAtLevel(), getTroopLevelMultiplier(), factionForBarracks(), BUILDING_TEXTS, formatGold() (+11 more)
+Cohesion: 0.15
+Nodes (13): 10. Adding a building end-to-end, 11. Verifying your art (mandatory), 12. Owner's taste, distilled, 1. Coordinate system in one minute, 2. The renderer contract, 3. Light, palette, and level language, 4. Grounding — the Clash of Clans model, 5. Architecture vocabulary (+5 more)
 
 ### Community 106 - "HeavyDeaths.ts"
 Cohesion: 0.25
@@ -1248,11 +1214,11 @@ Cohesion: 0.10
 Nodes (20): E, P, E, P, E, P, cellWorldPx, levels (+12 more)
 
 ### Community 114 - "Auth"
-Cohesion: 0.20
+Cohesion: 0.19
 Nodes (10): Auth, AuthUser, loadStoredUser(), postJson(), readStorage(), removeStorage(), SessionFeatures, SessionResponse (+2 more)
 
 ### Community 115 - "NeighborLifeSim"
-Cohesion: 0.13
+Cohesion: 0.18
 Nodes (6): NeighborLifeSim, positiveModulo(), routeLength(), sampleRoute(), seededRandom(), FARMABLE
 
 ### Community 118 - "Architecture"
@@ -1272,12 +1238,12 @@ Cohesion: 0.10
 Nodes (19): E, P, E, P, E, P, cellWorldPx, levels (+11 more)
 
 ### Community 122 - "attack-authority.ts"
-Cohesion: 0.17
-Nodes (19): ATTACK_TRANSITIONS, AttackEvent, AttackPhase, assertAttackAuthorityReplacement(), assertAuthorityCommand(), assertEqual(), attackAuthorityProjection(), attackCommandsFromAuthority() (+11 more)
+Cohesion: 0.16
+Nodes (20): ATTACK_TRANSITIONS, AttackEvent, AttackPhase, assertAttackAuthorityReplacement(), assertAttackRecordAuthority(), assertAuthorityCommand(), assertEqual(), attackAuthorityProjection() (+12 more)
 
 ### Community 123 - "BuildingTypes.ts"
-Cohesion: 0.24
-Nodes (11): buildingStatsCache, DEFENSE_BUILDING_DEFINITIONS, MILITARY_BUILDING_DEFINITIONS, RESOURCE_BUILDING_DEFINITIONS, UTILITY_BUILDING_DEFINITIONS, BuildingDefinitionMap, BuildingLevelStats, DefenseBuildingType (+3 more)
+Cohesion: 0.13
+Nodes (19): buildingStatsCache, DEFENSE_BUILDING_DEFINITIONS, MILITARY_BUILDING_DEFINITIONS, RESOURCE_BUILDING_DEFINITIONS, UTILITY_BUILDING_DEFINITIONS, BuildingDefinitionMap, BuildingLevelStats, DefenseBuildingType (+11 more)
 
 ### Community 124 - "pixelKit.ts"
 Cohesion: 0.13
@@ -1348,24 +1314,20 @@ Cohesion: 0.11
 Nodes (18): E, P, E, P, E, P, cellWorldPx, levels (+10 more)
 
 ### Community 141 - "world-postcard-residency-regression.ts"
-Cohesion: 0.14
-Nodes (16): camera, centeredResident, east, eastCamera, expired, farCamera, firstBot, fullFiveByFive (+8 more)
-
-### Community 142 - "SerializedWorld"
-Cohesion: 0.17
-Nodes (8): applyBotAttackCommand(), prepareBotAttack(), PrepareBotAttackInput, AttackCommand, AttackSelectionSource, TroopCounts, hasOwn(), SerializedWorld
+Cohesion: 0.11
+Nodes (17): camera, centeredResident, east, eastCamera, expired, farCamera, firstBot, fullFiveByFive (+9 more)
 
 ### Community 143 - "TroopRenderer.ts"
 Cohesion: 0.17
 Nodes (16): clamp01(), drawClockworkbeetleB(), G, mix(), shade(), atkAnim(), drawSkeletonC(), G (+8 more)
 
 ### Community 144 - ".chooseNextAction"
-Cohesion: 0.15
+Cohesion: 0.17
 Nodes (3): ENTERABLE, hashString(), isDefense()
 
 ### Community 145 - "Sprite-Asset Pipeline — vector-authored, pixel-baked"
-Cohesion: 0.11
-Nodes (17): Canonical roster gate (2026-07-18), Commit policy, Coverage matrix (what gets which treatment), Design variants (tournament infrastructure), Fidelity contract (measured, cannon pilot), Keep, don't touch, Manifest schema (as emitted), Migration order (each step shippable) (+9 more)
+Cohesion: 0.20
+Nodes (8): 1. Add the focused catalog entry, 2. Draw it once, wire the shared visual dispatcher, 3. Wire gameplay only when the category needs it, 4. Presentation integration, 5. Verify (mandatory), Active defense, Adding Buildings, Producer, storage, housing, or army building
 
 ### Community 146 - "idle"
 Cohesion: 0.14
@@ -1388,8 +1350,8 @@ Cohesion: 0.11
 Nodes (17): states, cellWorldPx, frames, loopMs, frames, loopMs, frames, loopMs (+9 more)
 
 ### Community 151 - "getBuildingStats"
-Cohesion: 0.18
-Nodes (10): defense(), FireEvent, getBuildingStats(), ActiveDefenseType, DefenseEffects, DefenseFireHandler, DefenseFireHandlers, DefenseIdleHandlers (+2 more)
+Cohesion: 0.16
+Nodes (11): defense(), FireEvent, building(), getBuildingStats(), ActiveDefenseType, DefenseEffects, DefenseFireHandler, DefenseFireHandlers (+3 more)
 
 ### Community 153 - "bake-sprites.mjs"
 Cohesion: 0.11
@@ -1428,8 +1390,8 @@ Cohesion: 0.15
 Nodes (4): LeaderboardPlayerRecord, LeaderboardQuery, PlayerSummaryRecord, AccountRepository
 
 ### Community 162 - "SessionRecord"
-Cohesion: 0.16
-Nodes (4): SessionRecord, PgSessions, sessionFromRow(), SessionRepository
+Cohesion: 0.33
+Nodes (6): assertTopologyCoordinate(), assertTopologyRadius(), buildWildernessTopology(), isKnownWildernessPlot(), localPlotKey(), roadJunctionShapeForArms()
 
 ### Community 163 - "door"
 Cohesion: 0.16
@@ -1447,45 +1409,37 @@ Nodes (15): cellWorldPx, states, states, states, states, states, states, unit (+
 Cohesion: 0.12
 Nodes (15): cellWorldPx, states, states, states, states, states, states, unit (+7 more)
 
-### Community 167 - "wilderness-terrain-regression.ts"
-Cohesion: 0.13
-Nodes (13): bands, bowl, different, first, options, second, started, AnchoredHydrologyFeature (+5 more)
-
 ### Community 168 - "applyAttackCommand"
-Cohesion: 0.44
-Nodes (16): appendEvent(), applyAttackCommand(), assertAttackInvariants(), assertCas(), assertPhase(), cancelAttack(), cloneAttack(), countTroops() (+8 more)
+Cohesion: 0.33
+Nodes (18): applyBotAttackCommand(), appendEvent(), applyAttackCommand(), assertAttackInvariants(), assertCas(), assertPhase(), cancelAttack(), cloneAttack() (+10 more)
 
 ### Community 169 - "CloudOverlay.tsx"
 Cohesion: 0.17
 Nodes (14): CLOUD_OPEN_TOTAL_MS, CloudOverlay(), CloudOverlayProps, CREST, drawBank(), easeInCubic(), easeOutCubic(), FORE (+6 more)
-
-### Community 170 - "Two-path troop architecture (2026-07-18)"
-Cohesion: 0.13
-Nodes (13): Army Camp progression, Canonical specialist paths, One shared authority, Removed content and save sanitation, Replay boundary, Training UI and exact icons, Two-path troop architecture (2026-07-18), Compatibility decisions (+5 more)
 
 ### Community 171 - "manifest.json"
 Cohesion: 0.13
 Nodes (14): frames, frames, frames, frames, axis, buckets, cellWorldPx, eggs (+6 more)
 
 ### Community 172 - "idle"
-Cohesion: 0.13
-Nodes (15): frames, loopMs, states, states, states, states, states, states (+7 more)
+Cohesion: 0.12
+Nodes (15): cellWorldPx, states, states, states, states, states, states, unit (+7 more)
 
 ### Community 173 - "variants"
 Cohesion: 0.13
-Nodes (15): states, states, states, states, states, states, states, variants (+7 more)
+Nodes (15): frames, loopMs, states, states, states, states, states, states (+7 more)
 
 ### Community 174 - "idle"
 Cohesion: 0.16
 Nodes (14): cellWorldPx, frames, loopMs, states, states, states, states, idle (+6 more)
 
 ### Community 175 - "idle"
-Cohesion: 0.13
-Nodes (15): frames, loopMs, states, states, states, states, states, states (+7 more)
+Cohesion: 0.12
+Nodes (15): cellWorldPx, states, states, states, states, states, states, unit (+7 more)
 
 ### Community 176 - "variants"
 Cohesion: 0.13
-Nodes (15): states, states, states, states, states, states, states, variants (+7 more)
+Nodes (15): frames, loopMs, states, states, states, states, states, states (+7 more)
 
 ### Community 177 - "idle"
 Cohesion: 0.13
@@ -1548,16 +1502,12 @@ Cohesion: 0.25
 Nodes (14): body, body, body, cellWorldPx, file, originX, originY, texelH (+6 more)
 
 ### Community 192 - ".updateNightEvents"
-Cohesion: 0.16
-Nodes (3): isFactionBarracksType(), addTransientLight(), removeTransientLight()
+Cohesion: 0.13
+Nodes (4): isFactionBarracksType(), addTransientLight(), CAMP_RENDERABLE, removeTransientLight()
 
 ### Community 193 - "README.md"
-Cohesion: 0.21
-Nodes (4): Documentation, Reference, Task guides, The important one
-
-### Community 194 - "Rendering and Depth (Isometric)"
-Cohesion: 0.14
-Nodes (13): Core Rule, Depth Source of Truth, Footprint Anchor, Ground-Decal Band (absolute, below 1000), Ground Plane Contract, Overlay Scene, Quick Layering Test, Renderer Contract (Required) (+5 more)
+Cohesion: 0.24
+Nodes (3): docs/ — global documentation index, Folder-specific (moved to their homes), Global (this directory)
 
 ### Community 195 - "idle"
 Cohesion: 0.14
@@ -1568,28 +1518,24 @@ Cohesion: 0.16
 Nodes (13): cellWorldPx, frames, loopMs, states, states, frames, loopMs, flee (+5 more)
 
 ### Community 197 - "attack-domain-regression.ts"
-Cohesion: 0.31
-Nodes (13): cas(), check(), deployGolem(), expectCode(), playerInput(), prepareAndEngage(), reserveArmy(), run() (+5 more)
+Cohesion: 0.23
+Nodes (16): cas(), check(), deployGolem(), expectCode(), playerInput(), prepareAndEngage(), reserveArmy(), run() (+8 more)
 
 ### Community 198 - "BalanceLedgerRecord"
 Cohesion: 0.20
 Nodes (5): MemoryBalanceLedger, BalanceLedgerDaySummary, BalanceLedgerRecord, PgBalanceLedger, BalanceLedgerRepository
 
 ### Community 199 - "OutboxRepository"
-Cohesion: 0.18
-Nodes (3): MemoryOutbox, OutboxEventRecord, OutboxRepository
+Cohesion: 0.12
+Nodes (4): MemoryOutbox, OutboxEventRecord, PgOutbox, OutboxRepository
 
 ### Community 200 - "VillageBubbles"
 Cohesion: 0.23
 Nodes (3): nightFactor(), VillageBubbles, VillageBubbleSpec
 
 ### Community 202 - ".update"
-Cohesion: 0.23
-Nodes (3): isPlacementUnderConstruction(), moveTransientLight(), setSightBound()
-
-### Community 203 - "Building Art Guide"
-Cohesion: 0.15
-Nodes (13): 10. Adding a building end-to-end, 11. Verifying your art (mandatory), 12. Owner's taste, distilled, 1. Coordinate system in one minute, 2. The renderer contract, 3. Light, palette, and level language, 4. Grounding — the Clash of Clans model, 5. Architecture vocabulary (+5 more)
+Cohesion: 0.17
+Nodes (4): isPlacementUnderConstruction(), moveTransientLight(), setPostcardLights(), setSightBound()
 
 ### Community 204 - "body"
 Cohesion: 0.23
@@ -1604,16 +1550,12 @@ Cohesion: 0.15
 Nodes (9): ecology, ecologySnapshot(), firstPlotSeed, graphics, lifeA, nextEcology, plot, root (+1 more)
 
 ### Community 207 - "MusicSystem.ts"
-Cohesion: 0.18
-Nodes (10): formatDuration(), JukeboxModal(), JukeboxModalProps, SECTIONS, Bed, MusicContext, MusicTrack, STINGER_CONTEXT (+2 more)
-
-### Community 208 - "TrainingModal.tsx"
-Cohesion: 0.21
-Nodes (10): TooltipInfo, TrainingModalProps, TROOP_FLAVOR, CORE_TROOP_TYPES, FactionTroopTrainingRequirement, FactionBarracksType, TROOP_FACTIONS, TroopFaction (+2 more)
+Cohesion: 0.13
+Nodes (14): formatDuration(), JukeboxModal(), JukeboxModalProps, SECTIONS, Bed, MusicContext, MusicTrack, STINGER_CONTEXT (+6 more)
 
 ### Community 209 - ".rebuildWildernessLinks"
-Cohesion: 0.18
-Nodes (8): classifyHydrologyPlot(), featureContainsWorldPoint(), hydrologyFeaturesForPlot(), queryWorldHydrology(), drawGrassTile(), wildernessGrassPalette(), roundedRoadBendFor(), WildernessTopology
+Cohesion: 0.16
+Nodes (13): BASE_COLORS, drawGrassTile(), GrassCornerCut, GrassPalette, grassPaletteFor(), grassTileColorAt(), grassTilePatternAt(), hashKey() (+5 more)
 
 ### Community 210 - "manifest.json"
 Cohesion: 0.17
@@ -1655,21 +1597,13 @@ Nodes (11): frames, loopMs, states, cellWorldPx, frames, loopMs, build, idle (+3
 Cohesion: 0.17
 Nodes (10): backupDir, backupRoot, clearedCollections, dataDir, keepPath, keepPlayer, kept, lockPath (+2 more)
 
-### Community 220 - "attack-retention.ts"
-Cohesion: 0.27
-Nodes (11): BotRaidCooldowns, coordinateKey(), finiteInteger(), grantRevengeRight(), normalizeBotRaidCooldowns(), normalizeRevengeRights(), recordBotRaidCooldown(), revengeCount() (+3 more)
-
 ### Community 221 - ".key"
-Cohesion: 0.26
-Nodes (3): RequestReplayIndex, RequestReplayMarker, index
+Cohesion: 0.09
+Nodes (11): AuthRateLimiter, AuthRateLimitPolicy, CountWindow, FailureWindow, GuestCreationDecision, InMemoryAuthRateLimiter, LoginAttemptDecision, normalizeClientAddress() (+3 more)
 
 ### Community 222 - "PlayerDirectory"
 Cohesion: 0.18
 Nodes (4): PlayerDirectory, bounded, directory, mass
-
-### Community 223 - "assertPlotCoordinate"
-Cohesion: 0.29
-Nodes (11): assertPlotCoordinate(), isInsideLegacyHomeArea(), isInsideLegacyWorld(), assertPlotWindow(), boundedLocalWindow(), chebyshevDistance(), coordinatesInWindow(), normalizedRadius() (+3 more)
 
 ### Community 225 - "GolemC.ts"
 Cohesion: 0.24
@@ -1708,8 +1642,8 @@ Cohesion: 0.18
 Nodes (10): body, cellWorldPx, file, originX, originY, texelH, texelW, cellWorldPx (+2 more)
 
 ### Community 235 - "world-authority.ts"
-Cohesion: 0.38
-Nodes (9): allocatePlayerPlot(), allocationIndex(), allocationSnapshot(), claimSpecificPlayerPlot(), ensureRegion(), guestLease(), lockedAllocation(), permanentLease() (+1 more)
+Cohesion: 0.39
+Nodes (11): allocationOrdinalOf(), allocatePlayerPlot(), allocationIndex(), allocationSnapshot(), claimSpecificPlayerPlot(), ensureRegion(), guestLease(), lockedAllocation() (+3 more)
 
 ### Community 236 - "gen-game-icons.mjs"
 Cohesion: 0.31
@@ -1736,7 +1670,7 @@ Cohesion: 0.31
 Nodes (8): isLeaderboardUser(), LeaderboardCacheRecord, LeaderboardPanel(), LeaderboardPanelProps, LeaderboardUser, normalizeUsers(), readCache(), writeCache()
 
 ### Community 242 - "MapAtlasModal.tsx"
-Cohesion: 0.31
+Cohesion: 0.36
 Nodes (8): AtlasData, AtlasPlayer, cellHash(), drawKeepGlyph(), drawNatureGlyph(), KEEP, MapAtlasModal(), paintFogCell()
 
 ### Community 243 - "src/game/config — the data layer (definitions, economy, world)"
@@ -1747,21 +1681,17 @@ Nodes (9): Add a building (data half — pair with `src/game/renderers/AGENTS.md
 Cohesion: 0.36
 Nodes (9): atkState(), clamp01(), coin(), drawGoblinplundererA(), easeOut(), G, limb(), pulse() (+1 more)
 
-### Community 245 - "cameraFrame.ts"
-Cohesion: 0.38
-Nodes (8): cameraDisplayScale(), CameraFrameFn, ensureHooked(), mainCamera(), onCameraFrame(), resolveGame(), subscribers, useWorldAnchor()
-
 ### Community 246 - "gen-building-sprite-icons.mjs"
 Cohesion: 0.20
 Nodes (7): BUILDING_ROOT, HERE, OUT, PREVIEW, REPO, sources, units
 
 ### Community 247 - "clash-game — agent notes"
-Cohesion: 0.22
-Nodes (8): clash-game — agent notes, Commands, Domain guides (how to do X), In-flight rework (2026-07), Iron rules, Parallel sessions, Read before working, Server authority split
+Cohesion: 0.20
+Nodes (9): clash-game — agent notes, Commands, Domain guides (how to do X), Graphify FIRST — do not waste context, In-flight rework (2026-07), Iron rules, Parallel sessions, Read before working (+1 more)
 
 ### Community 248 - "clash-game — agent notes"
-Cohesion: 0.22
-Nodes (8): clash-game — agent notes, Commands, Domain guides (how to do X), In-flight rework (2026-07), Iron rules, Parallel sessions, Read before working, Server authority split
+Cohesion: 0.20
+Nodes (9): clash-game — agent notes, Commands, Domain guides (how to do X), Graphify FIRST — do not waste context, In-flight rework (2026-07), Iron rules, Parallel sessions, Read before working (+1 more)
 
 ### Community 249 - "dependencies"
 Cohesion: 0.22
@@ -1796,8 +1726,8 @@ Cohesion: 0.22
 Nodes (8): states, cellWorldPx, frames, loopMs, fly, unit, variants, c
 
 ### Community 257 - "self-test.ts"
-Cohesion: 0.36
-Nodes (7): combatSnapshotHash(), attackRecordFromAuthority(), engagedAuthority(), NOW, preparedAuthority(), preparedBotAuthority(), incomingAttack()
+Cohesion: 0.22
+Nodes (11): PrepareBotAttackInput, combatSnapshotHash(), ApplyAttackCommandResult, AttackSelectionSource, TroopCounts, attackRecordFromAuthority(), engagedAuthority(), NOW (+3 more)
 
 ### Community 258 - "src/game/renderers — the visual layer (how an entity becomes pixels)"
 Cohesion: 0.22
@@ -1816,19 +1746,11 @@ Cohesion: 0.22
 Nodes (8): Add a defense (full, spans 3 dirs), Add a wilderness archetype, Add / edit a hydrology feature, Ambient world systems, Combat: two independent target/attack loops, Determinism (the golden rule of world-gen), src/game/systems — the simulation layer, The shared world map & world generation
 
 ### Community 263 - "vercel.json"
-Cohesion: 0.22
-Nodes (8): maxDuration, buildCommand, framework, functions, api/[...path].ts, headers, outputDirectory, $schema
-
-### Community 264 - "Adding Buildings"
-Cohesion: 0.25
-Nodes (8): 1. Add the focused catalog entry, 2. Draw it once, wire the shared visual dispatcher, 3. Wire gameplay only when the category needs it, 4. Presentation integration, 5. Verify (mandatory), Active defense, Adding Buildings, Producer, storage, housing, or army building
-
-### Community 265 - "Design tournaments — the clean-room asset creation process"
-Cohesion: 0.25
-Nodes (8): Current shipped tournament state (2026-07-18), Design tournaments — the clean-room asset creation process, Invariants, Operational gotchas (learned the hard way), Per-slot bake params — the `PARAMS` export, The process, Why clean-room, Winner promotion (the finals) — proven procedure
+Cohesion: 0.33
+Nodes (5): buildCommand, framework, headers, outputDirectory, $schema
 
 ### Community 266 - "Modularity Assessment — buildings, defenses, troops"
-Cohesion: 0.25
+Cohesion: 0.29
 Nodes (7): Modularity Assessment — buildings, defenses, troops, The format — how a defense is organized today, The numbers, The path forward (detail in the pipeline doc), Verdict in one paragraph, What's already right (keep it), Why this can't scale to a tower-defense roster
 
 ### Community 267 - "package.json"
@@ -1844,12 +1766,8 @@ Cohesion: 0.25
 Nodes (8): Attack aggregate authority, Bounded read surfaces, Commands, Cutover contract, Expandable world authority, Runtime choices, Runtime maintenance and storage bounds, Transactional persistence and cutover boundary
 
 ### Community 270 - "BannerPickerModal.tsx"
-Cohesion: 0.29
-Nodes (7): BannerPickerModalProps, BannerSwatch(), EMBLEM_NAMES, PATTERN_NAMES, bannerAxesOf(), drawBannerPreview(), FIELDS
-
-### Community 271 - "BuildingShopModal.tsx"
-Cohesion: 0.32
-Nodes (6): BuildingIcon(), BuildingIconProps, BuildingShopModal(), BuildingShopModalProps, SHOP_SECTIONS, BuildingDef
+Cohesion: 0.19
+Nodes (12): BannerPickerModal(), BannerPickerModalProps, BannerSwatch(), EMBLEM_NAMES, PATTERN_NAMES, bannerAxesOf(), bannerDesignFor(), CanvasGraphicsShim (+4 more)
 
 ### Community 272 - "NecromancerB.ts"
 Cohesion: 0.43
@@ -1904,16 +1822,12 @@ Cohesion: 0.33
 Nodes (5): API surface, Browser surface (Playwright), Build + run, Gotchas, Verifying clash-game changes
 
 ### Community 286 - "Clash Prototype"
-Cohesion: 0.33
-Nodes (6): Authority model, Clash Prototype, Local development, Production, Vercel, Verification
+Cohesion: 0.29
+Nodes (7): Authority model, Clash Prototype, Codebase knowledge graph (graphify), Local development, Production, Vercel, Verification
 
 ### Community 287 - "Unified attack domain"
 Cohesion: 0.33
 Nodes (5): One target contract, Persistence transaction contract, Simulation and replays, State machine, Unified attack domain
-
-### Community 288 - "LakeTerrain"
-Cohesion: 0.33
-Nodes (3): WildernessNature, WildernessRenderResult, LakeTerrain
 
 ### Community 289 - "probe-camp.mjs"
 Cohesion: 0.33
@@ -1926,14 +1840,6 @@ Nodes (3): PHASE, th, WRECKS
 ### Community 291 - "verify-overhaul-troops.mjs"
 Cohesion: 0.33
 Nodes (3): BASE, OUT, TOKEN_CACHE
-
-### Community 292 - "Adding Troops"
-Cohesion: 0.40
-Nodes (5): 1. Add the focused definition, 2. Wire presentation, 3. Add special behavior only when needed, 4. Verify, Adding Troops
-
-### Community 293 - "Combat Navigation"
-Cohesion: 0.40
-Nodes (5): Combat Navigation, Movement contract, Planning contract, Required regressions, Target contract
 
 ### Community 294 - "manifest.json"
 Cohesion: 0.40
@@ -1952,24 +1858,24 @@ Cohesion: 0.40
 Nodes (4): buckets, cellWorldPx, loopMs, variants
 
 ## Knowledge Gaps
-- **2014 isolated node(s):** `meta`, `N`, `SLOTS`, `PREP_SCHEMA`, `ART_SCHEMA` (+2009 more)
+- **2017 isolated node(s):** `meta`, `N`, `SLOTS`, `PREP_SCHEMA`, `ART_SCHEMA` (+2012 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **494 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **495 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `SerializedWorld` connect `SerializedWorld` to `MainScene.ts`, `simulation.ts`, `RuntimePrincipal`, `auth-service.ts`, `MainScene`, `App.tsx`, `attack-service.ts`, `.startAttack`, `.getCachedWorld`, `WorldMapSystem.ts`, `auth.spec.ts`, `Backend`, `service.ts`, `game.ts`, `Auth`, `GameBackend.ts`, `GameService`, `.constructor`?**
-  _High betweenness centrality (0.023) - this node is a cross-community bridge._
-- **Why does `MainScene` connect `MainScene` to `MainScene.ts`, `.cartToIso`, `WorldMapSystem.ts`, `DisplayResolution.ts`, `DepthSystem.ts`, `DayNightSystem`, `VillageBubbles`, `VillageLifeSystem`, `SerializedWorld`, `game.ts`, `PlacedBuilding`, `WorldMapSystem`?**
-  _High betweenness centrality (0.022) - this node is a cross-community bridge._
-- **Why does `VillageLifeSystem` connect `VillageLifeSystem` to `MainScene.ts`, `MainScene`, `.updateNightEvents`, `WorldMapSystem.ts`, `.onConstruction`, `.update`, `.chooseNextAction`, `PlacedBuilding`, `NeighborLifeSim`, `.updateEntity`, `.findAmbientPath`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
+- **Why does `MainScene` connect `PlacedBuilding` to `MainScene.ts`, `MainScene`, `.cartToIso`, `WorldMapSystem.ts`, `DisplayResolution.ts`, `DayNightSystem`, `App.tsx`, `.getCachedWorld`, `VillageBubbles`, `VillageLifeSystem`, `Backend`, `game.ts`, `.rebuildWildernessLinks`, `WorldMapSystem`, `getBuildingStats`, `.transaction`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
+- **Why does `VillageLifeSystem` connect `VillageLifeSystem` to `MainScene.ts`, `world-hydrology-regression.ts`, `.updateNightEvents`, `.cartToIso`, `.onConstruction`, `.update`, `SerializedWorld`, `PlacedBuilding`, `.chooseNextAction`, `.updateEntity`, `.findAmbientPath`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
+- **Why does `SerializedWorld` connect `.getCachedWorld` to `MainScene.ts`, `self-test.ts`, `RuntimePrincipal`, `simulation.ts`, `MainScene`, `App.tsx`, `attack-service.ts`, `auth.spec.ts`, `Backend`, `game.ts`, `PlacedBuilding`, `TroopDefinitions.ts`, `Auth`, `GameBackend.ts`, `GameService`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **What connects `meta`, `N`, `SLOTS` to the rest of the system?**
-  _2014 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2017 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `MainScene.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.028167770419426048 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.02712646995166294 - nodes in this community are weakly interconnected._
 - **Should `MainScene` be split into smaller, more focused modules?**
-  _Cohesion score 0.0502679994205418 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06436487638533675 - nodes in this community are weakly interconnected._
 - **Should `pathing-regression.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.01904761904761905 - nodes in this community are weakly interconnected._

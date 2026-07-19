@@ -87,13 +87,13 @@ commands and the server simulator remain outcome authority.
 
 ## Extension routes
 
-- Buildings: follow `docs/ADDING_BUILDINGS.md`. Definitions now live under
+- Buildings: follow `src/game/config/ADDING_BUILDINGS.md`. Definitions now live under
   `config/definitions/`; active defense policy belongs in
   `DefenseBehaviorCatalog`, not a new manual-fire loop.
-- Troops: follow `docs/ADDING_TROOPS.md` and read
-  `docs/COMBAT_NAVIGATION.md` before changing movement or breaches.
-- Art: read `docs/BUILDING_ART_GUIDE.md` and verify with screenshots.
-- Layering: read `docs/RENDERING_AND_DEPTH.md`; do not bypass the ground-bake
+- Troops: follow `src/game/config/ADDING_TROOPS.md` and read
+  `src/game/systems/COMBAT_NAVIGATION.md` before changing movement or breaches.
+- Art: read `src/game/renderers/BUILDING_ART_GUIDE.md` and verify with screenshots.
+- Layering: read `src/game/renderers/RENDERING_AND_DEPTH.md`; do not bypass the ground-bake
   split or depth helpers.
 
 ## Remaining modularization seams

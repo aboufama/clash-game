@@ -16,7 +16,7 @@ const GROUND_PLANE_DEPTH = 0;
 const TROOP_BIAS_SCALE = 1;
 
 /**
- * THE OCCLUDER BAND (see docs/RENDERING_AND_DEPTH.md for the full derivation)
+ * THE OCCLUDER BAND (see src/game/renderers/RENDERING_AND_DEPTH.md for the full derivation)
  *
  * Characters (troops + villagers) anchor at their feet with offset
  * 15 + bias ∈ [16, 21]. Every SOLID occluder (wall, building, obstacle)

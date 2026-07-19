@@ -554,7 +554,7 @@ export class MainScene extends Phaser.Scene {
 
         // Global runtime pixelation is intentionally absent. Live vector art is
         // antialiased; baked pixel sprites opt into NEAREST per texture through
-        // TextureRenderPolicy. See docs/AGENTS_SPRITE_PIPELINE.md.
+        // TextureRenderPolicy. See tools/art-preview/AGENTS_SPRITE_PIPELINE.md.
 
         // Battle UI (health bars + level chips) renders in a mirrored scene
         // above this one — see BattleOverlayScene.
@@ -2561,7 +2561,7 @@ export class MainScene extends Phaser.Scene {
     /** Ground-layer pixel treatment: the whole ground RT (grass tiles, worn
      * paths, stone lanes, baked decals) re-quantizes into 1.35 world-px cells
      * shortly after any bake write — the world-glued equivalent of the baked
-     * sprites (docs/AGENTS_SPRITE_PIPELINE.md). */
+     * sprites (tools/art-preview/AGENTS_SPRITE_PIPELINE.md). */
     private groundPixelDirtyAt = 0;
     private groundPixelEpoch = 0;
     private markGroundPixelDirty() {

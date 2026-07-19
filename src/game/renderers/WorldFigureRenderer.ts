@@ -7,7 +7,7 @@ import { pixelEllipse, pixelRect } from '../render/PixelDraw';
  * caravan's marching escort, and the wilderness lake fish. Extracted from
  * WorldMapSystem as pure screen-space draw functions (already-projected
  * x/y in, every animation a deterministic function of `time`, never
- * Math.random()) so the sprite bake (docs/AGENTS_SPRITE_PIPELINE.md) can
+ * Math.random()) so the sprite bake (tools/art-preview/AGENTS_SPRITE_PIPELINE.md) can
  * quantize them like any other unit. WorldMapSystem keeps ownership of
  * motion, culling, depth and iso projection.
  */

@@ -16,7 +16,7 @@ import { SpriteBank } from '../render/SpriteBank';
 import { designBakeParams } from '../renderers/redesign/DesignRegistry';
 
 /**
- * Asset-pipeline entry point (see docs/AGENTS_SPRITE_PIPELINE.md).
+ * Asset-pipeline entry point (see tools/art-preview/AGENTS_SPRITE_PIPELINE.md).
  *
  * The bake harness (tools/art-preview/bake-sprites.mjs) drives the EXACT same
  * renderers the game uses — this bridge exposes them on window so a headless

@@ -2,9 +2,9 @@
 
 Every building, troop, obstacle and wreck is drawn here as **hand-written
 vector `Phaser.Graphics`** (no sprite sheets — yet; see
-`docs/AGENTS_SPRITE_PIPELINE.md`). This is the least modular part of the
+`tools/art-preview/AGENTS_SPRITE_PIPELINE.md`). This is the least modular part of the
 codebase: the data layer is a registry, but the art is O(n) bespoke code.
-**Before touching any art, read `docs/BUILDING_ART_GUIDE.md`** — it encodes the
+**Before touching any art, read `src/game/renderers/BUILDING_ART_GUIDE.md`** — it encodes the
 owner's calibrated taste and the iso math, and art that ignores it is rejected.
 
 ## The building visual dispatch (two compile-checked layers)
@@ -69,7 +69,7 @@ hydrology renderers documented in `src/game/systems/AGENTS.md`.
    exact arg order + any level branching).
 4. `tools/art-preview/shoot-defenses.mjs` — add to `SHOWCASE`; screenshot every
    level, day + night, and LOOK at the PNG. Typechecking is not seeing.
-5. **Bake the sprites** (`docs/AGENTS_SPRITE_PIPELINE.md`):
+5. **Bake the sprites** (`tools/art-preview/AGENTS_SPRITE_PIPELINE.md`):
    `cd tools/art-preview && UNITS=<id> LEVELS=… ANGLES=16|1 node bake-sprites.mjs`
    (16 angles for aiming defenses — the CoC model; 1 for static buildings),
    then LOOK at `shots/bake-sheet-<id>-L<k>.png`. Vector code is the authoring
@@ -90,4 +90,4 @@ for troops/defenses. The catalog/dispatcher corner math and the `DepthSystem`
 integration survive. The friction is (a) the base/elevated split — a flat PNG
 can't split, so you need two textures (ground-decal + elevated) or you drop the
 ground-bake optimization; and (b) `PlacedBuilding.graphics` / `Troop.gameObject`
-are typed `Graphics`, not `Sprite`. Full plan: `docs/AGENTS_SPRITE_PIPELINE.md`.
+are typed `Graphics`, not `Sprite`. Full plan: `tools/art-preview/AGENTS_SPRITE_PIPELINE.md`.
