@@ -20,11 +20,30 @@ import { gameManager } from '../GameManager';
 import { musicSystem } from './MusicSystem';
 
 const MUTE_KEY = 'clash.muted';
+const SFXVOL_KEY = 'clash.sfxvol';
 
 type SfxName =
     | 'coin' | 'thud' | 'door' | 'eggLay' | 'eggCollect' | 'stone'
     | 'deposit' | 'tap' | 'snip' | 'deploy' | 'horn' | 'dragon'
-    | 'destroy' | 'click' | 'merchant' | 'trade';
+    | 'destroy' | 'click' | 'merchant' | 'trade'
+    | 'uiTap' | 'uiOpen' | 'uiClose' | 'tabSwitch' | 'confirm' | 'denied'
+    | 'lift' | 'place' | 'sell' | 'upgradeStart' | 'notify' | 'untrain'
+    | 'plotTap';
+
+/**
+ * Per-name minimum interval (ms) between plays — rapid repeats collapse into
+ * one satisfying hit instead of a machine-gun smear. Names absent from the
+ * map are unthrottled (legacy behavior).
+ */
+const MIN_INTERVAL_MS: Partial<Record<SfxName, number>> = {
+    deploy: 70, thud: 60, destroy: 90, click: 40,
+    uiTap: 40, uiOpen: 80, uiClose: 80, tabSwitch: 80, confirm: 80,
+    denied: 80, lift: 80, place: 80, sell: 80, upgradeStart: 80,
+    notify: 80, untrain: 80, plotTap: 80
+};
+
+/** Successive plays of these escalate pitch — the harvest cascade. */
+const STREAK_NAMES: ReadonlySet<SfxName> = new Set(['coin', 'eggCollect', 'snip', 'stone']);
 
 const TRACKS_KEY = 'clash.tracks';
 
@@ -237,6 +256,36 @@ class SoundSystem {
     /** Last effect fired (for tests). */
     lastPlayed = '';
 
+    // --------------------------------------------- satisfaction mechanics
+    /** performance.now() of the last accepted play, per name (rate limit). */
+    private lastPlayMs = new Map<SfxName, number>();
+    /** Timestamps of recent accepted plays — the global voice-cap backstop. */
+    private recentPlayMs: number[] = [];
+    /** Collect-streak state: step count + last streak-name play time. */
+    private streakStep = 0;
+    private streakLastMs = 0;
+    /** Per-invocation pitch factor consumed by ping() (humanize × streak). */
+    private pitchScale = 1;
+    /** User SFX loudness 0..1, scaled onto the 0.5 bus base (1 = stock). */
+    private sfxVolume = 1;
+
+    /** Set SFX loudness 0..1 (1 keeps today's exact level), persisted. */
+    setSfxVolume(v: number) {
+        this.sfxVolume = Math.max(0, Math.min(1, v));
+        try {
+            localStorage.setItem(SFXVOL_KEY, String(this.sfxVolume));
+        } catch {
+            // storage unavailable — session-only volume still works
+        }
+        if (this.ctx && this.started && this.sfxBus) {
+            this.sfxBus.gain.setTargetAtTime(0.5 * this.sfxVolume, this.ctx.currentTime, 0.05);
+        }
+    }
+
+    getSfxVolume(): number {
+        return this.sfxVolume;
+    }
+
     /** Install one-time unlock listeners; audio starts on the first gesture. */
     attach() {
         const unlock = () => {
@@ -310,8 +359,14 @@ class SoundSystem {
         this.ambienceBus.gain.value = 0.5;
         this.ambienceBus.connect(this.master);
 
+        try {
+            const v = parseFloat(localStorage.getItem(SFXVOL_KEY) ?? '1');
+            if (Number.isFinite(v)) this.sfxVolume = Math.max(0, Math.min(1, v));
+        } catch {
+            // storage unavailable — stock loudness
+        }
         this.sfxBus = this.ctx.createGain();
-        this.sfxBus.gain.value = 0.5;
+        this.sfxBus.gain.value = 0.5 * this.sfxVolume;
         this.sfxBus.connect(this.master);
 
         // Shared gentle echo for the lead voice (the RuneScape haze).
@@ -737,6 +792,29 @@ class SoundSystem {
     /** Fire a named effect (no-op until audio is unlocked). */
     play(name: SfxName) {
         if (!this.ctx || !this.started) return;
+        const nowMs = performance.now();
+        // Per-name rate limit: dropped calls are silent no-ops.
+        const minGap = MIN_INTERVAL_MS[name];
+        const lastMs = this.lastPlayMs.get(name);
+        if (minGap !== undefined && lastMs !== undefined && nowMs - lastMs < minGap) return;
+        // Global backstop for mass events: at most ~10 SFX voices per 100 ms.
+        this.recentPlayMs = this.recentPlayMs.filter(ms => nowMs - ms < 100);
+        if (this.recentPlayMs.length >= 10) return;
+        this.recentPlayMs.push(nowMs);
+        this.lastPlayMs.set(name, nowMs);
+
+        // Pitch humanization: every ping-based one-shot detunes ±3% per
+        // invocation (event-driven randomness, not per-frame ambient). Collect
+        // streaks — coin/egg/snip/stone hits landing within 1.5 s of each
+        // other — climb ~4% a step (cap 8), so rapid harvesting becomes a
+        // rising cascade that resets once the window lapses.
+        this.pitchScale = 1 + (Math.random() * 2 - 1) * 0.03;
+        if (STREAK_NAMES.has(name)) {
+            this.streakStep = nowMs - this.streakLastMs <= 1500 ? Math.min(this.streakStep + 1, 8) : 0;
+            this.streakLastMs = nowMs;
+            this.pitchScale *= Math.pow(1.04, this.streakStep);
+        }
+
         this.lastPlayed = name;
         const t = this.ctx.currentTime + 0.01;
         switch (name) {
@@ -803,11 +881,89 @@ class SoundSystem {
                 this.noiseHit(t, 160, 0.5, 0.16);
                 this.ping(t, 60, 0.2, 0.4, 'sine');
                 break;
+            case 'uiTap':
+                // Softer/woodier than 'click': low triangle blip + a dry tick.
+                this.noiseHit(t, 950, 0.018, 0.02);
+                this.ping(t, 620, 0.03, 0.05, 'triangle');
+                break;
+            case 'uiOpen':
+                // Parchment swish up + a soft low thock as the panel lands.
+                this.swish(t, 420, 2400, 0.12, 0.05);
+                this.ping(t + 0.04, 150, 0.045, 0.09, 'sine');
+                break;
+            case 'uiClose':
+                // The reverse: swish down, a shade lower.
+                this.swish(t, 1900, 340, 0.11, 0.045);
+                this.ping(t + 0.04, 120, 0.04, 0.09, 'sine');
+                break;
+            case 'tabSwitch':
+                // Crisp page-tick: short high noise tick + faint ping.
+                this.noiseHit(t, 3200, 0.018, 0.035);
+                this.ping(t + 0.005, 1500, 0.018, 0.05);
+                break;
+            case 'confirm':
+                // Gold chime: the 'coin' family, rounder and a touch longer.
+                this.ping(t, 1046, 0.045, 0.16, 'sine');
+                this.ping(t + 0.09, 1568, 0.04, 0.2, 'sine');
+                break;
+            case 'denied':
+                // Muted double-dud: two low damped thuds, quiet.
+                this.noiseHit(t, 190, 0.06, 0.05);
+                this.ping(t, 110, 0.03, 0.07, 'sine');
+                this.noiseHit(t + 0.11, 170, 0.06, 0.045);
+                this.ping(t + 0.11, 95, 0.028, 0.07, 'sine');
+                break;
+            case 'lift':
+                // Short rising whoosh + a faint creak as the building lets go.
+                this.swish(t, 320, 1500, 0.13, 0.05);
+                this.creak(t + 0.02);
+                break;
+            case 'place':
+                // Move-drop: a rounder, higher-partial cousin of 'thud'.
+                this.noiseHit(t, 380, 0.12, 0.08);
+                this.ping(t, 150, 0.06, 0.16, 'sine');
+                this.ping(t, 450, 0.02, 0.09, 'triangle');
+                break;
+            case 'sell': {
+                // Coin-pour: descending clinks with a little scatter.
+                const clinks = 3 + (Math.random() < 0.5 ? 1 : 0);
+                for (let i = 0; i < clinks; i++) {
+                    const ct = t + i * 0.065 + Math.random() * 0.02;
+                    this.ping(ct, 1680 * Math.pow(0.86, i), 0.035, 0.07, 'triangle');
+                }
+                break;
+            }
+            case 'upgradeStart':
+                // Hammer double-tap, then a rising work-begins ping.
+                this.noiseHit(t, 1400, 0.03, 0.06);
+                this.ping(t, 1500, 0.02, 0.04, 'triangle');
+                this.noiseHit(t + 0.09, 1400, 0.03, 0.06);
+                this.ping(t + 0.09, 1600, 0.02, 0.04, 'triangle');
+                this.ping(t + 0.17, 700, 0.04, 0.12, 'triangle', 1150);
+                break;
+            case 'notify':
+                // One soft bell with a faint octave shimmer.
+                this.ping(t, 1175, 0.04, 0.2, 'sine');
+                this.ping(t, 2350, 0.012, 0.14, 'sine');
+                break;
+            case 'untrain':
+                // Pop-out: a downward ping and a small tick.
+                this.ping(t, 880, 0.035, 0.09, 'sine', 520);
+                this.noiseHit(t + 0.05, 2200, 0.02, 0.03);
+                break;
+            case 'plotTap':
+                // Parchment tap: soft papery hit over a low ping.
+                this.noiseHit(t, 750, 0.05, 0.045);
+                this.ping(t, 220, 0.03, 0.1, 'sine');
+                break;
         }
     }
 
     private ping(t: number, freq: number, peak: number, dur = 0.12, type: OscillatorType = 'sine', slideTo?: number) {
         if (!this.ctx) return;
+        // Humanize + streak: pitchScale is set per play() invocation.
+        freq *= this.pitchScale;
+        if (slideTo) slideTo *= this.pitchScale;
         const osc = this.ctx.createOscillator();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, t);
@@ -833,6 +989,27 @@ class SoundSystem {
         filter.Q.value = 1.4;
         const gain = this.ctx.createGain();
         gain.gain.setValueAtTime(peak, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.sfxBus);
+        src.start(t);
+        src.stop(t + dur + 0.05);
+    }
+
+    /** Filtered-noise sweep — the parchment swish (bandpass f0 → f1). */
+    private swish(t: number, f0: number, f1: number, dur: number, peak: number) {
+        if (!this.ctx) return;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.noiseBuffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(f0, t);
+        filter.frequency.exponentialRampToValueAtTime(f1, t + dur);
+        filter.Q.value = 1.8;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(peak, t + dur * 0.25);
         gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
         src.connect(filter);
         filter.connect(gain);

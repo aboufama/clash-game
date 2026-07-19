@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Backend } from '../game/backend/GameBackend';
 import { formatGold } from '../game/economy/Currency';
+import { soundSystem } from '../game/systems/SoundSystem';
 
 interface Notification {
   id: string;
@@ -56,6 +57,7 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
   // manual retry available.
   const handleOpen = () => {
     if (!isOnline) return;
+    soundSystem.play('uiOpen');
     setIsOpen(true);
     setIsLoading(true);
     void (async () => {
@@ -116,12 +118,12 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
 
       {isOpen && (
         <>
-          <div className="notifications-backdrop" onClick={handleClose}></div>
+          <div className="notifications-backdrop" onClick={() => { soundSystem.play('uiClose'); handleClose(); }}></div>
           <div className="notifications-dropdown">
             <div className="notifications-header">
               <h3>DEFENSE LOG</h3>
               {notifications.some(n => !n.read) && (
-                <button className="mark-read-btn" onClick={handleMarkAllRead}>
+                <button className="mark-read-btn" onClick={() => { soundSystem.play('uiTap'); void handleMarkAllRead(); }}>
                   Mark all read
                 </button>
               )}
@@ -182,7 +184,8 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
                     <button
                       className="watch-live-btn revenge-btn"
                       onClick={() => {
-                        // App owns the same army gate as every other rewarding attack.
+                        // App owns the same army gate as every other rewarding
+                        // attack — and plays confirm/denied feedback there too.
                         onRevenge(notif.attackerId!, notif.attackerName);
                         handleClose();
                       }}

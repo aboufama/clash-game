@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Backend, type AttackNotification } from '../game/backend/GameBackend';
+import { soundSystem } from '../game/systems/SoundSystem';
 
 interface ReplayTheatreModalProps {
   userId: string;
@@ -50,7 +51,7 @@ export function ReplayTheatreModal({ userId, onWatch, onClose }: ReplayTheatreMo
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
       <div className="theatre-modal" onClick={e => e.stopPropagation()}>
         <div className="atlas-title">
           <span className="sym sym-watch small" />
@@ -58,7 +59,7 @@ export function ReplayTheatreModal({ userId, onWatch, onClose }: ReplayTheatreMo
           <span className="atlas-count">
             {error ? 'unavailable' : items === null ? 'rewinding…' : `${items.length} battle${items.length === 1 ? '' : 's'}`}
           </span>
-          <button className="pxf-close" onClick={onClose} aria-label="Close">
+          <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close">
             <span className="sym sym-close small" />
           </button>
         </div>
@@ -67,7 +68,7 @@ export function ReplayTheatreModal({ userId, onWatch, onClose }: ReplayTheatreMo
             <div className="theatre-empty">
               The battle records could not be loaded.
               {' '}
-              <button className="theatre-watch" onClick={retry}>RETRY</button>
+              <button className="theatre-watch" onClick={() => { soundSystem.play('confirm'); retry(); }}>RETRY</button>
             </div>
           )}
           {items !== null && items.length === 0 && (
@@ -82,7 +83,7 @@ export function ReplayTheatreModal({ userId, onWatch, onClose }: ReplayTheatreMo
               <span className="theatre-when">{age(n.timestamp)}</span>
               <button
                 className="theatre-watch"
-                onClick={() => { onWatch(n.attackId!, n.attackerName); onClose(); }}
+                onClick={() => { /* confirm plays in App's watch handler */ onWatch(n.attackId!, n.attackerName); onClose(); }}
               >
                 <span className="sym sym-watch small" /> WATCH
               </button>

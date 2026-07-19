@@ -533,6 +533,12 @@ export class MainScene extends Phaser.Scene {
         return this.buildings.filter(b => b.owner === 'PLAYER' && b.type !== 'wall').length;
     }
 
+    /** Boot UI bridge: lets the cloud loading bar follow the actual baked
+     *  atlas loader instead of reaching 98% while pixel art is still pending. */
+    public getSpriteBankLoadProgress() {
+        return SpriteBank.loadProgress;
+    }
+
     preload() {
     }
 
@@ -547,6 +553,22 @@ export class MainScene extends Phaser.Scene {
         this.cameras.main.setZoom(toBackingZoom(defaultZoom));
 
         this.scale.on('resize', () => {
+            // A resize re-shapes the gesture floor while camera zoom stays
+            // put, so musicSystem.sync's zoomRatio could drift below the
+            // world-music enter threshold with no gesture. Re-clamp to the
+            // new floor — but ONLY a camera that sat at/above the OLD floor
+            // (village view). One legitimately parked below it (the
+            // watchtower world view, mirroring settleZoomAfterGesture's
+            // parked-below-floor check) is never yanked up.
+            const cam = this.cameras.main;
+            const currentZoom = toLogicalZoom(cam.zoom);
+            const wasAtOrAboveFloor = this.lastGestureFloor > 0
+                && currentZoom >= this.lastGestureFloor - 0.0005;
+            const newFloor = this.minGestureZoom();
+            if (this.mode === 'HOME' && wasAtOrAboveFloor && currentZoom < newFloor) {
+                cam.setZoom(toBackingZoom(newFloor));
+            }
+            this.lastGestureFloor = newFloor;
             if (!this.hasUserMovedCamera) {
                 this.centerCamera();
             }
@@ -564,9 +586,18 @@ export class MainScene extends Phaser.Scene {
 
         gameManager.registerScene({
             // Startup path: App already fetched cloud state and cached it, so avoid a second cloud refresh here.
-            loadBase: () => this.sceneReadyForBaseLoad
-                ? this.reloadHomeBase({ refreshOnline: false })
-                : Promise.resolve(false),
+            loadBase: async () => {
+                if (!this.sceneReadyForBaseLoad) return false;
+                // The world can hydrate while the atlas bank is loading, but
+                // App must not open its boot clouds until BOTH are settled.
+                // Otherwise the first visible frame is deliberately the
+                // smooth vector fallback and pops to pixel art a moment later.
+                const [loaded] = await Promise.all([
+                    this.reloadHomeBase({ refreshOnline: false }),
+                    SpriteBank.waitUntilSettled()
+                ]);
+                return loaded;
+            },
             setUnderAttack: (underAttack: boolean, attackId?: string | null) => {
                 if (this.mode !== 'HOME') return;
                 if (underAttack) this.villageLife.panic();
@@ -1041,6 +1072,11 @@ export class MainScene extends Phaser.Scene {
     private updateErrorCount = 0;
     private lastUpdateErrorLogAt = 0;
 
+    /** The gesture floor as of the LAST frame — the resize handler needs the
+     *  PRE-resize floor to tell "village view that slipped below the new
+     *  floor" (re-clamp) from "world view parked far below it" (leave). */
+    private lastGestureFloor = 0;
+
     update(time: number, delta: number) {
         try {
             this.updateCore(time, delta);
@@ -1128,6 +1164,9 @@ export class MainScene extends Phaser.Scene {
             nightFactor: nightFactorNow,
             zoomRatio: toLogicalZoom(this.cameras.main.zoom) / Math.max(0.001, this.minGestureZoom())
         });
+        // Cache the floor for the resize handler (it needs the PRE-resize
+        // value to tell village-at-floor from world-view-parked-below).
+        this.lastGestureFloor = this.minGestureZoom();
         // The audible wind rides the same gust field the flags sample (throttled).
         if (time >= this.nextAmbienceAt) {
             this.nextAmbienceAt = time + 240;
@@ -2460,7 +2499,7 @@ export class MainScene extends Phaser.Scene {
         return building;
     }
 
-    public async placeBuilding(gridX: number, gridY: number, type: string, owner: 'PLAYER' | 'ENEMY' = 'PLAYER', isFree: boolean = false): Promise<boolean> {
+    public async placeBuilding(gridX: number, gridY: number, type: string, owner: 'PLAYER' | 'ENEMY' = 'PLAYER', isFree: boolean = false, muteSfx: boolean = false): Promise<boolean> {
         // Remove any obstacles that overlap with this building
         const info = BUILDINGS[type];
         if (info) {
@@ -2473,7 +2512,9 @@ export class MainScene extends Phaser.Scene {
             if (data) {
                 const inst = this.instantiateBuilding(data, 'PLAYER');
                 gameManager.onBuildingPlaced(type, isFree);
-                soundSystem.play('thud');
+                // muteSfx: wall drag-paint thins its per-tile thud at the
+                // call site (SceneInputController.paintWallPath).
+                if (!muteSfx) soundSystem.play('thud');
                 // Lanes re-route around the new footprint; critters caught
                 // under it scatter (same treatment as a moved building).
                 if (inst) this.villageLife.onBuildingPlaced(inst);
@@ -8971,7 +9012,12 @@ export class MainScene extends Phaser.Scene {
                 if (!selected) return false;
                 this.destroyBuilding(selected);
                 const deleted = !this.buildings.some(building => building.id === selected.id);
-                if (deleted) this.selectedInWorld = null;
+                if (deleted) {
+                    this.selectedInWorld = null;
+                    // HOME sell: coin-pour layered over destroyBuilding's
+                    // 'destroy' — battle destruction keeps the plain crunch.
+                    soundSystem.play('sell');
+                }
                 return deleted;
             },
             deselectBuilding: () => {
@@ -8993,6 +9039,7 @@ export class MainScene extends Phaser.Scene {
                     // Villagers react to the lift (and the drop handler's
                     // onBuildingPlaced expects a preceding lift).
                     this.villageLife.onBuildingLifted(this.selectedInWorld);
+                    soundSystem.play('lift');
                 }
                 this.isMoving = true;
                 this.selectedBuildingType = null;

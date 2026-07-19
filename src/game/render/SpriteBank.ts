@@ -117,6 +117,10 @@ interface UnitRecord {
     manifest: BuildingManifest | TroopManifest | WreckManifest | ObstacleManifest;
 }
 
+interface SpriteIndex {
+    units: Array<{ kind: string; unit: string; atlas: string; frames: string; manifest: string }>;
+}
+
 const fnv = (id: string): number => {
     let h = 2166136261;
     for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -164,6 +168,12 @@ interface ShadowRec {
 class SpriteBankImpl {
     enabled = true;
     ready = false;
+    /** 0..1 progress for the initial atlas bank, consumed by the boot cloud UI. */
+    loadProgress = 0;
+    /** Resolves only after the initial atlas loader has either completed or
+     *  failed. MainScene uses this to keep the first village reveal behind
+     *  cloud cover, so a slow network can never expose the vector fallback. */
+    private loadPromise: Promise<void> | null = null;
     private units = new Map<string, UnitRecord>();
     /** Design-variant slots present in the bank: 'kind:unit' → slots (sorted).
      *  Populated from '@'-tagged atlas dirs ('cannon@A') at load time. */
@@ -180,9 +190,13 @@ class SpriteBankImpl {
     private lastSweep = 0;
 
     /** Kick off loading; call from scene create(). Safe to call once. */
-    init(scene: Phaser.Scene) {
+    init(scene: Phaser.Scene): Promise<void> {
         try {
-            if (localStorage.getItem('clash.sprites.off') === '1') { this.enabled = false; return; }
+            if (localStorage.getItem('clash.sprites.off') === '1') {
+                this.enabled = false;
+                this.loadProgress = 1;
+                return Promise.resolve();
+            }
         } catch { /* storage unavailable → stay enabled */ }
         if (this.ready || this.units.size > 0) {
             // Dev-HMR hazard: a hot update that re-creates the Phaser game
@@ -192,52 +206,96 @@ class SpriteBankImpl {
             // Detect the empty manager and reload the bank into it; the
             // 'spritebank:ready' emit below re-busts the scene's draw caches.
             const stale = [...this.units.values()].some(u => !scene.textures.exists(u.atlasKey));
-            if (!stale) return;
+            if (!stale) {
+                this.loadProgress = 1;
+                return Promise.resolve();
+            }
             this.ready = false;
             this.units.clear();
             this.variantSlots.clear();
             this.shadows.clear();
             this.troopTopOffsets.clear();
+            this.loadPromise = null;
+            this.loadProgress = 0;
         }
-        fetch('/assets/sprites/index.json')
-            .then(r => (r.ok ? r.json() : null))
-            .then(async (index: { units: Array<{ kind: string; unit: string; atlas: string; frames: string; manifest: string }> } | null) => {
-                if (!index || !scene.scene.isActive()) { this.enabled = false; return; }
-                for (const u of index.units) {
-                    const atlasKey = `bank:${u.kind}:${u.unit}`;
-                    scene.load.atlas(atlasKey, `/assets/sprites/${u.atlas}`, `/assets/sprites/${u.frames}`);
-                    scene.load.json(`${atlasKey}:man`, `/assets/sprites/${u.manifest}`);
-                }
-                scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+        if (this.loadPromise) return this.loadPromise;
+
+        this.loadPromise = new Promise<void>((resolve) => {
+            fetch('/assets/sprites/index.json')
+                .then(async r => {
+                    if (!r.ok) return null;
+                    const raw = await r.text();
+                    return {
+                        index: JSON.parse(raw) as SpriteIndex,
+                        // Asset paths are stable across bakes, so the index
+                        // content hash is their deployment-safe cache key.
+                        revision: fnv(raw).toString(36)
+                    };
+                })
+                .then(async payload => {
+                    if (!payload || !scene.scene.isActive()) {
+                        this.enabled = false;
+                        this.loadProgress = 1;
+                        resolve();
+                        return;
+                    }
+                    const { index, revision } = payload;
+                    const version = `?v=${revision}`;
                     for (const u of index.units) {
                         const atlasKey = `bank:${u.kind}:${u.unit}`;
-                        const manifest = scene.cache.json.get(`${atlasKey}:man`);
-                        if (!manifest || !scene.textures.exists(atlasKey)) continue;
-                        // Baked atlases must follow the active PixelMode (NEAREST outside legacy).
-                        registerPixelSurface(scene.textures.get(atlasKey));
-                        this.units.set(`${u.kind}:${u.unit}`, { kind: u.kind, unit: u.unit, atlasKey, manifest });
-                        // Design-variant bakes live in '@'-tagged sibling dirs
-                        // ('cannon@A') and load as ordinary units; record the
-                        // slot so resolveVariantUnit can route the plain name.
-                        const at = u.unit.indexOf('@');
-                        if (at > 0) {
-                            const key = `${u.kind}:${u.unit.slice(0, at)}`;
-                            const slots = this.variantSlots.get(key) ?? [];
-                            slots.push(u.unit.slice(at + 1));
-                            this.variantSlots.set(key, slots.sort());
-                        }
+                        scene.load.atlas(
+                            atlasKey,
+                            `/assets/sprites/${u.atlas}${version}`,
+                            `/assets/sprites/${u.frames}${version}`
+                        );
+                        scene.load.json(`${atlasKey}:man`, `/assets/sprites/${u.manifest}${version}`);
                     }
-                    this.ready = this.units.size > 0;
-                    console.info(`SpriteBank: ${this.units.size} unit atlases live`);
-                    // Anything painted before this moment fell back to vector.
-                    // Most surfaces repaint themselves every few frames, but
-                    // one-shot art (walls!) never would — announce readiness
-                    // so the scene can force one full repaint.
-                    if (this.ready) scene.events.emit('spritebank:ready');
+                    const trackProgress = (value: number) => { this.loadProgress = value; };
+                    scene.load.on(Phaser.Loader.Events.PROGRESS, trackProgress);
+                    scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+                        scene.load.off(Phaser.Loader.Events.PROGRESS, trackProgress);
+                        for (const u of index.units) {
+                            const atlasKey = `bank:${u.kind}:${u.unit}`;
+                            const manifest = scene.cache.json.get(`${atlasKey}:man`);
+                            if (!manifest || !scene.textures.exists(atlasKey)) continue;
+                            // Baked atlases must follow the active PixelMode (NEAREST outside legacy).
+                            registerPixelSurface(scene.textures.get(atlasKey));
+                            this.units.set(`${u.kind}:${u.unit}`, { kind: u.kind, unit: u.unit, atlasKey, manifest });
+                            // Design-variant bakes live in '@'-tagged sibling dirs
+                            // ('cannon@A') and load as ordinary units; record the
+                            // slot so resolveVariantUnit can route the plain name.
+                            const at = u.unit.indexOf('@');
+                            if (at > 0) {
+                                const key = `${u.kind}:${u.unit.slice(0, at)}`;
+                                const slots = this.variantSlots.get(key) ?? [];
+                                slots.push(u.unit.slice(at + 1));
+                                this.variantSlots.set(key, slots.sort());
+                            }
+                        }
+                        this.ready = this.units.size > 0;
+                        this.loadProgress = 1;
+                        console.info(`SpriteBank: ${this.units.size} unit atlases live`);
+                        // Anything painted before this moment fell back to vector.
+                        // Most surfaces repaint themselves every few frames, but
+                        // one-shot art (walls!) never would — announce readiness
+                        // so the scene can force one full repaint.
+                        if (this.ready) scene.events.emit('spritebank:ready');
+                        resolve();
+                    });
+                    scene.load.start();
+                })
+                .catch(() => {
+                    this.enabled = false;
+                    this.loadProgress = 1;
+                    resolve();
                 });
-                scene.load.start();
-            })
-            .catch(() => { this.enabled = false; });
+        });
+        return this.loadPromise;
+    }
+
+    /** Await the current boot load without starting another one. */
+    waitUntilSettled(): Promise<void> {
+        return this.loadPromise ?? Promise.resolve();
     }
 
     /**

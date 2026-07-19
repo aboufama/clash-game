@@ -160,14 +160,14 @@ export function TrainingModal({
   };
 
   return (
-    <div className={`modal-overlay ${showCloudOverlay ? 'hidden-ui' : ''}`} onClick={onClose}>
+    <div className={`modal-overlay ${showCloudOverlay ? 'hidden-ui' : ''}`} onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
       <div className="training-modal faction-training-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Train Army</h2>
           <div className="header-actions">
             <button
               className={`header-btn practice ${capacity.current === 0 ? 'disabled' : ''}`}
-              onClick={onStartPractice}
+              onClick={() => { soundSystem.play('confirm'); onStartPractice(); }}
               disabled={capacity.current === 0}
             >
               <div className="btn-icon icon practice-icon"></div>
@@ -175,13 +175,13 @@ export function TrainingModal({
             </button>
             <button
               className={`header-btn find-match ${capacity.current === 0 ? 'disabled' : ''}`}
-              onClick={onFindMatch}
+              onClick={() => { soundSystem.play('confirm'); onFindMatch(); }}
               disabled={capacity.current === 0}
             >
               <div className="btn-icon icon findmatch-icon"></div>
               <span className="btn-label">FIND MATCH</span>
             </button>
-            <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
+            <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close"><span className="sym sym-close small" /></button>
           </div>
         </div>
 
@@ -194,7 +194,7 @@ export function TrainingModal({
           <div className="army-queue">
             {Object.entries(army).filter(([, count]) => count > 0).map(([type, count]) => (
               <div key={type} className="queue-item">
-                <button className="remove-btn" onClick={() => onUntrainTroop(type)}>×</button>
+                <button className="remove-btn" onClick={() => { soundSystem.play('untrain'); void onUntrainTroop(type); }}>×</button>
                 <TroopIcon type={type} />
                 <div className="count">x{count}</div>
               </div>

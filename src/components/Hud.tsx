@@ -265,7 +265,7 @@ export function Hud({
               )
               : resourcesColumn}
             <div className="top-btn-stack">
-              <button className="settings-btn" onClick={() => { soundSystem.play('click'); onOpenSettings(); }}>
+              <button className="settings-btn" onClick={() => { soundSystem.play('uiOpen'); onOpenSettings(); }}>
                 <div className="btn-icon icon settings-icon"></div>
               </button>
               <button
@@ -345,15 +345,15 @@ export function Hud({
           {view === 'HOME' ? (
           <div className="menu-inner">
             <div className="btn-group main-actions">
-              <button className="action-btn build" onClick={() => { soundSystem.play('click'); onOpenBuild(); }}>
+              <button className="action-btn build" onClick={() => { soundSystem.play('uiOpen'); onOpenBuild(); }}>
                 <div className="btn-icon icon build-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'BUILD'}</span>
               </button>
-              <button className="action-btn raid" onClick={() => { soundSystem.play('click'); onOpenTrain(); }}>
+              <button className="action-btn raid" onClick={() => { soundSystem.play('uiOpen'); onOpenTrain(); }}>
                 <div className="btn-icon icon raid-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'RAID'}</span>
               </button>
-              <button className="action-btn map" onClick={() => { soundSystem.play('click'); onOpenMap(); }}>
+              <button className="action-btn map" onClick={() => { soundSystem.play('uiOpen'); onOpenMap(); }}>
                 <div className="btn-icon icon map-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'MAP'}</span>
               </button>
@@ -369,7 +369,7 @@ export function Hud({
                       key={t}
                       className={`troop-sel-btn ${t} ${selectedTroopType === t ? 'active' : ''} ${count <= 0 ? 'disabled' : ''}`}
                       disabled={count <= 0}
-                      onClick={() => count > 0 && onSelectTroop(t)}
+                      onClick={() => { if (count > 0) { soundSystem.play('uiTap'); onSelectTroop(t); } }}
                     >
                       <TroopIcon type={t} />
                       <span className="troop-count-badge">{count}</span>
@@ -394,12 +394,12 @@ export function Hud({
         <>
           <button
             className={`mobile-action-btn home-btn ${battleStarted ? 'battle-active' : ''}`}
-            onClick={onGoHome}
+            onClick={() => { soundSystem.play('uiTap'); onGoHome(); }}
           >
             <div className="icon home-icon"></div>
           </button>
           {!battleStarted && (
-            <button className="mobile-action-btn next-btn" onClick={onNextMap}>
+            <button className="mobile-action-btn next-btn" onClick={() => { soundSystem.play('uiTap'); onNextMap(); }}>
               <div className="icon findmatch-icon"></div>
             </button>
           )}
@@ -409,7 +409,7 @@ export function Hud({
       {/* Desktop scout/home panels */}
       {view === 'ATTACK' && !battleStarted && !isMobile && (
         <div className="scout-panel">
-          <button className="action-btn next-map" onClick={onNextMap}>
+          <button className="action-btn next-map" onClick={() => { soundSystem.play('uiTap'); onNextMap(); }}>
             <div className="btn-icon icon findmatch-icon"></div>
             <span className="btn-label">NEXT</span>
           </button>
@@ -418,7 +418,7 @@ export function Hud({
 
       {view === 'ATTACK' && !isMobile && (
         <div className="home-panel">
-          <button className="action-btn home" onClick={onGoHome}>
+          <button className="action-btn home" onClick={() => { soundSystem.play('uiTap'); onGoHome(); }}>
             <div className="btn-icon icon home-icon"></div>
             <span className="btn-label">HOME</span>
           </button>

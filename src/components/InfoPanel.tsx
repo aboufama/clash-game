@@ -7,6 +7,7 @@ import { BUILDING_TEXTS } from '../game/config/GameText';
 import { defenseDps, getDefenseBehavior } from '../game/systems/DefenseBehaviorCatalog';
 import { DayNightSystem } from '../game/systems/DayNightSystem';
 import { formatGold } from '../game/economy/Currency';
+import { soundSystem } from '../game/systems/SoundSystem';
 import { IsoUtils } from '../game/utils/IsoUtils';
 import { useWorldAnchor } from '../ui/useWorldAnchor';
 
@@ -132,7 +133,7 @@ export const InfoPanel: React.FC<InfoPanelProps> = ({ type, level, resources, sp
                 <button
                     className={`bb-info-toggle ${expanded ? 'pxf-pressed' : ''}`}
                     title={expanded ? 'Less' : 'Details'}
-                    onClick={() => setExpanded(v => !v)}
+                    onClick={() => { soundSystem.play('uiTap'); setExpanded(v => !v); }}
                 >
                     <span className="icon info-i-icon" />
                 </button>

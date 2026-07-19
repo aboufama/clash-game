@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Backend } from '../game/backend/GameBackend';
+import { soundSystem } from '../game/systems/SoundSystem';
 
 interface LeaderboardUser {
   id: string;
@@ -230,6 +231,7 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
   }, []);
 
   const handleOpen = () => {
+    soundSystem.play('uiOpen');
     setIsOpen(true);
   };
 
@@ -248,11 +250,11 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
 
       {isOpen && (
         <>
-          <div className="leaderboard-backdrop" onClick={handleClose}></div>
+          <div className="leaderboard-backdrop" onClick={() => { soundSystem.play('uiClose'); handleClose(); }}></div>
           <div className="leaderboard-dropdown">
             <div className="leaderboard-header">
               <h3>PLAYER BASES</h3>
-              <button className="refresh-btn" onClick={() => void loadUsers(true)} disabled={loading}>
+              <button className="refresh-btn" onClick={() => { soundSystem.play('uiTap'); void loadUsers(true); }} disabled={loading}>
                 {loading ? '...' : '↻'}
               </button>
             </div>
@@ -278,6 +280,7 @@ export function LeaderboardPanel({ currentUserId, isOnline, onScoutUser }: Leade
                         disabled={!user.inScoutRange}
                         onClick={() => {
                           if (!user.inScoutRange) return;
+                          soundSystem.play('confirm');
                           handleClose();
                           onScoutUser(user.id, user.username);
                         }}

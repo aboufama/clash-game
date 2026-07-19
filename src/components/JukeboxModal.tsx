@@ -40,11 +40,19 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
   const [, setTick] = useState(0);
   const [nowPlaying, setNowPlaying] = useState<MusicTrack | null>(null);
   const [volume, setVolume] = useState(() => musicSystem.getVolume());
+  const [sfxVolume, setSfxVolume] = useState(() => soundSystem.getSfxVolume());
 
-  // Now-playing indicator: poll ~1 s while the modal is open.
+  // Now-playing indicator: poll ~1 s while the modal is open. The same poll
+  // samples `active` (enabled AND manifest loaded) into state — the manifest
+  // can finish loading (or fail) while the modal is open, and the view must
+  // flip live from the fallback songbook to the streamed player.
+  const [streamActive, setStreamActive] = useState(() => musicSystem.active);
   useEffect(() => {
-    if (!isOpen || !musicSystem.enabled) return;
-    const poll = () => setNowPlaying(musicSystem.getNowPlaying());
+    if (!isOpen) return;
+    const poll = () => {
+      setStreamActive(musicSystem.active);
+      setNowPlaying(musicSystem.active ? musicSystem.getNowPlaying() : null);
+    };
     poll();
     const timer = window.setInterval(poll, 1000);
     return () => window.clearInterval(timer);
@@ -52,8 +60,37 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
 
   if (!isOpen) return null;
 
-  // ----- legacy branch: kill switch active, the procedural songbook plays --
-  if (!musicSystem.enabled) {
+  const closeWithSound = () => {
+    soundSystem.play('uiClose');
+    onClose();
+  };
+  const onSfxVolume = (v: number) => {
+    // Deliberately silent while dragging; SoundSystem persists the value.
+    soundSystem.setSfxVolume(v);
+    setSfxVolume(v);
+  };
+  const sfxVolumeRow = (
+    <div className="jukebox-track auto" style={{ cursor: 'default' }}>
+      <span className="jukebox-note">%</span>
+      <div className="jukebox-info" style={{ flex: 1 }}>
+        <span className="jukebox-name">Effects volume — {Math.round(sfxVolume * 100)}%</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={Math.round(sfxVolume * 100)}
+          onChange={e => onSfxVolume(Number(e.target.value) / 100)}
+          style={{ width: '100%' }}
+          aria-label="Sound effects volume"
+        />
+      </div>
+    </div>
+  );
+
+  // ----- fallback branch: the streamed soundtrack is unavailable (kill
+  // switch on, or its manifest never loaded) — the procedural songbook
+  // plays, so that is the list the player should see.
+  if (!streamActive) {
     const tracks = soundSystem.getTracks();
     const current = soundSystem.overrideActive ? soundSystem.currentTrackId() : null;
     const unlockedCount = tracks.filter(t => t.unlocked).length;
@@ -65,14 +102,20 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
       setTick(t => t + 1);
     };
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay" onClick={closeWithSound}>
         <div className="training-modal jukebox-modal" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <h2>Jukebox</h2>
             <span className="jukebox-count">{unlockedCount}/{tracks.length} tracks</span>
-            <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
+            <button className="pxf-close" onClick={closeWithSound} aria-label="Close"><span className="sym sym-close small" /></button>
           </div>
           <div className="modal-body jukebox-body">
+            {musicSystem.enabled && (
+              <div className="jukebox-hint" style={{ opacity: 0.7, margin: '2px 2px 8px' }} role="status">
+                Soundtrack unavailable — procedural music playing.
+              </div>
+            )}
+            {sfxVolumeRow}
             <div className={`jukebox-track auto ${current === null ? 'playing' : ''}`} onClick={() => pick(null)}>
               <span className="jukebox-note">~</span>
               <div className="jukebox-info">
@@ -136,12 +179,12 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={closeWithSound}>
       <div className="training-modal jukebox-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Music Player</h2>
           <span className="jukebox-count">{tracks.length} tracks</span>
-          <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
+          <button className="pxf-close" onClick={closeWithSound} aria-label="Close"><span className="sym sym-close small" /></button>
         </div>
         <div className="modal-body jukebox-body">
           <div
@@ -175,6 +218,8 @@ export function JukeboxModal({ isOpen, onClose }: JukeboxModalProps) {
               />
             </div>
           </div>
+
+          {sfxVolumeRow}
 
           {SECTIONS.map(section => {
             const sectionTracks = section.contexts.flatMap(ctx => byContext.get(ctx) ?? []);

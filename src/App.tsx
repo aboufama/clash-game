@@ -113,6 +113,9 @@ function App() {
   const toastTimerRef = useRef<number | null>(null);
   const merchantTradesInFlightRef = useRef(new Set<number>());
   const showToast = useCallback((message: string) => {
+    // The ONE toast surface: every banner (scene or React) lands here, so the
+    // notify chime lives here too. SoundSystem rate-limits repeats.
+    soundSystem.play('notify');
     setToast(message);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 4200);
@@ -380,6 +383,16 @@ function App() {
 
     const maxAttempts = 24;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // SpriteBank loads independently inside Phaser. Mirror its real
+      // progress into the final 10% of the boot clouds while loadBase awaits
+      // both world hydration and the baked atlas bank.
+      const spriteProgressTimer = window.setInterval(() => {
+        const scene = gameRef.current?.scene.getScene('MainScene') as { getSpriteBankLoadProgress?: () => number } | undefined;
+        const spriteProgress = Number(scene?.getSpriteBankLoadProgress?.() ?? 0);
+        if (Number.isFinite(spriteProgress)) {
+          updateVillageLoadCloud(88 + Math.floor(Math.max(0, Math.min(1, spriteProgress)) * 10));
+        }
+      }, 80);
       try {
         const ok = await gameManager.loadBase();
         if (ok) {
@@ -392,11 +405,13 @@ function App() {
         }
       } catch (error) {
         console.warn('Scene base load attempt failed', { attempt, error });
+      } finally {
+        window.clearInterval(spriteProgressTimer);
       }
       await wait(180);
     }
     return false;
-  }, [wait, waitForMainSceneReady]);
+  }, [updateVillageLoadCloud, wait, waitForMainSceneReady]);
 
   const loadCloudWorldWithRetry = useCallback(async (userId: string) => {
     const maxAttempts = 8;
@@ -1120,18 +1135,24 @@ function App() {
       },
       openJukebox: () => {
         // One surface at a time: the track list replaces the building panel.
+        // The open chime lives here (not on the TRACKS button) because the
+        // scene can open the jukebox directly too — one sound, every path.
+        soundSystem.play('uiOpen');
         setSelectedBuildingInfo(null);
         setIsJukeboxOpen(true);
       },
       openBannerPicker: () => {
         // Same discipline: the banner picker replaces the building panel.
+        soundSystem.play('uiOpen');
         setSelectedBuildingInfo(null);
         setIsBannerPickerOpen(true);
       },
       openMerchant: (offers: MerchantOffer[]) => {
+        soundSystem.play('uiOpen');
         setMerchantOffers(offers);
       },
       openPlotPanel: (info: PlotPanelInfo) => {
+        soundSystem.play('uiOpen');
         setPlotPanel(info);
       },
       closePlotPanel: () => {
@@ -1547,10 +1568,12 @@ function App() {
   const handlePlotAction = (action: PlotPanelAction) => {
     setPlotPanel(null);
     if (action.kind === 'attack' && capacity.current === 0) {
+      // Refusal path: the toast's notify chime carries the feedback.
       showToast('Train some troops first!');
       setIsTrainingOpen(true);
       return;
     }
+    soundSystem.play(action.kind === 'attack' ? 'confirm' : 'uiTap');
     action.run();
   };
 
@@ -1560,6 +1583,9 @@ function App() {
       setIsTrainingOpen(true);
       return false;
     }
+    // Confirm here (not on each button): scout ATTACK and REVENGE both land
+    // on this gate, and a refused launch must not sound like a confirmed one.
+    soundSystem.play('confirm');
     setScoutTarget(null);
     gameManager.startAttackOnUser(targetUserId, username);
     return true;
@@ -1572,6 +1598,8 @@ function App() {
 
   const handleWatchLiveAttack = useCallback((attackId: string, attackerName: string) => {
     if (!attackId) return;
+    // One confirm for every React watch entry point (popup, bell, theatre).
+    soundSystem.play('confirm');
     setDismissedIncomingAttackId(attackId);
     setIncomingAttack(null);
     setActiveReplay({ attackId, attackerName, live: true });
@@ -1580,6 +1608,7 @@ function App() {
 
   const handleWatchReplay = useCallback((attackId: string, attackerName: string) => {
     if (!attackId) return;
+    soundSystem.play('confirm');
     setActiveReplay({ attackId, attackerName, live: false });
     gameManager.watchReplay(attackId);
   }, []);
@@ -1593,6 +1622,7 @@ function App() {
       }
       const deleted = gameManager.deleteSelectedBuilding();
       if (!deleted) return;
+      // The scene's delete command already voices 'sell' — one coin-pour only.
       if (!infiniteResources) {
         // Optimistic display — the save's layout diff carries the real refund.
         const stats = getBuildingStats(selectedBuildingInfo.type, selectedBuildingInfo.level);
@@ -1645,6 +1675,8 @@ function App() {
 
           const upgradeOre = upgradeOreCostOf(upgradeCost);
           if (spendableResources.gold >= upgradeCost && spendableResources.ore >= upgradeOre) {
+            // The upgrade is actually starting — hammer taps + rising ping.
+            soundSystem.play('upgradeStart');
             // Optimistic display only. The save that follows IS the purchase:
             // the server prices the level diff and charges it; a rejection
             // reverts everything (scene + balances) via clash:save-rejected.
@@ -1676,6 +1708,10 @@ function App() {
               // rejection has already reverted local state via clash:save-rejected.
               console.warn('Upgrade save failed:', error);
             });
+          } else {
+            // Reachable despite the disabled button: the wall bulk-upgrade
+            // recount can outgrow the displayed price between click and here.
+            soundSystem.play('denied');
           }
         } finally {
           upgradeInProgressRef.current = false;
@@ -1773,7 +1809,7 @@ function App() {
       {/* Notifications and Leaderboard - only show when in HOME mode and online */}
       {view === 'HOME' && isOnline && user && (
         <div className="top-right-btns">
-          <button className="atlas-btn" title="Replay theatre" onClick={() => setShowTheatre(true)}>
+          <button className="atlas-btn" title="Replay theatre" onClick={() => { soundSystem.play('uiOpen'); setShowTheatre(true); }}>
             <span className="sym sym-watch" />
           </button>
           <LeaderboardPanel
@@ -1817,6 +1853,7 @@ function App() {
             <button
               className="dismiss-btn"
               onClick={() => {
+                soundSystem.play('uiTap');
                 setDismissedIncomingAttackId(incomingAttack.attackId);
                 setIncomingAttack(null);
                 gameManager.dismissSiegeBanner();
@@ -1838,7 +1875,7 @@ function App() {
             <span className="replay-title">{activeReplay.live ? 'Defense Watch' : 'Attack Replay'}</span>
             <span className="replay-attacker">{activeReplay.attackerName}</span>
           </div>
-          <button className="replay-exit-btn" onClick={handleExitReplay}>RETREAT</button>
+          <button className="replay-exit-btn" onClick={() => { soundSystem.play('uiTap'); handleExitReplay(); }}>RETREAT</button>
         </div>
       )}
 
@@ -1880,7 +1917,7 @@ function App() {
             {/* Own class, NOT .action-btn: that styles the square HUD-bar
                 icon buttons (80×90px) and squashed this CTA into a tiny
                 left-aligned square. */}
-            <button className="auth-lock-btn" onClick={handleRetryConnection}>
+            <button className="auth-lock-btn" onClick={() => { soundSystem.play('uiTap'); handleRetryConnection(); }}>
               {sessionExpired ? 'RECONNECT' : 'RETRY'}
             </button>
           </div>

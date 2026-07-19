@@ -141,6 +141,7 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
   if (!isOpen) return null;
 
   const switchTab = (next: Tab) => {
+    soundSystem.play('tabSwitch');
     setTab(next);
     setError(null);
     setNotice(null);
@@ -201,7 +202,7 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
           <span className={`status-pill ${isOnline ? 'online' : 'offline'}`}>
             {isOnline ? 'ONLINE' : 'OFFLINE'}
           </span>
-          <button className="pxf-close" onClick={onClose} disabled={busy} aria-label="Close settings"><span className="sym sym-close small" /></button>
+          <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} disabled={busy} aria-label="Close settings"><span className="sym sym-close small" /></button>
         </div>
 
         {error && <div className="account-error" role="alert">{error}</div>}
@@ -229,7 +230,10 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
               className="account-panel"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (canRename) void run('rename', () => onRename(trimmedName), 'Name saved!');
+                if (canRename) {
+                  soundSystem.play('confirm');
+                  void run('rename', () => onRename(trimmedName), 'Name saved!');
+                }
               }}
             >
               <label>
@@ -260,7 +264,7 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
                     type="button"
                     className="logout-btn"
                     disabled={busy}
-                    onClick={() => void run('logout', onLogout)}
+                    onClick={() => { soundSystem.play('uiTap'); void run('logout', onLogout); }}
                   >
                     {busyAction === 'logout' ? 'LOGGING OUT…' : 'LOG OUT'}
                   </button>
@@ -280,6 +284,7 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
               onSubmit={(e) => {
                 e.preventDefault();
                 if (canRegister) {
+                  soundSystem.play('confirm');
                   void run('register', async () => {
                     await onRegister(trimmedUsername, password);
                     setTab('profile');
@@ -337,7 +342,10 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
               className="account-panel"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (canLogin) void run('login', () => onLogin(trimmedUsername, password));
+                if (canLogin) {
+                  soundSystem.play('confirm');
+                  void run('login', () => onLogin(trimmedUsername, password));
+                }
               }}
             >
               <label>
@@ -414,7 +422,7 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
                     type="button"
                     className="dev-reseed-cancel"
                     disabled={busy}
-                    onClick={() => setReseedConfirming(false)}
+                    onClick={() => { soundSystem.play('uiTap'); setReseedConfirming(false); }}
                   >
                     CANCEL
                   </button>
@@ -422,7 +430,7 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
                     type="button"
                     className="dev-reseed-confirm-btn"
                     disabled={!isOnline || busy}
-                    onClick={reseedWorld}
+                    onClick={() => { soundSystem.play('confirm'); reseedWorld(); }}
                   >
                     {busyAction === 'reseed' ? 'RESEEDING…' : 'CONFIRM RESEED'}
                   </button>
@@ -434,6 +442,7 @@ export function AccountModal({ isOpen, currentUser, isOnline, onClose, onRename,
                 className="dev-reseed-world-btn"
                 disabled={!isOnline || busy}
                 onClick={() => {
+                  soundSystem.play('uiTap');
                   setError(null);
                   setNotice(null);
                   setReseedConfirming(true);

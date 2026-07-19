@@ -313,6 +313,10 @@ export class WorldMapSystem {
         return this.neighborLifeSim;
     }
     private fogRadius = -1;
+    /** Camera rect the culled fogStatic bank was built for; escaping it
+     *  forces a repaint (the deep bank only generates lattice cells near
+     *  the view — see paintFogBank). */
+    private fogStaticCover: { x: number; y: number; right: number; bottom: number } | null = null;
     private nextFogEdgeAt = 0;
     // ---- watchtower reveal transition (the clouds pull back over ~3 s) ----
     private fogReveal: {
@@ -509,6 +513,17 @@ export class WorldMapSystem {
             }
         }
         this.checkDesignRepaint(time);
+        // The deep bank is culled to the camera it was built for; a pan or
+        // zoom that escapes that coverage repaints it (steady state only — a
+        // live reveal rebuilds with fresh coverage every frame anyway).
+        if (this.fogStatic && !this.fogReveal && this.fogStaticCover) {
+            const wv = this.scene.cameras.main.worldView;
+            const c = this.fogStaticCover;
+            if (wv.x < c.x || wv.y < c.y || wv.right > c.right || wv.bottom > c.bottom) {
+                this.fogRadius = -1;
+                this.ensureFog(this.computeViewRadius());
+            }
+        }
         this.drawFogEdge(time);
         this.updateCaravan(time);
         this.reconcileVillageTextureResidency(time);
@@ -1595,6 +1610,12 @@ export class WorldMapSystem {
 
     /** How far this player can see, in plots: 0 without a watchtower, then 1 or 2. */
     private viewRadiusValue = 1;
+    /** The last sight radius confirmed on MY OWN roster. Foreign/mid-swap
+     *  evaluations may clobber `viewRadiusValue` to size the fog, but they
+     *  never touch this — so a gain earned while the player is away (a
+     *  watchtower completing during a battle or replay) still diffs true on
+     *  the frame their world returns, and plays its reveal exactly once. */
+    private homeSightBaseline = 1;
 
     private computeViewRadius(trusted = false): number {
         // Only the HOME scene holds MY buildings; battles keep the last value.
@@ -1618,38 +1639,49 @@ export class WorldMapSystem {
             const standing = all.filter(b => b.health > 0
                 && !(b.type === 'watchtower' && underConstruction(b.id)));
             const next = watchtowerSightOf(standing as never);
-            if (this.sightSwapPending) {
-                // A world swap is (or was just) in flight: this building set
-                // may be the ENEMY's. RE-BASELINE silently — adopt the value
-                // without ever treating the difference as a gain (the old
-                // pre-reveal code's self-correcting snap). Only an id overlap
-                // with my last steady-frame roster proves my own world is
-                // back and lowers the flag; the lowering evaluation itself
-                // still re-baselines instead of diffing across the swap.
-                if (all.some(b => b.id && this.homeBuildingIds.has(b.id))) {
-                    this.sightSwapPending = false;
-                }
+            // My world is on stage whenever no swap is pending. While one IS
+            // pending the set may be the ENEMY's: only a roster overlap with
+            // my last steady frame proves my world is back. A swap raised
+            // before the roster ever populated (an instant replay opened on
+            // boot) accepts the first non-empty HOME set as mine — the latch
+            // can never strand on an empty roster.
+            const mine = !this.sightSwapPending
+                || (all.length > 0 && (this.homeBuildingIds.size === 0
+                    || all.some(b => b.id && this.homeBuildingIds.has(b.id))));
+            if (!mine) {
+                // Foreign (or possibly-foreign) building set: size the fog to
+                // it silently and never move the HOME baseline — the reveal
+                // diff survives the absence untouched.
                 if (next !== this.viewRadiusValue) {
                     this.viewRadiusValue = next;
                     this.nextRefreshAt = 0;
                     this.cancelFogReveal();
                 }
             } else {
-                if (next !== this.viewRadiusValue) {
-                    const prev = this.viewRadiusValue;
+                this.sightSwapPending = false;
+                const prev = this.homeSightBaseline;
+                if (next !== prev) {
+                    this.homeSightBaseline = next;
                     this.viewRadiusValue = next;
                     // Pulling the fog back without postcards underneath
                     // produces a blank meadow for the remainder of the normal
                     // 25 s cadence.
                     this.nextRefreshAt = 0;
-                    // A real in-session sight GAIN (a watchtower finished
-                    // while the player watches) earns the animated cloud
-                    // pull-back — but only after a PRIOR evaluation saw my
-                    // hydrated (non-empty) building set: the gain that IS
-                    // boot/load hydration snaps instantly, exactly like the
-                    // old instant path, however slow the load. Shrinks snap.
+                    // A real sight GAIN on my own roster earns the animated
+                    // pull-back — including one that matured while the player
+                    // was away in a battle or replay: the diff runs against
+                    // the protected HOME baseline, so it plays exactly once,
+                    // on the frame their world returns. Only after a PRIOR
+                    // evaluation saw my hydrated (non-empty) set, though: the
+                    // gain that IS boot/load hydration snaps instantly,
+                    // however slow the load. Shrinks snap.
                     if (next > prev && this.sightHydrated) this.beginFogReveal(prev, next);
                     else this.cancelFogReveal();
+                } else if (next !== this.viewRadiusValue) {
+                    // Foreign frames clobbered the sizing value while the true
+                    // sight never changed: restore quietly — no gain, no
+                    // reveal, and no cancel of anything.
+                    this.viewRadiusValue = next;
                 }
                 if (all.length > 0) {
                     // The baseline arms AFTER the diff: the evaluation that
@@ -3802,6 +3834,7 @@ export class WorldMapSystem {
         this.knownPlotKindHints.clear();
         this.fogStatic?.destroy();
         this.fogStatic = null;
+        this.fogStaticCover = null;
         this.fogEdge?.destroy();
         this.fogEdge = null;
         this.fogRadius = -1;
@@ -3818,13 +3851,32 @@ export class WorldMapSystem {
     // ONE shape family: the plump flat-bottomed cumulus — a chain of grounded
     // dome lobes over a level base, drawn as three stacked opaque silhouettes
     // (belly shadow, sunlit body lifted off it, crown light on the NW
-    // shoulders — the Clash-of-Clans cloud). Two layers:
-    //   1. The DEEP BANK (static, rebuilt only when sight changes): two
-    //      packed rows of big puffs hugging the meadow, then NOTHING — one
-    //      flat near-white floor to the horizon. Every sculpted shape lives
-    //      in the edge line; past it the sky is clean.
-    //   2. The LIVING EDGE (~15Hz, view-culled): the big front-row masses
-    //      that breathe and loom, with taller crests swelling behind.
+    // shoulders — the Clash-of-Clans cloud). ONE field model, two layers:
+    //
+    //   1. The DEEP BANK (fogStatic; rebuilt on sight/coverage change, ~15 Hz
+    //      while a reveal marches): a WORLD-ANCHORED LATTICE FIELD. Every
+    //      lattice cell owns at most one puff whose seed — size, lobes,
+    //      breath, jitter — is a pure hash of its world cell coords, and
+    //      whose ROLE derives from its Chebyshev distance to the revealed
+    //      square (paintFogBank): just past the rampart sits the packed
+    //      front band, behind it the paler back band dissolving into one
+    //      flat near-white floor to the horizon, and past that NOTHING —
+    //      every sculpted shape lives at the shore; deep sky is clean.
+    //      There are NO per-side rows and NO contour parameterization:
+    //      corners resolve naturally on the lattice (a corner cell's outward
+    //      normal points diagonally), so an animated boundary can never
+    //      stretch the bank into strips or cross it at the corners. During a
+    //      reveal the boundary square interpolates and each cell re-derives
+    //      its role per frame: cells swallowed by the new sight EVAPORATE in
+    //      place (opaque quantized shrink + a push along their own outward
+    //      normal — never translucency), cells ahead of the shore condense
+    //      in, and the landed frame IS the steady generation by construction.
+    //   2. The LIVING EDGE (fogEdge, ~15 Hz, view-culled): the breathing
+    //      front rampart riding the (possibly animating) boundary square —
+    //      huge masses on an ABSOLUTE t-lattice (stable seeds while the
+    //      square grows), with taller crests swelling behind. It CARRIES the
+    //      shore role outward during a reveal, so the shore stays a shore
+    //      for the whole march.
 
     /**
      * One plump cumulus, base level at (x, y), body width w. Three opaque
@@ -3893,10 +3945,20 @@ export class WorldMapSystem {
         // system so it hems pools in as they near this boundary.
         this.scene.dayNight?.setSightBound?.({ min: inner.min, max: inner.max });
         this.paintFogFloor(g, inner);
-        this.paintFogRows(g, inner, inner, 0, 0);
         // Deep cloud bank: every puff already lands as pixel cells via
         // WorldMapSystem.puff → PixelDraw.
+        const cover = this.fogCoverRect(700);
+        this.paintFogBank(g, inner, cover);
+        this.fogStaticCover = cover;
         this.fogStatic = g;
+    }
+
+    /** Camera rect (plus margin) a culled bank build is valid for. */
+    private fogCoverRect(margin: number) {
+        const wv = this.scene.cameras.main.worldView;
+        const mx = wv.width * 0.5 + margin;
+        const my = wv.height * 0.5 + margin;
+        return { x: wv.x - mx, y: wv.y - my, right: wv.right + mx, bottom: wv.bottom + my };
     }
 
     /**
@@ -3929,140 +3991,175 @@ export class WorldMapSystem {
     }
 
     /**
-     * 2. Two packed rows just behind the living edge — the whole of the
-     * visible bank. Row A shoulders right up against the front masses;
-     * row B is bigger, paler, half a step deeper, dissolving into the
-     * flat floor behind it.
-     * Shadow tones sit near the neighbour layer's body tone so overlap
-     * rims read as soft creases, not outlines; row B tucks close behind
-     * row A instead of drifting half-detached into the haze floor.
+     * The deep bank's field constants. Depths are measured on dEff — the
+     * signed Chebyshev distance to the revealed square plus the north-facing
+     * TUCK — in world tiles:
      *
-     * `drawInner` anchors the puff bases; `sampleInner` owns the t-lattice —
-     * and with it every puff's seed and the deterministic rand() jitter — so
-     * a reveal transition can march the bank outward while each puff keeps
-     * ONE identity for the whole animation (the steady state passes the same
-     * square for both, byte-identical to the old inline loop). `drift`
-     * pushes bases outward along their side's normal, in world units.
-     * `dissolve` (0..1, quantized upstream) is opaque EVAPORATION, never
-     * translucency: puff is a stacked-silhouette design — any alpha < 1
-     * leaks the shadow pass through the lifted body and double-darkens the
-     * deliberately packed overlaps. Each puff owns one of five quantized
-     * departure steps; past its step it is GONE, before it it wanes — every
-     * survivor still paints fully opaque.
+     *      dEff <  IN            swept by the sight: quantized evaporation
+     *   IN ≤ dEff < SPLIT        front band (shoulders the rampart)
+     *   SPLIT ≤ dEff < OUT       back band (bigger, paler, half a step deep)
+     *      dEff ≥  OUT           nothing — the flat haze floor only
+     *
+     * PITCH×PITCH lattice cells at JITTERed centers reproduce the old two
+     * packed rows' linear density (~0.53 puffs per shore tile); GROW ramps
+     * the outer fringe in over quantized size steps so the back band still
+     * dissolves into the floor, and a marching boundary condenses its bank
+     * ahead of the shore instead of popping it in.
      */
-    private paintFogRows(
-        g: Phaser.GameObjects.Graphics,
-        drawInner: { min: number; max: number },
-        sampleInner: { min: number; max: number },
-        drift: number,
-        dissolve: number
-    ) {
-        const P = (x: number, y: number) => IsoUtils.cartToIso(x, y);
-        let seedState = 131;
-        const rand = () => {
-            seedState = (seedState * 1103515245 + 12345) & 0x7fffffff;
-            return seedState / 0x7fffffff;
-        };
-        const ROWS: Array<{ d: number; w: number; step: number; shadow: number; body: number; crown: number }> = [
-            { d: 3.4, w: 215, step: 3.4, shadow: 0xc3d1e0, body: 0xe5ecf3, crown: 0xf3f7fb },
-            { d: 6.4, w: 255, step: 4.2, shadow: 0xc0cddb, body: 0xd8e2ec, crown: 0xe9eff5 }
-        ];
-        // A cumulus BODY always rises up-screen from its base. On the two
-        // SOUTH-facing sides (screen-bottom edges) that body climbs back over
-        // the boundary and buries the horizon road; on the NORTH-facing
-        // sides (screen-top edges: cart gy=min and gx=min) it climbs AWAY,
-        // leaving the same road bare to the haze floor. Tucking the north
-        // banks' bases ~half a body-height further in seats their flat
-        // bottoms over the horizon road — burying it with only a modest lap
-        // onto the outermost lawns, matching the south banks' billows. (The
-        // full body-height tuck of 6.0 crowded the lawns; owner-tuned back.)
-        const TOP_TUCK = 3.0;
-        for (const row of ROWS) {
-            for (let side = 0; side < 4; side++) {
-                // A 2-tile corner wrap only — the old ±(d+8) overshoot left
-                // stray puffs floating detached past the corners.
-                for (let t = sampleInner.min - 2; t <= sampleInner.max + 2; t += row.step * (0.82 + rand() * 0.36)) {
-                    const d = row.d + (rand() - 0.5) * 2.6 + drift;
-                    let gx: number;
-                    let gy: number;
-                    if (side === 0) { gx = t; gy = drawInner.min - d + TOP_TUCK; }
-                    else if (side === 1) { gx = t; gy = drawInner.max + d; }
-                    else if (side === 2) { gx = drawInner.min - d + TOP_TUCK; gy = t; }
-                    else { gx = drawInner.max + d; gy = t; }
-                    const c = P(gx, gy);
-                    const seed = (Math.imul((Math.round(t * 7) + side * 7919 + row.d * 131) | 0, 2654435761) >>> 0) % 100000;
-                    if (dissolve > 0 && ((seed >> 4) % 5) / 5 < dissolve - 1e-6) continue;
-                    WorldMapSystem.puff(g, c.x, c.y,
-                        (row.w + (seed % 55)) * (1 - dissolve * 0.45), seed,
-                        row.shadow, row.body, row.crown, (seed % 100) / 100);
-                }
-            }
-        }
+    private static readonly FOG_FIELD = {
+        PITCH: 3.0,
+        JITTER: 0.95,
+        IN: 2.1,
+        SPLIT: 4.9,
+        OUT: 7.7,
+        GROW: 1.5,
+        /** Tiles of continued sweep over which a swallowed cell dissolves. */
+        EVAP: 4.0,
+        /** Outward push (world tiles, × dissolve) on an evaporating cell. */
+        DRIFT: 2.5,
+        /** A cumulus BODY always rises up-screen from its base. On the two
+         *  SOUTH-facing sides (screen-bottom edges) that body climbs back
+         *  over the boundary and buries the horizon road; on the NORTH-
+         *  facing sides (screen-top edges) it climbs AWAY, leaving the road
+         *  bare to the haze floor. Tucking north-side bases ~half a body
+         *  height further in seats their flat bottoms over that road with
+         *  only a modest lap onto the outermost lawns (owner-tuned 3.0; the
+         *  full-height 6.0 crowded the lawns). Blended across corner wedges
+         *  so the band never steps. */
+        TUCK: 3.0
+    } as const;
+
+    /** Deterministic 32-bit hash of a lattice cell — THE puff seed. */
+    private static fogHash(i: number, j: number): number {
+        let h = Math.imul(i, 0x9e3779b1) ^ Math.imul(j + 0x5f356495, 0x85ebca6b);
+        h ^= h >>> 13;
+        h = Math.imul(h, 0xc2b2ae35);
+        h ^= h >>> 16;
+        return h >>> 0;
     }
 
     /**
-     * Dissolving haze over the band the clouds have vacated mid-reveal: the
-     * annulus between the OLD inner square and the animated boundary, at one
-     * of the discrete alpha steps of the dissolve. Painted as NON-overlapping
-     * screen-space strips of whole CLOUD_CELL rows — every edge is a chunky
-     * staircase on the same cell grid the puffs land on, never an AA polygon
-     * diagonal, and every cell is covered exactly once (a translucent fill
-     * double-darkens anywhere two overlap). The OUTER staircase tucks under
-     * the marching bank; the INNER staircase snaps OUT past the old square's
-     * boundary so the veil itself OWNS that seam — no naked anti-aliased
-     * strip appears as the vacating puffs drift away from it.
+     * The cloud field at a world point: signed Chebyshev distance to the
+     * revealed square (positive = in the fog), the outward normal (diagonal
+     * in corner wedges — corners resolve naturally, they can never cross),
+     * and the tuck-adjusted band depth dEff.
      */
-    private paintFogVeil(
-        g: Phaser.GameObjects.Graphics,
-        oldInner: { min: number; max: number },
-        anim: { min: number; max: number },
-        alpha: number
-    ) {
-        if (anim.min >= oldInner.min - 0.01) return;
-        const CELL = WorldMapSystem.CLOUD_CELL;
-        const snap = (v: number) => Math.floor(v / CELL) * CELL;
-        const P = (x: number, y: number) => IsoUtils.cartToIso(x, y);
-        // Screen-space diamonds of both squares (they share one center).
-        const diamond = (s: { min: number; max: number }) => ({
-            top: P(s.min, s.min), right: P(s.max, s.min),
-            left: P(s.min, s.max), bottom: P(s.max, s.max)
-        });
-        const outer = diamond(anim);
-        const inner = diamond(oldInner);
-        // Horizontal cross-section [xL, xR] of a diamond at screen row y.
-        const span = (d: typeof outer, y: number): [number, number] | null => {
-            if (y < d.top.y || y > d.bottom.y) return null;
-            if (y <= d.left.y) {
-                const t = (y - d.top.y) / Math.max(1e-6, d.left.y - d.top.y);
-                return [d.top.x + (d.left.x - d.top.x) * t, d.top.x + (d.right.x - d.top.x) * t];
-            }
-            const t = (y - d.left.y) / Math.max(1e-6, d.bottom.y - d.left.y);
-            return [d.left.x + (d.bottom.x - d.left.x) * t, d.right.x + (d.bottom.x - d.right.x) * t];
-        };
-        g.fillStyle(0xeaf0f6, alpha);
-        const strip = (x0: number, x1: number, y: number) => {
-            if (x1 > x0) g.fillRect(x0, y, x1 - x0, CELL);
-        };
-        for (let y = snap(outer.top.y); y < outer.bottom.y; y += CELL) {
-            const o = span(outer, y + CELL / 2);
-            if (!o) continue;
-            const x0 = snap(o[0]);
-            const x1 = snap(o[1] - 1e-6) + CELL;
-            const i = span(inner, y + CELL / 2);
-            if (i) {
-                // Both lobes snap OUT over the old square's boundary (seam
-                // ownership); near the inner diamond's tips they merge into
-                // one strip so the two can never overlap-darken.
-                const leftEnd = Math.min(snap(i[0] - 1e-6) + CELL, x1);
-                const rightStart = Math.max(snap(i[1]), x0);
-                if (rightStart >= leftEnd) {
-                    strip(x0, leftEnd, y);
-                    strip(rightStart, x1, y);
-                    continue;
-                }
-            }
-            strip(x0, x1, y);
+    private static fogFieldAt(gx: number, gy: number, b: { min: number; max: number }) {
+        const ox = Math.max(b.min - gx, gx - b.max);
+        const oy = Math.max(b.min - gy, gy - b.max);
+        const d = Math.max(ox, oy);
+        let nx: number;
+        let ny: number;
+        if (d > 0) {
+            // Outside: direction from the nearest boundary point — pure axis
+            // beside a side, swinging continuously to the diagonal past a
+            // corner (the Euclidean projection direction).
+            const vx = gx < b.min ? gx - b.min : gx > b.max ? gx - b.max : 0;
+            const vy = gy < b.min ? gy - b.min : gy > b.max ? gy - b.max : 0;
+            const len = Math.hypot(vx, vy) || 1;
+            nx = vx / len;
+            ny = vy / len;
+        } else if (ox >= oy) {
+            // Inside (an evaporating cell): toward the nearest side.
+            nx = gx - b.min < b.max - gx ? -1 : 1;
+            ny = 0;
+        } else {
+            nx = 0;
+            ny = gy - b.min < b.max - gy ? -1 : 1;
         }
+        // North-facing tuck weight: 1 on the up-screen sides, 0 on the
+        // down-screen sides, blending across mixed-corner wedges.
+        const t = Math.min(1, (Math.max(0, -nx) + Math.max(0, -ny)) / (Math.abs(nx) + Math.abs(ny) || 1));
+        return { d, nx, ny, dEff: d + WorldMapSystem.FOG_FIELD.TUCK * t };
+    }
+
+    /**
+     * 2. The deep bank as a world-anchored lattice field around `bound` (the
+     * steady revealed square, or the animated one mid-reveal). Every cell's
+     * puff — position jitter, size, breath, palette band, departure step —
+     * is a pure function of (cell hash, its dEff against `bound`), so the
+     * bank can neither stretch nor crosshatch: a marching boundary just
+     * re-ranks the same world-anchored puffs, and the landed frame is the
+     * steady generation by construction.
+     *
+     * Shadow tones sit near the neighbour layer's body tone so overlap rims
+     * read as soft creases, not outlines. Paint order: evaporating cells,
+     * then the front band, then the back band over it (the old row order).
+     * Dissolve is opaque EVAPORATION, never translucency: puff is a
+     * stacked-silhouette design — any alpha < 1 leaks the shadow pass
+     * through the lifted body and double-darkens the deliberately packed
+     * overlaps. Each swallowed cell owns one of five quantized departure
+     * steps; past its step it is GONE, before it it wanes and drifts along
+     * its own outward normal — every survivor still paints fully opaque.
+     * `cull` keeps generation to the camera's neighbourhood (see
+     * fogStaticCover for the escape-repaint contract).
+     */
+    private paintFogBank(
+        g: Phaser.GameObjects.Graphics,
+        bound: { min: number; max: number },
+        cull: { x: number; y: number; right: number; bottom: number } | null
+    ) {
+        const F = WorldMapSystem.FOG_FIELD;
+        const L = F.PITCH;
+        const reach = F.OUT + F.JITTER + 0.5;
+        const innerReach = F.IN - F.EVAP - F.JITTER - F.TUCK - 0.5;
+        const i0 = Math.floor((bound.min - reach) / L);
+        const i1 = Math.ceil((bound.max + reach) / L);
+        // Widest puff paints ~±170 px around its base; pad the screen cull.
+        const PAD = 340;
+        type Op = { x: number; y: number; w: number; seed: number; breath: number };
+        const evap: Op[] = [];
+        const front: Op[] = [];
+        const back: Op[] = [];
+        for (let j = i0; j <= i1; j++) {
+            for (let i = i0; i <= i1; i++) {
+                // Cheap ring reject on the raw center (jitter/tuck in slack).
+                const cgx = (i + 0.5) * L;
+                const cgy = (j + 0.5) * L;
+                const cd = Math.max(
+                    Math.max(bound.min - cgx, cgx - bound.max),
+                    Math.max(bound.min - cgy, cgy - bound.max));
+                if (cd > reach || cd < innerReach) continue;
+                const h = WorldMapSystem.fogHash(i, j);
+                const gx = cgx + ((h & 1023) / 1023 - 0.5) * 2 * F.JITTER;
+                const gy = cgy + (((h >>> 10) & 1023) / 1023 - 0.5) * 2 * F.JITTER;
+                const f = WorldMapSystem.fogFieldAt(gx, gy, bound);
+                if (f.dEff >= F.OUT) continue;
+                const isFront = f.dEff < F.SPLIT;
+                let w = (isFront ? 215 : 262) + (h % 55);
+                // The front band plumps toward the old row-A line so the
+                // shoulder against the rampart stays continuous.
+                if (isFront) w *= 1 + 0.12 * Math.max(0, 1 - Math.abs(f.dEff - 3.4) / 1.4);
+                let drift = 0;
+                if (f.dEff < F.IN) {
+                    // Swallowed by the (marching) sight: quantized opaque
+                    // evaporation over the next EVAP tiles of sweep. Each
+                    // cell departs at its own step (spread past p=0.15 so a
+                    // freshly swallowed cell never blinks out instantly);
+                    // survivors wane and chase the wall.
+                    const p = Math.min(1, (F.IN - f.dEff) / F.EVAP);
+                    if (0.15 + (((h >>> 4) % 5) / 5) * 0.75 < p - 1e-6) continue;
+                    w *= 1 - p * 0.45;
+                    drift = F.DRIFT * p;
+                } else {
+                    // Condensing in at the outer fringe — in steady state
+                    // this is the back band's soft dissolve into the floor.
+                    const q = Math.ceil(Math.min(1, (F.OUT - f.dEff) / F.GROW) * 5) / 5;
+                    w *= 0.55 + 0.45 * q;
+                }
+                const c = IsoUtils.cartToIso(gx + f.nx * drift, gy + f.ny * drift);
+                if (cull && (c.x < cull.x - PAD || c.x > cull.right + PAD
+                    || c.y < cull.y - PAD || c.y > cull.bottom + PAD)) continue;
+                (f.dEff < F.IN ? evap : isFront ? front : back)
+                    .push({ x: c.x, y: c.y, w, seed: h % 100000, breath: ((h >>> 16) % 100) / 100 });
+            }
+        }
+        const paint = (ops: Op[], shadow: number, body: number, crown: number) => {
+            for (const o of ops) WorldMapSystem.puff(g, o.x, o.y, o.w, o.seed, shadow, body, crown, o.breath);
+        };
+        paint(evap, 0xc3d1e0, 0xe5ecf3, 0xf3f7fb);
+        paint(front, 0xc3d1e0, 0xe5ecf3, 0xf3f7fb);
+        paint(back, 0xc0cddb, 0xd8e2ec, 0xe9eff5);
     }
 
     /**
@@ -4076,7 +4173,11 @@ export class WorldMapSystem {
         // A second gain landing mid-reveal chains from wherever the clouds
         // are RIGHT NOW instead of teleporting back to the old square — and
         // it silently extends the SAME reveal: one stinger, one toast, one
-        // camera framing per pull-back, never a re-fired fanfare.
+        // camera framing per pull-back, never a re-fired fanfare. The field
+        // painter reads only the animated boundary, so retargeting is
+        // seamless by construction: no dissolve state restarts, no lattice
+        // swaps, no single-frame pop — the shore just keeps marching toward
+        // the new square.
         const chained = this.fogReveal !== null;
         const fromBound = this.fogRevealBoundary
             ? { ...this.fogRevealBoundary }
@@ -4147,23 +4248,15 @@ export class WorldMapSystem {
         this.fogStatic?.destroy();
         const g = this.scene.add.graphics();
         g.setDepth(28_500);
-        // Quantized dissolve — 5 chunky steps, never a smooth AA fade. Only
-        // the flat veil rides alpha; the vacating puffs evaporate OPAQUE.
-        const fade = Math.round((1 - e) * 5) / 5;
         this.paintFogFloor(g, anim);
-        if (fade > 0) {
-            this.paintFogVeil(g, tr.fromBound, anim, fade);
-            // The OLD bank's own puffs (same seeds as the pre-reveal frame)
-            // drift a few world units along their outward normals and
-            // evaporate where they stood — thinning out and waning in
-            // quantized steps, every survivor fully opaque so the packed
-            // bank never double-darkens (see paintFogRows).
-            this.paintFogRows(g, tr.fromBound, tr.fromBound, e * 4, 1 - fade);
-        }
-        // The reformed bank marches outward with the boundary; sampled on
-        // the FINAL lattice so every puff keeps one identity all reveal long
-        // and the last frame is texel-identical to ensureFog(toRadius).
-        this.paintFogRows(g, anim, tr.toBound, 0, 0);
+        // ONE call paints the whole animation frame: the world-anchored
+        // field re-derives every cell's role from the animated boundary —
+        // swallowed cells evaporate in place along their own normals, the
+        // bank condenses in ahead of the marching shore, corners stay
+        // corners, and the landed frame is the steady generation itself.
+        const cover = this.fogCoverRect(700);
+        this.paintFogBank(g, anim, cover);
+        this.fogStaticCover = cover;
         this.fogStatic = g;
     }
 
@@ -4223,11 +4316,11 @@ export class WorldMapSystem {
                 const drift = Math.sin(T * 0.05 + h * 0.7) * 0.8;
                 const along = t + drift;
                 const out = 1.1 + ((h >> 3) % 20) / 24;
-                // North-facing sides tuck in (see ensureFog's TOP_TUCK): the
+                // North-facing sides tuck in (see FOG_FIELD.TUCK): the
                 // rampart's flat bottoms must swallow the horizon road there,
                 // because their bodies billow away from the map instead of
                 // back over the boundary like the south sides' do. Scaled
-                // with TOP_TUCK (same half-step back from 3.9).
+                // with FOG_FIELD.TUCK (same half-step back from 3.9).
                 const EDGE_TUCK = 2.0;
                 let gx: number;
                 let gy: number;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Backend } from '../game/backend/GameBackend';
+import { soundSystem } from '../game/systems/SoundSystem';
 import {
   HYDROLOGY_PLOT_PITCH,
   queryWorldHydrology,
@@ -534,7 +535,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
       <div className="atlas-modal" onClick={e => e.stopPropagation()}>
         <div className="atlas-title">
           <span className="sym sym-castle small" />
@@ -544,7 +545,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
               ? `${atlas.players.length}${atlas.truncated ? '+' : ''} nearby villages`
               : fetchFailed ? 'chart lost — retrying…' : 'charting…'}
           </span>
-          <button className="pxf-close" onClick={onClose} aria-label="Close">
+          <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close">
             <span className="sym sym-close small" />
           </button>
         </div>

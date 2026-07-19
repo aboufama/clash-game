@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { PlotPanelInfo, PlotPanelAction } from '../game/GameManager';
+import { soundSystem } from '../game/systems/SoundSystem';
 import { useWorldAnchor } from '../ui/useWorldAnchor';
 
 interface PlotPanelProps {
@@ -28,7 +29,7 @@ export function PlotPanel({ info, onAction, onClose }: PlotPanelProps) {
   if (!info) return null;
   const anchored = Boolean(info.anchor);
   return (
-    <div className="plot-overlay-clear" onClick={onClose}>
+    <div className="plot-overlay-clear" onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
       <div
         ref={bubbleRef}
         className={`plot-bubble ${anchored ? 'anchored' : 'centered'}`}

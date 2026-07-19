@@ -90,11 +90,11 @@ export function BuildingShopModal({
   };
 
   return (
-    <div className={`modal-overlay ${showCloudOverlay ? 'hidden-ui' : ''}`} onClick={onClose}>
+    <div className={`modal-overlay ${showCloudOverlay ? 'hidden-ui' : ''}`} onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
       <div className="training-modal bshop-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Building Shop</h2>
-          <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
+          <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close"><span className="sym sym-close small" /></button>
         </div>
         <div className="modal-body bshop-body">
           {SHOP_SECTIONS.map(section => {

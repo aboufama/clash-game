@@ -82,7 +82,7 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
         // renames/identity churn can never silently restyle the flag.
         try {
             await Backend.setVillageBanner(userId, choice);
-            soundSystem.play('click');
+            soundSystem.play('confirm');
             onClose();
         } catch {
             setError('The banner could not be raised — try again.');
@@ -98,7 +98,7 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
         try {
             await Backend.setVillageBanner(userId, null);
             setChoice(defaultAxes);
-            soundSystem.play('click');
+            soundSystem.play('confirm');
             onClose();
         } catch {
             setError('The banner could not be reset — try again.');
@@ -108,11 +108,11 @@ export function BannerPickerModal({ isOpen, userId, onClose }: BannerPickerModal
     };
 
     return (
-        <div className="modal-overlay" onClick={busy ? undefined : onClose}>
+        <div className="modal-overlay" onClick={busy ? undefined : () => { soundSystem.play('uiClose'); onClose(); }}>
             <div className="training-modal banner-modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <h2>Village Banner</h2>
-                    <button className="pxf-close" onClick={onClose} disabled={busy} aria-label="Close"><span className="sym sym-close small" /></button>
+                    <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} disabled={busy} aria-label="Close"><span className="sym sym-close small" /></button>
                 </div>
                 <div className="modal-body banner-body">
                     <div className="banner-preview-row">

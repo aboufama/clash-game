@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { soundSystem } from '../game/systems/SoundSystem';
 import type { MerchantOffer } from '../game/systems/VillageLifeSystem';
 
 interface MerchantModalProps {
@@ -39,12 +40,12 @@ export function MerchantModal({ offers, resources, onTrade, onClose }: MerchantM
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
       <div className="training-modal merchant-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Traveling Merchant</h2>
           <span className="merchant-sub">Here till sundown</span>
-          <button className="pxf-close" onClick={onClose} aria-label="Close"><span className="sym sym-close small" /></button>
+          <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close"><span className="sym sym-close small" /></button>
         </div>
         <div className="modal-body merchant-body">
           {offers.map(offer => {

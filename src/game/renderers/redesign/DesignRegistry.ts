@@ -38,8 +38,8 @@ import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
 // (cannon was PROMOTED: design B won the tournament and is now the canonical
 //  implementation, called directly by BuildingRenderer.drawCannon* — see
 //  ./CannonB.ts. It no longer routes through this registry.)
-// IMPORT deadwood A
-// IMPORT deadwood B
+import { deadwoodDesignA } from './DeadwoodA'; // IMPORT deadwood A
+import { drawDeadwoodB } from './DeadwoodB'; // IMPORT deadwood B
 // ===== PARAMS namespace imports — the per-slot bake-param override channel =====
 // (see DesignBakeParams below). The optional `PARAMS` export is read lazily
 // off these namespace objects at designBakeParams() call time, so a module
@@ -106,8 +106,8 @@ export type DesignUnit = keyof DesignSlots;
 
 export const DESIGN_SLOTS: DesignSlots = {
     deadwood: {
-        A: null, // SLOT deadwood A
-        B: null, // SLOT deadwood B
+        A: deadwoodDesignA, // SLOT deadwood A
+        B: drawDeadwoodB, // SLOT deadwood B
     },
 };
 

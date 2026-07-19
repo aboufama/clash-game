@@ -17,6 +17,10 @@ export class SceneInputController {
     private lastWallDragTile: { x: number; y: number } | null = null;
     /** Spawn counter for the current hold-to-deploy stream (reset per hold). */
     private deployStreamIndex = 0;
+    /** Local gate for the forbidden-deploy dud (see playForbiddenDenied). */
+    private lastForbiddenDeniedMs = 0;
+    /** Tiles painted by the CURRENT wall drag — thins the per-tile thud. */
+    private wallPaintCount = 0;
 
     // Touch/pinch state
     private isPinching: boolean = false;
@@ -352,7 +356,11 @@ export class SceneInputController {
             if (!scene.isPositionValid(tile.x, tile.y, 'wall')) {
                 break;
             }
-            void scene.placeBuilding(tile.x, tile.y, 'wall', 'PLAYER');
+            // Thin the drag-paint thud to every 2nd tile — even with the
+            // central 60ms limiter, a fast drag at one thud per tile reads
+            // as a machine gun rather than laying bricks.
+            const muteSfx = (this.wallPaintCount++ % 2) !== 0;
+            void scene.placeBuilding(tile.x, tile.y, 'wall', 'PLAYER', false, muteSfx);
             lastReachable = tile;
         }
 
@@ -373,6 +381,7 @@ export class SceneInputController {
 
         const scene = this.scene;
         if (pointer.button === 0 && scene.selectedBuildingType === 'wall' && !scene.worldMap.inBattleFrame()) {
+            this.wallPaintCount = 0; // fresh drag: first painted tile sounds
             this.lastWallDragTile = this.getWallPlacementTile(pointer);
             if (this.lastWallDragTile) {
                 const startStatus = this.getWallOccupantAt(scene, this.lastWallDragTile.x, this.lastWallDragTile.y);
@@ -412,6 +421,7 @@ export class SceneInputController {
                 // hold-stream path below refreshes it for held gestures.)
                 if (isInsideMap && isForbidden) {
                     scene.lastForbiddenInteractionTime = scene.time.now;
+                    this.playForbiddenDenied();
                 }
 
                 if (isInsideMap && !isForbidden) {
@@ -504,6 +514,8 @@ export class SceneInputController {
                 const targetY = Math.round(gridPosFloat.y - info.height / 2);
 
                 if (scene.isPositionValid(targetX, targetY, scene.selectedInWorld.type, scene.selectedInWorld.id)) {
+                    // Move drop lands: the rounder cousin of the new-build thud.
+                    soundSystem.play('place');
                     // Clear any obstacles at the new position
                     scene.removeOverlappingObstacles(targetX, targetY, info.width, info.height);
 
@@ -628,13 +640,15 @@ export class SceneInputController {
                         scene.selectedInWorld = null;
                         gameManager.onBuildingSelected(null);
                         scene.clearBuildingRangeIndicator();
-                        soundSystem.play('click');
+                        // openJukebox's App handler voices uiOpen — one sound
+                        // on every open path, no stacked click.
                         gameManager.openJukebox();
                         return;
                     }
                     scene.selectedInWorld = null;
                     gameManager.onBuildingSelected(null);
                     scene.clearBuildingRangeIndicator();
+                    soundSystem.play('uiTap'); // soft deselect on the 2nd tap
                     if (clicked.type === 'prism') {
                         scene.cleanupPrismLaser(clicked);
                     }
@@ -669,6 +683,21 @@ export class SceneInputController {
         }
     }
 
+    /** Dud thunk for a deploy attempt on forbidden ground. Locally gated to
+     *  once per ~400ms — the central limiter (80ms) alone would still let a
+     *  held press machine-gun duds. Voices only when a deploy was actually
+     *  possible: with no troop selected or the army spent, the press is not
+     *  a thwarted deploy and only the red-zone visual responds. */
+    private playForbiddenDenied(): void {
+        const army = gameManager.getArmy();
+        const selectedType = gameManager.getSelectedTroopType();
+        if (!selectedType || !((army[selectedType] ?? 0) > 0)) return;
+        const now = Date.now();
+        if (now - this.lastForbiddenDeniedMs < 400) return;
+        this.lastForbiddenDeniedMs = now;
+        soundSystem.play('denied');
+    }
+
     /** Refused placement/move: a quick side-to-side shake of the ghost so an
      *  invalid tap is never silent. The baked-sprite body follows the carrier
      *  through its shadow binding, so the nudge reads on both render paths.
@@ -679,6 +708,8 @@ export class SceneInputController {
      *  mid-shake offset as the new base and latch it onto the shared ghost. */
     private nudgeInvalidDrop() {
         const scene = this.scene;
+        // Every refused drop/placement voices the refusal alongside the shake.
+        soundSystem.play('denied');
         const ghost = scene.ghostBuilding;
         if (this.ghostNudgeTween) {
             const previous = this.ghostNudgeTween;
@@ -737,6 +768,10 @@ export class SceneInputController {
         // previously gave zero feedback for the whole press.
         if (isForbidden) {
             scene.lastForbiddenInteractionTime = now;
+            // A held press parked on forbidden ground keeps voicing the dud —
+            // gated to ~2.5/s below, and never during a camera pan (a drag
+            // sweeping across the base is navigation, not a deploy attempt).
+            if (!scene.isDragging) this.playForbiddenDenied();
         }
 
         if (!scene.isLockingDragForTroops) return;
