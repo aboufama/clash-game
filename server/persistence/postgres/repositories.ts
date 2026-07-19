@@ -442,7 +442,7 @@ class PgVillages implements VillageRepository {
   async insert(record: VillageRecord): Promise<void> {
     await this.sql.query(String.raw`
       INSERT INTO villages(${VILLAGE_COLUMNS})
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, $2::jsonb, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     `, villageValues(record))
   }
 
@@ -454,7 +454,7 @@ class PgVillages implements VillageRepository {
     values.push(expectedEconomyRevision)
     const result = await this.sql.query(String.raw`
       UPDATE villages SET
-        buildings = $2, obstacles = $3, army = $4, wall_level = $5,
+        buildings = $2::jsonb, obstacles = $3::jsonb, army = $4, wall_level = $5,
         gold = $6, ore = $7, food = $8, production_remainders = $9,
         population = $10, simulated_through = $11, last_mutation_at = $12,
         layout_revision = $13, appearance_revision = $14, economy_revision = $15,
@@ -468,8 +468,11 @@ class PgVillages implements VillageRepository {
 function villageValues(record: VillageRecord): unknown[] {
   return [
     record.playerId,
-    record.buildings,
-    record.obstacles,
+    // node-postgres serializes a top-level JavaScript array as a PostgreSQL
+    // array literal. These columns are JSON arrays, so encode them explicitly
+    // before the jsonb cast (objects are JSON-encoded by pg automatically).
+    JSON.stringify(record.buildings),
+    JSON.stringify(record.obstacles),
     record.army,
     record.wallLevel,
     record.gold,

@@ -75,6 +75,17 @@ export default async function handler(
   response: ServerResponse
 ): Promise<void> {
   try {
+    // Plain Vite functions do not expand a filesystem catch-all filename over
+    // multiple path segments. vercel.json forwards the original suffix as an
+    // internal query parameter to the stable /api/server entrypoint.
+    const forwarded = new URL(request.url ?? '/', 'http://localhost')
+    const apiPath = forwarded.searchParams.get('__clash_path')
+    if (apiPath !== null) {
+      forwarded.searchParams.delete('__clash_path')
+      const query = forwarded.searchParams.toString()
+      request.url = `/api/${apiPath}${query ? `?${query}` : ''}`
+    }
+
     const current = await runtime()
     const handled = await current.middleware(request, response)
     if (!handled && !response.headersSent) {
