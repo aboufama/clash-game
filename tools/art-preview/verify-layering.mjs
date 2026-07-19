@@ -618,6 +618,13 @@ try {
     // No builder theatre during the pixel diff: flag every entity as
     // already claimed so the site cannot summon one into the crop.
     for (const e of vl.entities) e.buildSiteId = e.buildSiteId ?? 'layer_parked'
+    // Strike the hall banner for this phase: since the 2026-07 2x rework
+    // its waving cloth sweeps far enough east of the hall apex to reach
+    // this crop, and cloth pixels that alias between the three "on"
+    // frames escape the noise mask and read as stray scaffold pixels.
+    // (updateHallBanner destroys the gfx the frame the meta is null.)
+    window.__layerBannerMeta = scene.villageBannerMeta
+    scene.villageBannerMeta = null
     const b = scene.buildings.find(v => v.type === 'cannon')
     const now = Date.now()
     b.upgradingTo = 2
@@ -702,13 +709,17 @@ try {
     note(`  shot saved: ${file}`)
   }
   await page.evaluate(() => {
-    const vl = window.__clashGame.scene.keys.MainScene.villageLife
+    const scene = window.__clashGame.scene.keys.MainScene
+    const vl = scene.villageLife
     const { b } = window.__layerSite
     vl.cancelConstruction(b.id)
     b.upgradingTo = undefined
     b.upgradeEndsAt = undefined
     delete b.upgradeStartedAt
     for (const e of vl.entities) if (e.buildSiteId === 'layer_parked') e.buildSiteId = undefined
+    // Re-hoist the hall banner struck for the scaffold diff.
+    scene.villageBannerMeta = window.__layerBannerMeta ?? scene.villageBannerMeta
+    delete window.__layerBannerMeta
   })
   await waitFrames(3)
 

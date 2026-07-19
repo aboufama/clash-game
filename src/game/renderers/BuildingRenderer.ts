@@ -8,6 +8,29 @@ import { BUILDING_DEFINITIONS } from '../config/GameDefinitions';
 import { drawCannonB } from './redesign/CannonB';
 import { drawFactionBarracks } from './FactionBarracksRenderer';
 
+/**
+ * drawTownHall silhouette geometry — the ONE source for both the roof paint
+ * below and the banner-pole socket exported to the runtime (MainScene.
+ * updateHallBanner and the world-map postcard mini flags plant the village
+ * banner here). Story walls + hipped-roof rise measured from the footprint
+ * centre; the gold apex ball is painted APEX_BALL_LIFT above the peak.
+ */
+const TOWN_HALL_STORY_H = 24;      // stone ground story wall height
+const TOWN_HALL_ROOF_H = 30;       // hipped "great roof" rise above the story
+const TOWN_HALL_APEX_BALL_LIFT = 1; // gold apex-ball centre above the peak
+
+/**
+ * World-px lift from the town hall's footprint centre UP to the gold
+ * apex-ball centre — the banner-pole socket. Per hall level: the hall ships
+ * ONE silhouette today (maxLevel 1), so every level resolves to the same
+ * apex; a future level that changes the story/roof geometry in drawTownHall
+ * must branch here with its own numbers so the banner keeps tracking the
+ * peak through upgrades.
+ */
+export function townHallApexLift(_level: number): number {
+    return TOWN_HALL_STORY_H + TOWN_HALL_ROOF_H + TOWN_HALL_APEX_BALL_LIFT; // 55
+}
+
 export class BuildingRenderer {
 
     /**
@@ -171,7 +194,7 @@ export class BuildingRenderer {
         // ===== STORY 1 — stone hall (smaller than the plot, leaving a
         // courtyard ring for the path) =====
         const s1 = 0.62;
-        const H1 = 24;
+        const H1 = TOWN_HALL_STORY_H;
         const p2 = lerp(c2, s1);
         const p3 = lerp(c3, s1);
         const p4 = lerp(c4, s1);
@@ -249,7 +272,7 @@ export class BuildingRenderer {
         // ===== THE GREAT ROOF — one huge hipped crown, the Clash-style
         // silhouette that says "town hall" at any distance =====
         const o = 1.08;
-        const roofH = 30;
+        const roofH = TOWN_HALL_ROOF_H;
         const r1 = up(lerp(c1, s1 * o), H1);
         const r2 = up(lerp(c2, s1 * o), H1);
         const r3 = up(lerp(c3, s1 * o), H1);
@@ -296,7 +319,7 @@ export class BuildingRenderer {
         // REAL heraldry from this peak (drawVillageFlag plants its own pole
         // on this ball), so the baked sprite must ship no cloth of its own.
         graphics.fillStyle(gold, alpha);
-        graphics.fillCircle(peak[0], peak[1] - 1, 2.4);
+        graphics.fillCircle(peak[0], peak[1] - TOWN_HALL_APEX_BALL_LIFT, 2.4);
     }
 
     static drawMechanicaBarracks(graphics: Phaser.GameObjects.Graphics, c1: Phaser.Math.Vector2, c2: Phaser.Math.Vector2, c3: Phaser.Math.Vector2, c4: Phaser.Math.Vector2, center: Phaser.Math.Vector2, alpha: number, _tint: number | null, building?: { level?: number; doorOpen?: number }, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false, time: number = 0) {

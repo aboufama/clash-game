@@ -1,18 +1,19 @@
 
 import Phaser from 'phaser';
 import { Backend, type AttackEndResult, type AttackReplayState, type MatchmakingOptions, type ReplayFrameSnapshot, type ReplayTroopSnapshot } from '../backend/GameBackend';
-import type { SerializedBuilding, SerializedWorld, VillageBanner } from '../data/Models';
+import { sanitizeVillageBanner, type SerializedBuilding, type SerializedWorld, type VillageBanner } from '../data/Models';
 import { bannerDesignFor, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
 import { BUILDING_DEFINITIONS, GENERATED_ONLY, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
 import { LootSystem } from '../systems/LootSystem';
 import type { PlacedBuilding, Troop, PlacedObstacle } from '../types/GameTypes';
 import { drawBuildingVisual, type WallNeighborTopology } from '../renderers/BuildingVisualDispatcher';
+import { townHallApexLift } from '../renderers/BuildingRenderer';
 import { TroopRenderer } from '../renderers/TroopRenderer';
 import { TroopDeathRenderer, isLargeTroopDeathType } from '../renderers/TroopDeathRenderer';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
 import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
-import { DefenseSystem } from '../systems/DefenseSystem';
+import { DefenseSystem, peekDefenseTarget } from '../systems/DefenseSystem';
 import { TargetingSystem } from '../systems/TargetingSystem';
 import { DEFENSE_BEHAVIOR_CATALOG } from '../systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
@@ -47,6 +48,13 @@ import { PixelFx, screenShake } from '../systems/PixelFx';
 
 const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
+
+/** Defenses whose barrel/arm visibly aims via ballistaAngle (the ROTATING
+ *  bake set — manifests carry 16 aim angles). Tesla/prism/dragons_breath are
+ *  fixed-pose and must stay out. Drives reload target-tracking, the shared
+ *  angle-lerp, and the quantized redraw gate in updateBuildingAnimations. */
+const ROTATING_DEFENSE_TYPES = new Set(['cannon', 'ballista', 'xbow', 'mortar', 'spike_launcher']);
+
 const CLOCKWORK_BEETLE_LATCH_TILT_RADIANS = Math.PI / 18; // 10° grab angle
 
 /** The replay stream already carries the beetle's vertical latch offset, so
@@ -322,7 +330,7 @@ export class MainScene extends Phaser.Scene {
     private pendingUpgradeAuthority = new Set<string>();
     /** Whose heraldry the CURRENT scene's town hall flies: the owner's at
      *  home, the DEFENDER's during raids/replays. Null = no banner planted. */
-    private villageBannerMeta: { identity: string; banner: VillageBanner | null } | null = null;
+    private villageBannerMeta: { identity: string; banner: VillageBanner | null; allowFallback: boolean } | null = null;
     private hallBannerGfx: Phaser.GameObjects.Graphics | null = null;
     private hallBannerDesign: FlagDesign | null = null;
     private hallBannerDesignKey = '';
@@ -605,6 +613,14 @@ export class MainScene extends Phaser.Scene {
                     this.reloadHomeBase({ refreshOnline: false }),
                     SpriteBank.waitUntilSettled()
                 ]);
+                // Belt-and-braces delivery of the settle repaint: the
+                // 'spritebank:ready' emit fires on the scene the LOAD was
+                // bound to — if App destroyed/recreated the game mid-load,
+                // that scene is dead and THIS scene would never hear it,
+                // leaving held-empty walls/rocks invisible. Re-run the bust
+                // directly on the live scene; it is idempotent (double-
+                // busting draw caches on a normal load is harmless).
+                this.onSpriteBankSettled();
                 return loaded;
             },
             setUnderAttack: (underAttack: boolean, attackId?: string | null) => {
@@ -629,6 +645,9 @@ export class MainScene extends Phaser.Scene {
             },
             syncPopulation: (count: number) => {
                 if (this.mode === 'HOME') this.villageLife.syncPopulation(count);
+            },
+            merchantSoldOut: () => {
+                this.villageLife?.departMerchant();
             }
         });
 
@@ -637,16 +656,17 @@ export class MainScene extends Phaser.Scene {
         // Baked sprite atlases (buildings/troops/wrecks/obstacles) — loads in
         // the background; until ready every draw falls back to vector.
         SpriteBank.init(this);
-        // The bank finishing AFTER first paint left one-shot art stuck on the
-        // vector fallback forever — walls especially, whose change gate skips
-        // them outside explicit repaints. Bust every building's draw cache
-        // once so the next update repaints the whole village from the bank.
-        this.events.once('spritebank:ready', () => {
-            for (const b of this.buildings) b.lastDrawHealth = undefined;
-            // Obstacles are one-shot too: only foliage re-draws (for sway), so
-            // rocks and the rest would keep their smooth vector fallback.
-            for (const o of this.obstacles) this.drawObstacle(o, this.time.now);
-        });
+        // The bank finishing AFTER first paint used to leave one-shot art
+        // stuck on the vector fallback forever — walls especially, whose
+        // change gate skips them outside explicit repaints. Today pre-ready
+        // draws are HELD EMPTY instead (SpriteBank.holdVector — the owner's
+        // never-show-vector rule), which makes this settle repaint mandatory
+        // for every one-shot category, not just prettier. The emit fires on
+        // ready (repaint from the bank) AND on a load that downgraded to
+        // enabled=false (repaint from vector, the deliberate fallback).
+        // Registered fresh by every scene create(), so a dev-HMR bank reload
+        // (SpriteBank.init's stale-texture path) re-arms it identically.
+        this.events.once('spritebank:ready', () => this.onSpriteBankSettled());
 
         this.inputController = new SceneInputController(this);
         this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -741,8 +761,15 @@ export class MainScene extends Phaser.Scene {
             //    pattern) so the next update repaints body art, and re-stamp
             //    the ground decal (designs ship their own pads) — unbake
             //    restores the grass + overlapping neighbours underneath.
-            //  - troops/figures: redrawn every frame (battle troops, camp
-            //    figures on the 24 Hz tick), so they re-pick automatically.
+            //  - battle troops: re-picked every frame (redrawTroop clears and
+            //    re-syncs per troop update tick), so they swap automatically.
+            //  - camp figures do NOT re-pick on their own: idle ones draw
+            //    exactly once and hold that paint for 3-12s (the idleUntil
+            //    reshuffle is their only natural repaint) — force their
+            //    repaint through the same hook the spritebank:ready handler
+            //    uses (art only, no army reshuffle; also re-arms the
+            //    merchant's one-shot stall).
+            this.villageLife?.onSpriteBankReady();
             for (const b of this.buildings) {
                 if (unit && b.type !== unit) continue;
                 b.lastDrawHealth = undefined;
@@ -892,6 +919,41 @@ export class MainScene extends Phaser.Scene {
         this.sceneReadyForBaseLoad = true;
 
         // Base load is commanded by App once auth/session initialization is complete.
+    }
+
+    /** The SpriteBank settle repaint — every one-shot draw category that
+     *  painted before the bank settled (held EMPTY under holdVector, or on
+     *  vector under the kill switch) gets one forced repaint. IDEMPOTENT:
+     *  runs from the 'spritebank:ready' emit AND directly from loadBase after
+     *  waitUntilSettled() (belt-and-braces for a load whose emit targeted a
+     *  scene App destroyed mid-load) — double-busting draw caches is
+     *  harmless. */
+    private onSpriteBankSettled() {
+        // A settle that lands after THIS scene died (App tore the game down
+        // while loadBase was awaiting) must not touch destroyed display
+        // objects. Systems.destroy nulls sys.game; paused/sleeping scenes
+        // keep it, so this only skips truly dead scenes.
+        if (!this.sys.game) return;
+        // Buildings: bust the draw cache so the next update repaints the
+        // whole village (walls included) through drawBuildingVisuals.
+        for (const b of this.buildings) b.lastDrawHealth = undefined;
+        // Obstacles are one-shot too: only foliage re-draws (for sway), so
+        // rocks and the rest would keep their held-empty/stale paint.
+        for (const o of this.obstacles) this.drawObstacle(o, this.time.now);
+        // Camp figures idle under a draw-exactly-once contract (their
+        // 3-12s idleUntil reshuffle is the only natural repaint) and the
+        // merchant's stall draws once when finished — force their repaint
+        // without reshuffling the army. Continuously-redrawn figures
+        // (villagers/animals on the 3-frame stagger, merchant/thief/owl/
+        // travellers/caravan escorts/neighbor residents on the 24 Hz
+        // figure tick) self-heal on their next tick and need no bust.
+        this.villageLife?.onSpriteBankReady();
+        // Battle troops need no bust either: redrawTroop(WithMovement)
+        // clears and re-picks from the bank on every troop update tick —
+        // there is no per-troop draw cache. Wrecks (createRubble) cannot
+        // have drawn pre-ready at all: they spawn only from battle
+        // destruction, and battles sit behind the boot reveal, which
+        // loadBase gates on SpriteBank.waitUntilSettled().
     }
 
     private centerCamera() {
@@ -1124,7 +1186,7 @@ export class MainScene extends Phaser.Scene {
             this.worldMap.update(time);
             // Carrier→shadow reconciliation runs LAST in every mode, once all
             // systems have moved/hidden/faded their carriers this frame.
-            SpriteBank.update(time);
+            SpriteBank.update(time, this);
             return;
         }
 
@@ -1192,7 +1254,7 @@ export class MainScene extends Phaser.Scene {
         // systems above have moved, hidden or faded their carriers. Nothing
         // else propagates carrier changes between stamps (this also reaps
         // dead carriers at 1 Hz — the old standalone sweep call).
-        SpriteBank.update(time);
+        SpriteBank.update(time, this);
     }
 
     /**
@@ -1203,26 +1265,32 @@ export class MainScene extends Phaser.Scene {
      * per frame here (a pure function of time via drawVillageFlag) so it
      * always shows the OWNER's banner at home and the DEFENDER's during
      * raids/replays, hot-swapping on 'clash:banner-changed'. The pole foot
-     * plants on the apex ball — drawTownHall's story (24) + roof (30) put the
-     * apex at centre − 54, ball centre at − 55 — and the pole/cloth sizes
-     * reproduce the old baked flag's visual weight (pole to peak − 17, cloth
-     * ~15 × 9.5 from peak − 16.5 down). One depth step above the hall keeps
-     * the cloth over its own roof without crossing the next iso row.
+     * plants EXACTLY on the apex ball at the hall's current level:
+     * townHallApexLift (BuildingRenderer) exports the per-level
+     * story + roof + ball geometry drawTownHall paints from, so the socket
+     * tracks the roof peak through upgrades instead of a hand-derived
+     * offset. Pole/cloth/ripple are 2x the old baked flag's visual weight
+     * (owner request 2026-07): pole 32, cloth 30 × 19, amp 2 — the ripple
+     * period itself is untouched. One depth step above the hall keeps the
+     * cloth over its own roof without crossing the next iso row.
      * A destroyed hall drops its standard.
      */
     private updateHallBanner(time: number) {
         const meta = this.villageBannerMeta;
+        const explicitBanner = sanitizeVillageBanner(meta?.banner);
         const hall = meta ? this.buildings.find(b => b.type === 'town_hall' && b.health > 0) : undefined;
-        if (!meta || !hall) {
+        if (!meta || !hall || (!explicitBanner && !meta.allowFallback)) {
             if (this.hallBannerGfx) {
                 this.hallBannerGfx.destroy();
                 this.hallBannerGfx = null;
             }
+            this.hallBannerDesign = null;
+            this.hallBannerDesignKey = '';
             return;
         }
-        const key = `${meta.identity}|${meta.banner ? `${meta.banner.palette}.${meta.banner.emblem}.${meta.banner.pattern ?? 'd'}` : 'default'}`;
+        const key = `${meta.identity}|${explicitBanner ? `${explicitBanner.palette}.${explicitBanner.emblem}.${explicitBanner.pattern}` : 'bot-default'}`;
         if (!this.hallBannerDesign || this.hallBannerDesignKey !== key) {
-            this.hallBannerDesign = bannerDesignFor(meta.identity, meta.banner);
+            this.hallBannerDesign = bannerDesignFor(meta.identity, explicitBanner);
             this.hallBannerDesignKey = key;
         }
         if (!this.hallBannerGfx) this.hallBannerGfx = this.add.graphics();
@@ -1234,8 +1302,8 @@ export class MainScene extends Phaser.Scene {
         const g = this.hallBannerGfx;
         g.clear();
         g.setDepth(depthForBuilding(hall.gridX, hall.gridY, 'town_hall') + 1);
-        drawVillageFlag(g, apex.x, apex.y - 55, time, this.hallBannerDesign, 1,
-            { poleH: 16, clothW: 15, clothH: 9.5 });
+        drawVillageFlag(g, apex.x, apex.y - townHallApexLift(hall.level ?? 1), time,
+            this.hallBannerDesign, 1, { poleH: 32, clothW: 30, clothH: 19, amp: 2 });
     }
 
     /**
@@ -1392,9 +1460,26 @@ export class MainScene extends Phaser.Scene {
         const army = gameManager.getArmy();
         const armyRemaining = Object.values(army).reduce((total: number, count: any) => total + (typeof count === 'number' ? count : 0), 0) as number;
 
-        // 2. Check Active Troops (entities on the field)
-        // We filter by health > 0 to exclude dying troops that might still be in the array for animation handling
-        const activeTroops = this.troops.filter(t => t.health > 0).length;
+        // 2. Check active field work. Zero-damage supports do not keep a lost
+        // raid open by themselves. The one exception is a rolling Siege Tower:
+        // the no-wall contract explicitly lets it finish its slow fallback
+        // journey to the Town Hall. It stops counting only once it is holding
+        // in range of that non-ramp target (or has completed a real ramp).
+        const activeRaidTroops = this.troops.filter(t => {
+            if (t.health <= 0) return false;
+            const stats = this.getTroopCombatStats(t);
+            if (stats.damage > 0) return true;
+            if (t.type !== 'siegetower' || t.parked01 !== undefined) return false;
+
+            const target = t.target as PlacedBuilding | null;
+            // spawnTroop acquires navigation synchronously. No target here is
+            // therefore a real no-route verdict, not a not-yet-planned frame.
+            if (!target) return false;
+            if (t.navigationPlan?.rampWallId) return true;
+            const holdingAtFallback = this.getTargetEdgeDistance(t, target) <= stats.range + 0.08
+                && (t.path?.length ?? 0) === 0;
+            return !holdingAtFallback;
+        }).length;
 
         const { remaining } = this.getBattleTotals();
 
@@ -1402,10 +1487,11 @@ export class MainScene extends Phaser.Scene {
         // console.log(`Battle State: Army: ${armyRemaining}, Active: ${activeTroops}, Remaining: ${remaining}`);
 
         // END CONDITION:
-        // A) No reinforcements left AND no troops fighting AND no pending spawns (splits)
+        // A) No reinforcements left AND no active field work AND no pending
+        //    spawns (splits/summons)
         // B) Base is 100% destroyed (no non-wall buildings remain)
         const noEnemiesRemaining = remaining === 0 && (this.destroyedBuildings > 0 || this.initialEnemyBuildings > 0);
-        if ((armyRemaining <= 0 && activeTroops === 0 && this.pendingSpawnCount === 0) || noEnemiesRemaining) {
+        if ((armyRemaining <= 0 && activeRaidTroops === 0 && this.pendingSpawnCount === 0) || noEnemiesRemaining) {
             this.raidEndScheduled = true;
 
             // 2-second delay to let final animations play / player realize what happened
@@ -1523,7 +1609,41 @@ export class MainScene extends Phaser.Scene {
                     b.baseGraphics?.setVisible(true);
                 }
 
-                // Smoothly interpolate ballista, xbow, and cannon angle towards target
+                // === RELOAD TARGET-TRACKING (visual only) ===
+                // A rotating defense used to freeze on its old bearing for the
+                // whole reload, then snap onto the next victim in the very
+                // frame it fired. Instead, aim the barrel at the PROSPECTIVE
+                // target every combat frame: peekDefenseTarget mirrors the
+                // sim's selection (existing lock first, then the identical
+                // nearest rule) while mutating nothing, so targeting order,
+                // lastFireTime, lockedTargetId, fire dispatch and replay
+                // bytes stay untouched. Only ballistaTargetAngle — display
+                // state consumed by the lerp below — is written; the fire
+                // handlers' own stamps then land as visual no-ops because the
+                // barrel already converged on the victim. Frozen turrets
+                // (peek returns null) and target-less turrets fall through to
+                // the existing grace release + idle swivel.
+                if ((this.mode === 'ATTACK' || this.mode === 'REPLAY')
+                    && ROTATING_DEFENSE_TYPES.has(b.type)
+                    && !b.isDestroyed && b.health > 0) {
+                    const victim = peekDefenseTarget(b, this.troops, time);
+                    if (victim) {
+                        const info = BUILDINGS[b.type];
+                        const start = IsoUtils.cartToIso(b.gridX + info.width / 2, b.gridY + info.height / 2);
+                        const end = IsoUtils.cartToIso(victim.gridX, victim.gridY);
+                        // Per-type screen-space aim conventions, copied from
+                        // the fire handlers: the cannon bears from its RAISED
+                        // muzzle (start.y - 14, see shootAt); ballista, xbow,
+                        // mortar and spike launcher bear from the flat iso
+                        // center (shootBallistaAt/shootXBowAt/shootMortarAt/
+                        // shootSpikeLauncherAt).
+                        b.ballistaTargetAngle = b.type === 'cannon'
+                            ? Math.atan2(end.y - (start.y - 14), end.x - start.x)
+                            : Math.atan2(end.y - start.y, end.x - start.x);
+                    }
+                }
+
+                // Smoothly interpolate rotating-defense angle towards target
                 // OR towards mouse if selected in HOME mode
                 let targetAngle = b.ballistaTargetAngle;
 
@@ -1536,7 +1656,11 @@ export class MainScene extends Phaser.Scene {
                     targetAngle = Math.atan2(worldPoint.y - (center.y - 14), worldPoint.x - center.x);
                 }
 
-                if ((b.type === 'ballista' || b.type === 'xbow' || b.type === 'cannon') && targetAngle !== undefined) {
+                // Mortar and spike launcher ride the same lerp now (their
+                // targetAngle only ever comes from the reload tracking above;
+                // their fire handlers still hard-write ballistaAngle, which
+                // by fire time equals the converged lerp — a visual no-op).
+                if (ROTATING_DEFENSE_TYPES.has(b.type) && targetAngle !== undefined) {
                     const currentAngle = b.ballistaAngle ?? 0;
 
                     // Calculate shortest rotation direction
@@ -1622,6 +1746,20 @@ export class MainScene extends Phaser.Scene {
                 // stagger slot, which spreads the redraw cost across frames.
                 if (b.drawStagger === undefined) b.drawStagger = hashString(`${b.id}:draw-stagger`) % 3;
                 const angle = b.ballistaAngle ?? 0;
+                // Angle-driven redraws: with reload tracking a turret turns a
+                // hair EVERY combat frame, but the baked pick only has 16 aim
+                // buckets — so when the bank serves this building, redraw
+                // immediately only when the QUANTIZED bucket flips (mirrors
+                // SpriteBank.pickBuildingFrame; the 20 fps stagger still
+                // covers ambient frames). Kill-switch vector mode renders
+                // continuous angles and keeps the fine radian threshold.
+                let angleChanged = Math.abs(angle - (b.lastDrawAngle ?? 0)) > 0.002;
+                if (angleChanged && ROTATING_DEFENSE_TYPES.has(b.type)) {
+                    const bucket = SpriteBank.buildingAngleBucket(b.type, b.level ?? 1, angle);
+                    if (bucket !== null) {
+                        angleChanged = bucket !== SpriteBank.buildingAngleBucket(b.type, b.level ?? 1, b.lastDrawAngle ?? 0);
+                    }
+                }
                 const changed =
                     b.isFiring ||
                     this.selectedInWorld === b ||
@@ -1629,7 +1767,7 @@ export class MainScene extends Phaser.Scene {
                     b.health !== b.lastDrawHealth ||
                     Math.abs((b.doorOpen ?? 0) - (b.lastDrawDoorOpen ?? 0)) > 0.01 ||
                     Math.abs((b.fillLevel ?? 0) - (b.lastDrawFill ?? 0)) > 0.04 ||
-                    Math.abs(angle - (b.lastDrawAngle ?? 0)) > 0.002;
+                    angleChanged;
                 // Wall art has no time-driven state. Neighbor changes are
                 // repainted explicitly by refreshWallNeighbors,
                 // so an unchanged wall never needs the ambient stagger pass.
@@ -1707,11 +1845,12 @@ export class MainScene extends Phaser.Scene {
         this.clearScene();
         this.pendingUpgradeAuthority.clear();
 
-        // The home lawn flies the OWNER's banner (explicit choice, or the
-        // deterministic identity default when none was ever picked).
+        // A real home has no cloth before its owner completes mandatory
+        // heraldry onboarding. Deterministic fallbacks are reserved for bots.
         this.villageBannerMeta = {
             identity: world.ownerId || this.userId,
-            banner: world.banner ?? null
+            banner: world.banner ?? null,
+            allowFallback: false
         };
 
         const maxWallFromWorld = (Array.isArray(world.buildings) ? world.buildings : []).reduce((max, building) => {
@@ -2692,6 +2831,18 @@ export class MainScene extends Phaser.Scene {
     }
 
     public drawBuildingVisuals(graphics: Phaser.GameObjects.Graphics, gridX: number, gridY: number, type: string, alpha: number = 1, tint: number | null = null, building?: PlacedBuilding, baseGraphics?: Phaser.GameObjects.Graphics, skipBase: boolean = false, onlyBase: boolean = false) {
+        // OWNER'S HARD RULE: the smooth vector body must never reach the
+        // screen. While the atlas bank is still loading (SpriteBank.holdVector)
+        // body draws stay EMPTY — the boot clouds cover the normal path, and
+        // the 'spritebank:ready' cache bust repaints every building the moment
+        // the bank settles (from the bank, or from vector if the load failed
+        // and downgraded to enabled=false, when this hold is off). Ground
+        // passes (onlyBase → the ground RT) keep painting: the RT re-quantizes
+        // into 1.35-px cells shortly after, so nothing smooth survives there.
+        if (!onlyBase && SpriteBank.holdVector) {
+            graphics.clear();
+            return;
+        }
         let wallNeighbors: WallNeighborTopology | undefined;
         if (type === 'wall') {
             const owner = building?.owner ?? 'PLAYER';
@@ -3189,7 +3340,7 @@ export class MainScene extends Phaser.Scene {
             if (!info) return;
             const p = IsoUtils.cartToIso(item.gridX + info.width / 2, item.gridY + info.height / 2);
             width = 36 + info.width * 8;
-            height = 8;
+            height = 5; // thinned from 8 (owner request 2026-07) — length unchanged
             x = p.x - width / 2;
             // Anchor the bar just above the baked silhouette's top (stable
             // first idle frame, cached per level). The old blind
@@ -3212,7 +3363,7 @@ export class MainScene extends Phaser.Scene {
             const troop = item as Troop;
             const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
             width = 28;
-            height = 6;
+            height = 4; // thinned from 6 (owner request 2026-07) — length unchanged
             x = pos.x - width / 2;
 
             // Prefer the complete baked-pose bound for every troop (already
@@ -3275,21 +3426,27 @@ export class MainScene extends Phaser.Scene {
             highlightColor = 0xf1948a;
         }
 
-        // Main health fill, quantized to whole cells so it depletes in steps
+        // Main health fill. The fill EDGE resolves at whole-px granularity
+        // with round-to-nearest — the old whole-cell quantize
+        // (round(w·pct/C)·C) stepped only every 1.5px, so archer plinks on a
+        // 2000-HP hall moved nothing for 2-3 hits. Pill corners and border
+        // stay on the C-cell grid; the 1px hard vertical edge keeps the
+        // pixel aesthetic while every ~1.4-3.6% of health moves the bar.
         if (healthPct > 0) {
-            const fillWidth = Math.max(C, Math.round((width * healthPct) / C) * C);
+            const fillWidth = Math.min(width, Math.max(1, Math.round(width * healthPct)));
             bar.fillStyle(fillColor, 1);
             this.drawPixelPill(bar, x, y, fillWidth, height, C);
 
-            // Top shadow row, then a glossy band under it (one cell each)
+            // Top shadow row, then a glossy band under it (1px each — the
+            // thinned bar keeps most of its height as plain fill)
             bar.fillStyle(0x000000, 0.2);
-            bar.fillRect(x + C, y, Math.max(0, fillWidth - C * 2), C);
+            bar.fillRect(x + C, y, Math.max(0, fillWidth - C * 2), 1);
             bar.fillStyle(highlightColor, 0.4);
-            bar.fillRect(x + C, y + C, Math.max(0, fillWidth - C * 2), C);
+            bar.fillRect(x + C, y + 1, Math.max(0, fillWidth - C * 2), 1);
 
             // Specular sparkle: a short detached run of bright cells
             bar.fillStyle(0xffffff, 0.3);
-            bar.fillRect(x + C * 2, y + C, Math.min(C * 3, Math.max(0, fillWidth - C * 4)), C);
+            bar.fillRect(x + C * 2, y + 1, Math.min(C * 3, Math.max(0, fillWidth - C * 4)), 1);
 
             // Health segments (CoC-style dividers), one cell wide
             if (isBuilding && width > 30) {
@@ -3485,41 +3642,48 @@ export class MainScene extends Phaser.Scene {
     }
 
     /**
-     * SIEGE TOWER PARKING. The tower becomes stationary (still targetable),
-     * tweens its parked01 driver 0→1 through the redraw path (the
-     * TroopDesignFn `driver` arg / eight baked attack poses, followed by the
-     * pixel-identical timeless 'deactivated' pose), and — when
-     * its charge line stopped at an enemy wall — opens that wall as an ALLY
-     * RAMP only after the descent completes. For same-owner navigation the
-     * wall then behaves exactly like destroyed geometry.
+     * SIEGE TOWER PARKING. Only a wall explicitly authorized by the current
+     * navigation plan may start deployment. That plan-level gate is what
+     * distinguishes a closed-loop ramp objective from the no-wall Town Hall
+     * fallback (or any ordinary obstruction), so this method checks it again
+     * defensively before mutating the troop. The tower then becomes stationary
+     * (still targetable), tweens its parked01 driver 0→1 through the redraw
+     * path, and opens the wall as an ALLY RAMP only after the descent completes.
+     * For same-owner navigation the wall then behaves exactly like destroyed
+     * geometry.
      */
     private parkSiegeTower(troop: Troop, time: number) {
         void time;
+        const target = troop.target as PlacedBuilding | null;
+        const approvedRampWallId = troop.navigationPlan?.topologyRevision === this.combatTopologyRevision
+            ? troop.navigationPlan.rampWallId
+            : undefined;
+        if (!target || target.type !== 'wall' || target.id !== approvedRampWallId
+            || target.owner === troop.owner || target.health <= 0 || target.isDestroyed) {
+            return;
+        }
+
         troop.parked01 = 0.0001; // parked marker; the tween carries it to 1
         troop.path = undefined;
         troop.navigationPlan = undefined;
         troop.velocityX = 0;
         troop.velocityY = 0;
 
-        const target = troop.target as PlacedBuilding | null;
-        if (target && target.type === 'wall' && target.owner !== troop.owner
-            && target.health > 0 && !target.isDestroyed) {
-            // Parking clears the target below, so commit the exact final
-            // wall-facing angle now instead of freezing whichever neighboring
-            // baked octant the turn-rate smoothing happened to reach. The
-            // Siege Tower C tongue is authored along +facing; this guarantees
-            // the deployed ramp points over its wall at every approach angle.
-            const towerPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-            const wallInfo = BUILDINGS[target.type];
-            const wallPos = IsoUtils.cartToIso(
-                target.gridX + wallInfo.width / 2,
-                target.gridY + wallInfo.height / 2
-            );
-            troop.facingAngle = Math.atan2(wallPos.y - towerPos.y, wallPos.x - towerPos.x);
-            // Remember the intended wall during deployment, but do not expose
-            // the route until the tongue has visibly reached its final pose.
-            troop.parkedWallId = target.id;
-        }
+        // Parking clears the target below, so commit the exact final
+        // wall-facing angle now instead of freezing whichever neighboring
+        // baked octant the turn-rate smoothing happened to reach. The Siege
+        // Tower C tongue is authored along +facing; this guarantees the
+        // deployed ramp points over its wall at every approach angle.
+        const towerPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        const wallInfo = BUILDINGS[target.type];
+        const wallPos = IsoUtils.cartToIso(
+            target.gridX + wallInfo.width / 2,
+            target.gridY + wallInfo.height / 2
+        );
+        troop.facingAngle = Math.atan2(wallPos.y - towerPos.y, wallPos.x - towerPos.x);
+        // Remember the intended wall during deployment, but do not expose the
+        // route until the tongue has visibly reached its final pose.
+        troop.parkedWallId = target.id;
         troop.target = null;
         troop.strategicTarget = null;
 
@@ -3910,6 +4074,23 @@ export class MainScene extends Phaser.Scene {
                     if (time > troop.lastAttackTime + troop.attackDelay) {
                         // ATTACK LOGIC
                         if (isEnemy) {
+                            // A Siege Tower is a wall-ramp pather, not a
+                            // zero-damage attacker. Reaching the no-wall Town
+                            // Hall fallback (or any stale/non-wall target)
+                            // must leave it rolling/idle instead of starting
+                            // even one frame of the deployment animation.
+                            if (troop.type === 'siegetower') {
+                                const targetWall = troop.target as PlacedBuilding;
+                                const approvedRampWallId = troop.navigationPlan?.topologyRevision === this.combatTopologyRevision
+                                    ? troop.navigationPlan.rampWallId
+                                    : undefined;
+                                if (targetWall.type !== 'wall' || targetWall.id !== approvedRampWallId
+                                    || targetWall.health <= 0 || targetWall.isDestroyed) {
+                                    troop.attackClockActive = false;
+                                    return;
+                                }
+                            }
+
                             troop.lastAttackTime = time;
                             troop.attackClockActive = true;
 
@@ -4202,9 +4383,9 @@ export class MainScene extends Phaser.Scene {
                                     this.detonateTroopAttack(troop);
                                 }
                             } else if (troop.type === 'siegetower') {
-                                // SIEGE TOWER — never fights. On reaching what
-                                // its charge line stopped at, it PARKS; a wall
-                                // target becomes the ally ramp.
+                                // SIEGE TOWER — never fights. The authorization
+                                // gate above admits only the closed-loop wall
+                                // selected by its current navigation plan.
                                 if (troop.parked01 === undefined) {
                                     this.parkSiegeTower(troop, time);
                                 }
@@ -6383,17 +6564,26 @@ export class MainScene extends Phaser.Scene {
             const intentDestroyed = troop.strategicTarget?.id === removed.id;
             const activeDestroyed = (troop.target as { id?: string } | null)?.id === removed.id;
             const routeBlockerDestroyed = troop.navigationPlan?.blockerId === removed.id;
+            // `rampWallId` certifies a wall against the complete live wall
+            // topology. Destroying any segment can break that cycle even when
+            // the tower's own target survives, so an unparked tower must
+            // re-select before it is allowed to deploy.
+            const rampAuthorizationInvalidated = removed.type === 'wall'
+                && troop.parked01 === undefined
+                && !!troop.navigationPlan?.rampWallId;
 
-            if (intentDestroyed) {
-                // This is the reported stale-wall case: losing the objective
-                // cancels all breach work undertaken solely for that objective.
+            if (intentDestroyed || rampAuthorizationInvalidated) {
+                // Losing the objective cancels its breach work; changing a
+                // certified wall cycle clears the intent so the tower selects
+                // against the new topology instead of refreshing stale state.
                 troop.strategicTarget = null;
                 troop.target = null;
             } else if (activeDestroyed) {
                 troop.target = this.liveBuildingById(troop.strategicTarget?.id);
             }
 
-            const urgent = intentDestroyed || activeDestroyed || routeBlockerDestroyed;
+            const urgent = intentDestroyed || activeDestroyed || routeBlockerDestroyed
+                || rampAuthorizationInvalidated;
             if (urgent) {
                 troop.navigationPlan = undefined;
                 troop.path = undefined;
@@ -6405,7 +6595,12 @@ export class MainScene extends Phaser.Scene {
                 // replan that may discover the new opening.
                 troop.navigationPlan.topologyRevision = nextRevision;
             }
-            troop.nextPathTime = now + this.navigationSlot(troop, urgent ? 180 : 360);
+            // A revoked ramp authorization temporarily clears the tower's
+            // target. Reacquire in this same update frame so checkBattleEnd
+            // can never mistake that transient state for a proven no-route.
+            troop.nextPathTime = rampAuthorizationInvalidated
+                ? now
+                : now + this.navigationSlot(troop, urgent ? 180 : 360);
             if (urgent) {
                 this.setTroopRetargetPause(troop, 30, 90);
             }
@@ -6461,6 +6656,31 @@ export class MainScene extends Phaser.Scene {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
+    /** Replay frames do not carry the live ramp authorization bit. The best
+     *  protocol-free reconstruction is therefore physical: deployment may be
+     *  inferred only when a still tower is actually parked within its narrow
+     *  interaction band of a live enemy wall. This prevents a no-wall tower
+     *  holding at the Town Hall from falsely unfolding after 900 ms. */
+    private replaySiegeRampWallNear(troop: Troop): PlacedBuilding | null {
+        const interactionRange = this.getTroopCombatStats(troop).range + 0.08;
+        let nearest: PlacedBuilding | null = null;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        for (const building of this.buildings) {
+            if (building.type !== 'wall' || building.owner === troop.owner
+                || building.health <= 0 || building.isDestroyed) continue;
+            const distance = this.getTargetEdgeDistance(troop, building);
+            if (distance > interactionRange) continue;
+            if (distance < nearestDistance - 1e-6
+                || (Math.abs(distance - nearestDistance) <= 1e-6
+                    && (!nearest || building.id.localeCompare(nearest.id) < 0))) {
+                nearest = building;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
 
     private handleStuckTroop(troop: Troop, now: number, distToTarget: number): boolean {
         if (troop.lastProgressTime === undefined) {
@@ -6512,7 +6732,10 @@ export class MainScene extends Phaser.Scene {
             (Math.floor(gx / SEPARATION_CELL) + 64) * 4096 + (Math.floor(gy / SEPARATION_CELL) + 64);
         const separationGrid = new Map<number, Troop[]>();
         for (const candidate of this.troops) {
-            if (candidate.health <= 0) continue;
+            // Siege Towers are path infrastructure, not soft troop obstacles.
+            // Allies may pass through both the rolling chassis and the parked
+            // ramp carrier; live buildings remain authoritative collision.
+            if (candidate.health <= 0 || candidate.type === 'siegetower') continue;
             const key = cellKey(candidate.gridX, candidate.gridY);
             const bucket = separationGrid.get(key);
             if (bucket) bucket.push(candidate);
@@ -6624,7 +6847,18 @@ export class MainScene extends Phaser.Scene {
                     && (geometry.distance > geometry.stopRange || (troop.path?.length ?? 0) > 0)) {
                     while (troop.path && troop.path.length > 0) {
                         const waypoint = troop.path[0];
-                        if (Math.hypot(waypoint.x - troop.gridX, waypoint.y - troop.gridY) >= 0.04) break;
+                        const waypointDistance = Math.hypot(
+                            waypoint.x - troop.gridX,
+                            waypoint.y - troop.gridY
+                        );
+                        if (waypointDistance >= 0.04) break;
+                        // Short-range plans may finish on a collision-safe
+                        // sub-cell point whose interaction band is narrower
+                        // than the ordinary waypoint epsilon. Do not discard
+                        // that final point until the target is truly in range.
+                        const finalApproachStillOutOfRange = troop.path.length === 1
+                            && geometry.distance > geometry.stopRange;
+                        if (finalApproachStillOutOfRange) break;
                         troop.path.shift();
                     }
 
@@ -6634,7 +6868,10 @@ export class MainScene extends Phaser.Scene {
                             waypoint.x - troop.gridX,
                             waypoint.y - troop.gridY
                         );
-                        if (moveDir.lengthSq() > 0.0001) {
+                        // Precise sub-cell approaches can be only a few
+                        // thousandths of a tile; maxVelocity below prevents
+                        // overshoot while allowing the final safe step.
+                        if (moveDir.lengthSq() > 0.000_000_01) {
                             const waypointDistance = moveDir.length();
                             moveDir.normalize();
 
@@ -6647,28 +6884,30 @@ export class MainScene extends Phaser.Scene {
                             }
                             const stableSide = (idHash & 1) === 0 ? -1 : 1;
 
-                            forEachNeighbor(troop, other => {
-                                if (other === troop || other.health <= 0) return;
-                                const ox = other.gridX - troop.gridX;
-                                const oy = other.gridY - troop.gridY;
-                                const distance = Math.hypot(ox, oy);
-                                if (distance <= 0.001 || distance >= 1.8) return;
+                            if (troop.type !== 'siegetower') {
+                                forEachNeighbor(troop, other => {
+                                    if (other === troop || other.health <= 0) return;
+                                    const ox = other.gridX - troop.gridX;
+                                    const oy = other.gridY - troop.gridY;
+                                    const distance = Math.hypot(ox, oy);
+                                    if (distance <= 0.001 || distance >= 1.8) return;
 
-                                const weight = (1.8 - distance) / 1.8;
-                                separation.x -= (ox / distance) * weight;
-                                separation.y -= (oy / distance) * weight;
+                                    const weight = (1.8 - distance) / 1.8;
+                                    separation.x -= (ox / distance) * weight;
+                                    separation.y -= (oy / distance) * weight;
 
-                                if (distance < 1.4) {
-                                    const forwardDot = ((ox * moveDir.x) + (oy * moveDir.y)) / distance;
-                                    if (forwardDot > 0.25) {
-                                        const lateral = (sideNormal.x * ox) + (sideNormal.y * oy);
-                                        const side = Math.abs(lateral) < 0.03 ? stableSide : (lateral >= 0 ? -1 : 1);
-                                        const sideWeight = (1.4 - distance) / 1.4;
-                                        sidestep.x += sideNormal.x * side * sideWeight;
-                                        sidestep.y += sideNormal.y * side * sideWeight;
+                                    if (distance < 1.4) {
+                                        const forwardDot = ((ox * moveDir.x) + (oy * moveDir.y)) / distance;
+                                        if (forwardDot > 0.25) {
+                                            const lateral = (sideNormal.x * ox) + (sideNormal.y * oy);
+                                            const side = Math.abs(lateral) < 0.03 ? stableSide : (lateral >= 0 ? -1 : 1);
+                                            const sideWeight = (1.4 - distance) / 1.4;
+                                            sidestep.x += sideNormal.x * side * sideWeight;
+                                            sidestep.y += sideNormal.y * side * sideWeight;
+                                        }
                                     }
-                                }
-                            });
+                                });
+                            }
 
                             const desiredMove = moveDir.clone()
                                 .add(separation.scale(0.5))
@@ -6767,24 +7006,26 @@ export class MainScene extends Phaser.Scene {
                 // run through the same collision resolver and are rejected
                 // outright if they would break the in-range hold.
                 const push = new Phaser.Math.Vector2(0, 0);
-                forEachNeighbor(troop, other => {
-                    if (other === troop || other.health <= 0) return;
-                    const ox = other.gridX - troop.gridX;
-                    const oy = other.gridY - troop.gridY;
-                    const d = Math.hypot(ox, oy);
-                    if (d >= 0.5) return;
-                    if (d < 0.001) {
-                        // Exactly coincident troops: split along a stable
-                        // per-id direction instead of a random one.
-                        const jitter = (this.navigationSlot(troop, 6283) / 6283) * Math.PI * 2;
-                        push.x += Math.cos(jitter);
-                        push.y += Math.sin(jitter);
-                        return;
-                    }
-                    const w = (0.5 - d) / 0.5;
-                    push.x -= (ox / d) * w;
-                    push.y -= (oy / d) * w;
-                });
+                if (troop.type !== 'siegetower') {
+                    forEachNeighbor(troop, other => {
+                        if (other === troop || other.health <= 0) return;
+                        const ox = other.gridX - troop.gridX;
+                        const oy = other.gridY - troop.gridY;
+                        const d = Math.hypot(ox, oy);
+                        if (d >= 0.5) return;
+                        if (d < 0.001) {
+                            // Exactly coincident troops: split along a stable
+                            // per-id direction instead of a random one.
+                            const jitter = (this.navigationSlot(troop, 6283) / 6283) * Math.PI * 2;
+                            push.x += Math.cos(jitter);
+                            push.y += Math.sin(jitter);
+                            return;
+                        }
+                        const w = (0.5 - d) / 0.5;
+                        push.x -= (ox / d) * w;
+                        push.y -= (oy / d) * w;
+                    });
+                }
                 if (push.lengthSq() > 0.0025) {
                     const step = Math.min(0.012, 0.0007 * movementDelta);
                     push.normalize();
@@ -7655,7 +7896,11 @@ export class MainScene extends Phaser.Scene {
     private applyIceGolemFreezeBurst(t: Troop) {
         const radiusTiles = 2.5;
         const freezeMs = 2500;
-        const now = this.time.now;
+        // ANIM clock, not wall clock: replay consumers (DefenseSystem, aim
+        // tracking, thaw) compare frozenUntil against replaySimulationTime, so
+        // a wall-clock stamp froze defenses for the rest of a replay. In
+        // ATTACK animClockNow() IS time.now — live behavior byte-identical.
+        const now = this.animClockNow();
         for (const b of this.buildings) {
             if (b.owner === t.owner || b.health <= 0 || b.isDestroyed) continue;
             if (!(b.type in DEFENSE_BEHAVIOR_CATALOG)) continue; // only firing defenses freeze
@@ -9463,11 +9708,12 @@ export class MainScene extends Phaser.Scene {
         this.currentEnemyWorld = meta;
         // A raided village still flies the DEFENDER's banner — their town
         // hall keeps their heraldry while the attacker's war camp plants ours.
-        // ownerId (stable: player id / bot_<seed>) keys the identity default,
-        // matching what the world-map postcard of the same village flies.
+        // ownerId (stable: player id / bot_<seed>) keys the rendering fallback
+        // for bots. Real villages without a choice fly no cloth.
         this.villageBannerMeta = {
             identity: world.ownerId || meta.id,
-            banner: world.banner ?? null
+            banner: world.banner ?? null,
+            allowFallback: meta.isBot === true
         };
         const lootAmount = Math.max(0, Math.floor(world.resources?.gold ?? 0));
         const lootOre = Math.max(0, Math.floor(world.resources?.ore ?? 0));
@@ -10343,12 +10589,14 @@ export class MainScene extends Phaser.Scene {
             }
 
             // Kit visual parity in replay watch (the stream carries no kit
-            // state): the siege tower eases into its parked pose once its
-            // samples go still — purely presentational, frames own
-            // everything else.
+            // state): the siege tower eases into its parked pose only when
+            // its samples go still AT a live enemy wall. A no-wall fallback
+            // also comes to rest at the Town Hall, but must remain rolling/
+            // idle instead of falsely unfolding there.
             const replayClock = this.animClockNow();
             if (troop.type === 'siegetower') {
-                if (motionDist > 0.004) {
+                const rampWall = this.replaySiegeRampWallNear(troop);
+                if (motionDist > 0.004 || !rampWall) {
                     troop.replayStillSince = undefined;
                     troop.parked01 = undefined;
                 } else {

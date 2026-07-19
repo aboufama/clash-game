@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { BUILDING_DEFINITIONS, OBSTACLE_DEFINITIONS, WORLD_COORD_LIMIT, type BuildingType } from '../config/GameDefinitions';
-import type { SerializedWorld } from '../data/Models';
+import { sanitizeVillageBanner, type SerializedWorld } from '../data/Models';
 import {
     Backend,
     type KnownMapPlot,
@@ -12,6 +12,7 @@ import { BOT_WORLD_GENERATION_VERSION, generateBotWorldFromSeed } from '../backe
 import { drawBuildingVisual } from '../renderers/BuildingVisualDispatcher';
 import { IsoUtils, TILE_WIDTH, TILE_HEIGHT } from '../utils/IsoUtils';
 import { bannerDesignFor, drawFlagBearer, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
+import { townHallApexLift } from '../renderers/BuildingRenderer';
 import { gameManager, type PlotPanelAction } from '../GameManager';
 import { soundSystem } from './SoundSystem';
 import { musicSystem } from './MusicSystem';
@@ -191,9 +192,11 @@ interface NeighborView {
     glow?: Phaser.GameObjects.Graphics | null;
     /** Emitter anchors captured at snapshot time. */
     lightAnchors?: PostcardLightAnchor[];
-    /** Scene-grid position of the neighbour's town hall (their hearth). */
-    hearth: { gx: number; gy: number } | null;
-    /** Cached hall-flag heraldry (explicit banner or identity default). */
+    /** Scene-grid position + level of the neighbour's town hall (their
+     *  hearth) — the level picks the roof-apex height the mini banner
+     *  plants on (townHallApexLift). */
+    hearth: { gx: number; gy: number; level: number } | null;
+    /** Cached hall-flag heraldry (explicit banner or bot fallback). */
     flag?: FlagDesign | null;
     flagKey?: string;
     /** Deterministic water/forest life anchors emitted by nature rendering. */
@@ -421,7 +424,7 @@ export class WorldMapSystem {
          * is a figure that slipped away in the yard. */
         escortCarriers: Array<Phaser.GameObjects.Graphics | null>;
         /** The village's own heraldry, carried huge by the bearer. */
-        flag: FlagDesign;
+        flag: FlagDesign | null;
     } | null = null;
 
     /** Point at arc-length `d` along the caravan's route (clamped). */
@@ -851,15 +854,11 @@ export class WorldMapSystem {
         for (const view of pending.views.values()) this.destroyView(view);
     }
 
-    /**
-     * MY war standard: the exact banner the town hall flies (the owner's
-     * explicit choice from the cached own-world payload, or the identity
-     * default). The village banner IS the war banner — one heraldry at home,
-     * on the march and planted at the enemy gate.
-     */
-    private myWarBanner(): FlagDesign {
+    /** The owner's explicit heraldry; no saved choice means no war standard. */
+    private myWarBanner(): FlagDesign | null {
         const identity = this.scene.userId || 'village';
-        return bannerDesignFor(identity, Backend.getCachedWorld(identity)?.banner ?? null);
+        const banner = sanitizeVillageBanner(Backend.getCachedWorld(identity)?.banner);
+        return banner ? bannerDesignFor(identity, banner) : null;
     }
 
     /**
@@ -1300,12 +1299,13 @@ export class WorldMapSystem {
             homecoming: boolean;
             escorts: string[];
             escortCarriers: Array<Phaser.GameObjects.Graphics | null>;
-            flag: FlagDesign;
+            flag: FlagDesign | null;
         },
         time: number
     ) {
         const g = c.gfx;
         g.clear();
+        if (!c.flag) return;
         g.setDepth(this.roadDepthAt(c.x, c.y));
 
         if (c.state !== 'march') {
@@ -2422,7 +2422,11 @@ export class WorldMapSystem {
         this.textureMaterializations += 1;
         const hall = world.buildings.find(b => b.type === 'town_hall');
         view.hearth = hall
-            ? { gx: dx * PLOT_PITCH + hall.gridX + 1.5, gy: dy * PLOT_PITCH + hall.gridY + 1.5 }
+            ? {
+                gx: dx * PLOT_PITCH + hall.gridX + 1.5,
+                gy: dy * PLOT_PITCH + hall.gridY + 1.5,
+                level: Math.max(1, Number(hall.level) || 1)
+            }
             : null;
         // Hidden pending-focus postcards render under the SAME absolute keys
         // as the live ring; registering their residents now would overwrite
@@ -3762,21 +3766,35 @@ export class WorldMapSystem {
 
                 // The village standard on the hall roof — the neighbour's
                 // REAL heraldry (their explicit banner choice riding the
-                // postcard payload, or their identity default), miniature
+                // postcard payload, with a fallback only for bots), miniature
                 // but exact: the same design their town hall flies up close.
-                const poleX = hearthPos.x - 8;
-                const poleY = hearthPos.y - 30;
-                const bannerSource = (view.sourceWorld as WorldPostcard | null)?.banner
-                    ?? view.plot.world?.banner ?? null;
+                // Pole foot on the gold apex ball, same per-level geometry
+                // the live hall banner uses (townHallApexLift) — the old
+                // hand-tuned (−8, −30) sat the pole in the roof slope.
+                const poleX = hearthPos.x;
+                const poleY = hearthPos.y - townHallApexLift(view.hearth.level);
+                const bannerSource = sanitizeVillageBanner(
+                    (view.sourceWorld as WorldPostcard | null)?.banner
+                    ?? view.plot.world?.banner
+                );
                 const flagIdentity = view.plot.kind === 'bot'
                     ? `bot_${view.plot.seed ?? 0}`
                     : (view.plot.ownerId ?? view.key);
-                const flagKey = `${flagIdentity}|${bannerSource ? `${bannerSource.palette}.${bannerSource.emblem}.${bannerSource.pattern ?? 'd'}` : 'default'}`;
-                if (!view.flag || view.flagKey !== flagKey) {
-                    view.flag = bannerDesignFor(flagIdentity, bannerSource);
+                const allowFallback = view.plot.kind === 'bot';
+                const flagKey = `${flagIdentity}|${bannerSource ? `${bannerSource.palette}.${bannerSource.emblem}.${bannerSource.pattern}` : allowFallback ? 'bot-default' : 'empty'}`;
+                if (!bannerSource && !allowFallback) {
+                    view.flag = null;
                     view.flagKey = flagKey;
+                } else {
+                    if (!view.flag || view.flagKey !== flagKey) {
+                        view.flag = bannerDesignFor(flagIdentity, bannerSource);
+                        view.flagKey = flagKey;
+                    }
+                    // 2x of the old miniature (owner request, in step with the
+                    // live hall banner's 2x) — reads at postcard distance
+                    // without dominating the plot.
+                    drawVillageFlag(g, poleX, poleY, time, view.flag, 1, { poleH: 28, clothW: 26, clothH: 16, amp: 2 });
                 }
-                drawVillageFlag(g, poleX, poleY, time, view.flag, 1, { poleH: 14, clothW: 13, clothH: 8 });
 
                 // After dark: two warm windows glowing by the hall.
                 if (nf > 0.05) {

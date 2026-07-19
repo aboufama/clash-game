@@ -51,7 +51,7 @@ export function villageFlagFor(key: string): FlagDesign {
 export const BANNER_FIELDS: readonly number[] = FIELDS;
 
 /** The bounded axes a design occupies — seeds the picker with the current flag. */
-export function bannerAxesOf(design: FlagDesign): Required<VillageBanner> {
+export function bannerAxesOf(design: FlagDesign): VillageBanner {
     return {
         palette: Math.max(0, FIELDS.indexOf(design.field)),
         emblem: design.emblem,
@@ -61,12 +61,12 @@ export function bannerAxesOf(design: FlagDesign): Required<VillageBanner> {
 
 /**
  * The ONE banner→design mapping, shared by the town hall, the war camp, the
- * picker preview and neighbour postcards. No explicit banner → the village's
- * identity-derived default (existing villages keep their flag, no migration).
+ * picker preview and neighbour postcards. The identity-derived design is only
+ * a rendering fallback for bots and explicit preview samples. Real player
+ * call sites suppress the flag entirely until onboarding stores a choice.
  * With a banner, the chosen axes override the default while the metal, the
- * swallowtail cut, the wave phase — and, when `pattern` is omitted, the field
- * division — stay identity-derived, so two villages picking the same colours
- * still fly distinguishable cloth.
+ * swallowtail cut and wave phase stay identity-derived, so two villages
+ * picking the same heraldry still retain distinct cloth motion and cuts.
  */
 export function bannerDesignFor(identity: string, banner?: VillageBanner | null): FlagDesign {
     const base = villageFlagFor(identity);
@@ -82,7 +82,7 @@ export function bannerDesignFor(identity: string, banner?: VillageBanner | null)
         ...base,
         field: FIELDS[fieldIx],
         field2,
-        pattern: safe.pattern ?? base.pattern,
+        pattern: safe.pattern,
         emblem: safe.emblem % 6
     };
 }
@@ -178,6 +178,10 @@ export function drawVillageFlag(
         poleH?: number;
         clothW?: number;
         clothH?: number;
+        /** Ripple-amplitude multiplier — a banner scaled Nx passes N so the
+         *  wave depth scales with the cloth while the deterministic ripple
+         *  PERIOD stays untouched (default 1). */
+        amp?: number;
         marching?: boolean;
         /** Travel physics: the cloth STREAMS from the pole. `dir` is the
          *  continuous screen-x fly direction (-1..1 — near 0 the cloth turns
@@ -190,6 +194,7 @@ export function drawVillageFlag(
     const poleH = opts.poleH ?? 54;
     const clothW = opts.clothW ?? 34;
     const clothH = opts.clothH ?? 19;
+    const amp = opts.amp ?? 1;
     const stream = opts.stream;
     // Which way the cloth flies: physics (opposite the travel) when moving,
     // the bearer's facing otherwise.
@@ -211,8 +216,8 @@ export function drawVillageFlag(
     const SLICES = 6;
     const t = time * 0.0072 + design.phase;
     const lift = (f: number) =>
-        Math.sin(t + f * 0.92) * 3.4 * (f / SLICES) * wave +
-        Math.sin(t * 1.7 + f * 1.6) * 1.3 * (f / SLICES) * wave;
+        Math.sin(t + f * 0.92) * 3.4 * amp * (f / SLICES) * wave +
+        Math.sin(t * 1.7 + f * 1.6) * 1.3 * amp * (f / SLICES) * wave;
     const cols = Math.max(2, Math.round(clothW / PIXEL_CELL));
     const rows = Math.max(2, Math.round(clothH / PIXEL_CELL));
     const tailStartU = (SLICES - 1) / SLICES;
