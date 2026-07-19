@@ -25,3 +25,9 @@ dist-ssr
 server/data/
 server/data-backups/
 dist-server/
+.vercel
+.env*
+
+# graphify: commit the graph itself (graph.json/report/manifest) so every
+# agent/session can query it without rebuilding; the AST cache stays local
+graphify-out/cache/

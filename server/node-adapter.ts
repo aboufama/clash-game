@@ -119,6 +119,23 @@ function acquireDataLease(dataRoot: string): { release: () => void } {
 }
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
+  // Vercel's Node runtime parses JSON before invoking the function and exposes
+  // it as request.body. The standalone server and Vite middleware still pass a
+  // raw IncomingMessage stream, so support both transports at this boundary.
+  const parsedBody = (req as IncomingMessage & { body?: unknown }).body
+  if (parsedBody !== undefined && parsedBody !== null) {
+    if (Buffer.isBuffer(parsedBody)) {
+      if (parsedBody.length > MAX_BODY_BYTES) throw new Error('Request body too large')
+      const text = parsedBody.toString('utf8')
+      return text ? JSON.parse(text) : {}
+    }
+    if (typeof parsedBody === 'string') {
+      if (Buffer.byteLength(parsedBody, 'utf8') > MAX_BODY_BYTES) throw new Error('Request body too large')
+      return parsedBody ? JSON.parse(parsedBody) : {}
+    }
+    return parsedBody
+  }
+
   const chunks: Buffer[] = []
   let total = 0
   for await (const chunk of req) {

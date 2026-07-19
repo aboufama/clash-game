@@ -6,6 +6,17 @@ attacks, and replays. Building and troop art is authored as hand-drawn vector
 code and baked into committed pixel-art sprite sheets that the game renders
 from (see [`docs/AGENTS_SPRITE_PIPELINE.md`](docs/AGENTS_SPRITE_PIPELINE.md)).
 
+## Codebase knowledge graph (graphify)
+
+The repo ships a queryable knowledge graph at `graphify-out/graph.json`
+(8k+ nodes over the client, server, tools, and docs). **AI agents and
+contributors: query the graph before grepping** — `graphify query`,
+`graphify explain "X"`, `graphify path "A" "B"` — it answers structural
+questions without reading files. Install once with
+`uv tool install graphifyy && graphify install`; refresh after code changes
+with `graphify update .` (deterministic, no LLM). Using it every session is a
+project priority: it keeps agent context spend low.
+
 ## Local development
 
 Requirements: Node.js 20–24.
@@ -41,6 +52,15 @@ CLASH_STORAGE_MODE=legacy-json CLASH_DATA_DIR=/srv/clash-json npm start
 Do not run more than one JSON writer. PostgreSQL supports multiple API
 processes; revisions, unique leases, compare-and-swap attack state, and
 serializable settlement transactions provide the concurrency fences.
+
+### Vercel
+
+The Vite deployment includes a catch-all Node function for `/api/*` that uses
+the same PostgreSQL authority and route table as the standalone server. Set
+`DATABASE_URL` in the Vercel project for Production (and Preview when desired).
+The function applies pending migrations under the same advisory lock during a
+cold start and never falls back to ephemeral JSON storage. `DATABASE_POOL_MAX`
+defaults to 3 per warm function instance and may be overridden explicitly.
 
 The repository includes embedded PostgreSQL coverage for migrations,
 constraints, JSONB behavior, indexed queries, and normalized service flows.

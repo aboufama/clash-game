@@ -1115,13 +1115,18 @@ export class MainScene extends Phaser.Scene {
         this.villageBubbles.update(time);
         const nightFactorNow = this.dayNight.nightFactor();
         soundSystem.setNightFactor(nightFactorNow);
-        // Music context rides the same clock: battle > world overview > night/home.
-        // "Zoomed out" = the camera sits at/below ~55% of the default home zoom,
-        // which only the showNeighborhood world-overview transition reaches.
+        // Music context rides the same clock: battle > world overview > night/home
+        // (scouting counts as world, not battle). World-overview detection is the
+        // zoom RELATIVE TO THE GESTURE FLOOR: wheel/pinch clamp AT minGestureZoom
+        // (and below it gestures can only zoom back in), while showNeighborhood
+        // parks the camera far below it — so MusicSystem's hysteresis band
+        // (enter < 0.8, exit > 0.95) is unreachable by ordinary zooming on any
+        // window size and the home/world music can never flap.
         musicSystem.sync({
             mode: this.mode,
+            scouting: this.isScouting,
             nightFactor: nightFactorNow,
-            zoomedOut: toLogicalZoom(this.cameras.main.zoom) <= MobileUtils.getDefaultZoom() * 0.55
+            zoomRatio: toLogicalZoom(this.cameras.main.zoom) / Math.max(0.001, this.minGestureZoom())
         });
         // The audible wind rides the same gust field the flags sample (throttled).
         if (time >= this.nextAmbienceAt) {

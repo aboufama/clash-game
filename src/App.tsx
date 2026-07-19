@@ -1074,7 +1074,8 @@ function App() {
         if (applied?.settlementDelayed) {
           gameManager.showToast('Raid settlement is still pending — your loot will appear when it is banked.');
         }
-        // The loot chip lands with the barrows chime — confirmed loot only.
+        // The loot chime queues behind the victory/defeat jingle that MainScene
+        // just started (MusicSystem chains stingers) — confirmed loot only.
         if (!applied?.settlementDelayed && lootWon > 0) musicSystem.stinger('loot');
         transitionHome(applied?.settlementDelayed ? 0 : lootWon);
       },

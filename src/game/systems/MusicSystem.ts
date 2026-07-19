@@ -11,7 +11,9 @@
 // - Browser autoplay: a one-time pointerdown/keydown listener unlocks
 //   playback; anything requested earlier is queued until then.
 // - Kill switch: localStorage['clash.music.off']==='1' disables this system
-//   entirely and SoundSystem keeps its procedural melody.
+//   entirely and SoundSystem keeps its procedural melody. A manifest load
+//   failure (the ~160 MB music directory is untracked — other checkouts 404)
+//   has the same effect via the `active` getter.
 
 export type MusicContext = 'home' | 'night' | 'world' | 'battle'
 export type StingerKind = 'reveal' | 'build' | 'victory' | 'defeat' | 'loot'
@@ -53,6 +55,10 @@ const GAP_MIN_MS = 5000
 const GAP_JITTER_MS = 5000
 /** Safety restore if a stinger element never fires ended/error. */
 const STINGER_SAFETY_MS = 20000
+/** Bed load failures tolerated (with doubling backoff) before giving up. */
+const MAX_BED_RETRIES = 5
+/** Most stingers allowed to wait behind the one playing (e.g. loot). */
+const STINGER_QUEUE_MAX = 2
 
 interface Bed {
     el: HTMLAudioElement
@@ -77,7 +83,8 @@ class MusicSystem {
     private volume = 0.6
 
     private beds: Bed[] = []
-    private active = 0
+    /** Index of the bed currently fading/holding at full gain. */
+    private activeBed = 0
     private tickTimer: number | null = null
 
     /** Context the game derives (sync); forced overrides it (war camp). */
@@ -87,6 +94,10 @@ class MusicSystem {
     private playingCtx: string | null = null
     /** Hysteresis latch for night (enter > 0.65, leave < 0.55). */
     private night = false
+    /** Hysteresis latch for the world overview (zoomRatio enter < 0.8, leave > 0.95). */
+    private zoomedOut = false
+    /** Effective context as of the last onContextChange (victory-bed logic). */
+    private lastEff: MusicContext = 'home'
 
     /** Jukebox pin: loops one track until resumeAuto(). */
     private overrideTrack: MusicTrack | null = null
@@ -101,6 +112,12 @@ class MusicSystem {
     private stingerEl: HTMLAudioElement | null = null
     private stingerBusy = false
     private stingerToken = 0
+    /** Kind currently sounding (dedup) and the short chain behind it. */
+    private stingerKind: StingerKind | null = null
+    private stingerQueue: StingerKind[] = []
+    /** Consecutive bed load failures (reset once a track actually plays). */
+    private bedErrorRetries = 0
+    private bedRetryTimer: number | null = null
     private duck = 1
     private duckTarget = 1
     private duckMs = DUCK_UP_MS
@@ -130,6 +147,17 @@ class MusicSystem {
         ;(window as unknown as { __clashMusic?: MusicSystem }).__clashMusic = this
     }
 
+    /**
+     * True only while the streamed soundtrack is actually usable: kill switch
+     * off AND the manifest loaded. SoundSystem keys its procedural-melody
+     * suppression on THIS (not on `enabled`) so a manifest 404 — e.g. a
+     * checkout without the untracked music directory — falls back to the
+     * procedural songbook instead of total silence.
+     */
+    get active(): boolean {
+        return this.enabled && this.manifestReady
+    }
+
     // ------------------------------------------------------------ lifecycle
 
     /** Load the manifest and arm the autoplay-unlock gesture listener. */
@@ -157,7 +185,9 @@ class MusicSystem {
                 this.maybeStart()
             })
             .catch(err => {
-                console.warn('MusicSystem: manifest load failed — music stays off.', err)
+                // manifestReady stays false → `active` stays false → SoundSystem
+                // keeps its procedural songbook. Never silent.
+                console.warn('MusicSystem: manifest load failed — falling back to the procedural songbook.', err)
             })
     }
 
@@ -181,7 +211,7 @@ class MusicSystem {
     private maybeStart(): void {
         if (!this.unlocked || !this.manifestReady || !this.wantPlay) return
         this.wantPlay = false
-        const bed = this.beds[this.active]
+        const bed = this.beds[this.activeBed]
         if (bed?.track && bed.el.paused && bed.fadeTarget > 0) {
             // A play() rejected before the first gesture — retry the same bed.
             void bed.el.play().catch(() => { /* still locked; a later gesture retries */ })
@@ -199,17 +229,33 @@ class MusicSystem {
     // ------------------------------------------------------------- context
 
     /** Per-frame sync from MainScene.update: derives the active context. */
-    sync(state: { mode: string; nightFactor: number; zoomedOut: boolean }): void {
+    sync(state: { mode: string; scouting: boolean; nightFactor: number; zoomRatio: number }): void {
         if (!this.enabled) return
         let ctx: MusicContext
-        if (state.mode === 'ATTACK' || state.mode === 'REPLAY') {
-            ctx = 'battle'
-        } else if (state.zoomedOut) {
+        if (state.mode === 'ATTACK' && state.scouting) {
+            // Scouting is a passive look-around — world-overview music, not
+            // the battle rotation. Deployment clears isScouting and the war
+            // drums arrive on the next frame.
             ctx = 'world'
+        } else if (state.mode === 'ATTACK' || state.mode === 'REPLAY') {
+            ctx = 'battle'
         } else {
-            if (state.nightFactor > 0.65) this.night = true
-            else if (state.nightFactor < 0.55) this.night = false
-            ctx = this.night ? 'night' : 'home'
+            // World-overview hysteresis (same latch pattern as night):
+            // zoomRatio = logical zoom / the gesture floor. Wheel/pinch clamp
+            // AT the floor (ratio >= 1, and below the floor gestures can only
+            // zoom IN), while showNeighborhood parks the camera far below it
+            // (the world square dwarfs the 57-tile apron fit, ratio <~ 0.55).
+            // Neither threshold sits inside a gesture-reachable band, so the
+            // latch cannot flap on any window size.
+            if (state.zoomRatio < 0.8) this.zoomedOut = true
+            else if (state.zoomRatio > 0.95) this.zoomedOut = false
+            if (this.zoomedOut) {
+                ctx = 'world'
+            } else {
+                if (state.nightFactor > 0.65) this.night = true
+                else if (state.nightFactor < 0.55) this.night = false
+                ctx = this.night ? 'night' : 'home'
+            }
         }
         if (ctx === this.context) return // only act on context CHANGES
         this.context = ctx
@@ -229,9 +275,20 @@ class MusicSystem {
 
     private onContextChange(): void {
         const eff = this.effectiveContext()
+        const prevEff = this.lastEff
+        this.lastEff = eff
         if (this.overrideTrack) return // jukebox pin outranks the rotation
-        if (this.playingCtx === eff && !this.victoryBed) return
-        this.clearVictoryBed()
+        if (this.victoryBed) {
+            // The big-win Fanfare bed HOLDS through the homecoming churn —
+            // forceContext(null) while the derived context is still 'battle',
+            // then the battle→home mode flip — with zero intermediate
+            // crossfades; advance() lands on the latest effective context
+            // when the bed completes (or its track ends). Only a genuinely
+            // NEW fight (non-battle → battle) takes the music back.
+            if (!(eff === 'battle' && prevEff !== 'battle')) return
+            this.clearVictoryBed()
+        }
+        if (this.playingCtx === eff) return
         this.playingCtx = eff
         if (!this.manifestReady || !this.unlocked) {
             this.wantPlay = true
@@ -250,16 +307,19 @@ class MusicSystem {
             el.muted = this.muted
             el.addEventListener('ended', () => this.onBedEnded(i))
             el.addEventListener('error', () => this.onBedError(i))
+            // A track actually playing proves the pipe works — retry budget refills.
+            el.addEventListener('playing', () => { this.bedErrorRetries = 0 })
             this.beds.push({ el, fade: 0, fadeTarget: 0, fadeMs: CROSSFADE_MS, track: null })
         }
     }
 
     private crossfadeTo(track: MusicTrack | null): void {
         this.clearGap()
+        this.clearBedRetry() // a fresh crossfade supersedes any pending error retry
         if (!track) return
         this.ensureBeds()
-        const cur = this.beds[this.active]
-        const next = this.beds[1 - this.active]
+        const cur = this.beds[this.activeBed]
+        const next = this.beds[1 - this.activeBed]
         cur.fadeTarget = 0
         cur.fadeMs = CROSSFADE_MS
         next.track = track
@@ -269,7 +329,7 @@ class MusicSystem {
         next.fade = 0
         next.fadeTarget = 1
         next.fadeMs = CROSSFADE_MS
-        this.active = 1 - this.active
+        this.activeBed = 1 - this.activeBed
         const p = next.el.play()
         if (p) p.catch(() => { this.wantPlay = true /* locked — retried on unlock */ })
         this.ensureTick()
@@ -282,7 +342,7 @@ class MusicSystem {
     }
 
     private onBedEnded(i: number): void {
-        if (i !== this.active) return
+        if (i !== this.activeBed) return
         const bed = this.beds[i]
         bed.fade = 0
         bed.fadeTarget = 0
@@ -319,12 +379,31 @@ class MusicSystem {
             this.warned.add(slug)
             console.warn(`MusicSystem: failed to load '${slug}' — skipping to the next track.`)
         }
-        if (i !== this.active) return
+        if (i !== this.activeBed) return
         bed.fade = 0
         bed.fadeTarget = 0
         if (this.overrideTrack) this.overrideTrack = null
         this.clearVictoryBed()
-        window.setTimeout(() => this.advance(), 400)
+        // Capped, backed-off retries (400 ms → ~6.4 s), then STOP — a dropped
+        // connection must not cycle the whole shuffle bag forever. A later
+        // context change re-arms the rotation (and, having spent the budget,
+        // gives up again after one attempt if the network is still down);
+        // any track that reaches 'playing' refills the budget.
+        if (this.bedErrorRetries >= MAX_BED_RETRIES) {
+            if (!this.warned.has('__bed_retries__')) {
+                this.warned.add('__bed_retries__')
+                console.warn('MusicSystem: repeated track load failures — music paused until the next context change.')
+            }
+            this.playingCtx = null
+            return
+        }
+        const delay = 400 * Math.pow(2, this.bedErrorRetries)
+        this.bedErrorRetries++
+        this.clearBedRetry()
+        this.bedRetryTimer = window.setTimeout(() => {
+            this.bedRetryTimer = null
+            this.advance()
+        }, delay)
     }
 
     private nextFromBag(ctx: string): MusicTrack | null {
@@ -382,7 +461,15 @@ class MusicSystem {
     /** One-shot jingle; ducks the music bed while it plays. */
     stinger(kind: StingerKind): void {
         if (!this.enabled || !this.manifestReady || !this.unlocked) return
-        if (this.stingerBusy) return // never overlap two stingers — drop
+        if (this.stingerBusy) {
+            // Never overlap two stingers. True duplicates (same kind already
+            // sounding or already waiting) drop; anything else queues briefly
+            // so e.g. the loot chime lands right after the victory jingle.
+            if (this.stingerKind === kind || this.stingerQueue.includes(kind)) return
+            if (this.stingerQueue.length >= STINGER_QUEUE_MAX) return
+            this.stingerQueue.push(kind)
+            return
+        }
         const pool = this.byContext.get(STINGER_CONTEXT[kind])
         if (!pool || pool.length === 0) return
         const track = kind === 'reveal'
@@ -395,12 +482,20 @@ class MusicSystem {
         }
         const el = this.stingerEl
         this.stingerBusy = true
+        this.stingerKind = kind
         const token = ++this.stingerToken
         const finish = () => {
             if (token !== this.stingerToken || !this.stingerBusy) return
             this.stingerBusy = false
+            this.stingerKind = null
             this.duckTarget = 1
             this.duckMs = DUCK_UP_MS
+            // Chain the next queued jingle (e.g. loot right after victory).
+            // Loop past kinds whose pool is empty (those return without
+            // starting) so one bad entry can't strand the rest of the queue.
+            while (this.stingerQueue.length > 0 && !this.stingerBusy) {
+                this.stinger(this.stingerQueue.shift() as StingerKind)
+            }
         }
         el.muted = this.muted
         el.loop = false
@@ -433,7 +528,10 @@ class MusicSystem {
         const t = pool[Math.floor(Math.random() * pool.length)]
         this.clearVictoryBed()
         this.victoryBed = true
-        this.playingCtx = null // the next context change re-arms the rotation
+        // Context changes during the bed are ABSORBED (see onContextChange);
+        // advance() below re-arms the rotation on whatever context is
+        // effective when the hold elapses (or the fanfare track ends).
+        this.playingCtx = null
         this.crossfadeTo(t)
         this.victoryTimer = window.setTimeout(() => {
             this.victoryTimer = null
@@ -503,7 +601,7 @@ class MusicSystem {
     }
 
     getNowPlaying(): MusicTrack | null {
-        const bed = this.beds[this.active]
+        const bed = this.beds[this.activeBed]
         if (!bed || !bed.track || bed.fadeTarget <= 0) return null
         return bed.el.paused ? null : bed.track
     }
@@ -523,6 +621,13 @@ class MusicSystem {
         if (this.gapTimer !== null) {
             window.clearTimeout(this.gapTimer)
             this.gapTimer = null
+        }
+    }
+
+    private clearBedRetry(): void {
+        if (this.bedRetryTimer !== null) {
+            window.clearTimeout(this.bedRetryTimer)
+            this.bedRetryTimer = null
         }
     }
 

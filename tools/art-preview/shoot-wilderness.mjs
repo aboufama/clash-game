@@ -1,13 +1,19 @@
-// Wilderness art review harness. Boots the real game with a disposable guest,
-// asks the renderer for one deterministic coordinate per archetype, then uses
-// WorldMapSystem's real postcard pipeline for close and overview screenshots.
+// Wilderness art review harness. Boots the real game with the SHARED
+// art-preview identity, asks the renderer for one deterministic coordinate per
+// archetype, then uses WorldMapSystem's real postcard pipeline for close and
+// overview screenshots.
 //
 // Requires the Vite dev server because the page imports the renderer's source
 // module directly:
 //   npm run dev
 //   node tools/art-preview/shoot-wilderness.mjs
+//
+// Design-tournament runs: DESIGNS="deadwood=A" (comma-separated unit=slot
+// pairs) seeds localStorage['clash.design.<unit>'] before the page boots, so
+// a variant round's slot renders into the postcards. Pair it with OUT=... to
+// keep each slot's shots separate.
 import puppeteer from 'puppeteer-core'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:5173'
 const OUT = (process.env.OUT ?? new URL('./shots/wilderness/', import.meta.url).pathname).replace(/\/$/, '')
@@ -17,6 +23,18 @@ const SEARCH_RADIUS = Number(process.env.SEARCH_RADIUS ?? 96)
 const SEED_VERSION_OVERRIDE = process.env.SEED_VERSION === undefined
   ? null
   : Number(process.env.SEED_VERSION)
+// DESIGNS="deadwood=A,otherunit=B" → [['deadwood','A'], ...]
+const DESIGNS = (process.env.DESIGNS ?? '')
+  .split(',')
+  .map(pair => pair.trim())
+  .filter(Boolean)
+  .map(pair => {
+    const [unit, slot] = pair.split('=').map(part => part.trim())
+    if (!unit || !['A', 'B', 'C'].includes(slot)) {
+      throw new Error(`DESIGNS entries must look like "<unit>=A|B|C" (received "${pair}")`)
+    }
+    return [unit, slot]
+  })
 
 const DESKTOP = { width: 1280, height: 900 }
 const MOBILE = { width: 390, height: 844, isMobile: true, hasTouch: true }
@@ -66,9 +84,12 @@ async function api(method, path, { token, body } = {}) {
 async function bootPage(browser, viewport, token) {
   const page = await browser.newPage()
   await page.setViewport(viewport)
-  await page.evaluateOnNewDocument(value => {
+  await page.evaluateOnNewDocument((value, designs) => {
     localStorage.setItem('clash.device.token', value)
-  }, token)
+    for (const [unit, slot] of designs) {
+      localStorage.setItem(`clash.design.${unit}`, slot)
+    }
+  }, token, DESIGNS)
 
   const errors = []
   page.on('pageerror', error => errors.push(`pageerror: ${error.message}`))
@@ -313,15 +334,29 @@ async function prepareGallery(page, includeCloseViews) {
   })
 }
 
-let token = null
 let browser = null
-let primaryError = null
 
 try {
-  const session = await api('POST', '/auth/session')
+  // ONE shared art-preview identity for every harness run on this machine:
+  // resuming the cached token bypasses the guest-creation rate limit
+  // (30/hour) and stops screenshot runs from littering the world map with
+  // junk guest villages. Delete the cache file to mint a fresh identity.
+  const TOKEN_CACHE = new URL('./.shared-device-token.json', import.meta.url).pathname
+  let cachedToken = null
+  try {
+    cachedToken = JSON.parse(readFileSync(TOKEN_CACHE, 'utf8')).token ?? null
+  } catch {
+    // No cache yet — the session call below mints and seeds it.
+  }
+  const session = await api('POST', '/auth/session', { body: cachedToken ? { token: cachedToken } : {} })
   assert(session.status === 200 && session.json?.token,
-    `could not create disposable wilderness guest (${session.status}): ${session.raw}`)
-  token = session.json.token
+    `auth/session failed (${session.status}): ${session.raw} — if this is the 429 guest limit, wait for the window to roll (≤1h) and re-run; the first success re-seeds ${TOKEN_CACHE}`)
+  const token = session.json.token
+  try {
+    writeFileSync(TOKEN_CACHE, JSON.stringify({ token }))
+  } catch {
+    // Non-fatal: the run proceeds, the next run just re-resumes or re-mints.
+  }
 
   browser = await puppeteer.launch({
     executablePath: CHROME,
@@ -363,6 +398,7 @@ try {
   assert(pageErrors.length === 0, `browser errors while shooting wilderness:\n${pageErrors.join('\n')}`)
 
   console.log('wilderness shots complete', {
+    designs: Object.fromEntries(DESIGNS),
     seedVersion: desktopGallery.seedVersion,
     archetypes: desktopGallery.showcases,
     closePaths,
@@ -371,30 +407,7 @@ try {
     desktopZoom: desktopContact.zoom,
     mobileZoom: mobileContact.zoom
   })
-} catch (error) {
-  primaryError = error
-  throw error
 } finally {
-  let cleanupError = null
-  try {
-    await browser?.close()
-  } catch (error) {
-    cleanupError = error
-  }
-
-  if (token) {
-    try {
-      const logout = await api('POST', '/auth/logout', { token })
-      if (logout.status !== 200) {
-        throw new Error(`disposable wilderness guest cleanup failed (${logout.status}): ${logout.raw}`)
-      }
-    } catch (error) {
-      cleanupError ??= error
-    }
-  }
-
-  if (cleanupError) {
-    if (primaryError) console.error('wilderness screenshot cleanup also failed:', cleanupError)
-    else throw cleanupError
-  }
+  // The shared identity must SURVIVE the run — never log it out.
+  await browser?.close()
 }

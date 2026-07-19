@@ -5,6 +5,23 @@ game server in `server/` (device-token auth, atomic JSON saves, instant
 replays). Building/troop art is authored as hand-drawn vector code and baked
 into committed pixel-art sprite sheets (see the rework below).
 
+## Graphify FIRST — do not waste context
+
+PRIORITY, every session: this repo has a queryable knowledge graph
+(`graphify-out/graph.json`, committed). Before grepping or reading files to
+answer ANY structural question ("what calls X", "how does Y relate to Z",
+"where does concept W live"), query the graph — it is faster and burns far
+less context:
+
+- `/graphify` skill in Claude Code, or the CLI directly:
+  `graphify query "<question>"` · `graphify explain "X"` ·
+  `graphify path "A" "B"` · `graphify affected "X"`
+- If graphify is NOT installed on this machine:
+  `uv tool install graphifyy && graphify install` (30 seconds).
+- After meaningful code changes, refresh with `graphify update .`
+  (deterministic AST pass, no LLM; the cache under `graphify-out/cache/` is
+  local-only and gitignored — `graph.json` is committed for everyone).
+
 ## Read before working
 
 - **Any building/art/visual work:** `docs/BUILDING_ART_GUIDE.md` — REQUIRED.

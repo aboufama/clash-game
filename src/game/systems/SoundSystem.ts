@@ -562,9 +562,11 @@ class SoundSystem {
         }
 
         // The streamed RuneScape soundtrack (MusicSystem) owns the music layer
-        // unless its kill switch keeps this procedural songbook alive. The
-        // clock still advances so a live toggle can't burst catch-up notes.
-        if (musicSystem.enabled) {
+        // only while it is actually usable (`active` = kill switch off AND the
+        // manifest loaded) — a manifest 404 falls back to this procedural
+        // songbook instead of silencing all music. The clock still advances so
+        // a live toggle can't burst catch-up notes.
+        if (musicSystem.active) {
             this.nextNoteAt = now + 0.7;
             return;
         }

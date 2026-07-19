@@ -12,6 +12,11 @@ import {
     wildernessEcologyPresentationSeed,
     wildernessPlotPresentationSeed
 } from './WorldNatureSeed';
+// Design-tournament coupling (the deadwood round). Value imports are only
+// CALLED at draw/revision time, never during module evaluation, so the
+// WildernessRenderer <-> DesignRegistry <-> design-file cycle is safe (the
+// registry's exports are hoisted function declarations).
+import { activeDesign, activeSlot, listVariantUnits } from './redesign/DesignRegistry';
 
 /**
  * The unclaimed wilds: every empty plot is a PLACE — a lake, a crag field,
@@ -473,71 +478,9 @@ function brambleMass(ctx: Ctx, tx: number, ty: number, s: number, tag: string) {
     }
 }
 
-/** A storm-broken trunk with enough mass to read as a dead tree at overview. */
-function stormSnag(ctx: Ctx, tx: number, ty: number, s: number, tag: string) {
-    const p = at(ctx, tx, ty);
-    const g = ctx.g;
-    const rng = featureRng(ctx, `storm-snag:${tag}`);
-    const dir = rng() < 0.5 ? -1 : 1;
-    const h = (52 + rng() * 18) * s;
-    const lean = dir * (8 + rng() * 7) * s;
-    g.fillStyle(0x172015, 0.22);
-    g.fillEllipse(p.x + 7 * s, p.y + 6 * s, 42 * s, 13 * s);
-    fillPolygon(g, [
-        { x: p.x - 8 * s, y: p.y + 2 * s },
-        { x: p.x - 4 * s + lean * 0.45, y: p.y - h * 0.68 },
-        { x: p.x + lean - 2 * s, y: p.y - h },
-        { x: p.x + lean + 5 * s, y: p.y - h + 6 * s },
-        { x: p.x + 6 * s, y: p.y + 2 * s }
-    ], 0x55402f);
-    fillPolygon(g, [
-        { x: p.x - 8 * s, y: p.y + 2 * s },
-        { x: p.x - 4 * s + lean * 0.45, y: p.y - h * 0.68 },
-        { x: p.x + lean - 2 * s, y: p.y - h },
-        { x: p.x + lean * 0.25, y: p.y - 7 * s }
-    ], 0x77563a);
-    g.lineStyle(5.2 * s, 0x59412f, 1);
-    g.lineBetween(p.x + lean * 0.36, p.y - h * 0.54, p.x + lean * 0.36 - dir * 21 * s, p.y - h * 0.76);
-    g.lineBetween(p.x + lean * 0.55, p.y - h * 0.69, p.x + lean * 0.55 + dir * 19 * s, p.y - h * 0.88);
-    g.lineStyle(2.3 * s, 0x8a6545, 0.88);
-    g.lineBetween(p.x + lean * 0.36 - dir * 20 * s, p.y - h * 0.76, p.x + lean * 0.36 - dir * 27 * s, p.y - h * 0.82);
-    g.lineBetween(p.x + lean * 0.55 + dir * 18 * s, p.y - h * 0.88, p.x + lean * 0.55 + dir * 23 * s, p.y - h * 0.96);
-    g.fillStyle(0xb79368, 1);
-    g.fillEllipse(p.x + lean + 1.5 * s, p.y - h + 3 * s, 8 * s, 5 * s);
-    g.lineStyle(3.2 * s, 0x5a402e, 1);
-    g.lineBetween(p.x - 4 * s, p.y, p.x - 17 * s, p.y + 7 * s);
-    g.lineBetween(p.x + 4 * s, p.y, p.x + 18 * s, p.y + 6 * s);
-}
-
-function windthrow(ctx: Ctx, tx: number, ty: number, s: number, tag: string) {
-    const p = at(ctx, tx, ty);
-    const g = ctx.g;
-    const rng = featureRng(ctx, `windthrow:${tag}`);
-    const dir = rng() < 0.5 ? -1 : 1;
-    const dx = 48 * s * dir;
-    const dy = 16 * s;
-    g.fillStyle(0x4a3b2b, 0.4);
-    g.fillEllipse(p.x - dx * 0.9, p.y - dy * 0.9 + 4 * s, 38 * s, 17 * s);
-    g.fillStyle(0x172015, 0.18);
-    g.fillEllipse(p.x, p.y + 7 * s, 112 * s, 20 * s);
-    g.lineStyle(14 * s, 0x513721, 1);
-    g.lineBetween(p.x - dx, p.y - dy, p.x + dx, p.y + dy);
-    g.lineStyle(4.5 * s, 0x8a5c35, 0.9);
-    g.lineBetween(p.x - dx * 0.9, p.y - dy - 2 * s, p.x + dx * 0.85, p.y + dy - 2 * s);
-    const rootX = p.x - dx;
-    const rootY = p.y - dy;
-    g.fillStyle(0x62442d, 1);
-    g.fillEllipse(rootX, rootY, 28 * s, 21 * s);
-    g.lineStyle(4 * s, 0x6d4b30, 1);
-    for (let i = 0; i < 6; i++) {
-        const a = -1.2 + (i / 5) * 2.4;
-        g.lineBetween(rootX, rootY, rootX - dir * Math.cos(a) * 25 * s, rootY + Math.sin(a) * 18 * s);
-    }
-    g.fillStyle(0xb18a60, 1);
-    g.fillEllipse(p.x + dx, p.y + dy, 15 * s, 9 * s);
-    g.lineStyle(1.4 * s, 0x654629, 0.9);
-    g.strokeEllipse(p.x + dx, p.y + dy, 9 * s, 5 * s);
-}
+// (The deadwood archetype's former exclusive hero elements were removed with
+// its composition for the clean-room redesign round — see the stubbed
+// 'deadwood' entry in ARCHETYPES. Revert path: git HEAD.)
 
 /**
  * A real flooded terrain depression. `generateLakeTerrain` synthesizes a
@@ -952,6 +895,44 @@ function paintSorted(items: Array<{ tx: number; ty: number; draw: () => void }>)
 type Put = (tx: number, ty: number, draw: (tx: number, ty: number) => void) => void;
 type Placer = (ctx: Ctx, put: Put) => void;
 
+// Public aliases for the clean-room design-tournament files
+// (redesign/<Unit><Slot>.ts) and the DesignRegistry's WildernessDesignFn.
+// A design fn receives exactly what an archetype `place` fn receives.
+export type { Ctx as WildernessPlotCtx, Put as WildernessPut };
+
+/**
+ * The shared element vocabulary, exported for clean-room wilderness design
+ * files. These are the same seeded, painter-safe pieces the live archetypes
+ * compose (each draws at one anchor; determinism comes from featureRng /
+ * ctx.rng — never Math.random). Designers may use them, or draw bespoke art
+ * directly on ctx.g with `at(...)` projection; `pool(...)` is the ONLY way to
+ * make water (it registers ctx.waters/avoid/life for surface queries).
+ */
+export const WildernessVocabulary = {
+    at,
+    featureRng,
+    fillPolygon,
+    strokePolygon,
+    groundPatch,
+    grassTuft,
+    conifer,
+    broadleaf,
+    ancientTree,
+    deadSnag,
+    boulder,
+    cragOutcrop,
+    fallenLog,
+    stoneMonolith,
+    stoneGate,
+    stoneAltar,
+    brambleMass,
+    pool,
+    flowerDrift,
+    bush,
+    stump,
+    scatterRocks
+} as const;
+
 // ---- the twelve archetypes ----
 
 const ARCHETYPES: Array<{ key: string; place: Placer }> = [
@@ -1301,38 +1282,20 @@ const ARCHETYPES: Array<{ key: string; place: Placer }> = [
     {
         key: 'deadwood',
         place: (ctx, put) => {
-            const rng = featureRng(ctx, 'biome:deadwood');
-            groundPatch(ctx, 12, 12.5, 10.8, 9.1, 0x665b3f, 0.3, 'deadwood-storm-scar');
-            groundPatch(ctx, 10.2, 13.8, 7.6, 4.4, 0x7a6648, 0.22, 'deadwood-torn-earth');
-            groundPatch(ctx, 18, 17.5, 5.2, 4.1, 0x31533a, 0.22, 'deadwood-regrowth');
-
-            // The storm damage has a direction and a center of impact: four
-            // massive snapped trunks, then minor remnants around their lee.
-            const heroes = [[9.2, 8.5, 2.35], [13.1, 9.8, 2.05], [10.8, 13.3, 2.55], [15.4, 14.2, 1.85]] as const;
-            for (let i = 0; i < heroes.length; i++) {
-                const [tx, ty, scale] = heroes[i];
-                put(tx + (rng() - 0.5) * 0.45, ty + (rng() - 0.5) * 0.45,
-                    (ax, ay) => stormSnag(ctx, ax, ay, scale + rng() * 0.18, `hero-${i}`));
+            // CLEAN-ROOM REDESIGN IN PROGRESS — the deadwood composition is a
+            // live 2-variant design tournament. The active design is resolved
+            // per draw call from localStorage['clash.design.deadwood'] via the
+            // DesignRegistry; the old composition was removed so isolated
+            // designers cannot see it (revert path: git HEAD).
+            const design = activeDesign('deadwood');
+            if (design) {
+                design(ctx, put);
+                return;
             }
-            const remnants = [[5.7, 10.4], [6.8, 14.8], [13.8, 18.2], [18.1, 10.5], [18.7, 13.1]] as const;
-            for (let i = 0; i < remnants.length; i++) {
-                const [tx, ty] = remnants[i];
-                put(tx + (rng() - 0.5) * 0.5, ty + (rng() - 0.5) * 0.5,
-                    (ax, ay) => deadSnag(ctx, ax, ay, 1.15 + rng() * 0.45));
-            }
-            put(10.7, 17.2, (tx, ty) => windthrow(ctx, tx, ty, 1.22 + rng() * 0.14, 'great-fall'));
-
-            // Regrowth shelters together instead of appearing as three random
-            // healthy trees sprinkled across a disaster scene.
-            const regrowth = [[17.6, 17.1, 1.45], [19.4, 18.4, 1.2], [17.9, 20.1, 1.05], [20.5, 16.4, 0.95]] as const;
-            for (const [tx, ty, scale] of regrowth) {
-                put(tx, ty, (ax, ay) => conifer(ctx, ax, ay, scale + rng() * 0.15));
-            }
-            put(5.8, 7.4, (tx, ty) => cragOutcrop(ctx, tx, ty, 1.18 + rng() * 0.18, 'deadwood-stone'));
-            put(7.1, 8.2, (tx, ty) => boulder(ctx, tx, ty, 1.15 + rng() * 0.25));
-            const stumps = [[6.4, 17.7], [14.8, 19], [4.8, 13.8], [19.8, 8.5]] as const;
-            for (const [tx, ty] of stumps) put(tx, ty, (ax, ay) => stump(ctx, ax, ay));
-            scatterRocks(ctx, 11, 13, 16, 12);
+            // Neutral placeholder while no slot is filled: open ground with a
+            // rock scatter — deliberately design-language-free.
+            groundPatch(ctx, 12.5, 12.5, 9.4, 7.6, 0x6a6046, 0.22, 'deadwood-placeholder');
+            scatterRocks(ctx, 12.5, 12.5, 15, 10);
         }
     },
     {
@@ -1459,13 +1422,21 @@ export class WildernessRenderer {
     /** Increment whenever wilderness postcard art changes. WorldMapSystem
      * includes this in its cache key so an old village/nature RenderTexture
      * can never survive behind a current empty-plot classification.
-     * v7: plot corners round off like village lawns (junction-aware cuts). */
-    static readonly RENDER_VERSION = 8;
+     * v7: plot corners round off like village lawns (junction-aware cuts).
+     * v9: deadwood stubbed for its clean-room design round (delegator). */
+    static readonly RENDER_VERSION = 9;
 
     static renderRevision(plotX: number, plotY: number, seedVersion: unknown = 0): string {
         const version = normalizeWorldNatureSeedVersion(seedVersion);
         const seed = wildernessPlotPresentationSeed(plotX, plotY, version);
-        return `wilds_v${this.RENDER_VERSION}_s${version}_${seed}`;
+        const base = `wilds_v${this.RENDER_VERSION}_s${version}_${seed}`;
+        // Design-tournament coupling: while this plot's archetype has at least
+        // one registered variant design, the ACTIVE slot joins the cache key,
+        // so a Design Lab switch repaints exactly the affected postcards on
+        // the next revision check (WorldMapSystem polls + fingerprint watch).
+        const nature = this.natureAt(plotX, plotY, version);
+        const inRound = listVariantUnits().some(info => info.unit === nature.key);
+        return inRound ? `${base}_d${activeSlot(nature.key)}` : base;
     }
 
     /** A stable human-ish name for the plot's nature (for plates/logs). */

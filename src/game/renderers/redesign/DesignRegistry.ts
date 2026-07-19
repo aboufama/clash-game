@@ -1,7 +1,8 @@
 import type Phaser from 'phaser';
+import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
 
 /**
- * CLEAN-ROOM DESIGN REGISTRY — live, unresolved troop design rounds.
+ * CLEAN-ROOM DESIGN REGISTRY — live, unresolved design rounds.
  * (The cannon round is FINISHED: design B was promoted to canonical and left
  * the registry — see CannonB.ts. The golem round is FINISHED too: design C
  * won and is called directly by TroopRenderer.drawGolem — see GolemC.ts;
@@ -10,9 +11,13 @@ import type Phaser from 'phaser';
  * original vector art was restored as canonical — mortar no longer routes
  * through this registry.)
  *
- * There are currently no unresolved rounds. Isolated artist agents fill only
- * the slots requested for a future round. An A-first fallback is only a
- * deterministic preview choice, never a winner designation. Rules:
+ * LIVE ROUND (2026-07-18): `deadwood` — the wilderness archetype — is a
+ * 2-variant redesign (slots A/B). Its old composition is stubbed out of
+ * WildernessRenderer's ARCHETYPES table, which now delegates to
+ * activeDesign('deadwood') and paints a neutral placeholder while no slot is
+ * filled. Isolated artist agents fill only the slots requested for a round.
+ * An A-first fallback is only a deterministic preview choice, never a winner
+ * designation. Rules:
  *  - Each artist inserts EXACTLY ONE import on their pre-seeded
  *    `// IMPORT <unit> <slot>` anchor line below, and replaces EXACTLY ONE
  *    `null` on their `// SLOT <unit> <slot>` anchor line with the imported fn.
@@ -33,6 +38,8 @@ import type Phaser from 'phaser';
 // (cannon was PROMOTED: design B won the tournament and is now the canonical
 //  implementation, called directly by BuildingRenderer.drawCannon* — see
 //  ./CannonB.ts. It no longer routes through this registry.)
+// IMPORT deadwood A
+// IMPORT deadwood B
 // ===== PARAMS namespace imports — the per-slot bake-param override channel =====
 // (see DesignBakeParams below). The optional `PARAMS` export is read lazily
 // off these namespace objects at designBakeParams() call time, so a module
@@ -72,13 +79,36 @@ export type TroopDeathDesignFn = (
     phase: number
 ) => void;
 
+/**
+ * Wilderness-archetype design draw fn — the tournament shape for wilderness
+ * biome units (the deadwood round). It is EXACTLY an archetype `place` fn
+ * from WildernessRenderer: compose the plot by registering standing elements
+ * through `put(tx, ty, draw)` (tile coords 0..25, clamped to 1.5..23.5;
+ * everything queued through `put` is painter-sorted far-to-near by tx+ty
+ * before painting) and paint broad ground washes directly on `ctx.g` (they
+ * render before the sorted elements). STRICTLY deterministic: seeded rng only
+ * (ctx.rng / featureRng(ctx, tag)) — the result rasterizes ONCE into a
+ * postcard RenderTexture and must be byte-identical on every client. There is
+ * no `time` parameter: postcards are static; living motion comes from pushing
+ * `ctx.life` anchors (and `pool(...)`'s fish/frog anchors), which the
+ * postcard-life systems animate.
+ */
+export type WildernessDesignFn = (ctx: WildernessPlotCtx, put: WildernessPut) => void;
+
 export type DesignSlotId = 'A' | 'B' | 'C';
 
 /** Extend this interface when a new unresolved tournament begins. */
-export interface DesignSlots {}
+export interface DesignSlots {
+    /** 2-variant wilderness-archetype redesign round (A/B). */
+    deadwood: Partial<Record<DesignSlotId, WildernessDesignFn | null>>;
+}
 export type DesignUnit = keyof DesignSlots;
 
 export const DESIGN_SLOTS: DesignSlots = {
+    deadwood: {
+        A: null, // SLOT deadwood A
+        B: null, // SLOT deadwood B
+    },
 };
 
 /** Death slots are separate so ordinary troop designs cannot accidentally
@@ -159,13 +189,19 @@ export type DesignParamsExport = Partial<Record<string, DesignBakeParams>>;
  *  declaration site (files annotate it as DesignParamsExport). */
 const DESIGN_PARAM_MODULES: Partial<Record<string, Partial<Record<DesignSlotId, object>>>> = {};
 
-type RuntimeDesignSlots = Partial<Record<DesignSlotId, TroopDesignFn | null>>;
+/** Union of every draw-fn shape a tournament round can register. */
+export type AnyDesignFn = TroopDesignFn | WildernessDesignFn;
+
+type RuntimeDesignSlots = Partial<Record<DesignSlotId, AnyDesignFn | null>>;
 
 /** String-safe lookup for SpriteBank/dev-tool callers. Individual rounds may
  * intentionally register fewer than the historical A/B/C superset. */
 function designSlotsFor(unit: string): RuntimeDesignSlots | undefined {
     if (!Object.prototype.hasOwnProperty.call(DESIGN_SLOTS, unit)) return undefined;
-    return (DESIGN_SLOTS as Partial<Record<string, RuntimeDesignSlots>>)[unit];
+    // Through-unknown: DesignSlots is a closed per-unit map whose value types
+    // are round-specific fn shapes; this helper erases them to the union for
+    // string-keyed callers (SpriteBank, dev tools, the Design Lab).
+    return (DESIGN_SLOTS as unknown as Partial<Record<string, RuntimeDesignSlots>>)[unit];
 }
 
 /** The bake-param overrides a design slot authored for a unit, or null when
@@ -183,7 +219,9 @@ export function designBakeParams(unit: string, slot: DesignSlotId): DesignBakePa
  * slot is filled. SSR/test safe: any environment without a usable
  * `window.localStorage` just uses the fallback order.
  */
-export function activeDesign(unit: string): TroopDesignFn | null {
+export function activeDesign(unit: 'deadwood'): WildernessDesignFn | null;
+export function activeDesign(unit: string): AnyDesignFn | null;
+export function activeDesign(unit: string): AnyDesignFn | null {
     const slots = designSlotsFor(unit);
     if (!slots) return null;
     const picked = readStoredSlot(unit);
