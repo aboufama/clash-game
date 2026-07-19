@@ -245,11 +245,13 @@
     right: 16px;
     width: 360px;
     background: rgba(0, 0, 0, 0.88);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    /* No `fill`: the translucent black face stays readable over the world. */
+    border-image: var(--pxf-panel) 5 / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
     color: var(--text-primary);
     padding: 10px 12px;
     z-index: 200;
@@ -295,8 +297,8 @@
     background: rgba(0, 0, 0, 0.35);
     padding: 4px 6px;
     border: 2px solid var(--panel-border-dark);
-    border-radius: 4px;
-    box-shadow: inset 1px 1px 0 var(--panel-border-light);
+    border-radius: 0;
+    box-shadow: none;
 }
 
 .debug-graph-label,
@@ -310,7 +312,7 @@
     width: 100%;
     height: 120px;
     border: 2px solid var(--panel-border-dark);
-    border-radius: 4px;
+    border-radius: 0;
     background: #0b0b0b;
 }
 
@@ -391,22 +393,23 @@
    BOTTOM PANEL - Ornate Control Bar
    ============================================ */
 
+/* Positioning wrapper ONLY — the pxf wood frame on .menu-inner is the bar's
+   one and only background (the old --panel-bg plate under it read as a
+   doubled panel). */
 .build-menu {
-    background: var(--panel-bg);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
+    background: none;
+    border: 0;
     pointer-events: auto;
     align-self: center;
-    padding: 8px 10px;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
+    padding: 0;
+    box-shadow: none;
 }
 
 .menu-inner {
     display: flex;
     gap: 20px;
     align-items: stretch;
+    padding: 8px 10px;
 }
 
 .menu-section {
@@ -441,38 +444,36 @@
    BUTTONS - Hard Corners Pixel Style
    ============================================ */
 
+/* The DEFAULT button is a pxf frame: any button without bespoke chrome falls
+   back to the kit instead of the old smooth grey bevel. Buttons that set
+   their own `border:` shorthand (legacy card faces) reset the border-image
+   and keep their look until they are converted. States are motion/filter
+   only — no backgrounds — so buttons layering their own face keep it. */
 button {
-    background: #4A4A4A;
-    border: 3px solid #6A6A6A;
-    border-radius: 6px;
-    color: white;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    color: var(--text-primary);
     padding: 8px 12px;
     cursor: pointer;
     font-family: var(--ui-font);
     font-size: 8px;
-    box-shadow:
-        3px 3px 0 #2A2A2A,
-        inset 2px 2px 0 #7A7A7A;
+    box-shadow: none;
+    image-rendering: pixelated;
     text-shadow: 1px 1px 0 #000;
     transition: none;
     position: relative;
     text-transform: uppercase;
 }
 
-button:hover {
-    background: #5A5A5A;
-    box-shadow:
-        2px 2px 0 #2A2A2A,
-        inset 1px 1px 0 #8A8A8A;
-    transform: translate(1px, 1px);
+button:hover:not(:disabled) {
+    filter: brightness(1.15);
 }
 
-button:active {
-    background: #3A3A3A;
-    box-shadow:
-        1px 1px 0 #2A2A2A,
-        inset 1px 1px 0 #5A5A5A;
-    transform: translate(2px, 2px);
+button:active:not(:disabled) {
+    transform: translateY(var(--px));
 }
 
 button:disabled {
@@ -761,13 +762,6 @@ button:disabled {
     gap: 3px;
 }
 
-.core-troop-header strong {
-    color: #fff1cc;
-    font-size: 10px;
-    line-height: 1.2;
-    text-shadow: 1px 1px 0 #000;
-}
-
 .core-troop-access {
     flex: 0 0 auto;
     padding: 0;
@@ -862,9 +856,25 @@ button:disabled {
     box-shadow: 2px 2px 0 #000;
 }
 
-.troop-faction-level.offline {
-    background: #746e64;
-    color: #ded7c9;
+.faction-lock-popup {
+    position: fixed;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    z-index: 10000;
+    color: #ff5a4d;
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+    text-shadow: 1px 1px 0 #000;
+    white-space: nowrap;
+    animation: faction-lock-popup-fade 1.1s ease-out forwards;
+}
+
+@keyframes faction-lock-popup-fade {
+    0% { opacity: 0; margin-top: 4px; }
+    12% { opacity: 1; margin-top: 0; }
+    70% { opacity: 1; margin-top: -6px; }
+    100% { opacity: 0; margin-top: -12px; }
 }
 
 .troop-tech-lane {
@@ -897,32 +907,30 @@ button:disabled {
     color: var(--text-primary);
     text-align: left;
     cursor: pointer;
-    background: var(--card-surface);
-    border: 2px solid var(--card-edge);
-    box-shadow:
-        2px 2px 0 #0b0805,
-        inset 1px 1px 0 var(--card-edge-light),
-        inset -1px -1px 0 var(--card-edge-dark);
+    /* pxf chamfer chrome (the .pxf-close corner treatment — owner's gold
+       standard): frame owns edge + surface; faction tint via the frame
+       variants pixelKit generates (--pxf-mystic / --pxf-mechanica). */
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
 }
 
 .faction-mystic .faction-troop-card {
-    --card-edge: #75558a;
-    --card-edge-light: #a27bb8;
-    --card-edge-dark: #2c2034;
-    --card-surface: rgba(29, 23, 33, 0.98);
+    border-image-source: var(--pxf-mystic);
 }
 
 .faction-mechanica .faction-troop-card {
-    --card-edge: #96612f;
-    --card-edge-light: #c18745;
-    --card-edge-dark: #34200f;
-    --card-surface: rgba(37, 28, 19, 0.98);
+    border-image-source: var(--pxf-mechanica);
 }
 
 .faction-troop-card:hover:not(.locked):not(.disabled) {
-    border-color: var(--faction-accent);
+    border-image-source: var(--pxf-gold);
     filter: brightness(1.12);
-    transform: translate(1px, 1px);
+    transform: none;
 }
 
 .faction-troop-card.locked {
@@ -940,12 +948,8 @@ button:disabled {
 }
 
 .faction-troop-card.flagship {
-    border-color: color-mix(in srgb, var(--faction-accent) 70%, #ffd76a);
-    box-shadow:
-        2px 2px 0 #0b0805,
-        inset 1px 1px 0 var(--card-edge-light),
-        inset -1px -1px 0 var(--card-edge-dark),
-        inset 0 0 0 2px rgba(255, 215, 96, 0.12);
+    border-image-source: var(--pxf-gold);
+    box-shadow: none;
 }
 
 .faction-troop-icon {
@@ -1098,9 +1102,11 @@ button:disabled {
 }
 
 .troop-grid-item {
-    background: var(--panel-accent);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
     padding: 12px;
     display: flex;
     flex-direction: column;
@@ -1108,43 +1114,24 @@ button:disabled {
     gap: 8px;
     cursor: pointer;
     position: relative;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
+    box-shadow: none;
+    image-rendering: pixelated;
 }
 
 .troop-grid-item:hover:not(.disabled) {
-    border-color: var(--fantasy-gold);
-    box-shadow:
-        2px 2px 0 var(--panel-border-dark),
-        inset 1px 1px 0 var(--fantasy-gold),
-        0 0 8px rgba(255, 215, 0, 0.4);
-    transform: translate(1px, 1px);
+    border-image-source: var(--pxf-gold);
+    filter: brightness(1.12);
+    transform: none;
 }
 
+/* Troop-card hover sheet: layout only — ALL tooltip chrome (frame, ink,
+   tail, offset) is the shared .pxf-tooltip in the PIXEL RESKIN section. */
 .troop-tooltip {
-    background: rgba(15, 10, 5, 0.95);
-    border: 2px solid var(--fantasy-gold);
-    border-radius: 6px;
-    padding: 8px 10px;
     width: 190px;
-    pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-}
-
-.troop-tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: var(--fantasy-gold);
 }
 
 .tooltip-flavor {
     font-size: 10px;
-    color: #ccc;
     line-height: 1.3;
     margin-bottom: 6px;
     font-style: italic;
@@ -1154,9 +1141,7 @@ button:disabled {
     display: flex;
     gap: 8px;
     font-size: 10px;
-    color: var(--fantasy-gold);
     font-weight: 700;
-    border-top: 1px solid rgba(255,215,0,0.2);
     padding-top: 4px;
 }
 
@@ -1180,10 +1165,9 @@ button:disabled {
 }
 
 .troop-grid-item:active:not(.disabled) {
-    box-shadow:
-        1px 1px 0 var(--panel-border-dark),
-        inset 1px 1px 0 var(--panel-border-light);
-    transform: translate(2px, 2px);
+    border-image-source: var(--pxf-btn-down);
+    box-shadow: none;
+    transform: translateY(var(--px));
 }
 
 .troop-grid-item .count-badge {
@@ -1195,7 +1179,7 @@ button:disabled {
     font-size: 8px;
     padding: 4px 8px;
     border: 2px solid #000;
-    border-radius: 4px;
+    border-radius: 0;
     box-shadow: 2px 2px 0 #000;
     z-index: 2;
 }
@@ -1210,7 +1194,7 @@ button:disabled {
     font-weight: 900;
     padding: 3px 6px;
     border: 2px solid var(--fantasy-gold);
-    border-radius: 4px;
+    border-radius: 0;
     box-shadow: 2px 2px 0 #000;
     z-index: 2;
     text-shadow: 0 1px 1px rgba(0,0,0,0.8);
@@ -1219,7 +1203,7 @@ button:disabled {
 .troop-grid-item .cost-badge {
     background: rgba(0, 0, 0, 0.7);
     border: 2px solid var(--panel-border-dark);
-    border-radius: 4px;
+    border-radius: 0;
     padding: 6px 9px;
     font-size: 11px;
     color: var(--fantasy-gold);
@@ -1243,13 +1227,11 @@ button:disabled {
 
 
 
+/* Chrome (pxf inset frame) lives in the PIXEL RESKIN section. */
 .army-queue {
     display: flex;
     gap: 8px;
-    background: rgba(0, 0, 0, 0.5);
     padding: 12px;
-    border: 3px solid var(--panel-border-dark);
-    border-radius: 6px;
     margin-bottom: 16px;
     min-height: 80px;
     overflow-x: auto;
@@ -1270,14 +1252,12 @@ button:disabled {
     display: block;
 }
 
+/* Chrome (pxf frame) lives in the PIXEL RESKIN section. */
 .queue-item {
     position: relative;
     flex-shrink: 0;
-    width: 60px;
-    height: 60px;
-    background: var(--panel-accent);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1294,13 +1274,19 @@ button:disabled {
     line-height: 1;
 }
 
+/* Untrain X: px-knob treatment (hard outline + hard-stop rows) — the pxf
+   frame is unreadable at 20px, so the chip borrows the toggle-knob look. */
 .queue-item .remove-btn {
     position: absolute;
     top: -8px;
     left: -8px;
-    background: #000;
-    color: #fff;
-    border: 2px solid #555;
+    color: #ffd9d2;
+    border: var(--px) solid #1c1410;
+    border-radius: 0;
+    background: linear-gradient(to bottom,
+            #8f3a2c 0 30%,
+            #5a1d15 30% 76%,
+            #3a1511 76% 100%);
     width: 20px;
     height: 20px;
     display: flex;
@@ -1308,12 +1294,13 @@ button:disabled {
     justify-content: center;
     padding: 0;
     font-size: 12px;
+    line-height: 1;
     cursor: pointer;
     z-index: 10;
 }
 
 .queue-item .remove-btn:hover {
-    background: #333;
+    filter: brightness(1.2);
 }
 
 /* ============================================
@@ -1719,7 +1706,8 @@ button:disabled {
     align-items: center;
 }
 
-/* Compact header buttons for training modal */
+/* Compact header buttons for training modal — pxf-btn family (the frame
+   carries the state: wood = practice, danger = find-match). */
 .header-btn {
     display: flex;
     align-items: center;
@@ -1729,14 +1717,15 @@ button:disabled {
     height: 36px;
     font-size: 8px;
     font-family: var(--ui-font);
-    color: white;
-    border: 3px solid #6A6A6A;
-    border-radius: 6px;
-    background: #4A4A4A;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
     cursor: pointer;
-    box-shadow:
-        2px 2px 0 #2A2A2A,
-        inset 1px 1px 0 #7A7A7A;
+    box-shadow: none;
+    image-rendering: pixelated;
     white-space: nowrap;
 }
 
@@ -1764,34 +1753,33 @@ button:disabled {
 }
 
 .header-btn:hover:not(:disabled) {
-    box-shadow:
-        1px 1px 0 #2A2A2A,
-        inset 1px 1px 0 #8A8A8A;
-    transform: translate(1px, 1px);
+    box-shadow: none;
+    transform: none;
+    filter: brightness(1.15);
+}
+
+.header-btn:active:not(:disabled) {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
 }
 
 .header-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     filter: grayscale(1);
+    transform: none;
 }
 
-.header-btn.practice {
-    background: #4169E1;
-    border-color: #5A9BD5;
-}
-
-.header-btn.practice:hover:not(:disabled) {
-    background: #5A9BD5;
-}
-
+/* Practice keeps the plain wood frame; Find Match is the aggressive act and
+   wears the danger frame (the scout-attack / plot-attack convention). */
 .header-btn.find-match {
-    background: #8B0000;
-    border-color: #B22222;
+    border-image-source: var(--pxf-danger);
+    color: #ffb3a7;
 }
 
-.header-btn.find-match:hover:not(:disabled) {
-    background: #B22222;
+.header-btn.find-match:active:not(:disabled) {
+    border-image-source: var(--pxf-danger);
 }
 
 /* (.header-btn.close removed — every modal close is .pxf-close) */
@@ -1968,16 +1956,9 @@ body.is-touch {
 }
 
 /* Mobile Build Menu - bottom action bar */
-.hud.mobile .build-menu {
-    padding: 10px 16px;
-    border-width: 3px;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
-}
-
 .hud.mobile .menu-inner {
     gap: 12px;
+    padding: 10px 16px;
 }
 
 .hud.mobile .action-btn {
@@ -2070,39 +2051,37 @@ body.is-touch {
     text-shadow: 1px 1px 0 #000;
 }
 
-/* Mobile floating action buttons - square, positioned left/right */
+/* Mobile floating action buttons - pxf frames, positioned left/right */
 .mobile-action-btn {
     position: fixed;
     top: 50%;
     transform: translateY(-50%);
     width: 48px;
     height: 48px;
-    background: var(--panel-bg);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 20px;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
+    box-shadow: none;
+    image-rendering: pixelated;
     cursor: pointer;
     pointer-events: auto;
     z-index: 100;
 }
 
 .mobile-action-btn:active {
-    transform: translateY(-50%) translate(2px, 2px);
-    box-shadow:
-        1px 1px 0 var(--panel-border-dark),
-        inset 1px 1px 0 var(--panel-border-light);
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(-50%) translateY(var(--px));
+    box-shadow: none;
 }
 
 .mobile-action-btn.home-btn {
     left: 12px;
-    background: #4A4A4A;
-    border-color: #6A6A6A;
     transition: top 0.3s ease, left 0.3s ease, right 0.3s ease, transform 0.3s ease;
 }
 
@@ -2115,13 +2094,11 @@ body.is-touch {
 }
 
 .mobile-action-btn.home-btn.battle-active:active {
-    transform: translate(2px, 2px);
+    transform: translateY(var(--px));
 }
 
 .mobile-action-btn.next-btn {
     right: 12px;
-    background: var(--panel-accent);
-    border-color: var(--panel-border);
 }
 
 /* Mobile Battle Stats */
@@ -2353,7 +2330,7 @@ body.is-touch {
 
 /* Landscape mobile */
 @media (max-height: 500px) and (orientation: landscape) {
-    .hud.mobile .build-menu {
+    .hud.mobile .menu-inner {
         padding: 6px 12px;
     }
 
@@ -2536,9 +2513,8 @@ body.is-touch {
     color: #666;
 }
 
+/* Chrome (pxf danger frame) lives in the PIXEL RESKIN section. */
 .notification-item.live-attack {
-    border: 2px solid #ff6868;
-    background: rgba(139, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -2551,14 +2527,11 @@ body.is-touch {
     animation: replay-pulse 1.5s ease-in-out infinite;
 }
 
+/* Chrome (pxf gold frame) lives in the PIXEL RESKIN section. */
 .watch-live-btn {
-    background: linear-gradient(180deg, #ff7c4e 0%, #cc4a1d 100%);
-    border: 2px solid #ff9a6f;
-    color: #fff;
     font-family: var(--ui-font);
     font-size: 7px;
     padding: 7px 8px;
-    border-radius: 4px;
     cursor: pointer;
     width: 100%;
     text-align: center;
@@ -2586,15 +2559,13 @@ body.is-touch {
     z-index: 99;
 }
 
+/* THE incoming-attack surface (one event, one surface — see App.tsx).
+   Layout only; the pxf danger frame lives in the PIXEL RESKIN section. */
 .incoming-attack-popup {
     position: fixed;
     right: 20px;
     top: 78px;
     width: min(320px, calc(100vw - 24px));
-    background: rgba(12, 14, 22, 0.96);
-    border: 3px solid #ff6868;
-    border-radius: 8px;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
     padding: 12px;
     z-index: 130;
     animation: incoming-attack-pop 250ms ease-out;
@@ -2606,11 +2577,30 @@ body.is-touch {
     margin-bottom: 8px;
 }
 
-.incoming-attack-popup .body {
-    color: var(--text-primary);
-    font-size: 8px;
-    line-height: 1.5;
+.incoming-attack-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-bottom: 10px;
+}
+
+.incoming-attack-meta .incoming-attack-name {
+    color: var(--text-primary);
+    font-size: 9px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* PLAYER/BOT chip: px-knob treatment (hard outline, flat face), no frame. */
+.incoming-attack-meta .incoming-attack-tag {
+    flex: 0 0 auto;
+    font-size: 6px;
+    letter-spacing: 1px;
+    color: #ffd9d2;
+    border: var(--px) solid #1c1410;
+    background: #5a1d15;
+    padding: 3px 5px;
 }
 
 .incoming-attack-actions {
@@ -2620,24 +2610,17 @@ body.is-touch {
 
 .incoming-attack-actions .watch-btn {
     flex: 1;
-    background: linear-gradient(180deg, #ff7c4e 0%, #cc4a1d 100%);
-    border: 2px solid #ff9a6f;
-    color: #fff;
     font-family: var(--ui-font);
     font-size: 8px;
     padding: 9px;
-    border-radius: 4px;
     cursor: pointer;
 }
 
 .incoming-attack-actions .dismiss-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 2px solid rgba(255, 255, 255, 0.25);
     color: var(--text-secondary);
     font-family: var(--ui-font);
     font-size: 8px;
     padding: 9px 10px;
-    border-radius: 4px;
     cursor: pointer;
 }
 
@@ -2647,25 +2630,20 @@ body.is-touch {
 
 .incoming-attack-actions .dismiss-btn:hover {
     color: #fff;
-    border-color: rgba(255, 255, 255, 0.5);
 }
 
+/* THE replay/spectate status surface (who vs who + LIVE + progress + exit)
+   — one card, no stacked overlays. Chrome is pxf (PIXEL RESKIN section). */
 .replay-status-overlay {
     position: fixed;
     left: 50%;
     top: 14px;
     transform: translateX(-50%);
     z-index: 120;
-    background: var(--panel-bg);
-    border: 3px solid var(--panel-border);
-    border-radius: 6px;
     padding: 8px 12px;
     display: flex;
     align-items: center;
     gap: 10px;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 1px 1px 0 var(--panel-border-light);
     font-family: var(--ui-font);
     animation: incoming-attack-pop 250ms ease-out;
 }
@@ -2674,9 +2652,6 @@ body.is-touch {
     display: flex;
     align-items: center;
     gap: 4px;
-    background: var(--panel-accent);
-    border: 2px solid var(--panel-border);
-    border-radius: 4px;
     padding: 4px 6px;
 }
 
@@ -2710,23 +2685,22 @@ body.is-touch {
     text-shadow: var(--text-shadow);
 }
 
+/* Chrome (pxf danger frame) lives in the PIXEL RESKIN section. */
 .replay-exit-btn {
-    background: linear-gradient(180deg, #8B0000 0%, #5a0000 100%);
-    border: 2px solid #aa3333;
-    border-radius: 4px;
-    color: var(--text-primary);
     font-family: var(--ui-font);
     font-size: 7px;
     padding: 6px 10px;
     cursor: pointer;
-    box-shadow: 2px 2px 0 var(--panel-border-dark);
     text-shadow: var(--text-shadow);
     letter-spacing: 1px;
 }
 
-.replay-exit-btn:hover {
-    background: linear-gradient(180deg, #aa1111 0%, #6a0000 100%);
-    border-color: #cc4444;
+/* Destruction % inside the ONE status surface (replaces the separate
+   battle-stats HUD row that used to stack on top during replays). */
+.replay-destruction {
+    color: var(--fantasy-gold);
+    font-size: 9px;
+    letter-spacing: 1px;
 }
 
 @keyframes replay-pulse {
@@ -2943,22 +2917,40 @@ body.is-touch {
     color: var(--text-secondary);
 }
 
+/* The row's spy-glass: the same 32px pxf mini-button geometry as .pxf-close,
+   with the eye at its native 15x7 texels so it stays crisp on the face. */
 .leaderboard-item .scout-btn {
-    background: var(--fantasy-blue);
-    border: 2px solid #1e3f9a;
-    color: #fff;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    color: var(--text-primary);
     padding: 0;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 2px 2px 0 #000;
+    box-shadow: none;
+    image-rendering: pixelated;
+}
+
+.leaderboard-item .scout-btn .eye-icon::before {
+    width: 15px;
+    height: 7px;
 }
 
 .leaderboard-item .scout-btn:hover {
-    background: #3458c8;
+    background: none;
+    filter: brightness(1.15);
+}
+
+.leaderboard-item .scout-btn:active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
 }
 
 .leaderboard-item .you-badge {
@@ -3365,21 +3357,26 @@ body.is-touch {
 
 .bshop-section-rule {
     flex: 1;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--panel-border), transparent);
+    height: var(--px);
+    background: var(--panel-border);
+    image-rendering: pixelated;
 }
 
 .bshop-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
     gap: 7px;
 }
 
+/* The shop card IS the buy button: one pxf-btn frame (the .pxf-close family),
+   brightness hover, pressed-frame active, dimmed when unaffordable/maxed. */
 .bshop-card {
-    background: var(--panel-accent);
-    border: 3px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 5px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    padding: 4px 5px;
     display: grid;
     grid-template-columns: 54px minmax(0, 1fr);
     grid-template-rows: 54px 20px;
@@ -3389,15 +3386,20 @@ body.is-touch {
     gap: 4px 6px;
     cursor: pointer;
     position: relative;
-    box-shadow:
-        3px 3px 0 var(--panel-border-dark),
-        inset 2px 2px 0 var(--panel-border-light);
-    transition: transform 80ms ease-out;
+    box-shadow: none;
+    image-rendering: pixelated;
+    transition: none;
 }
 
 .bshop-card:hover:not(.disabled) {
-    border-color: var(--fantasy-gold);
-    transform: translateY(-2px);
+    filter: brightness(1.12);
+    transform: none;
+}
+
+.bshop-card:active:not(.disabled) {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
 }
 
 .bshop-card.disabled {
@@ -3406,25 +3408,20 @@ body.is-touch {
     filter: saturate(0.4);
 }
 
+/* The icon well: flat near-black face in a hard seam-tone ring — a pixel
+   well, not a rounded gradient vignette. */
 .bshop-thumb {
     grid-area: thumb;
     position: relative;
     background: #17110c;
-    border: 2px solid var(--panel-border-dark);
-    border-radius: 6px;
+    border: var(--px) solid #14100c;
+    border-radius: 0;
     height: 54px;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
-}
-
-.bshop-thumb::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at 50% 30%, rgba(255, 214, 130, 0.10), transparent 65%);
-    pointer-events: none;
+    box-sizing: border-box;
 }
 
 .bshop-building-icon {
@@ -3454,7 +3451,7 @@ body.is-touch {
     right: 2px;
     background: rgba(0, 0, 0, 0.75);
     border: 1px solid var(--panel-border);
-    border-radius: 2px;
+    border-radius: 0;
     color: #ddd;
     font-size: 6px;
     padding: 1px 3px;
@@ -3514,11 +3511,12 @@ body.is-touch {
     justify-content: center;
     gap: 3px;
     background: rgba(0, 0, 0, 0.55);
-    border: 2px solid var(--panel-border-dark);
-    border-radius: 3px;
+    border: var(--px) solid var(--panel-border-dark);
+    border-radius: 0;
     padding: 2px 4px;
     color: #ffd700;
     font-size: 8px;
+    box-sizing: border-box;
 }
 
 .bshop-cost .icon {
@@ -3600,24 +3598,29 @@ body.is-touch {
     overflow-y: auto;
 }
 
+/* Track rows are pxf-btn frames; the playing row wears the gold frame (no
+   glow, no off-palette purple — the frame carries the state). */
 .jukebox-track {
     display: flex;
     align-items: center;
     gap: 10px;
-    background: var(--panel-accent);
-    border: 2px solid var(--panel-border);
-    border-radius: 6px;
-    padding: 8px 12px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    padding: 4px 8px;
     cursor: pointer;
+    image-rendering: pixelated;
 }
 
 .jukebox-track:hover:not(.locked) {
-    border-color: var(--fantasy-gold);
+    filter: brightness(1.12);
 }
 
 .jukebox-track.playing {
-    border-color: #c98aff;
-    box-shadow: inset 0 0 12px rgba(201, 138, 255, 0.25);
+    border-image-source: var(--pxf-gold);
+    box-shadow: none;
 }
 
 .jukebox-track.locked {
@@ -3631,9 +3634,66 @@ body.is-touch {
 
 .jukebox-note {
     font-size: 16px;
-    color: #d8a8ff;
+    color: var(--text-secondary);
     width: 20px;
     text-align: center;
+}
+
+/* Native range inputs join the kit: pxf-bar track, hard-stop gold knob (the
+   px-toggle recipe) — no browser chrome. */
+.jukebox-track input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: calc(var(--px) * 11);
+    margin: var(--px) 0 0;
+    padding: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.jukebox-track input[type="range"]::-webkit-slider-runnable-track {
+    height: calc(var(--px) * 9);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 fill / calc(var(--px) * 3) stretch;
+    border-radius: 0;
+    image-rendering: pixelated;
+}
+
+.jukebox-track input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: calc(var(--px) * 7);
+    height: calc(var(--px) * 7);
+    margin-top: calc(var(--px) * -2);
+    border: var(--px) solid #1c1410;
+    border-radius: 0;
+    background: linear-gradient(to bottom,
+            #f7dc6f 0 30%,
+            #f39c12 30% 76%,
+            #a86a0c 76% 100%);
+}
+
+.jukebox-track input[type="range"]::-moz-range-track {
+    height: calc(var(--px) * 9);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 fill / calc(var(--px) * 3) stretch;
+    border-radius: 0;
+}
+
+.jukebox-track input[type="range"]::-moz-range-thumb {
+    width: calc(var(--px) * 5);
+    height: calc(var(--px) * 5);
+    border: var(--px) solid #1c1410;
+    border-radius: 0;
+    background: linear-gradient(to bottom,
+            #f7dc6f 0 30%,
+            #f39c12 30% 76%,
+            #a86a0c 76% 100%);
 }
 
 .jukebox-info {
@@ -3654,7 +3714,7 @@ body.is-touch {
     letter-spacing: 1px;
     margin-left: 8px;
     border: 1px solid #8a6a1e;
-    border-radius: 3px;
+    border-radius: 0;
     padding: 1px 4px;
 }
 
@@ -3664,7 +3724,7 @@ body.is-touch {
 }
 
 .jukebox-playing {
-    color: #c98aff;
+    color: var(--ui-gold);
     font-size: 8px;
     letter-spacing: 2px;
     animation: popWarnPulse 1.8s ease-in-out infinite;
@@ -3685,6 +3745,12 @@ body.is-touch {
 /* --- village banner picker (town hall) --- */
 .banner-modal {
     max-width: 480px;
+}
+
+/* Required heraldry sits above ordinary game panels but below the cloud and
+   authentication transitions, which remain the app's outermost gates. */
+.banner-required-overlay {
+    z-index: 2147482900;
 }
 
 .banner-body {
@@ -3715,6 +3781,40 @@ body.is-touch {
     line-height: 1.7;
     color: #a89a86;
     flex: 1;
+}
+
+.banner-required-note {
+    padding: 8px 10px;
+    border: 2px solid #80652f;
+    background: rgba(105, 75, 24, 0.22);
+    color: #e8cf92;
+    font-size: 8px;
+    line-height: 1.6;
+    text-align: center;
+}
+
+.banner-empty-preview {
+    box-sizing: border-box;
+    width: 192px;
+    height: 132px;
+    flex: 0 0 192px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 2px dashed #675c4d;
+    background: rgba(8, 7, 6, 0.45);
+    color: #8f8373;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-shadow: 1px 1px 0 #000;
+}
+
+.banner-empty-preview small {
+    color: #756b5e;
+    font-size: 6px;
+    letter-spacing: 1px;
 }
 
 .banner-section-label {
@@ -3777,8 +3877,7 @@ body.is-touch {
     margin-top: 6px;
 }
 
-.banner-save-btn,
-.banner-reset-btn {
+.banner-save-btn {
     flex: 1;
     padding: 10px 8px;
     font-family: var(--ui-font);
@@ -3798,18 +3897,15 @@ body.is-touch {
     color: var(--fantasy-gold);
 }
 
-.banner-save-btn:hover:not(:disabled),
-.banner-reset-btn:hover:not(:disabled) {
+.banner-save-btn:hover:not(:disabled) {
     filter: brightness(1.15);
 }
 
-.banner-save-btn:active:not(:disabled),
-.banner-reset-btn:active:not(:disabled) {
+.banner-save-btn:active:not(:disabled) {
     border-image-source: var(--pxf-btn-down);
 }
 
-.banner-save-btn:disabled,
-.banner-reset-btn:disabled {
+.banner-save-btn:disabled {
     cursor: not-allowed;
     opacity: 0.55;
     filter: grayscale(0.4);
@@ -3866,20 +3962,25 @@ body.is-touch {
     padding: 12px 14px 14px 14px;
 }
 
+/* Offer rows are pxf-panel cards; the bargain row wears the gold frame (no
+   inset glow — the frame is the state, .pxf-close family geometry). */
 .merchant-offer {
     position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
-    background: var(--panel-accent);
-    border: 2px solid var(--panel-border);
-    border-radius: 6px;
-    padding: 10px 12px;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    padding: 6px 8px;
+    image-rendering: pixelated;
 }
 
 .merchant-offer.bargain {
-    border-color: var(--fantasy-gold);
-    box-shadow: inset 0 0 14px rgba(255, 216, 74, 0.12);
+    border-image-source: var(--pxf-gold);
+    box-shadow: none;
 }
 
 .merchant-offer.done {
@@ -3889,13 +3990,14 @@ body.is-touch {
 
 .merchant-bargain-tag {
     position: absolute;
-    top: -8px;
+    top: -10px;
     left: 10px;
     background: var(--fantasy-gold);
     color: #2a1c08;
     font-size: 7px;
     letter-spacing: 1px;
-    border-radius: 3px;
+    border: var(--px) solid #1c1410;
+    border-radius: 0;
     padding: 2px 5px;
 }
 
@@ -3930,30 +4032,44 @@ body.is-touch {
     font-size: 11px;
 }
 
+/* TRADE is the gold-frame CTA (banner-save convention): pxf gold frame,
+   brightness hover, pressed frame + drop on click, wood-dim when the buyer
+   is short or the deal is done. */
 .merchant-trade-btn {
-    background: var(--fantasy-gold);
-    color: #2a1c08;
-    border: 2px solid var(--fantasy-gold-dark);
-    border-radius: 5px;
-    font-family: inherit;
+    background: none;
+    color: var(--fantasy-gold);
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    font-family: var(--ui-font);
     font-size: 8px;
     letter-spacing: 1px;
-    padding: 7px 10px;
+    padding: 5px 8px;
     cursor: pointer;
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+    box-shadow: none;
+    image-rendering: pixelated;
     white-space: nowrap;
 }
 
 .merchant-trade-btn:hover:not(:disabled) {
-    filter: brightness(1.1);
+    filter: brightness(1.15);
+}
+
+.merchant-trade-btn:active:not(:disabled) {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
 }
 
 .merchant-trade-btn:disabled {
     cursor: not-allowed;
-    background: #4a4036;
+    border-image-source: var(--pxf-btn);
     color: #8a7a66;
-    border-color: #2e2820;
+    opacity: 0.7;
+    filter: saturate(0.4);
     box-shadow: none;
+    transform: none;
 }
 
 .merchant-footnote {
@@ -3991,33 +4107,12 @@ body.is-touch {
     border-bottom: 2px solid #3a4630;
 }
 
+/* Layout only — the chrome (frame, states, danger attack variant) is the
+   pxf .plot-bubble .plot-action family in the PIXEL RESKIN block. */
 .plot-action {
-    background: #2e3c26;
-    border: 2px solid #8a9a6a;
-    color: #f0e8d0;
-    font-family: inherit;
     font-size: 10px;
-    padding: 10px 12px;
     cursor: pointer;
-    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
     text-align: center;
-}
-
-.plot-action:hover {
-    background: #3a4c30;
-    border-color: #daa520;
-    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35);
-    transform: none;
-}
-
-.plot-action:active {
-    background: #26301f;
-    transform: translate(0, 2px);
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
-}
-
-.plot-action.attack {
-    border-color: #b86a4a;
 }
 
 /* World-map nameplates are gone: a neighbour's name shows in the tap
@@ -4223,6 +4318,70 @@ body.is-touch {
     background-image: var(--pxf-tail-danger);
 }
 
+/* Pixel scrollbars: every modal scroll area drops the native chrome for a
+   flat seam-tone gutter and a hard-edged wood thumb (no radius, no blur —
+   the scrollbar equivalent of the pxf frame). Firefox gets the thin
+   two-colour fallback. */
+.modal-body,
+.account-modal,
+.leaderboard-list,
+.theatre-list,
+.atlas-chart-wrap,
+.bshop-body {
+    scrollbar-width: thin;
+    scrollbar-color: #4a3524 #14100c;
+}
+
+.modal-body::-webkit-scrollbar,
+.account-modal::-webkit-scrollbar,
+.leaderboard-list::-webkit-scrollbar,
+.theatre-list::-webkit-scrollbar,
+.atlas-chart-wrap::-webkit-scrollbar,
+.bshop-body::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.modal-body::-webkit-scrollbar-track,
+.account-modal::-webkit-scrollbar-track,
+.leaderboard-list::-webkit-scrollbar-track,
+.theatre-list::-webkit-scrollbar-track,
+.atlas-chart-wrap::-webkit-scrollbar-track,
+.bshop-body::-webkit-scrollbar-track {
+    background: #14100c;
+    border-radius: 0;
+}
+
+.modal-body::-webkit-scrollbar-thumb,
+.account-modal::-webkit-scrollbar-thumb,
+.leaderboard-list::-webkit-scrollbar-thumb,
+.theatre-list::-webkit-scrollbar-thumb,
+.atlas-chart-wrap::-webkit-scrollbar-thumb,
+.bshop-body::-webkit-scrollbar-thumb {
+    background: #4a3524;
+    border: 2px solid #14100c;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover,
+.account-modal::-webkit-scrollbar-thumb:hover,
+.leaderboard-list::-webkit-scrollbar-thumb:hover,
+.theatre-list::-webkit-scrollbar-thumb:hover,
+.atlas-chart-wrap::-webkit-scrollbar-thumb:hover,
+.bshop-body::-webkit-scrollbar-thumb:hover {
+    background: #8b6f47;
+}
+
+.modal-body::-webkit-scrollbar-corner,
+.account-modal::-webkit-scrollbar-corner,
+.leaderboard-list::-webkit-scrollbar-corner,
+.theatre-list::-webkit-scrollbar-corner,
+.atlas-chart-wrap::-webkit-scrollbar-corner,
+.bshop-body::-webkit-scrollbar-corner {
+    background: #14100c;
+}
+
 /* Flipped bubble (useWorldAnchor sets .below when there's no sky above the
    subject): the tail exits the TOP edge instead, mirrored to point up. */
 .building-bubble.below .px-tail,
@@ -4346,6 +4505,24 @@ body.is-touch {
     box-shadow: none;
 }
 
+/* The bar authors at 1x pixel-art scale, which reads tiny on big desktop
+   monitors. Scale the whole bar (HOME actions and the raid troop selector
+   alike) up from its bottom edge — a transform keeps the pxf frames on the
+   same art, just larger, and pointer hit-testing follows it. */
+@media (min-width: 1800px) and (min-height: 900px) {
+    .hud:not(.mobile) .build-menu {
+        transform: scale(1.35);
+        transform-origin: bottom center;
+    }
+}
+
+@media (min-width: 2400px) and (min-height: 1200px) {
+    .hud:not(.mobile) .build-menu {
+        transform: scale(1.7);
+        transform-origin: bottom center;
+    }
+}
+
 .action-btn {
     background: none;
     border-style: solid;
@@ -4449,18 +4626,118 @@ body.is-touch {
     box-shadow: none;
 }
 
-.bshop-card {
+/* (.bshop-card reskin lives with the BUILDING SHOP block: the base rule IS
+   the pxf frame now, with afford/hover/active/disabled states in one place.) */
+
+/* --- the RAID menu (Train Army) troop cards ---
+   Same chamfered pixel-corner family as .pxf-close: 4-cell frame on the
+   12px kit grid. Faction lanes swap the palette (--pxf-mystic /
+   --pxf-mechanica), flagships wear gold — geometry identical everywhere.
+   Buttons are border-box: height grows 58 -> 66 to keep the 30+14 grid
+   rows clear of the deeper frame. */
+.faction-troop-card {
+    height: 66px;
+    padding: 2px 3px;
     background: none;
     border-style: solid;
-    border-width: calc(var(--px) * 5);
-    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 5) stretch;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
     border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+}
+
+.faction-mystic .faction-troop-card {
+    border-image-source: var(--pxf-mystic);
+    background: none;
+}
+
+.faction-mechanica .faction-troop-card {
+    border-image-source: var(--pxf-mechanica);
+    background: none;
+}
+
+.faction-troop-card.flagship {
+    border-image-source: var(--pxf-gold);
     box-shadow: none;
 }
 
-.bshop-card:hover {
+/* States: pxf hover = brighten in place, active = pressed frame + drop.
+   Locked/disabled keep their desaturation filters from the base rules. */
+.faction-troop-card:hover:not(.locked):not(.disabled) {
+    border-color: transparent;
     filter: brightness(1.12);
     transform: none;
+}
+
+.faction-troop-card:active:not(.locked):not(.disabled) {
+    border-image-source: var(--pxf-btn-down);
+    transform: translateY(var(--px));
+    filter: none;
+}
+
+/* Army queue: inset pxf bar frame around the tray, pxf-btn frame per item. */
+.army-queue {
+    background: rgba(0, 0, 0, 0.45);
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-bar) 3 / calc(var(--px) * 3) stretch;
+    border-radius: 0;
+    image-rendering: pixelated;
+}
+
+.queue-item {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    image-rendering: pixelated;
+}
+
+/* --- THE tooltip: one pxf parchment sheet for every hover popup ---
+   (raid-menu troop cards AND the atlas chart — zero per-surface forks).
+   Anchor: position at the subject's top-center; the shared transform
+   floats the sheet above with the comic tail pointing back down at it
+   (same tail art as the speech bubbles, same 14px offset everywhere). */
+.pxf-tooltip {
+    position: fixed;
+    transform: translate(-50%, calc(-100% - 14px));
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-bubble) 5 fill / calc(var(--px) * 5) stretch;
+    border-radius: 0;
+    image-rendering: pixelated;
+    padding: calc(var(--px) * 2) calc(var(--px) * 3);
+    color: #241a11;
+    font-family: var(--ui-font);
+    box-shadow: none;
+    pointer-events: none;
+    z-index: 10000;
+}
+
+.pxf-tooltip::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: calc(100% + var(--px));
+    width: calc(var(--px) * 12);
+    height: calc(var(--px) * 9);
+    transform: translateX(-50%);
+    background: var(--pxf-tail) center / 100% 100% no-repeat;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+/* Parchment ink for the troop sheet innards. */
+.pxf-tooltip .tooltip-flavor {
+    color: #5c4a30;
+}
+
+.pxf-tooltip .tooltip-stats {
+    color: #6b5327;
+    border-top: var(--px) solid #b9a271;
 }
 
 /* --- incoming-attack banner: danger frame --- */
@@ -4785,10 +5062,32 @@ body.is-touch {
     font-size: 11px;
 }
 
-.atlas-title .atlas-count {
+.atlas-title .atlas-stats {
     margin-left: auto;
+    display: flex;
+    align-items: center;
     font-size: 8px;
     color: var(--text-secondary);
+}
+
+.atlas-title .atlas-stat {
+    white-space: nowrap;
+}
+
+.atlas-title .atlas-stat + .atlas-stat::before {
+    content: '·';
+    display: inline-block;
+    margin: 0 8px;
+    opacity: 0.6;
+}
+
+/* Layout only — the chrome is the shared .pxf-tooltip (PIXEL RESKIN). */
+.atlas-tooltip {
+    font-size: 9px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 /* (.plot-close removed — every modal close is .pxf-close) */
@@ -5094,6 +5393,58 @@ body.is-touch {
 }
 
 .incoming-attack-actions .dismiss-btn:hover {
+    filter: brightness(1.15);
+}
+
+/* Under-attack history in the bell: the LIVE row wears the danger frame,
+   its watch/replay/revenge chips the gold frame — the same family as the
+   one incoming-attack card, so history and surface read as one system. */
+.notification-item.live-attack {
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-danger) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    background: none;
+    image-rendering: pixelated;
+}
+
+.watch-live-btn {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    color: var(--ui-gold);
+}
+
+.watch-live-btn:hover {
+    filter: brightness(1.15);
+}
+
+/* Replay/spectate status chrome: the ONE surface's inner chip + exit
+   button join the kit (the shell already wears --pxf-panel above). */
+.replay-badge {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    image-rendering: pixelated;
+}
+
+.replay-exit-btn {
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-danger) 5 fill / calc(var(--px) * 4) stretch;
+    border-radius: 0;
+    box-shadow: none;
+    color: #ffb3a7;
+}
+
+.replay-exit-btn:hover {
+    background: none;
+    border-color: transparent;
     filter: brightness(1.15);
 }
 
