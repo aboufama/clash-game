@@ -1415,7 +1415,7 @@ export class WildernessRenderer {
      * can never survive behind a current empty-plot classification.
      * v7: plot corners round off like village lawns (junction-aware cuts).
      * v9: deadwood stubbed for its clean-room design round (delegator). */
-    static readonly RENDER_VERSION = 10;
+    static readonly RENDER_VERSION = 11;
 
     static renderRevision(plotX: number, plotY: number, seedVersion: unknown = 0): string {
         const version = normalizeWorldNatureSeedVersion(seedVersion);

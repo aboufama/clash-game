@@ -422,10 +422,16 @@ function fallenGiant(
     const capC = { x: pts[0].x, y: pts[0].y - rad0 * 0.36 };
     const capH = rad0 * 1.06;
     const capB = rad0 * 0.52;
-    // Inner edges are pushed trunk-ward per pass (mid deepest) so no two
-    // polygons share an exact vertical edge: an AA gap would otherwise show
-    // grass as a faint vertical line through the cap (owner-reported).
-    const capEdge = (from: number, to: number, tone: number, innerPush: number) => {
+    // The cap's shading bands CONTINUE the trunk strips exactly (band
+    // fractions derived from logBody's -0.42r / +0.12r strip boundaries and
+    // the -1.02r sheen line, re-expressed in cap space), the trunk sheen is
+    // carried onto the cap, and every inner handoff edge is jittered by an
+    // index hash (never the shared rng - layout stream must stay stable).
+    // Straight vertical seams at the butt were owner-reported twice: first as
+    // AA gaps showing grass, then as band/sheen value steps on a straight
+    // handoff line.
+    const capJit = (i: number) => (Math.sin(i * 12.9898 + 4.1414) * 43758.5453 % 1) * 3 - 1.5;
+    const capEdge = (from: number, to: number, tone: number, innerPush: number, alpha = 1) => {
         const poly: Pt[] = [];
         const steps = 8;
         for (let i = 0; i <= steps; i++) {
@@ -435,13 +441,17 @@ function fallenGiant(
         }
         for (let i = steps; i >= 0; i--) {
             const s = from + ((to - from) * i) / steps;
-            poly.push({ x: capC.x + ex * innerPush, y: capC.y + s * capH + ey * innerPush });
+            const push = innerPush + capJit(i + Math.round(from * 7));
+            poly.push({ x: capC.x + ex * push, y: capC.y + s * capH + ey * push });
         }
-        V.fillPolygon(g, poly, tone);
+        V.fillPolygon(g, poly, tone, alpha);
     };
+    // trunk strip boundaries in cap space: lit ends (-0.42r+0.36r)/1.06r,
+    // dark starts (+0.12r+0.36r)/1.06r, sheen ends (-1.02r+0.36r)/1.06r
     capEdge(-1, 1, BARK_MID, capB * 0.55);
-    capEdge(-1, -0.15, BARK_LIT, capB * 0.3);
-    capEdge(0.35, 1, BARK_DARK, capB * 0.3);
+    capEdge(-1, -0.057, BARK_LIT, capB * 0.3);
+    capEdge(0.453, 1, BARK_DARK, capB * 0.3);
+    capEdge(-1, -0.623, BARK_SILVER, capB * 0.25, 0.55);
 
     // (No moss saddle: the flat green quad sat so close to the grass tones
     // that the owner read it as a hole punched in the trunk at every zoom.
