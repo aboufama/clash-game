@@ -93,6 +93,35 @@ function componentIsClosedRectangle(component: ReadonlyArray<{ x: number; y: num
     && component.every(cell => cell.x === minX || cell.x === maxX || cell.y === minY || cell.y === maxY)
 }
 
+/** True when every cell on the component's bounding-box edge is walled. */
+function componentBBoxClosed(component: ReadonlyArray<{ x: number; y: number }>): boolean {
+  const minX = Math.min(...component.map(cell => cell.x))
+  const maxX = Math.max(...component.map(cell => cell.x))
+  const minY = Math.min(...component.map(cell => cell.y))
+  const maxY = Math.max(...component.map(cell => cell.y))
+  const set = new Set(component.map(cell => tileKey(cell.x, cell.y)))
+  for (let x = minX; x <= maxX; x += 1) {
+    if (!set.has(tileKey(x, minY)) || !set.has(tileKey(x, maxY))) return false
+  }
+  for (let y = minY; y <= maxY; y += 1) {
+    if (!set.has(tileKey(minX, y)) || !set.has(tileKey(maxX, y))) return false
+  }
+  return true
+}
+
+/** Concentric signature: one wall component strictly inside another's box. */
+function hasConcentricPair(components: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>): boolean {
+  const boxes = components.map(component => ({
+    minX: Math.min(...component.map(cell => cell.x)),
+    maxX: Math.max(...component.map(cell => cell.x)),
+    minY: Math.min(...component.map(cell => cell.y)),
+    maxY: Math.max(...component.map(cell => cell.y))
+  }))
+  return boxes.some((inner, innerIndex) => boxes.some((outer, outerIndex) => innerIndex !== outerIndex
+    && inner.minX > outer.minX && inner.maxX < outer.maxX
+    && inner.minY > outer.minY && inner.maxY < outer.maxY))
+}
+
 interface RegionScan {
   /** tile index -> region id; -1 for exterior, -2 for wall cells */
   regionOf: Int16Array
@@ -412,7 +441,14 @@ assert.ok(fingerprints.size >= 62, `insufficient layout diversity: ${fingerprint
 // Topology diversity: over a natural-difficulty sweep the roll space must
 // actually produce single keeps, multi-loop works, curtain/subdivided
 // complexes and multi-region compartmentalization — not one shape family.
-const shapeTallies = { singleKeep: 0, multiWork: 0, complexWork: 0, compartmentalized: 0 }
+const shapeTallies = {
+  singleKeep: 0,
+  multiWork: 0,
+  complexWork: 0,
+  compartmentalized: 0,
+  ward: 0,
+  concentric: 0
+}
 for (let seed = 300; seed < 500; seed += 1) {
   const world = generateProceduralVillage(seed)
   const walls = world.buildings.filter(building => building.type === 'wall')
@@ -423,11 +459,39 @@ for (let seed = 300; seed < 500; seed += 1) {
   if (rectangular.some(isRect => !isRect)) shapeTallies.complexWork += 1
   const scan = enclosedRegions(new Set(walls.map(wall => tileKey(wall.gridX, wall.gridY))))
   if (scan.regionCount >= 2) shapeTallies.compartmentalized += 1
+  const concentric = hasConcentricPair(components)
+  if (concentric) shapeTallies.concentric += 1
+  else if (scan.regionCount >= 3 && components.some(component => !componentBBoxClosed(component))) {
+    shapeTallies.ward += 1
+  }
 }
 assert.ok(shapeTallies.singleKeep >= 8, `single-keep bases too rare: ${shapeTallies.singleKeep}/200`)
 assert.ok(shapeTallies.multiWork >= 30, `multi-loop bases too rare: ${shapeTallies.multiWork}/200`)
 assert.ok(shapeTallies.complexWork >= 30, `curtain/subdivided complexes too rare: ${shapeTallies.complexWork}/200`)
 assert.ok(shapeTallies.compartmentalized >= 30, `compartmentalized bases too rare: ${shapeTallies.compartmentalized}/200`)
+assert.ok(shapeTallies.ward >= 40, `ward-closed circuits too rare: ${shapeTallies.ward}/200`)
+assert.ok(shapeTallies.concentric >= 2, `concentric enceintes too rare: ${shapeTallies.concentric}/200`)
+
+// The owner's format rule: MOST heavy bases close the circuit — curtains
+// walling off a baiting ward (1-2, 2-3, 3-1 or a double run), or a full
+// concentric enceinte around the keep.
+for (const difficulty of ['fortress', 'extreme'] as const) {
+  let closedFormat = 0
+  for (let seed = 600; seed < 700; seed += 1) {
+    const world = generateProceduralVillage(seed, { difficulty })
+    const walls = world.buildings.filter(building => building.type === 'wall')
+    const components = wallComponents(walls)
+    const scan = enclosedRegions(new Set(walls.map(wall => tileKey(wall.gridX, wall.gridY))))
+    const concentric = hasConcentricPair(components)
+    const ward = !concentric && scan.regionCount >= 3
+      && components.some(component => !componentBBoxClosed(component))
+    if (ward || concentric) closedFormat += 1
+  }
+  assert.ok(
+    closedFormat >= 55,
+    `${difficulty}: only ${closedFormat}/100 heavy bases close a ward or concentric enceinte`
+  )
+}
 
 for (let seed = 200; seed < 264; seed += 1) {
   const world = generateProceduralVillage(seed, { difficulty: 'extreme' })

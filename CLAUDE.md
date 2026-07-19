@@ -210,8 +210,14 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   never synthesized by a client or reconstructed at attack start. The
   server-only generator (`server/domain/world/procedural-village.ts`, v2
   2026-07-19) rolls CoC-style wall COMPLEXES per seed — 1–3 rectangular
-  loops sized from the band's wants-inside footprint, optional open
-  curtain-wall runs stitching loops together, full internal dividing walls
+  loops sized from the band's wants-inside footprint, curtain-wall runs
+  that usually CLOSE the circuit (1-2, 2-3, 3-1, or a DOUBLE run between a
+  facing pair) so the interstitial ground becomes a walled ward that baits
+  attackers (owner: like real castles; MOST heavy bases must follow this
+  format — spec-enforced >=55/100 on fortress/extreme), an occasional full
+  concentric enceinte (outer ring wrapping the keep, keep walls one level
+  above the ring), single tree links kept for light bands, full internal
+  dividing walls
   (sealed cells) at high bands, per-loop/per-side wall levels — then derives
   compartments by flood fill and sites defenses by marginal range coverage
   (real `range`/`minRange`, mortar blind spots respected), storages as

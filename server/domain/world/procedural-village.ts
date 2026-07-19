@@ -44,6 +44,14 @@ interface DifficultyProfile {
   loopCountWeights: readonly [number, number, number]
   /** Per-mille chance that an adjacent loop pair gets a curtain-wall run. */
   connectorChance: number
+  /**
+   * Per-mille chance that curtains CLOSE the circuit (1-2, 2-3, 3-1, or a
+   * double run between a pair), walling off a central ward that baits
+   * attackers the way real castle baileys do.
+   */
+  wardChance: number
+  /** Per-mille chance of a full outer enceinte wrapped around the keep. */
+  concentricChance: number
   /** Per-mille chance that an eligible loop gets an internal dividing wall. */
   subdivisionChance: number
   maxSubdivisions: number
@@ -151,6 +159,8 @@ const DIFFICULTY_PROFILES: Readonly<Record<ProceduralVillageDifficulty, Difficul
     },
     loopCountWeights: [550, 450, 0],
     connectorChance: 300,
+    wardChance: 100,
+    concentricChance: 0,
     subdivisionChance: 0,
     maxSubdivisions: 0,
     interiorSlack: 1_200,
@@ -184,6 +194,8 @@ const DIFFICULTY_PROFILES: Readonly<Record<ProceduralVillageDifficulty, Difficul
     },
     loopCountWeights: [350, 500, 150],
     connectorChance: 450,
+    wardChance: 300,
+    concentricChance: 0,
     subdivisionChance: 150,
     maxSubdivisions: 1,
     interiorSlack: 1_250,
@@ -218,6 +230,8 @@ const DIFFICULTY_PROFILES: Readonly<Record<ProceduralVillageDifficulty, Difficul
     },
     loopCountWeights: [250, 450, 300],
     connectorChance: 550,
+    wardChance: 500,
+    concentricChance: 60,
     subdivisionChance: 350,
     maxSubdivisions: 1,
     interiorSlack: 1_300,
@@ -251,8 +265,10 @@ const DIFFICULTY_PROFILES: Readonly<Record<ProceduralVillageDifficulty, Difficul
       watchtower: 1,
       jukebox: 1
     },
-    loopCountWeights: [150, 450, 400],
+    loopCountWeights: [120, 440, 440],
     connectorChance: 650,
+    wardChance: 780,
+    concentricChance: 120,
     subdivisionChance: 550,
     maxSubdivisions: 2,
     interiorSlack: 1_350,
@@ -286,8 +302,10 @@ const DIFFICULTY_PROFILES: Readonly<Record<ProceduralVillageDifficulty, Difficul
       watchtower: 1,
       jukebox: 1
     },
-    loopCountWeights: [250, 400, 350],
+    loopCountWeights: [150, 400, 450],
     connectorChance: 700,
+    wardChance: 800,
+    concentricChance: 250,
     subdivisionChance: 750,
     maxSubdivisions: 2,
     interiorSlack: 1_450,
@@ -358,6 +376,8 @@ const DIFFICULTY_SALT = 0x13d6_3a9f
 const TROPHY_SALT = 0x71af_22c3
 const TOPOLOGY_SALT = 0x4e91_7bb5
 const CURTAIN_SALT = 0x7f4a_7c15
+const WARD_SALT = 0x5bd1_e995
+const CONCENTRIC_SALT = 0x2545_f491
 const SUBDIVISION_SALT = 0x94d0_49bb
 const GATE_SALT = 0xc2b2_ae35
 const PLACEMENT_SALT = 0x85eb_ca6b
@@ -511,7 +531,7 @@ function weightedRoll(random: U32Stream, weights: readonly number[]): number {
  * interiors hold the band's wants-inside roster. Nothing is symmetric or
  * template-driven — sizes, aspects and positions all come off the seed.
  */
-function planLoops(seed: number, profile: DifficultyProfile): LoopRect[] {
+function planLoops(seed: number, profile: DifficultyProfile, extraReserve = 0): LoopRect[] {
   const random = streamFor(seed, TOPOLOGY_SALT)
   const targetCount = 1 + weightedRoll(random, profile.loopCountWeights)
   const demand = interiorDemand(profile)
@@ -582,7 +602,7 @@ function planLoops(seed: number, profile: DifficultyProfile): LoopRect[] {
   // Respect the wall catalog cap, leaving room for curtain runs when the
   // complex has more than one loop. Shrink the largest loop first; drop the
   // smallest as a last resort.
-  const reserve = loops.length > 1 ? WALL_CAP_RESERVE_FOR_CONNECTORS : 0
+  const reserve = (loops.length > 1 ? WALL_CAP_RESERVE_FOR_CONNECTORS : 0) + extraReserve
   const cap = BUILDING_DEFINITIONS.wall.maxCount - reserve
   const perimeterCount = (loop: Rect) => 2 * loop.width + 2 * loop.height - 4
   let guard = 0
@@ -620,6 +640,68 @@ function planLoops(seed: number, profile: DifficultyProfile): LoopRect[] {
     }
   }
   return loops
+}
+
+/**
+ * The concentric roll: a keep wrapped by a full outer enceinte, with a 2-3
+ * tile ward ring between the walls — the "really crazy" castle format. Both
+ * rings must fit the wall catalog cap or the roll is abandoned.
+ */
+function planConcentric(seed: number, profile: DifficultyProfile): LoopRect[] | null {
+  const random = streamFor(seed, CONCENTRIC_SALT)
+  const demand = interiorDemand(profile)
+  const targetInterior = Math.max(25, Math.floor(demand * (450 + random.int(150)) / 1_000))
+  const aspect = [750, 1_000, 1_333][random.int(3)]
+  let interiorHeight = clamp(Math.round(Math.sqrt(targetInterior * 1_000 / aspect)), 5, 9)
+  let interiorWidth = clamp(Math.ceil(targetInterior / interiorHeight), 5, 9)
+  let clearance = 2 + random.int(2)
+  const perimeterOfSpan = (width: number, height: number) => 2 * width + 2 * height - 4
+  for (let guard = 0; guard < 24; guard += 1) {
+    const innerWidth = interiorWidth + 2
+    const innerHeight = interiorHeight + 2
+    const outerWidth = innerWidth + 2 * clearance + 2
+    const outerHeight = innerHeight + 2 * clearance + 2
+    const total = perimeterOfSpan(innerWidth, innerHeight) + perimeterOfSpan(outerWidth, outerHeight)
+    const fitsMap = outerWidth <= MAP_SIZE - 3 && outerHeight <= MAP_SIZE - 3
+    if (total <= BUILDING_DEFINITIONS.wall.maxCount && fitsMap) {
+      const outerX = clamp(
+        Math.floor((MAP_SIZE - outerWidth) / 2) + random.int(3) - 1,
+        1,
+        MAP_SIZE - 1 - outerWidth
+      )
+      const outerY = clamp(
+        Math.floor((MAP_SIZE - outerHeight) / 2) + random.int(3) - 1,
+        1,
+        MAP_SIZE - 1 - outerHeight
+      )
+      const innerX = clamp(
+        outerX + 1 + clearance + random.int(3) - 1,
+        outerX + 1 + clearance,
+        outerX + outerWidth - 1 - clearance - innerWidth
+      )
+      const innerY = clamp(
+        outerY + 1 + clearance + random.int(3) - 1,
+        outerY + 1 + clearance,
+        outerY + outerHeight - 1 - clearance - innerHeight
+      )
+      // The keep holds the strongest walls; the enceinte lags a level.
+      return [
+        { x: innerX, y: innerY, width: innerWidth, height: innerHeight, level: profile.wallLevel },
+        {
+          x: outerX,
+          y: outerY,
+          width: outerWidth,
+          height: outerHeight,
+          level: Math.max(1, profile.wallLevel - 1)
+        }
+      ]
+    }
+    if (clearance > 2) clearance -= 1
+    else if (interiorWidth >= interiorHeight && interiorWidth > 5) interiorWidth -= 1
+    else if (interiorHeight > 5) interiorHeight -= 1
+    else return null
+  }
+  return null
 }
 
 interface DisjointSet {
@@ -665,6 +747,106 @@ function planConnectors(
     for (const cell of path) cells.set(key(cell.x, cell.y), { ...cell, level })
     set.parents[findRoot(set, pair.a)] = findRoot(set, pair.b)
   }
+}
+
+/**
+ * Ward closure: curtains that close the circuit instead of merely linking.
+ * Three loops connect 1-2, 2-3, 3-1 in angular order so the ground between
+ * them becomes a fourth fully-enclosed ward; two loops get a DOUBLE curtain
+ * enclosing a corridor ward. Real castles bait attackers exactly this way.
+ */
+function planWardConnectors(
+  seed: number,
+  loops: readonly LoopRect[],
+  cells: Map<string, { x: number; y: number; level: number }>
+): void {
+  const random = streamFor(seed, CURTAIN_SALT)
+  if (loops.length === 2) {
+    if (dualCurtain(loops[0], loops[1], loops, cells, random)) return
+    const path = connectorPath(loops[0], loops[1], loops, cells, random)
+    if (path && cells.size + path.length <= BUILDING_DEFINITIONS.wall.maxCount) {
+      const level = Math.min(loops[0].level, loops[1].level)
+      for (const cell of path) cells.set(key(cell.x, cell.y), { ...cell, level })
+    }
+    return
+  }
+  const centerX = loops.reduce((sum, loop) => sum + loop.x + loop.width / 2, 0) / loops.length
+  const centerY = loops.reduce((sum, loop) => sum + loop.y + loop.height / 2, 0) / loops.length
+  const order = loops
+    .map(loop => ({
+      loop,
+      angle: Math.atan2(loop.y + loop.height / 2 - centerY, loop.x + loop.width / 2 - centerX)
+    }))
+    .sort((left, right) => left.angle - right.angle || left.loop.x - right.loop.x || left.loop.y - right.loop.y)
+    .map(entry => entry.loop)
+  for (let index = 0; index < order.length; index += 1) {
+    const a = order[index]
+    const b = order[(index + 1) % order.length]
+    const path = connectorPath(a, b, loops, cells, random)
+    if (!path) continue
+    if (cells.size + path.length > BUILDING_DEFINITIONS.wall.maxCount) continue
+    const level = Math.min(a.level, b.level)
+    for (const cell of path) cells.set(key(cell.x, cell.y), { ...cell, level })
+  }
+}
+
+/** Two parallel curtain runs between a facing pair, enclosing a corridor ward. */
+function dualCurtain(
+  a: LoopRect,
+  b: LoopRect,
+  loops: readonly LoopRect[],
+  cells: Map<string, { x: number; y: number; level: number }>,
+  random: U32Stream
+): boolean {
+  const level = Math.min(a.level, b.level)
+  const tryRuns = (runs: Array<{ x: number; y: number }>): boolean => {
+    if (runs.length === 0) return false
+    if (cells.size + runs.length > BUILDING_DEFINITIONS.wall.maxCount) return false
+    const valid = runs.every(cell => cell.x >= 1 && cell.y >= 1
+      && cell.x <= MAP_SIZE - 2 && cell.y <= MAP_SIZE - 2
+      && !cells.has(key(cell.x, cell.y))
+      && !insideAnyLoop(loops, cell.x, cell.y))
+    if (!valid) return false
+    for (const cell of runs) cells.set(key(cell.x, cell.y), { ...cell, level })
+    return true
+  }
+
+  const columnLow = Math.max(a.x + 1, b.x + 1)
+  const columnHigh = Math.min(a.x + a.width - 2, b.x + b.width - 2)
+  if (columnHigh - columnLow >= 2) {
+    const upper = a.y < b.y ? a : b
+    const lower = a.y < b.y ? b : a
+    const startY = upper.y + upper.height
+    const endY = lower.y - 1
+    if (endY >= startY) {
+      const first = columnLow + random.int(columnHigh - columnLow - 1)
+      const second = first + 2 + random.int(columnHigh - first - 1)
+      const runs: Array<{ x: number; y: number }> = []
+      for (const column of [first, second]) {
+        for (let y = startY; y <= endY; y += 1) runs.push({ x: column, y })
+      }
+      if (tryRuns(runs)) return true
+    }
+  }
+
+  const rowLow = Math.max(a.y + 1, b.y + 1)
+  const rowHigh = Math.min(a.y + a.height - 2, b.y + b.height - 2)
+  if (rowHigh - rowLow >= 2) {
+    const left = a.x < b.x ? a : b
+    const right = a.x < b.x ? b : a
+    const startX = left.x + left.width
+    const endX = right.x - 1
+    if (endX >= startX) {
+      const first = rowLow + random.int(rowHigh - rowLow - 1)
+      const second = first + 2 + random.int(rowHigh - first - 1)
+      const runs: Array<{ x: number; y: number }> = []
+      for (const row of [first, second]) {
+        for (let x = startX; x <= endX; x += 1) runs.push({ x, y: row })
+      }
+      if (tryRuns(runs)) return true
+    }
+  }
+  return false
 }
 
 function connectorPath(
@@ -1004,7 +1186,18 @@ function ensureBreachLanes(
 }
 
 function planWalls(seed: number, profile: DifficultyProfile): WallPlan {
-  const loops = planLoops(seed, profile)
+  // Roll the format up front so RNG consumption stays stable per seed:
+  // concentric enceinte > ward-closed circuit > tree curtains.
+  const modeRandom = streamFor(seed, WARD_SALT)
+  const rollConcentric = modeRandom.int(1_000) < profile.concentricChance
+  const rollWard = modeRandom.int(1_000) < profile.wardChance
+  let loops: LoopRect[] | null = null
+  let concentric = false
+  if (rollConcentric) {
+    loops = planConcentric(seed, profile)
+    concentric = loops !== null
+  }
+  if (!loops) loops = planLoops(seed, profile, rollWard ? 10 : 0)
   const cells = new Map<string, { x: number; y: number; level: number }>()
   for (const loop of loops) {
     for (const cell of perimeterOf(loop)) {
@@ -1030,8 +1223,12 @@ function planWalls(seed: number, profile: DifficultyProfile): WallPlan {
       }
     }
   }
-  planConnectors(seed, profile, loops, cells)
-  planSubdivisions(seed, profile, loops, cells)
+  if (!concentric) {
+    if (rollWard && loops.length >= 2) planWardConnectors(seed, loops, cells)
+    else planConnectors(seed, profile, loops, cells)
+  }
+  // A concentric enceinte never gets sliced — internal walls belong to keeps.
+  planSubdivisions(seed, profile, concentric ? [loops[0]] : loops, cells)
   const lanes = planGates(seed, loops, cells)
   return { cells, loops, lanes }
 }
@@ -1341,18 +1538,42 @@ function placeBuilding(
   throw new Error(`unable to place ${instance.type} ${instance.ordinal} for procedural village seed ${seed}`)
 }
 
-function coreCompartmentIndex(compartments: readonly Compartment[]): number {
-  let bestIndex = 0
+function coreCompartmentIndex(compartments: readonly Compartment[], loops: readonly LoopRect[]): number {
+  // The town hall belongs in a KEEP yard, never in a baiting ward. Yards are
+  // bounded by one loop's walls; wards (ring gaps, curtain courtyards,
+  // corridor baileys) touch the perimeters of two or more loops.
+  const perimeterOwner = new Map<string, number>()
+  loops.forEach((loop, index) => {
+    for (const cell of perimeterOf(loop)) perimeterOwner.set(key(cell.x, cell.y), index)
+  })
+  const loopsTouched = (compartment: Compartment): number => {
+    const owners = new Set<number>()
+    for (const tile of compartment.tiles) {
+      const [x, y] = tile.split(',').map(Number)
+      for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]] as const) {
+        const owner = perimeterOwner.get(key(nx, ny))
+        if (owner !== undefined) owners.add(owner)
+      }
+    }
+    return owners.size
+  }
+  const yardIndices = compartments
+    .map((compartment, index) => ({ compartment, index }))
+    .filter(entry => loopsTouched(entry.compartment) <= 1)
+  const pool = yardIndices.length > 0
+    ? yardIndices
+    : compartments.map((compartment, index) => ({ compartment, index }))
+  let bestIndex = pool[0]?.index ?? 0
   let bestScore = Number.NEGATIVE_INFINITY
   const center = (MAP_SIZE - 1) / 2
-  compartments.forEach((compartment, index) => {
+  for (const { compartment, index } of pool) {
     const centerDistance = Math.abs(compartment.centroidX - center) + Math.abs(compartment.centroidY - center)
     const score = compartment.area * 2 - centerDistance * 3
     if (score > bestScore) {
       bestScore = score
       bestIndex = index
     }
-  })
+  }
   return bestIndex
 }
 
@@ -1426,7 +1647,7 @@ function buildPlacementState(
     reserved,
     buildings: [],
     compartments: scan.compartments,
-    coreCompartment: coreCompartmentIndex(scan.compartments),
+    coreCompartment: coreCompartmentIndex(scan.compartments, plan.loops),
     tileCompartment: scan.tileCompartment,
     wallDistance,
     approachBand,
