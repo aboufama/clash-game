@@ -279,6 +279,8 @@ export class MainScene extends Phaser.Scene {
     /** Player bases already offered in this FIND MATCH / NEXT cycling session
      *  (server-side strict exclusions, bounded to the protocol's 64). */
     private matchmakeSeenTargetIds: string[] = [];
+    private matchmakeSeenCampKeys: string[] = [];
+    private matchmakeMixCounter = 0;
     /** Once the eligible player pool is exhausted, NEXT keeps cycling bot
      *  camps until a fresh FIND MATCH resets the session to players. */
     private matchmakePhase: 'players' | 'bots' = 'players';
@@ -9887,9 +9889,41 @@ export class MainScene extends Phaser.Scene {
         return summary;
     }
 
+    /**
+     * Pick the NEXT bot camp for the matchmake rotation: cycle the camps the
+     * map window shows (never the same camp twice in a session) before
+     * falling back to the server's nearest-far pick. Without this, the
+     * server's deterministic ring scan returns the SAME camp on every press
+     * (owner report 2026-07-19: "literally every village").
+     */
+    private async pickRotationBotCamp(): Promise<{ x: number; y: number } | null> {
+        try {
+            const sight = 2; // full watchtower window; fetchMap clamps to the earned sight
+            const window = await Backend.fetchMap(null, null, Math.max(1, sight));
+            const camps = (window?.plots ?? []).filter(p =>
+                p.kind === 'bot'
+                && !this.matchmakeSeenCampKeys.includes(`${p.x},${p.y}`));
+            if (camps.length === 0) return null;
+            // Deterministic per-press variety: stride by a session counter.
+            const pick = camps[(this.matchmakeSeenCampKeys.length * 7 + 3) % camps.length];
+            return { x: pick.x, y: pick.y };
+        } catch {
+            return null;
+        }
+    }
+
     /** Ask for a bot camp, focus its real plot, then use the local battle swap. */
     private async generateEnemyVillage(epoch?: number): Promise<boolean> {
-        const started = await Backend.botStart();
+        let started: Awaited<ReturnType<typeof Backend.botStart>> = null;
+        const rotated = await this.pickRotationBotCamp();
+        if (rotated) {
+            this.matchmakeSeenCampKeys = this.matchmakeSeenCampKeys
+                .concat(`${rotated.x},${rotated.y}`)
+                .slice(-64);
+            // Cooldown/claim races just fall through to the server's pick.
+            started = await Backend.botStart(rotated.x, rotated.y).catch(() => null);
+        }
+        if (!started) started = await Backend.botStart();
         if (!started) {
             gameManager.showToast('No bot camp is available right now.');
             return false;
@@ -9922,6 +9956,8 @@ export class MainScene extends Phaser.Scene {
     /** A fresh FIND MATCH searches players again with an empty seen-list. */
     private resetMatchmakeSession() {
         this.matchmakeSeenTargetIds = [];
+        this.matchmakeSeenCampKeys = [];
+        this.matchmakeMixCounter = 0;
         this.matchmakePhase = 'players';
     }
 
@@ -9944,13 +9980,24 @@ export class MainScene extends Phaser.Scene {
     private async generateFindMatchVillage(epoch?: number): Promise<boolean> {
         if (!Auth.isOnlineMode()) return this.generateEnemyVillage(epoch);
         if (this.matchmakePhase === 'bots') return this.generateEnemyVillage(epoch);
+        // ONE mixed rotation (owner rule 2026-07-19: bot villages are real
+        // opponents, not a terminal fallback): presses alternate player, bot,
+        // player, bot... so rich procedural camps appear from press two even
+        // while eligible players remain. Player exhaustion → all-bots phase.
+        const wantBot = (this.matchmakeMixCounter++ % 2) === 1;
+        if (wantBot) {
+            const loadedBot = await this.generateEnemyVillage(epoch);
+            if (loadedBot) return true;
+            if (epoch !== undefined && !this.isTransitionCurrent(epoch)) return false;
+            // No camp reachable this press — fall through to a player pick.
+        }
         const options: MatchmakingOptions = this.matchmakeSeenTargetIds.length > 0
             ? { excludeTargetIds: [...this.matchmakeSeenTargetIds] }
             : (this.lastMatchedTargetId ? { excludeTargetId: this.lastMatchedTargetId } : {});
         const loaded = await this.generateOnlineEnemyVillage(epoch, options);
         if (loaded !== 'no-players') return loaded;
         if (epoch !== undefined && !this.isTransitionCurrent(epoch)) return false;
-        // No (more) eligible player villages: fall back to the bot-camp flow.
+        // No (more) eligible player villages: bots own the rest of the session.
         this.matchmakePhase = 'bots';
         gameManager.showToast(this.matchmakeSeenTargetIds.length > 0
             ? 'No more rival villages right now — raiding bot camps instead.'

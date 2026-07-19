@@ -5439,7 +5439,14 @@ export class VillageLifeSystem {
             if (best) targets.push(best);
         }
         const layoutHash = [hall, ...targets].map(b => `${b.type}@${b.gridX},${b.gridY}`).join('|');
-        if (layoutHash !== this.stoneLayoutHash) {
+        // Battle damage must never re-route paving mid-raid (owner report
+        // 2026-07-19: lanes visibly re-laid themselves during attacks —
+        // destroying a lane's endpoint changed the layout hash and triggered
+        // the peaceful re-path crew). Routes are laid once per population;
+        // outside a calm HOME scene the lanes hold their course, and the hash
+        // re-syncs naturally on the next HOME rebuild.
+        const calmHome = this.scene.mode === 'HOME' && this.populatedFor === 'PLAYER';
+        if (layoutHash !== this.stoneLayoutHash && (calmHome || !this.stoneLayoutHash)) {
             this.stoneLayoutHash = layoutHash;
             // Re-path ONLY what the layout actually broke. An untouched lane
             // keeps its object — points and age — so its stones don't move.
