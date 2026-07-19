@@ -3362,8 +3362,12 @@ export class MainScene extends Phaser.Scene {
         } else {
             const troop = item as Troop;
             const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-            width = 28;
-            height = 4; // thinned from 6 (owner request 2026-07) — length unchanged
+            // Three Clash-Royale-style bar tiers keyed on the type's BASE
+            // health (level never changes a unit's tier): heavies keep the
+            // full 28px bar, mid-weight kits step to 21, chaff to 16.
+            const baseHp = TROOP_DEFINITIONS[troop.type]?.health ?? 0;
+            width = baseHp >= 800 ? 28 : baseHp >= 150 ? 21 : 16;
+            height = 4; // thinned from 6 (owner request 2026-07)
             x = pos.x - width / 2;
 
             // Prefer the complete baked-pose bound for every troop (already
@@ -4699,6 +4703,71 @@ export class MainScene extends Phaser.Scene {
     }
 
 
+    // ══════════════ VISUAL IMPACT POINT (presentation only) ══════════════
+    // Beams/projectiles used to terminate at a troop's ground anchor, which
+    // reads as "inside the hull" on colossal units (the prism laser visibly
+    // ended mid-tank). The helpers below land the VISUAL endpoint on the
+    // body surface nearest the attacker. The sim (damage timing, targeting,
+    // flight durations, replays) never reads any of this.
+
+    /** Kill-switch vector fallback for the troop body ellipse — derived from
+     *  the same legacy per-type visual heights updateHealthBar retains for
+     *  vector mode (bar + gap inclusive, hence the −10). Deterministic and
+     *  config-free; small troops stay ≈ their center. */
+    private vectorBodyEllipse(type: string): { cx: number; cy: number; rx: number; ry: number } {
+        let legacy = 22;
+        if (type === 'warelephant') legacy = 49;
+        else if (type === 'golem' || type === 'icegolem') legacy = 70;
+        else if (type === 'davincitank') legacy = 48;
+        else if (type === 'mobilemortar') legacy = 26;
+        const top = Math.max(10, legacy - 10);
+        return { cx: 0, cy: -top / 2, rx: Math.max(6, top * 0.45), ry: top / 2 };
+    }
+
+    /** Screen anchor of a troop's ground contact — the live carrier when it
+     *  exists (visual lifts like the siege ramp hop and beetle latch ride
+     *  along for free), the feet tile otherwise. */
+    private troopVisualAnchor(troop: Troop): { x: number; y: number } {
+        const g = troop.gameObject;
+        if (g && g.active) return { x: g.x, y: g.y };
+        const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        return { x: pos.x, y: pos.y + (troop.visualOffsetY ?? 0) };
+    }
+
+    /** Center of a troop's visible body (baked silhouette ellipse) — the
+     *  anchor for UNDIRECTED hit FX (zone ticks, on-hit reactions). */
+    private troopBodyCenter(troop: Troop): { x: number; y: number } {
+        const a = this.troopVisualAnchor(troop);
+        const ell = SpriteBank.troopBodyEllipse(troop.type, troop.owner, troop.level || 1)
+            ?? this.vectorBodyEllipse(troop.type);
+        return { x: a.x + ell.cx, y: a.y + ell.cy };
+    }
+
+    /**
+     * Where a shot fired from (fromX, fromY) visibly lands on a troop: the
+     * attacker→body-center ray's intersection with the troop's body ellipse,
+     * nearest the attacker. Small troops have a tiny ellipse, so their point
+     * ≈ center (unchanged look). Degenerate rays (attacker inside the
+     * ellipse, zero length) collapse to the body center. Pure deterministic
+     * math over the cached ellipse — cheap enough for per-frame beam redraws
+     * and homing-tween re-aims.
+     */
+    private visualImpactPoint(troop: Troop, fromX: number, fromY: number): { x: number; y: number } {
+        const a = this.troopVisualAnchor(troop);
+        const ell = SpriteBank.troopBodyEllipse(troop.type, troop.owner, troop.level || 1)
+            ?? this.vectorBodyEllipse(troop.type);
+        const cx = a.x + ell.cx;
+        const cy = a.y + ell.cy;
+        // Normalize the ellipse to a unit circle: the nearest surface point
+        // along the attacker→center ray is the direction unit vector, mapped
+        // back through the semi-axes (affine maps preserve nearest-ness).
+        const nx = (fromX - cx) / ell.rx;
+        const ny = (fromY - cy) / ell.ry;
+        const d = Math.hypot(nx, ny);
+        if (!(d > 1)) return { x: cx, y: cy };
+        return { x: cx + (nx / d) * ell.rx, y: cy + (ny / d) * ell.ry };
+    }
+
     private shootAt(cannon: PlacedBuilding, troop: Troop): boolean {
         // Previous ball still in flight: refuse the shot WITHOUT consuming
         // the cooldown (DefenseSystem skips its lastFireTime stamp on false).
@@ -4785,14 +4854,16 @@ export class MainScene extends Phaser.Scene {
         // Projectile HOMES onto the troop's live position: the flight tween
         // drives progress only; each update re-aims at where the troop is
         // now, so the impact effect and the damage land on the same spot.
-        const aim = { x: end.x, y: end.y };
+        // The VISUAL aim is the body surface nearest the muzzle; flight
+        // duration (→ damage timing) stays keyed to the feet tile.
+        const aim = this.visualImpactPoint(targetTroop, barrelTipX, barrelTipY);
         const dist = Phaser.Math.Distance.Between(barrelTipX, barrelTipY, end.x, end.y);
         const flight = { t: 0 };
         this.trackBattleFxTween(this.tweens.add({
             targets: flight, t: 1, duration: dist / 0.8, ease: 'Quad.easeIn',
             onUpdate: () => {
                 if (targetTroop.health > 0 && targetTroop.gameObject.active) {
-                    const live = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
+                    const live = this.visualImpactPoint(targetTroop, barrelTipX, barrelTipY);
                     aim.x = live.x;
                     aim.y = live.y;
                 }
@@ -4820,9 +4891,10 @@ export class MainScene extends Phaser.Scene {
                 if (targetTroop && targetTroop.health > 0) {
                     // Hit flash effect (pixelated rectangle) — presentation,
                     // shown whether or not the local damage sim is live.
-                    const troopPos = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
+                    // Centered on the ball's visual arrival point (body
+                    // surface), not a fixed offset above the feet.
                     const hitFlash = this.trackBattleFx(this.add.graphics());
-                    pixelRect(hitFlash, troopPos.x - 8, troopPos.y - 18, 16, 16, 0xffffff, 0.6);
+                    pixelRect(hitFlash, aim.x - 8, aim.y - 8, 16, 16, 0xffffff, 0.6);
                     hitFlash.setDepth(depthForGroundEffect(targetTroop.gridX, targetTroop.gridY));
                     this.tweens.add({ targets: hitFlash, alpha: 0, duration: 80, onComplete: () => hitFlash.destroy() });
 
@@ -4875,7 +4947,9 @@ export class MainScene extends Phaser.Scene {
             let boltLastTarget = { ...start };
 
             validTargets.forEach((t, idx) => {
-                const end = IsoUtils.cartToIso(t.gridX, t.gridY);
+                // Each hop terminates on the next troop's body surface
+                // nearest the previous chain anchor (orb for the first).
+                const end = this.visualImpactPoint(t, boltLastTarget.x, boltLastTarget.y);
 
                 // Draw multiple lightning layers for thickness effect. Each
                 // chain segment sorts at the FORWARD end of its span in the
@@ -4955,9 +5029,12 @@ export class MainScene extends Phaser.Scene {
             });
         }
 
-        // Impact effects on final bolt timing
+        // Impact effects on final bolt timing — anchored where the bolt
+        // visibly arrives (body surface along the same chain the bolts drew).
+        let impactFrom = { ...start };
         validTargets.forEach((t, idx) => {
-            const end = IsoUtils.cartToIso(t.gridX, t.gridY);
+            const end = this.visualImpactPoint(t, impactFrom.x, impactFrom.y);
+            impactFrom = end;
             const impactDelay = (boltCount - 1) * boltInterval;
             const impactFxDepth = depthForGroundEffect(t.gridX, t.gridY);
 
@@ -5006,7 +5083,11 @@ export class MainScene extends Phaser.Scene {
         const prismDps = stats.damage ?? 0;
         const start = IsoUtils.cartToIso(prism.gridX + info.width / 2, prism.gridY + info.height / 2);
         start.y -= 55; // From the crystal tip
+        // Feet tile (`end`) keys the GROUND work (scorch trail); the visible
+        // beam terminates on the troop's body surface nearest the crystal —
+        // re-evaluated every redraw, so it tracks the moving hull.
         const end = IsoUtils.cartToIso(target.gridX, target.gridY);
+        const hit = this.visualImpactPoint(target, start.x, start.y);
 
         // Rainbow cycling color
         const hue = (time / 10) % 360;
@@ -5039,24 +5120,24 @@ export class MainScene extends Phaser.Scene {
         prism.prismLaserCore.clear();
 
         // Outer glow beam
-        pixelLine(prism.prismLaserGraphics, start.x, start.y, end.x, end.y, 3, glowColor, 0.3);
+        pixelLine(prism.prismLaserGraphics, start.x, start.y, hit.x, hit.y, 3, glowColor, 0.3);
 
         // Main beam with multiple layers for intense effect
-        pixelLine(prism.prismLaserGraphics, start.x, start.y, end.x, end.y, 2, beamColor, 0.9);
+        pixelLine(prism.prismLaserGraphics, start.x, start.y, hit.x, hit.y, 2, beamColor, 0.9);
 
         // Inner bright core
-        pixelLine(prism.prismLaserCore, start.x, start.y, end.x, end.y, 1, 0xffffff, 1);
+        pixelLine(prism.prismLaserCore, start.x, start.y, hit.x, hit.y, 1, 0xffffff, 1);
 
 
         // Crazy sparkle particles along beam
-        const angle = Math.atan2(end.y - start.y, end.x - start.x);
+        const angle = Math.atan2(hit.y - start.y, hit.x - start.x);
 
         // Spawn particles every few frames
         if (time % 50 < 20) {
             for (let i = 0; i < 3; i++) {
                 const t = Math.random();
-                const px = start.x + (end.x - start.x) * t + (Math.random() - 0.5) * 15;
-                const py = start.y + (end.y - start.y) * t + (Math.random() - 0.5) * 10;
+                const px = start.x + (hit.x - start.x) * t + (Math.random() - 0.5) * 15;
+                const py = start.y + (hit.y - start.y) * t + (Math.random() - 0.5) * 10;
 
                 const particle = this.trackBattleFx(this.add.graphics());
                 const particleColor = Phaser.Display.Color.HSLToColor(((hue + Math.random() * 60) % 360) / 360, 1, 0.5).color;
@@ -5139,10 +5220,11 @@ export class MainScene extends Phaser.Scene {
             });
         }
 
-        // Impact sparkles at target — ground-effect band at the impact tile.
+        // Impact sparkles at the beam terminus (body surface) — ground-effect
+        // band at the impact tile keeps it sorting above the hull it licks.
         const impactGlow = this.trackBattleFx(this.add.graphics());
         const impactGlowR = 12 + Math.sin(time / 25) * 5;
-        pixelEllipse(impactGlow, end.x, end.y, impactGlowR, impactGlowR, beamColor, 0.6);
+        pixelEllipse(impactGlow, hit.x, hit.y, impactGlowR, impactGlowR, beamColor, 0.6);
         impactGlow.setDepth(depthForGroundEffect(target.gridX, target.gridY) + 1);
         this.tweens.add({
             targets: impactGlow,
@@ -6016,9 +6098,13 @@ export class MainScene extends Phaser.Scene {
                 // Bolt HOMES onto the troop's live position (the 400ms windup
                 // above made fire-time aim ~a tile stale): the tween drives
                 // progress; each update re-aims so impact FX and damage agree.
+                // `aim` is the VISUAL endpoint (body surface nearest the
+                // rail); `groundAim` keeps the feet tile for the ground
+                // shadow's track. Flight duration stays keyed to `end`.
                 const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
                 let lastTrailTime = 0;
-                const aim = { x: end.x, y: end.y };
+                const aim = this.visualImpactPoint(targetTroop, boltStartX, boltStartY);
+                const groundAim = { x: end.x, y: end.y };
 
                 // Ground shadow tracking under the bolt
                 const boltShadow = this.trackBattleFx(this.add.graphics());
@@ -6036,8 +6122,11 @@ export class MainScene extends Phaser.Scene {
                     onUpdate: () => {
                         if (targetTroop.health > 0 && targetTroop.gameObject.active) {
                             const live = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
-                            aim.x = live.x;
-                            aim.y = live.y;
+                            groundAim.x = live.x;
+                            groundAim.y = live.y;
+                            const surf = this.visualImpactPoint(targetTroop, boltStartX, boltStartY);
+                            aim.x = surf.x;
+                            aim.y = surf.y;
                         }
                         const t = flight.t;
                         const liveAngle = Math.atan2(aim.y - boltStartY, aim.x - boltStartX);
@@ -6047,7 +6136,7 @@ export class MainScene extends Phaser.Scene {
                         bolt.setDepth(depthForProjectile(
                             launchGX + (targetTroop.gridX - launchGX) * t,
                             launchGY + (targetTroop.gridY - launchGY) * t));
-                        boltShadow.setPosition(bolt.x, (start.y + 3) + (aim.y - start.y) * t);
+                        boltShadow.setPosition(bolt.x, (start.y + 3) + (groundAim.y - start.y) * t);
                         boltShadow.setRotation(liveAngle);
                         if (boltBaked) this.syncProjectileSprite(bolt, 'ballista_bolt', Math.min(bLevel, 3), liveAngle);
                         // White trail particles at TAIL - Aggressive
@@ -6194,8 +6283,10 @@ export class MainScene extends Phaser.Scene {
         if (!arrowBaked) ProjectileRenderer.drawXbowBolt(arrow, xbowLevel);
 
         // Shuttle HOMES onto the troop's live position so the impact flash
-        // and the damage land together (fire-time aim drifted ~a tile).
-        const aim = { x: end.x, y: end.y };
+        // and the damage land together (fire-time aim drifted ~a tile). The
+        // visual aim is the body surface nearest the bow; flight duration
+        // (→ damage timing) stays keyed to the feet tile.
+        const aim = this.visualImpactPoint(targetTroop, arrowStartX, arrowStartY);
         const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
         const flight = { t: 0 };
         this.trackBattleFxTween(this.tweens.add({
@@ -6205,7 +6296,7 @@ export class MainScene extends Phaser.Scene {
             ease: 'Linear',
             onUpdate: () => {
                 if (targetTroop.health > 0 && targetTroop.gameObject.active) {
-                    const live = IsoUtils.cartToIso(targetTroop.gridX, targetTroop.gridY);
+                    const live = this.visualImpactPoint(targetTroop, arrowStartX, arrowStartY);
                     aim.x = live.x;
                     aim.y = live.y;
                 }
@@ -11358,9 +11449,10 @@ export class MainScene extends Phaser.Scene {
             if (t.owner !== owner && t.health > 0) {
                 const dist = Phaser.Math.Distance.Between(t.gridX, t.gridY, gridX, gridY);
                 if (dist <= damageRadiusTiles + 0.5) { // Slightly larger radius for impact
-                    // Impact flash
-                    const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
-                    this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 15, { r: 8, color: 0xffaa00, alpha: 0.8, scaleTo: 2, life: 200, depth: t.gameObject.depth + 1 }));
+                    // Impact flash — undirected zone hit, so it anchors on
+                    // the body center of the baked silhouette.
+                    const pos = this.troopBodyCenter(t);
+                    this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y, { r: 8, color: 0xffaa00, alpha: 0.8, scaleTo: 2, life: 200, depth: t.gameObject.depth + 1 }));
 
                     this.applyLocalTroopDamage(t, impactDamage);
                 }
@@ -11456,9 +11548,10 @@ export class MainScene extends Phaser.Scene {
                     if (t.owner !== zone.owner && t.health > 0) {
                         const dist = Phaser.Math.Distance.Between(t.gridX, t.gridY, zone.gridX, zone.gridY);
                         if (dist <= zone.radius) {
-                            // Small blood/damage effect
-                            const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
-                            PixelFx.burst(this, pos.x, pos.y - 10, {
+                            // Small blood/damage effect at the body center
+                            // (undirected zone tick — no attacker ray).
+                            const pos = this.troopBodyCenter(t);
+                            PixelFx.burst(this, pos.x, pos.y, {
                                 count: 1, colors: [0xff4444], alpha: 0.8, r: 3,
                                 speed: 0, up: 10, scaleTo: 0.5, life: 200,
                                 depth: t.gameObject.depth + 1
