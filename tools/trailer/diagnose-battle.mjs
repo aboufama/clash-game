@@ -28,11 +28,14 @@ await page.waitForFunction(() => {
   return Boolean(s?.worldMap && s?.cameras?.main && s?.buildings?.length)
 }, { timeout: 60000, polling: 300 })
 await page.waitForSelector('.cloud-overlay', { hidden: true, timeout: 25000 }).catch(() => {})
-await sleep(800)
+page.on('console', msg => console.log('[page]', msg.type(), msg.text().slice(0, 220)))
+await sleep(3000)
 await page.evaluate(plot => {
   const gm = window.__clashGM
   const orig = gm.setGameMode.bind(gm)
   gm.setGameMode = m => { window.__gameMode = m; orig(m) }
+  const origToast = gm.showToast.bind(gm)
+  gm.showToast = msg => { console.log('TOAST:', msg); origToast(msg) }
   window.__clashGame.scene.keys.MainScene.attackBotPlot(plot.seed, plot.username, plot.x, plot.y)
 }, { seed: target.seed, username: target.username, x: target.x, y: target.y })
 await page.waitForFunction(() => window.__gameMode === 'ATTACK', { timeout: 40000, polling: 250 })
