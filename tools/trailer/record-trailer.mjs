@@ -552,7 +552,11 @@ try {
     })
   })
 
-  writeFileSync(`${OUT}/manifest.json`, JSON.stringify({ captured, skipped, width: WIDTH, height: HEIGHT }, null, 2))
+  const portableCaptured = captured.map(item => ({
+    ...item,
+    path: item.path.startsWith(`${OUT}/`) ? item.path.slice(OUT.length + 1) : item.path
+  }))
+  writeFileSync(`${OUT}/manifest.json`, JSON.stringify({ captured: portableCaptured, skipped, width: WIDTH, height: HEIGHT }, null, 2))
   console.log(JSON.stringify({ captured: captured.map(c => c.name), skipped }, null, 2))
 } finally {
   await browser?.close()
