@@ -3,6 +3,8 @@ import { buildLegacyImportPlan, importLegacyPlan, verifyLegacyImport } from './l
 import { materializeLegacySnapshot } from './legacy-snapshot'
 import { migrate } from './migrations'
 import { postgresFromEnvironment } from './postgres/database'
+import { PostgresPersistence } from './postgres/persistence'
+import { PersistenceGameService } from '../runtime/service'
 
 function option(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -23,6 +25,9 @@ function print(value: unknown): void {
 
 async function main(): Promise<void> {
   const command = process.argv[2]
+  if (command === 'migrate-release' && option('confirm') !== 'APPLY_RELEASE_MIGRATIONS') {
+    throw new Error('Release migration requires --confirm=APPLY_RELEASE_MIGRATIONS')
+  }
   if (command === 'materialize-legacy') {
     const output = option('output')
     if (!output) throw new Error('--output=<frozen snapshot directory> is required')
@@ -50,14 +55,19 @@ async function main(): Promise<void> {
     if (plan.issues.some(issue => issue.severity === 'error')) process.exitCode = 1
     return
   }
-  if (command !== 'migrate' && command !== 'import-legacy' && command !== 'verify-legacy') {
-    throw new Error('Usage: persistence <materialize-legacy|migrate|validate-legacy|import-legacy|verify-legacy> [--data=...] [--output=...] [--cutoff=...]')
+  if (command !== 'migrate' && command !== 'migrate-release'
+    && command !== 'import-legacy' && command !== 'verify-legacy') {
+    throw new Error('Usage: persistence <materialize-legacy|migrate|migrate-release|validate-legacy|import-legacy|verify-legacy> [--data=...] [--output=...] [--cutoff=...]')
   }
   const database = postgresFromEnvironment()
   try {
-    if (command === 'migrate') {
+    if (command === 'migrate' || command === 'migrate-release') {
       await migrate(database)
-      print({ migrated: true })
+      const bots = command === 'migrate-release'
+        ? await new PersistenceGameService(new PostgresPersistence(database))
+          .preprovisionBotVillages(25)
+        : null
+      print({ migrated: true, release: command === 'migrate-release', ...(bots ? { bots } : {}) })
       return
     }
     const plan = buildLegacyImportPlan(option('data') ?? path.resolve('server/data'), requiredCutoff())

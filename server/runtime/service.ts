@@ -40,6 +40,7 @@ import {
   classifyPlot,
   settledFrontierBotVillageSeedAt
 } from '../domain/world'
+import { PROCEDURAL_VILLAGE_GENERATOR_VERSION } from '../domain/world/procedural-village'
 import { ApiError, bannerRequiredError } from '../errors'
 import { isValidUsername, normalizeUsernameKey } from '../domain/auth'
 import type {
@@ -68,10 +69,16 @@ import type {
   VillageRecord,
   WorldAtlasEntry
 } from '../persistence'
-import { AdminBaseResetPreconditionError, outboxEvent, QUERY_LIMITS } from '../persistence'
+import {
+  AdminBaseResetPreconditionError,
+  PersistenceConflictError,
+  outboxEvent,
+  QUERY_LIMITS
+} from '../persistence'
 import { AuthSessionService, createStarterVillageRecord } from './auth-service'
 import type {
   ApiService,
+  ArmyBatchRequest,
   ArmyMutationRequest,
   AttackCommandRequest,
   AttackEndRequest,
@@ -111,7 +118,12 @@ import {
   claimSpecificPlayerPlot,
   releasePlayerPlotClaim
 } from './world-authority'
-import { ensurePersistedBotVillage, publicBotWorldOf } from './bot-villages'
+import {
+  assertPersistedBotVillageProvenance,
+  preparePersistedBotVillage,
+  publicBotWorldOf,
+  type PersistedBotVillageInput
+} from './bot-villages'
 import { assertGameplayMutationAllowed } from './maintenance-fence'
 
 const ONLINE_WINDOW_MS = 60_000
@@ -207,6 +219,38 @@ function sanitizeId(value: unknown): string {
 
 function requestId(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, 160) : ''
+}
+
+type ArmyBatchOperation = {
+  kind: 'train' | 'untrain'
+  type: TroopType
+  count: number
+}
+
+function parseArmyBatchOperations(value: unknown): ArmyBatchOperation[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ApiError(400, 'Army batch needs at least one operation')
+  }
+  if (value.length > 50) throw new ApiError(400, 'Army batch exceeds 50 operations')
+  return value.map(raw => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new ApiError(400, 'Invalid army batch operation')
+    }
+    const candidate = raw as { kind?: unknown; type?: unknown; count?: unknown }
+    if (candidate.kind !== 'train' && candidate.kind !== 'untrain') {
+      throw new ApiError(400, 'Army operation must train or untrain')
+    }
+    const type = sanitizeId(candidate.type) as TroopType
+    const definition = TROOP_DEFINITIONS[type]
+    if (!definition || (candidate.kind === 'train' && !isTrainableTroopType(type))) {
+      throw new ApiError(404, 'Unknown troop type')
+    }
+    return {
+      kind: candidate.kind,
+      type,
+      count: clamp(toInteger(candidate.count, 1), 1, 50)
+    }
+  })
 }
 
 /** Banner mutations never accept implicit/default axes or numeric coercion. */
@@ -514,6 +558,79 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     }, { isolation: 'read committed' })
   }
 
+  /**
+   * Fill a bounded slice of the central settled frontier for future map
+   * windows. The scheduled worker pays procedural CPU before a player asks to
+   * see these camps; the final batch remains the sole durability boundary.
+   */
+  async preprovisionBotVillages(limit = 25): Promise<{ prepared: number; persisted: number }> {
+    const bounded = Math.max(1, Math.min(25, Math.floor(limit)))
+    const now = this.clock()
+    const snapshot = await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
+      const allocation = await tx.world.getAllocation('main')
+      if (!allocation) return null
+      const frontierRadius = botFrontierRadiusForCursor(allocation.nextOrdinal)
+      const radius = Math.min(12, frontierRadius)
+      const bounds = { minX: -radius, maxX: radius, minY: -radius, maxY: radius }
+      const [players, bots] = await Promise.all([
+        tx.world.listAtlas({ worldId: 'main', ...bounds, now, limit: 625 }),
+        tx.world.listBotVillages({ worldId: 'main', ...bounds, now, limit: 625 })
+      ])
+      return { allocation, frontierRadius, radius, players, bots }
+    }, { isolation: 'read committed' })
+    if (!snapshot) return { prepared: 0, persisted: 0 }
+
+    const players = new Set(snapshot.players.map(entry => `${entry.plot.x},${entry.plot.y}`))
+    const bots = new Map(snapshot.bots.map(bot => [`${bot.x},${bot.y}`, bot]))
+    const inputs: PersistedBotVillageInput[] = []
+    for (let y = -snapshot.radius; y <= snapshot.radius && inputs.length < bounded; y += 1) {
+      for (let x = -snapshot.radius; x <= snapshot.radius && inputs.length < bounded; x += 1) {
+        if (players.has(`${x},${y}`)) continue
+        const seed = settledFrontierBotVillageSeedAt(
+          { x, y },
+          { frontierRadius: snapshot.frontierRadius }
+        )
+        if (seed === null) continue
+        const stored = bots.get(`${x},${y}`)
+        if (stored && stored.generatorVersion === PROCEDURAL_VILLAGE_GENERATOR_VERSION) continue
+        inputs.push({
+          worldId: 'main',
+          worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
+          revisionEpoch: snapshot.allocation.botRevisionEpoch ?? 1,
+          x,
+          y,
+          seed,
+          now
+        })
+      }
+    }
+    const drafts = inputs.flatMap(input => {
+      const draft = preparePersistedBotVillage(
+        input,
+        bots.get(`${input.x},${input.y}`) ?? null
+      )
+      return draft ? [draft] : []
+    })
+    if (drafts.length === 0) return { prepared: 0, persisted: 0 }
+    const persisted = await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
+      await tx.world.provisionBotVillages(drafts)
+      const committed = await tx.world.listBotVillages({
+        worldId: 'main',
+        minX: -snapshot.radius,
+        maxX: snapshot.radius,
+        minY: -snapshot.radius,
+        maxY: snapshot.radius,
+        now,
+        limit: 625
+      })
+      const committedIds = new Set(committed.map(bot => bot.id))
+      return drafts.filter(draft => committedIds.has(draft.id)).length
+    }, { isolation: 'read committed' })
+    return { prepared: drafts.length, persisted }
+  }
+
   private async claimRequest(
     tx: UnitOfWork,
     principal: RuntimePrincipal,
@@ -644,6 +761,31 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       )
       return serializedWorldOf(state.account, state.village, now, { stoneMaturity: true, upgradePolicy: this.upgradePolicy })
     })
+  }
+
+  async homeSync(principal: RuntimePrincipal) {
+    const now = this.clock()
+    return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
+      const state = await this.authority.owned(tx, principal.playerId)
+      const incoming = (await this.authority.leasedIncomingForPlayers(tx, [principal.playerId]))
+        .find(attack => attack.deadlineAt > now && attack.authority !== null)
+      return {
+        serverNow: now.getTime(),
+        world: {
+          revision: state.village.economyRevision,
+          lastSaveTime: state.village.lastMutationAt.getTime()
+        },
+        shieldUntil: state.account.shieldUntil?.getTime() ?? 0,
+        incomingAttack: incoming ? {
+          attackId: incoming.id,
+          attackerId: incoming.attackerId,
+          attackerName: incoming.authority!.attackerName,
+          startedAt: incoming.createdAt.getTime(),
+          updatedAt: incoming.updatedAt.getTime()
+        } : null
+      }
+    }, { isolation: 'read committed' })
   }
 
   async saveWorld(principal: RuntimePrincipal, body: SaveWorldRequest): Promise<SerializedWorld> {
@@ -973,6 +1115,137 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     })
   }
 
+  /**
+   * Apply a click burst as one authoritative mutation. Operations retain click
+   * order so train/untrain pairs have the same housing, unlock and refund
+   * semantics as the historical endpoints, but the village lock, production
+   * materialization, revision write and idempotency record happen only once.
+   */
+  async armyBatch(principal: RuntimePrincipal, body: ArmyBatchRequest) {
+    const operations = parseArmyBatchOperations(body.operations)
+    const id = requestId(body.requestId)
+    const now = this.clock()
+    return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
+      const claim = await this.claimRequest(tx, principal, 'army.batch', id, now)
+      if (claim.replayed) return claim.response
+
+      const state = await this.authority.owned(tx, principal.playerId, true)
+      if (await this.authority.hasActiveOutgoing(tx, principal.playerId)) {
+        throw new ApiError(409, 'Army is reserved for an active attack')
+      }
+      const activeIncoming = await this.authority.hasActiveIncoming(tx, principal.playerId)
+      if (activeIncoming && operations.some(operation => operation.kind === 'train')) {
+        throw new ApiError(409, 'Village is locked while an incoming raid is live', 'BASE_UNDER_ATTACK')
+      }
+      await this.authority.materializeWithAudit(tx, state.village, now, activeIncoming)
+
+      const buildings = villageBuildings(state.village)
+      const army = villageArmy(state.village)
+      const capacity = campCapacityOf(buildings)
+      const storage = resourceCapacity(buildings)
+      const audit = {
+        train: { gold: 0, food: 0, operations: [] as Array<{ troopType: TroopType; count: number }> },
+        untrain: { gold: 0, food: 0, operations: [] as Array<{ troopType: TroopType; count: number }> }
+      }
+
+      for (const operation of operations) {
+        const definition = TROOP_DEFINITIONS[operation.type]
+        if (operation.kind === 'train') {
+          const trainingRequirement = troopTrainingRequirement(operation.type)
+          if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
+          if (trainingRequirement.kind === 'core') {
+            if (maxCompletedArmyCampLevel(buildings) < trainingRequirement.unlockLevel) {
+              throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+            }
+          } else if (barracksLevelForTroop(buildings, operation.type) < trainingRequirement.unlockLevel) {
+            throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
+          }
+          if (armySpaceUsed(army) + definition.space * operation.count > capacity) {
+            throw new ApiError(409, 'Not enough housing space in the camps')
+          }
+          const goldCost = definition.cost * operation.count
+          const foodCost = troopFoodCostOf(operation.type) * operation.count
+          if (!this.infiniteResources && Math.floor(state.village.gold) < goldCost) {
+            throw new ApiError(409, `Not enough gold (need ${goldCost})`)
+          }
+          if (!this.infiniteResources && state.village.food < foodCost) {
+            throw new ApiError(409, `Not enough food (need ${foodCost})`)
+          }
+          if (!this.infiniteResources) {
+            state.village.gold -= goldCost
+            state.village.food -= foodCost
+            audit.train.gold -= goldCost
+            audit.train.food -= foodCost
+          }
+          army[operation.type] = (army[operation.type] ?? 0) + operation.count
+          audit.train.operations.push({ troopType: operation.type, count: operation.count })
+          continue
+        }
+
+        const have = army[operation.type] ?? 0
+        if (have < operation.count) throw new ApiError(409, 'Not that many troops in camp')
+        if (have === operation.count) delete army[operation.type]
+        else army[operation.type] = have - operation.count
+        if (!this.infiniteResources) {
+          const beforeGold = state.village.gold
+          const beforeFood = state.village.food
+          state.village.gold = clamp(
+            state.village.gold + definition.cost * operation.count,
+            0,
+            MAX_PLAYER_GOLD
+          )
+          state.village.food = storedResourceAfterDelta(
+            state.village.food,
+            troopFoodCostOf(operation.type) * operation.count,
+            storage.food,
+            false,
+            this.allowDebugGrants
+          )
+          if (state.village.food >= storage.food) state.village.productionRemainders.food = 0
+          audit.untrain.gold += state.village.gold - beforeGold
+          audit.untrain.food += state.village.food - beforeFood
+        }
+        audit.untrain.operations.push({ troopType: operation.type, count: operation.count })
+      }
+
+      state.village.army = army as unknown as JsonObject
+      state.village.lastMutationAt = now
+      const expected = state.village.economyRevision
+      await this.authority.updateVillage(tx, state.village, expected)
+      const world = serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy })
+      const response = { army: { ...army }, ...this.balances(state.village), world }
+      await this.completeRequest(tx, principal, 'army.batch', id, response)
+
+      const auditId = id || randomId('army-batch')
+      for (const kind of ['train', 'untrain'] as const) {
+        const entry = audit[kind]
+        if (entry.operations.length === 0) continue
+        await tx.balanceLedger.append({
+          playerId: principal.playerId,
+          operation: `army.${kind}`,
+          requestId: auditId,
+          currency: 'gold',
+          delta: entry.gold,
+          balanceAfter: state.village.gold,
+          metadata: { operations: entry.operations },
+          createdAt: now
+        })
+        await tx.balanceLedger.append({
+          playerId: principal.playerId,
+          operation: `army.${kind}`,
+          requestId: auditId,
+          currency: 'food',
+          delta: entry.food,
+          balanceAfter: state.village.food,
+          metadata: { operations: entry.operations },
+          createdAt: now
+        })
+      }
+      return response
+    })
+  }
+
   async merchantTrade(principal: RuntimePrincipal, body: MerchantTradeRequest) {
     const now = this.clock()
     const day = worldDayIndex(now.getTime())
@@ -1102,13 +1375,12 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const maxY = Math.min(MAX_WORLD_COORDINATE, cy + radius)
     const known = knownRevisions(rawKnown)
 
-    return this.persistence.transaction(async tx => {
+    const windowState = await this.persistence.transaction(async tx => {
       await assertGameplayMutationAllowed(tx)
       // Unclaimed spiral plots inside the settled frontier present as bot
       // camps until a real account claims them; the radius follows the
       // world's admission cursor so the neighbourhood always looks alive.
       const allocation = await tx.world.getAllocation(viewer.plot.worldId)
-      const frontierRadius = botFrontierRadiusForCursor(allocation?.nextOrdinal ?? 0)
       const entries = await tx.world.listAtlas({
         worldId: viewer.plot.worldId,
         minX, maxX, minY, maxY, now, limit: 25
@@ -1135,75 +1407,142 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           activeByDefender.set(attack.defenderId, attack.id)
         }
       }
-      const plots: Array<Record<string, unknown>> = []
-      for (let y = minY; y <= maxY; y += 1) {
-        for (let x = minX; x <= maxX; x += 1) {
-          const entry = byCoordinate.get(`${x},${y}`)
-          if (entry) {
-            const account = accountForSummary(entry)
-            const village = villageForPostcard(entry)
-            materializeVillage(village, now, {
-              populationLocked: activeByDefender.has(account.id),
-              preserveOverCapacity: this.allowDebugGrants
-            })
-            const attackId = activeByDefender.get(account.id)
-            const withinSight = chebyshev(x, y, viewer.plot.x, viewer.plot.y) <= sight
-            const plot: Record<string, unknown> = {
-              x, y, kind: 'player', ownerId: account.id, username: account.username,
-              trophies: account.trophies, revision: village.appearanceRevision,
-              underAttack: Boolean(attackId),
-              ...(withinSight && attackId ? { attackId } : {}),
-              shielded: (account.shieldUntil?.getTime() ?? 0) > now.getTime(),
-              stoneMaturity: stoneMaturityOf(account, now)
-            }
-            const cached = known.get(`${x},${y}`)
-            if (!cached || cached.ownerId !== account.id || cached.revision !== village.appearanceRevision) {
-              plot.world = publicWorldOf(account, village)
-            }
-            plots.push(plot)
-            continue
-          }
-          if (hiddenClaims.has(`${x},${y}`)) {
-            plots.push({ x, y, kind: 'empty', settleable: false })
-            continue
-          }
-          const seed = settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius })
-          if (seed === null) {
-            plots.push({ x, y, kind: 'empty', settleable: !isWildernessPreserveAt(x, y) })
-            continue
-          }
-          const bot = await ensurePersistedBotVillage(tx, {
+      const bots = await tx.world.listBotVillages({
+        worldId: viewer.plot.worldId,
+        minX, maxX, minY, maxY, now, limit: 25
+      })
+      return { allocation, entries, byCoordinate, hiddenClaims, activeByDefender, bots }
+    }, { isolation: 'read committed' })
+
+    const botInputs: PersistedBotVillageInput[] = []
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        const key = `${x},${y}`
+        if (windowState.byCoordinate.has(key) || windowState.hiddenClaims.has(key)) continue
+        const seed = settledFrontierBotVillageSeedAt({ x, y }, {
+          frontierRadius: botFrontierRadiusForCursor(windowState.allocation?.nextOrdinal ?? 0)
+        })
+        if (seed === null) continue
+        botInputs.push({
+          worldId: viewer.plot.worldId,
+          worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
+          revisionEpoch: windowState.allocation?.botRevisionEpoch ?? 1,
+          x,
+          y,
+          seed,
+          now
+        })
+      }
+    }
+
+    const storedByCoordinate = new Map(
+      windowState.bots.map(bot => [`${bot.x},${bot.y}`, bot])
+    )
+    // Procedural generation is deliberately outside every transaction. A
+    // cold 5x5 window can take hundreds of milliseconds of CPU; database locks
+    // must never remain open while those deterministic worlds are assembled.
+    const drafts = botInputs.flatMap(input => {
+      const draft = preparePersistedBotVillage(
+        input,
+        storedByCoordinate.get(`${input.x},${input.y}`) ?? null
+      )
+      return draft ? [draft] : []
+    })
+
+    let bots = windowState.bots
+    let hiddenClaims = windowState.hiddenClaims
+    if (drafts.length > 0) {
+      const persisted = await this.persistence.transaction(async tx => {
+        await assertGameplayMutationAllowed(tx)
+        await tx.world.provisionBotVillages(drafts)
+        const [committed, occupants] = await Promise.all([
+          tx.world.listBotVillages({
             worldId: viewer.plot.worldId,
-            worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
-            revisionEpoch: allocation?.botRevisionEpoch ?? 1,
-            x,
-            y,
-            seed,
-            now
+            minX, maxX, minY, maxY, now, limit: 25
+          }),
+          tx.world.listOccupantsAt(viewer.plot.worldId, botInputs)
+        ])
+        return { committed, occupants }
+      }, { isolation: 'read committed' })
+      bots = persisted.committed
+      hiddenClaims = new Set([
+        ...windowState.hiddenClaims,
+        ...persisted.occupants.map(plot => `${plot.x},${plot.y}`)
+      ])
+    }
+
+    const botByCoordinate = new Map(bots.map(bot => [`${bot.x},${bot.y}`, bot]))
+    const botInputKeys = new Set(botInputs.map(input => `${input.x},${input.y}`))
+    for (const input of botInputs) {
+      const key = `${input.x},${input.y}`
+      if (hiddenClaims.has(key)) continue
+      const bot = botByCoordinate.get(key)
+      if (!bot) {
+        throw new PersistenceConflictError('Map bot village was not durably persisted')
+      }
+      assertPersistedBotVillageProvenance(bot, input)
+    }
+
+    const plots: Array<Record<string, unknown>> = []
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        const key = `${x},${y}`
+        const entry = windowState.byCoordinate.get(key)
+        if (entry) {
+          const account = accountForSummary(entry)
+          const village = villageForPostcard(entry)
+          materializeVillage(village, now, {
+            populationLocked: windowState.activeByDefender.has(account.id),
+            preserveOverCapacity: this.allowDebugGrants
           })
+          const attackId = windowState.activeByDefender.get(account.id)
+          const withinSight = chebyshev(x, y, viewer.plot.x, viewer.plot.y) <= sight
           const plot: Record<string, unknown> = {
-            x,
-            y,
-            kind: 'bot',
-            seed: bot.seed,
-            ownerId: bot.id,
-            username: bot.username,
-            trophies: bot.trophies,
-            revision: bot.revision
+            x, y, kind: 'player', ownerId: account.id, username: account.username,
+            trophies: account.trophies, revision: village.appearanceRevision,
+            underAttack: Boolean(attackId),
+            ...(withinSight && attackId ? { attackId } : {}),
+            shielded: (account.shieldUntil?.getTime() ?? 0) > now.getTime(),
+            stoneMaturity: stoneMaturityOf(account, now)
           }
-          const cached = known.get(`${x},${y}`)
-          if (!cached || cached.ownerId !== bot.id || cached.revision !== bot.revision) {
-            plot.world = publicBotWorldOf(bot)
+          const cached = known.get(key)
+          if (!cached || cached.ownerId !== account.id || cached.revision !== village.appearanceRevision) {
+            plot.world = publicWorldOf(account, village)
           }
           plots.push(plot)
+          continue
         }
+        if (hiddenClaims.has(key)) {
+          plots.push({ x, y, kind: 'empty', settleable: false })
+          continue
+        }
+        const bot = botInputKeys.has(key) ? botByCoordinate.get(key) : undefined
+        if (!bot) {
+          plots.push({ x, y, kind: 'empty', settleable: !isWildernessPreserveAt(x, y) })
+          continue
+        }
+        const plot: Record<string, unknown> = {
+          x,
+          y,
+          kind: 'bot',
+          seed: bot.seed,
+          ownerId: bot.id,
+          username: bot.username,
+          trophies: bot.trophies,
+          revision: bot.revision
+        }
+        const cached = known.get(key)
+        if (!cached || cached.ownerId !== bot.id || cached.revision !== bot.revision) {
+          plot.world = publicBotWorldOf(bot)
+        }
+        plots.push(plot)
       }
-      return {
-        plots,
-        me: { x: viewer.plot.x, y: viewer.plot.y, shieldUntil: viewer.account.shieldUntil?.getTime() ?? 0 },
-        serverNow: now.getTime()
-      }
-    })
+    }
+    return {
+      plots,
+      me: { x: viewer.plot.x, y: viewer.plot.y, shieldUntil: viewer.account.shieldUntil?.getTime() ?? 0 },
+      serverNow: now.getTime()
+    }
   }
 
   async atlas(principal: RuntimePrincipal) {
@@ -1983,8 +2322,30 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     return this.attacks.botSettle(player, body)
   }
 
-  botStart(player: RuntimePrincipal, body: BotStartRequest, rawToken?: unknown) {
-    return this.attacks.botStart(player, body, rawToken)
+  private async attachFocusWindow(
+    player: RuntimePrincipal,
+    started: unknown
+  ): Promise<unknown> {
+    if (!started || typeof started !== 'object' || Array.isArray(started)) return started
+    const response = started as Record<string, unknown>
+    const target = response.target && typeof response.target === 'object' && !Array.isArray(response.target)
+      ? response.target as Record<string, unknown>
+      : response
+    if (!Number.isSafeInteger(target.x) || !Number.isSafeInteger(target.y)) return started
+    try {
+      const focusWindow = await this.map(player, target.x, target.y, 1)
+      return { ...response, focusWindow }
+    } catch (error) {
+      // Starting authority is already committed and idempotent. Presentation
+      // enrichment must never turn that success into a client retry that could
+      // strand the reserved army; old clients retain their /api/map fallback.
+      console.warn('[attacks] focus-window enrichment failed:', error)
+      return started
+    }
+  }
+
+  async botStart(player: RuntimePrincipal, body: BotStartRequest, rawToken?: unknown) {
+    return this.attachFocusWindow(player, await this.attacks.botStart(player, body, rawToken))
   }
 
   activeOutgoingBattle(player: RuntimePrincipal, rawToken: unknown) {
@@ -1995,12 +2356,15 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     return this.attacks.abortActiveOutgoingBattle(player)
   }
 
-  startAttack(player: RuntimePrincipal, body: AttackStartRequest, matchmade = false, rawToken?: unknown) {
-    return this.attacks.startAttack(player, body, matchmade, rawToken)
+  async startAttack(player: RuntimePrincipal, body: AttackStartRequest, matchmade = false, rawToken?: unknown) {
+    return this.attachFocusWindow(
+      player,
+      await this.attacks.startAttack(player, body, matchmade, rawToken)
+    )
   }
 
-  matchmake(player: RuntimePrincipal, body: MatchmakeRequest = {}, rawToken?: unknown) {
-    return this.attacks.matchmake(player, body, rawToken)
+  async matchmake(player: RuntimePrincipal, body: MatchmakeRequest = {}, rawToken?: unknown) {
+    return this.attachFocusWindow(player, await this.attacks.matchmake(player, body, rawToken))
   }
 
   pushFrames(player: RuntimePrincipal, body: AttackFrameRequest) {

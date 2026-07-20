@@ -41,7 +41,7 @@ import type { BattleOverlayScene } from './BattleOverlayScene';
 import type { GameMode } from '../types/GameMode';
 import { SceneInputController } from './controllers/SceneInputController';
 import { installBakeBridge } from '../dev/BakeBridge';
-import { SpriteBank } from '../render/SpriteBank';
+import { SpriteBank, battleSpriteRequirements, homeSpriteRequirements } from '../render/SpriteBank';
 import { installPixelModeHandle, registerPixelSurface, settleLogicalZoom, zoomSettleEnabled } from '../renderers/TextureRenderPolicy';
 import { pixelBitmap, pixelEllipse, pixelLine, pixelRect, PIXEL_CELL } from '../render/PixelDraw';
 import { PixelFx, screenShake } from '../systems/PixelFx';
@@ -607,13 +607,22 @@ export class MainScene extends Phaser.Scene {
             // Startup path: App already fetched cloud state and cached it, so avoid a second cloud refresh here.
             loadBase: async () => {
                 if (!this.sceneReadyForBaseLoad) return false;
-                // The world can hydrate while the atlas bank is loading, but
-                // App must not open its boot clouds until BOTH are settled.
-                // Otherwise the first visible frame is deliberately the
-                // smooth vector fallback and pops to pixel art a moment later.
-                const [loaded] = await Promise.all([
-                    this.reloadHomeBase({ refreshOnline: false }),
-                    SpriteBank.waitUntilSettled()
+                // Hydrate first so the sprite gate can select the exact HOME
+                // inventory instead of downloading every troop/death/defense
+                // atlas. Map rendering then overlaps that smaller asset batch.
+                const loaded = await this.reloadHomeBase({ refreshOnline: false, primeMap: false });
+                if (!loaded) return false;
+                const armyTypes = Object.entries(gameManager.getArmy())
+                    .filter(([, count]) => Number(count) > 0)
+                    .map(([type]) => type);
+                const requirements = homeSpriteRequirements({
+                    buildingTypes: this.buildings.filter(b => b.owner === 'PLAYER').map(b => b.type),
+                    obstacleTypes: this.obstacles.map(obstacle => obstacle.type),
+                    troopTypes: armyTypes
+                });
+                await Promise.all([
+                    SpriteBank.ensureBootUnits(this, requirements),
+                    this.worldMap?.prime(this.time.now)
                 ]);
                 // Belt-and-braces delivery of the settle repaint: the
                 // 'spritebank:ready' emit fires on the scene the LOAD was
@@ -623,6 +632,7 @@ export class MainScene extends Phaser.Scene {
                 // directly on the live scene; it is idempotent (double-
                 // busting draw caches on a normal load is harmless).
                 this.onSpriteBankSettled();
+                SpriteBank.startBackgroundLoad(this);
                 return loaded;
             },
             setUnderAttack: (underAttack: boolean, attackId?: string | null) => {
@@ -669,6 +679,7 @@ export class MainScene extends Phaser.Scene {
         // Registered fresh by every scene create(), so a dev-HMR bank reload
         // (SpriteBank.init's stale-texture path) re-arms it identically.
         this.events.once('spritebank:ready', () => this.onSpriteBankSettled());
+        this.events.once('spritebank:background-ready', () => this.onSpriteBankSettled());
 
         this.inputController = new SceneInputController(this);
         this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -2065,12 +2076,16 @@ export class MainScene extends Phaser.Scene {
         return true;
     }
 
-    private async reloadHomeBase(options: { refreshOnline?: boolean } = {}): Promise<boolean> {
+    private async reloadHomeBase(options: { refreshOnline?: boolean; primeMap?: boolean } = {}): Promise<boolean> {
         const lifecycleEpoch = this.lifecycleEpoch;
         const refreshOnline = options.refreshOnline ?? true;
+        const primeMap = options.primeMap ?? true;
         // Our own lawn has its own seeded tint too — neighbours see the same
         // grass on our postcard that we stand on here.
-        if (this.userId) this.rebakeGround(this.userId);
+        // applyWorldToScene clears and paints the live ground exactly once, so
+        // only select the palette here. Calling rebakeGround first painted all
+        // 625 tiles and clearScene immediately painted the same 625 again.
+        if (this.userId) this.groundPaletteKey = this.userId;
         let success = await this.loadSavedBase(false, { preferCache: true, refreshOnline });
         if (lifecycleEpoch !== this.lifecycleEpoch) return false;
 
@@ -2104,7 +2119,7 @@ export class MainScene extends Phaser.Scene {
             // Everything the reveal shows must already be there: night lights
             // burning and every neighbour postcard drawn, not popping in late.
             this.dayNight?.resyncLights();
-            await this.worldMap?.prime(this.time.now);
+            if (primeMap) await this.worldMap?.prime(this.time.now);
             if (lifecycleEpoch !== this.lifecycleEpoch) return false;
         }
         return success;
@@ -2171,8 +2186,11 @@ export class MainScene extends Phaser.Scene {
      */
     public attackBotPlot(seed: number, username: string, plotX?: number, plotY?: number) {
         const requestedSeed = seed >>> 0;
+        // Begin the authoritative drain on the click frame. The 620 ms cloud
+        // close now hides its RTT instead of waiting until after cover.
+        const homeReady = this.flushPendingSaveForTransition();
         this.showCloudTransition(async epoch => {
-            if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+            if (!await homeReady || !this.isTransitionCurrent(epoch)) return;
             const started = await Backend.botStart(plotX, plotY);
             if (!started) {
                 gameManager.showToast('That camp cannot be raided right now.');
@@ -2195,7 +2213,7 @@ export class MainScene extends Phaser.Scene {
             }
             started.world.username = meta.username;
             const plot = { x: started.x, y: started.y };
-            this.worldMap.prepareFocus(plot);
+            this.worldMap.prepareFocus(plot, started.focusWindow ?? null);
             this.prepareGroundBake(meta.id);
             await this.arriveAndFight(plot, started.world, meta, epoch, {
                 cameraArrivedAtGate: false,
@@ -2244,7 +2262,17 @@ export class MainScene extends Phaser.Scene {
         // gate: the hidden post-swap world finishes rendering and pending
         // saves flush. Only then does the swap run — one synchronous block,
         // one frame, nothing for the eye to catch.
-        const focusReady = await this.worldMap.waitForFocusReady();
+        const armyTypes = Object.entries(gameManager.getArmy())
+            .filter(([, count]) => Number(count) > 0)
+            .map(([type]) => type);
+        const [focusReady] = await Promise.all([
+            this.worldMap.waitForFocusReady(),
+            SpriteBank.ensureUnits(this, battleSpriteRequirements({
+                buildingTypes: (world.buildings ?? []).map(building => building.type),
+                obstacleTypes: (world.obstacles ?? []).map(obstacle => obstacle.type),
+                troopTypes: armyTypes
+            }))
+        ]);
         if (!this.isTransitionCurrent(epoch)) {
             if (!meta.isBot && meta.attackId) await Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
             if (meta.botRaidId) await this.abortBotSession(meta);
@@ -2259,7 +2287,12 @@ export class MainScene extends Phaser.Scene {
             finish();
             return;
         }
-        if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) {
+        // Every entry into this flow drains home edits/army orders before the
+        // attack request is issued. Repeating the global flush here—after the
+        // opponent and focus ring already loaded—added another queue barrier
+        // and could abort a fully registered raid for unrelated background
+        // work. From this point the transition epoch is the only required gate.
+        if (!this.isTransitionCurrent(epoch)) {
             if (!meta.isBot && meta.attackId) void Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
             if (meta.botRaidId) await this.abortBotSession(meta);
             this.worldMap.teardown();
@@ -2841,7 +2874,7 @@ export class MainScene extends Phaser.Scene {
         // and downgraded to enabled=false, when this hold is off). Ground
         // passes (onlyBase → the ground RT) keep painting: the RT re-quantizes
         // into 1.35-px cells shortly after, so nothing smooth survives there.
-        if (!onlyBase && SpriteBank.holdVector) {
+        if (!onlyBase && (SpriteBank.holdVector || SpriteBank.isPending('buildings', type))) {
             graphics.clear();
             return;
         }
@@ -9101,35 +9134,23 @@ export class MainScene extends Phaser.Scene {
 
     private async flushPendingSaveForTransition(): Promise<boolean> {
         const userId = this.userId;
-        if (!Backend.hasPendingSave(userId)) return true;
-
-        const maxWaitMs = 1200;
-        let timeoutHandle: number | null = null;
-        const flushPromise = Backend.flushPendingSave();
-        const timeoutPromise = new Promise<'timeout'>(resolve => {
-            timeoutHandle = window.setTimeout(() => resolve('timeout'), maxWaitMs);
-        });
+        const hasLayout = Backend.hasPendingSave(userId);
+        const hasArmy = Backend.hasPendingArmy(userId);
+        if (!hasLayout && !hasArmy) return true;
 
         try {
-            const result = await Promise.race([
-                flushPromise.then(() => 'flushed' as const),
-                timeoutPromise
+            // Army clicks collapse into one authoritative batch and layout
+            // edits have their own lane. Await both real drains once; never
+            // time out after 1.2 s and force a second FIND MATCH click while a
+            // perfectly valid Vercel request is still finishing.
+            await Promise.all([
+                hasArmy ? Backend.flushPendingArmy(userId) : Promise.resolve(),
+                hasLayout ? Backend.flushPendingSave() : Promise.resolve()
             ]);
-            if (timeoutHandle !== null) {
-                window.clearTimeout(timeoutHandle);
-            }
-            if (result === 'timeout') {
-                console.warn(`flushPendingSaveForTransition: continuing after ${maxWaitMs}ms budget`);
-                void flushPromise.catch(error => {
-                    console.warn('flushPendingSaveForTransition: background flush failed:', error);
-                });
-                gameManager.showToast('Your village is still saving. Try that journey again in a moment.');
-                return false;
-            }
             return true;
         } catch (error) {
-            console.warn('Failed to flush pending save before transition:', error);
-            gameManager.showToast('Village save failed. Reconnect before leaving home.');
+            console.warn('Failed to synchronize home state before transition:', error);
+            gameManager.showToast('Your army could not synchronize. Reconnect before attacking.');
             return false;
         }
     }
@@ -9179,9 +9200,13 @@ export class MainScene extends Phaser.Scene {
                     this.inputController.onPointerMove(this.inputController.getGameplayPointer());
                 }
             },
+            syncHomeStatus: (serverNow: number, shieldUntil: number) => {
+                this.worldMap?.applyHomeStatus(serverNow, shieldUntil);
+            },
             startAttack: () => {
+                const homeReady = this.flushPendingSaveForTransition();
                 this.showCloudTransition(async epoch => {
-                    if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+                    if (!await homeReady || !this.isTransitionCurrent(epoch)) return;
                     this.resetMatchmakeSession();
                     const loaded = await this.generateFindMatchVillage(epoch);
                     if (!this.isTransitionCurrent(epoch)) return;
@@ -9262,8 +9287,9 @@ export class MainScene extends Phaser.Scene {
                 });
             },
             startOnlineAttack: () => {
+                const homeReady = this.flushPendingSaveForTransition();
                 this.showCloudTransition(async epoch => {
-                    if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+                    if (!await homeReady || !this.isTransitionCurrent(epoch)) return;
                     // Matchmaking selects a real world plot; the shared focus
                     // path below installs that neighborhood and enters the
                     // same battle-in-place flow as a nearby road attack.
@@ -9277,8 +9303,9 @@ export class MainScene extends Phaser.Scene {
                 });
             },
             startAttackOnUser: (userId: string, username: string) => {
+                const homeReady = this.flushPendingSaveForTransition();
                 this.showCloudTransition(async epoch => {
-                    if (!await this.flushPendingSaveForTransition() || !this.isTransitionCurrent(epoch)) return;
+                    if (!await homeReady || !this.isTransitionCurrent(epoch)) return;
                     const success = await this.generateEnemyVillageFromUser(userId, username, true, epoch);
                     if (!this.isTransitionCurrent(epoch)) return;
                     if (!success) {
@@ -9554,11 +9581,10 @@ export class MainScene extends Phaser.Scene {
         // marching column used to silence them, so it is explicit now).
         soundSystem.setBattleMusic(false);
         this.forceFinishHomecoming(); // completes any stale homecoming swap
-        this.worldMap.endFocus();
+        const restoredHomeRing = this.worldMap.endFocus();
         this.battleInPlace = false;
         // Back on our own lawn — which never wears a nameplate, so the
         // target's label simply goes away with the battle.
-        this.rebakeGround(this.userId || 'village');
         this.setVillageNameVisible(false);
         this.clearReplayWatchState();
         this.cancelPlacement();
@@ -9566,7 +9592,7 @@ export class MainScene extends Phaser.Scene {
         this.mode = 'HOME';
         this.isScouting = false;
         this.hasDeployed = false;
-        await this.reloadHomeBase({ refreshOnline: true });
+        await this.reloadHomeBase({ refreshOnline: true, primeMap: !restoredHomeRing });
     }
 
     /**
@@ -9756,6 +9782,7 @@ export class MainScene extends Phaser.Scene {
                 this.groundRenderTexture.draw(this.tempGraphics, this.RT_OFFSET_X, this.RT_OFFSET_Y);
             }
         }
+        this.markGroundPixelDirty();
     }
 
     private instantiateEnemyWorld(
@@ -9889,45 +9916,22 @@ export class MainScene extends Phaser.Scene {
         return summary;
     }
 
-    /**
-     * Pick the NEXT bot camp for the matchmake rotation: cycle the camps the
-     * map window shows (never the same camp twice in a session) before
-     * falling back to the server's nearest-far pick. Without this, the
-     * server's deterministic ring scan returns the SAME camp on every press
-     * (owner report 2026-07-19: "literally every village").
-     */
-    private async pickRotationBotCamp(): Promise<{ x: number; y: number } | null> {
-        try {
-            const sight = 2; // full watchtower window; fetchMap clamps to the earned sight
-            const window = await Backend.fetchMap(null, null, Math.max(1, sight));
-            const camps = (window?.plots ?? []).filter(p =>
-                p.kind === 'bot'
-                && !this.matchmakeSeenCampKeys.includes(`${p.x},${p.y}`));
-            if (camps.length === 0) return null;
-            // Deterministic per-press variety: stride by a session counter.
-            const pick = camps[(this.matchmakeSeenCampKeys.length * 7 + 3) % camps.length];
-            return { x: pick.x, y: pick.y };
-        } catch {
-            return null;
-        }
-    }
-
-    /** Ask for a bot camp, focus its real plot, then use the local battle swap. */
+    /** Ask for a bot camp, focus its real plot, then use the local battle swap.
+     * Rotation exclusions travel in the authoritative start so choosing the
+     * camp and loading its 3x3 presentation window cost one request total. */
     private async generateEnemyVillage(epoch?: number): Promise<boolean> {
-        let started: Awaited<ReturnType<typeof Backend.botStart>> = null;
-        const rotated = await this.pickRotationBotCamp();
-        if (rotated) {
-            this.matchmakeSeenCampKeys = this.matchmakeSeenCampKeys
-                .concat(`${rotated.x},${rotated.y}`)
-                .slice(-64);
-            // Cooldown/claim races just fall through to the server's pick.
-            started = await Backend.botStart(rotated.x, rotated.y).catch(() => null);
-        }
-        if (!started) started = await Backend.botStart();
+        const started = await Backend.botStart(undefined, undefined, {
+            excludeCampKeys: this.matchmakeSeenCampKeys
+        });
         if (!started) {
             gameManager.showToast('No bot camp is available right now.');
             return false;
         }
+        const campKey = `${started.x},${started.y}`;
+        this.matchmakeSeenCampKeys = this.matchmakeSeenCampKeys
+            .filter(key => key !== campKey)
+            .concat(campKey)
+            .slice(-64);
         const username = started.world.username || 'Bot clan';
         const meta = {
             // The server owns bot identity. Seeds can repeat at different
@@ -9944,7 +9948,7 @@ export class MainScene extends Phaser.Scene {
             return false;
         }
         const plot = { x: started.x, y: started.y };
-        this.worldMap.prepareFocus(plot);
+        this.worldMap.prepareFocus(plot, started.focusWindow ?? null);
         this.prepareGroundBake(meta.id);
         await this.arriveAndFight(plot, started.world, meta, epoch, {
             cameraArrivedAtGate: false,
@@ -10037,7 +10041,7 @@ export class MainScene extends Phaser.Scene {
             attackId: started.attackId,
             lootPreCapped: true
         };
-        this.worldMap.prepareFocus(plot);
+        this.worldMap.prepareFocus(plot, started.focusWindow ?? null);
         this.prepareGroundBake(meta.id);
         await this.arriveAndFight(plot, started.world, meta, epoch, {
             // Matchmade travel is covered by the cloud, but the destination is
@@ -10093,7 +10097,7 @@ export class MainScene extends Phaser.Scene {
                 attackId: startedAttack.attackId,
                 lootPreCapped: true
             };
-            this.worldMap.prepareFocus(plot);
+            this.worldMap.prepareFocus(plot, startedAttack.focusWindow ?? null);
             this.prepareGroundBake(meta.id);
             await this.arriveAndFight(plot, userBase, meta, epoch, {
                 cameraArrivedAtGate: false,

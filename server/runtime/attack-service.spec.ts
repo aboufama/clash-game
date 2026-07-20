@@ -555,6 +555,26 @@ test('random bot discovery batches occupancy into one bounded repository query',
   assert.equal(persistence.batchQueries, 1, 'idempotent retry does not probe occupancy again')
 })
 
+test('cloud bot discovery rejects unbounded or malformed rotation exclusions', async () => {
+  const { service } = await fixture(['attacker'])
+  await assert.rejects(
+    service.botStart(
+      { playerId: 'attacker' },
+      { requestId: 'too-many-exclusions', excludeCampKeys: Array.from({ length: 65 }, (_, i) => `${i},0`) },
+      'device-token'
+    ),
+    error => error instanceof ApiError && error.status === 400
+  )
+  await assert.rejects(
+    service.botStart(
+      { playerId: 'attacker' },
+      { requestId: 'malformed-exclusion', excludeCampKeys: ['not-a-coordinate'] },
+      'device-token'
+    ),
+    error => error instanceof ApiError && error.status === 400
+  )
+})
+
 test('bot cooldown storage prunes expired coordinates and stays bounded after settlement', async () => {
   const { persistence, now, service } = await fixture(['attacker'])
   await patchAccount(persistence, 'attacker', record => {

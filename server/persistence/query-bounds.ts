@@ -8,6 +8,7 @@ import type {
   WorldAtlasQuery,
   WorldPlayerDirectoryQuery
 } from './model'
+import type { BotVillageRecord } from './model'
 
 /** Hard request-path caps. Repository callers must always supply a limit. */
 export const QUERY_LIMITS = Object.freeze({
@@ -16,6 +17,7 @@ export const QUERY_LIMITS = Object.freeze({
   worldAtlas: 1_024,
   worldAtlasSpan: 256,
   worldOccupancyBatch: 128,
+  botVillageProvisionBatch: 128,
   activeAttacks: 100,
   activeAttackBatch: 1_024,
   attackPlayerIds: 1_024,
@@ -33,6 +35,29 @@ export const QUERY_LIMITS = Object.freeze({
   adminAudit: 250,
   adminBotRadius: 127
 })
+
+export function boundBotVillageProvisionBatch(
+  records: readonly BotVillageRecord[]
+): BotVillageRecord[] {
+  if (!Array.isArray(records)) throw new RangeError('bot villages must be an array')
+  if (records.length > QUERY_LIMITS.botVillageProvisionBatch) {
+    throw new RangeError(`bot villages may not exceed ${QUERY_LIMITS.botVillageProvisionBatch}`)
+  }
+  const ids = new Set<string>()
+  const coordinates = new Set<string>()
+  for (const record of records) {
+    if (!record || typeof record.id !== 'string' || typeof record.worldId !== 'string') {
+      throw new RangeError('Every bot village must have an identity and world')
+    }
+    const coordinate = `${record.worldId}\u0000${record.x}\u0000${record.y}`
+    if (ids.has(record.id) || coordinates.has(coordinate)) {
+      throw new RangeError('Bot village provision batches may not contain duplicate identities or coordinates')
+    }
+    ids.add(record.id)
+    coordinates.add(coordinate)
+  }
+  return [...records]
+}
 
 export function boundAdminPlayerQuery(query: AdminPlayerQuery): AdminPlayerQuery {
   if (typeof query.search !== 'string' || query.search.length > 64) {

@@ -28,7 +28,12 @@ import type {
   SessionResponse,
   StartedAttackResponse
 } from './protocol'
-import { MATCHMAKE_EXCLUSION_LIMIT, type MatchmakeRequest } from './runtime/contracts'
+import {
+  BOT_CAMP_EXCLUSION_LIMIT,
+  MATCHMAKE_EXCLUSION_LIMIT,
+  type BotStartRequest,
+  type MatchmakeRequest
+} from './runtime/contracts'
 import { JsonCollection } from './store'
 import {
   ATTACK_SIMULATION_VERSION,
@@ -555,6 +560,38 @@ function sanitizeId(value: unknown): string {
   return String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 96)
 }
 
+type LegacyArmyBatchOperation = {
+  kind: 'train' | 'untrain'
+  type: TroopType
+  count: number
+}
+
+function parseLegacyArmyBatchOperations(value: unknown): LegacyArmyBatchOperation[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ApiError(400, 'Army batch needs at least one operation')
+  }
+  if (value.length > 50) throw new ApiError(400, 'Army batch exceeds 50 operations')
+  return value.map(raw => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new ApiError(400, 'Invalid army batch operation')
+    }
+    const candidate = raw as { kind?: unknown; type?: unknown; count?: unknown }
+    if (candidate.kind !== 'train' && candidate.kind !== 'untrain') {
+      throw new ApiError(400, 'Army operation must train or untrain')
+    }
+    const type = sanitizeId(candidate.type) as TroopType
+    const definition = hasOwn(TROOP_DEFINITIONS, type) ? TROOP_DEFINITIONS[type] : undefined
+    if (!definition || (candidate.kind === 'train' && !isTrainableTroopType(type))) {
+      throw new ApiError(404, 'Unknown troop type')
+    }
+    return {
+      kind: candidate.kind,
+      type,
+      count: clamp(toInt(candidate.count, 1), 1, 50)
+    }
+  })
+}
+
 function isAttackNotification(item: LegacyNotificationItem): item is AttackNotificationItem {
   return !('kind' in item) || item.kind !== 'admin_notice'
 }
@@ -614,6 +651,28 @@ function parseMatchmakeExclusions(value: unknown): Set<string> {
     throw new ApiError(400, `excludeTargetIds must be an array of at most ${MATCHMAKE_EXCLUSION_LIMIT} ids`)
   }
   return new Set(value.map(entry => strictSafeId(entry, 'excludeTargetIds entry')))
+}
+
+function parseBotCampExclusions(value: unknown): Set<string> {
+  if (value === undefined) return new Set()
+  if (!Array.isArray(value) || value.length > BOT_CAMP_EXCLUSION_LIMIT) {
+    throw new ApiError(400, `excludeCampKeys must be an array of at most ${BOT_CAMP_EXCLUSION_LIMIT} coordinates`)
+  }
+  const exclusions = new Set<string>()
+  for (const entry of value) {
+    if (typeof entry !== 'string' || !/^-?\d+,-?\d+$/.test(entry)) {
+      throw new ApiError(400, 'Every excluded camp must use the x,y coordinate format')
+    }
+    const [rawX, rawY] = entry.split(',')
+    const x = Number(rawX)
+    const y = Number(rawY)
+    if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)
+      || Math.abs(x) > WORLD_COORD_LIMIT || Math.abs(y) > WORLD_COORD_LIMIT) {
+      throw new ApiError(400, 'Excluded camp coordinates are outside the world')
+    }
+    exclusions.add(`${x},${y}`)
+  }
+  return exclusions
 }
 
 function strictSafeId(value: unknown, label: string): string {
@@ -1794,6 +1853,18 @@ export class GameService implements AdminApiService {
     }
   }
 
+  /** Presentation enrichment is deliberately best-effort: attack authority
+   * is already committed, so a postcard failure must not strand a reservation
+   * or turn an idempotent start into a retry. */
+  private attackFocusWindow(player: PlayerRecord, x: number, y: number): unknown | undefined {
+    try {
+      return this.map(player, x, y, 1)
+    } catch (error) {
+      console.warn('[attacks] legacy focus-window enrichment failed:', error)
+      return undefined
+    }
+  }
+
   /** Pack the wagons: free the current plot and settle an unowned one. */
   relocate(player: PlayerRecord, rawX: unknown, rawY: unknown) {
     if (this.activeAttackFor(player.id)) throw new ApiError(409, 'Cannot relocate during an active PvP attack')
@@ -2308,6 +2379,26 @@ export class GameService implements AdminApiService {
     return { ...this.worldOf(player), stoneMaturity: this.stoneMaturityOf(player) } as SerializedWorld
   }
 
+  homeSync(player: PlayerRecord) {
+    this.advancePlayer(player)
+    const incoming = this.incomingAttacks(player)[0] ?? null
+    return {
+      serverNow: Date.now(),
+      world: {
+        revision: player.revision,
+        lastSaveTime: player.lastMutationAt || player.lastAccrualAt
+      },
+      shieldUntil: player.shieldUntil ?? 0,
+      incomingAttack: incoming ? {
+        attackId: incoming.attackId,
+        attackerId: incoming.attackerId,
+        attackerName: incoming.attackerName,
+        startedAt: incoming.startedAt,
+        updatedAt: incoming.updatedAt
+      } : null
+    }
+  }
+
   scout(viewer: PlayerRecord, targetId: unknown): PublicWorldSnapshot {
     const target = this.players.get(sanitizeId(targetId))
     if (!target) throw new ApiError(404, 'Player not found')
@@ -2636,6 +2727,99 @@ export class GameService implements AdminApiService {
     return this.armyBalances(player)
   }
 
+  /** Atomic mixed train/untrain burst used by the browser's debounced queue. */
+  armyBatch(player: PlayerRecord, body: { operations?: unknown; requestId?: unknown }) {
+    const operations = parseLegacyArmyBatchOperations(body?.operations)
+    const key = this.normalizeKey(body?.requestId)
+    if (this.hasRequestKey(player, key)) {
+      return { ...this.armyBalances(player), world: this.getWorld(player) }
+    }
+    if (this.activeAttackFor(player.id)) throw new ApiError(409, 'Army is reserved for an active attack')
+    if (this.activeBotRaidFor(player.id)) throw new ApiError(409, 'Army is reserved for an active bot raid')
+    if (operations.some(operation => operation.kind === 'train')) this.assertBaseEconomyUnlocked(player)
+
+    this.accrue(player)
+    const army = { ...player.army }
+    let gold = player.balance
+    let food = player.food
+    const housing = campCapacityOf(player.buildings)
+    const storage = resourceCapacity(player.buildings)
+    const infiniteResources = infiniteResourcesEnabled()
+    let trainingGold = 0
+    let trainingFood = 0
+    let refundGold = 0
+    let refundFood = 0
+
+    for (const operation of operations) {
+      const definition = TROOP_DEFINITIONS[operation.type]
+      if (operation.kind === 'train') {
+        const trainingRequirement = troopTrainingRequirement(operation.type)
+        if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
+        if (trainingRequirement.kind === 'core') {
+          if (maxCompletedArmyCampLevel(player.buildings) < trainingRequirement.unlockLevel) {
+            throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+          }
+        } else if (barracksLevelForTroop(player.buildings, operation.type) < trainingRequirement.unlockLevel) {
+          throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
+        }
+        if (armySpaceUsed(army) + definition.space * operation.count > housing) {
+          throw new ApiError(409, 'Not enough housing space in the camps')
+        }
+        const goldCost = definition.cost * operation.count
+        const foodCost = troopFoodCostOf(operation.type) * operation.count
+        if (!infiniteResources && Math.floor(gold) < goldCost) {
+          throw new ApiError(409, `Not enough gold (need ${goldCost})`)
+        }
+        if (!infiniteResources && food < foodCost) {
+          throw new ApiError(409, `Not enough food (need ${foodCost})`)
+        }
+        if (!infiniteResources) {
+          gold -= goldCost
+          food -= foodCost
+          trainingGold += goldCost
+          trainingFood += foodCost
+        }
+        army[operation.type] = (army[operation.type] ?? 0) + operation.count
+        continue
+      }
+
+      const have = army[operation.type] ?? 0
+      if (have < operation.count) throw new ApiError(409, 'Not that many troops in camp')
+      if (have === operation.count) delete army[operation.type]
+      else army[operation.type] = have - operation.count
+      if (!infiniteResources) {
+        const beforeGold = gold
+        const beforeFood = food
+        gold = clamp(gold + definition.cost * operation.count, 0, MAX_BALANCE)
+        food = storedResourceAfterDelta(
+          food,
+          troopFoodCostOf(operation.type) * operation.count,
+          storage.food,
+          false,
+          debugGrantsEnabled()
+        )
+        refundGold += gold - beforeGold
+        refundFood += food - beforeFood
+      }
+    }
+
+    player.army = army
+    player.balance = gold
+    player.food = food
+    if (!infiniteResources) {
+      if (trainingGold > 0) this.book('sinks', 'gold', trainingGold)
+      if (trainingFood > 0) this.book('sinks', 'food', trainingFood)
+      if (refundGold > 0) this.book('refunds', 'gold', refundGold)
+      if (refundFood > 0) this.book('refunds', 'food', refundFood)
+      this.discardCappedProduction(player, storage)
+    }
+    player.revision += 1
+    player.lastMutationAt = Date.now()
+    this.recordRequestKey(player, key)
+    this.players.markDirty(player.id)
+    return { ...this.armyBalances(player), world: this.getWorld(player) }
+  }
+
   private armyBalances(player: PlayerRecord) {
     return {
       army: { ...player.army },
@@ -2736,7 +2920,12 @@ export class GameService implements AdminApiService {
     return raids
   }
 
-  private botCampForStart(player: PlayerRecord, rawX: unknown, rawY: unknown): { x: number; y: number; seed: number; visibleAtStart: boolean } {
+  private botCampForStart(
+    player: PlayerRecord,
+    rawX: unknown,
+    rawY: unknown,
+    excludedCampKeys: ReadonlySet<string>
+  ): { x: number; y: number; seed: number; visibleAtStart: boolean } {
     const explicit = rawX !== undefined || rawY !== undefined
     const now = Date.now()
     const raids = this.pruneBotRaidCooldowns(player, now)
@@ -2749,7 +2938,8 @@ export class GameService implements AdminApiService {
         frontierRadius: this.botFrontierRadius(),
         presentationSeedVersion: this.allocationState.presentationSeedVersion
       })
-      if (seed === null || now - (raids[plotKey(x, y)] ?? 0) < BOT_RAID_COOLDOWN_MS) return null
+      if (seed === null || (!explicit && excludedCampKeys.has(`${x},${y}`))
+        || now - (raids[plotKey(x, y)] ?? 0) < BOT_RAID_COOLDOWN_MS) return null
       return { x, y, seed }
     }
     if (explicit) {
@@ -2811,9 +3001,10 @@ export class GameService implements AdminApiService {
     })
   }
 
-  botStart(player: PlayerRecord, body: { x?: unknown; y?: unknown; requestId?: unknown }, rawToken?: unknown): { raidId: string; x: number; y: number; seed: number; world: SerializedWorld; expiresAt: number } {
+  botStart(player: PlayerRecord, body: BotStartRequest, rawToken?: unknown): { raidId: string; x: number; y: number; seed: number; world: SerializedWorld; expiresAt: number; focusWindow?: unknown } {
     this.pruneFinishedBotRaids()
     const requestId = this.normalizeKey(body?.requestId)
+    const excludedCampKeys = parseBotCampExclusions(body?.excludeCampKeys)
     if (requestId) {
       const existingId = this.startRequestIndex.get('bot-start', player.id, requestId)
       const existing = existingId ? this.botRaidSessions.get(existingId) : undefined
@@ -2831,14 +3022,20 @@ export class GameService implements AdminApiService {
           y: existing.y,
           seed: existing.seed,
           world: structuredClone(bot.world),
-          expiresAt: existing.expiresAt
+          expiresAt: existing.expiresAt,
+          focusWindow: this.attackFocusWindow(player, existing.x, existing.y)
         }
       }
     }
     if (this.activeAttackFor(player.id)) throw new ApiError(409, 'Finish or abort your active PvP attack first')
     if (this.activeBotRaidFor(player.id)) throw new ApiError(409, 'Finish or retreat from your active bot raid first')
     if (armySpaceUsed(player.army) <= 0) throw new ApiError(409, 'Train troops before starting a bot raid')
-    const camp = this.botCampForStart(player, body?.x, body?.y)
+    const camp = this.botCampForStart(
+      player,
+      body?.x,
+      body?.y,
+      excludedCampKeys
+    )
     const bot = this.persistedBotVillageAt(camp.x, camp.y, camp.seed)
     const now = Date.now()
     const raidId = `botraid_${randomHex(9)}`
@@ -2875,7 +3072,15 @@ export class GameService implements AdminApiService {
       throw new ApiError(503, 'Could not persist bot raid session')
     }
     if (requestId) this.startRequestIndex.set('bot-start', player.id, requestId, raid.raidId, now)
-    return { raidId: raid.raidId, x: camp.x, y: camp.y, seed: camp.seed, world, expiresAt: raid.expiresAt }
+    return {
+      raidId: raid.raidId,
+      x: camp.x,
+      y: camp.y,
+      seed: camp.seed,
+      world,
+      expiresAt: raid.expiresAt,
+      focusWindow: this.attackFocusWindow(player, camp.x, camp.y)
+    }
   }
 
   private applyBotAuthorityCommand(raid: BotRaidRecord, command: AttackCommand, now = Date.now()) {
@@ -3845,7 +4050,12 @@ export class GameService implements AdminApiService {
         x: existing.victimPlotX ?? 0,
         y: existing.victimPlotY ?? 0,
         plotVersion: existing.victimPlotVersion ?? 1
-      }
+      },
+      focusWindow: this.attackFocusWindow(
+        attacker,
+        existing.victimPlotX ?? 0,
+        existing.victimPlotY ?? 0
+      )
     }
   }
 
@@ -4025,7 +4235,8 @@ export class GameService implements AdminApiService {
         x: victim.plotX ?? 0,
         y: victim.plotY ?? 0,
         plotVersion: victim.plotVersion ?? 1
-      }
+      },
+      focusWindow: this.attackFocusWindow(attacker, victim.plotX ?? 0, victim.plotY ?? 0)
     }
   }
 

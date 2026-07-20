@@ -1,4 +1,5 @@
-import { BUILDING_DEFINITIONS, MAP_SIZE, createStarterVillage, type BuildingType, type ObstacleType } from '../config/GameDefinitions';
+import { BUILDING_DEFINITIONS, MAP_SIZE, TROOP_DEFINITIONS, createStarterVillage, troopFoodCostOf, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
+import { resourceCapacity } from '../config/Economy';
 import { adoptUpgradePolicy } from '../config/UpgradePolicy';
 import { sanitizeVillageBanner, type SerializedBuilding, type SerializedObstacle, type SerializedWorld, type VillageBanner, type VillageLifeManifest } from '../data/Models';
 export type { VillageBanner, VillageLifeManifest } from '../data/Models';
@@ -62,6 +63,7 @@ const API_REQUEST_TIMEOUT_MS = 10_000;
 const FRAME_FLUSH_MS = 350;
 const FRAME_FLUSH_COUNT = 4;
 const FRAME_SEND_ATTEMPTS = 3;
+const ARMY_BATCH_DEBOUNCE_MS = 90;
 
 type ResourceDeltaResult = { applied: boolean; gold: number; revision?: number };
 
@@ -193,6 +195,9 @@ export type StartedAttack = {
     y: number;
     plotVersion: number;
   };
+  /** Presentation window returned with the authoritative start, avoiding a
+   * second map round-trip before the battle can be shown. */
+  focusWindow?: WorldMapWindow;
 };
 
 export type MatchmakingOptions = {
@@ -236,7 +241,16 @@ export type ArmyTransactionResult = {
   ore: number;
   food: number;
   revision: number;
+  world?: SerializedWorld;
 };
+
+export type ArmyBatchOperation = {
+  kind: 'train' | 'untrain';
+  type: string;
+  count: number;
+};
+
+type QueuedArmyOperation = ArmyBatchOperation & { readonly id: number };
 
 export type MerchantTradeResult = {
   applied: boolean;
@@ -261,6 +275,15 @@ export type StartedBotRaid = {
   seed: number;
   world: SerializedWorld;
   expiresAt: number;
+  /** Presentation window returned with the authoritative start. */
+  focusWindow?: WorldMapWindow;
+};
+
+export type HomeSyncResponse = {
+  serverNow: number;
+  world: { revision: number; lastSaveTime: number };
+  shieldUntil: number;
+  incomingAttack: IncomingAttackSession | null;
 };
 
 type RememberedBattle =
@@ -286,7 +309,7 @@ type PendingBattleStart =
       excludeTargetId?: string;
       excludeTargetIds?: string[];
     }
-  | { kind: 'bot-start'; requestId: string; x?: number; y?: number };
+  | { kind: 'bot-start'; requestId: string; x?: number; y?: number; excludeCampKeys?: string[] };
 
 type ServerActiveBattle =
   | {
@@ -489,6 +512,7 @@ function parsePendingBattleStart(value: unknown): PendingBattleStart | null {
     targetId?: unknown;
     excludeTargetId?: unknown;
     excludeTargetIds?: unknown;
+    excludeCampKeys?: unknown;
     x?: unknown;
     y?: unknown;
   };
@@ -509,10 +533,16 @@ function parsePendingBattleStart(value: unknown): PendingBattleStart | null {
   }
   if (parsed.kind === 'bot-start' && typeof parsed.requestId === 'string' && parsed.requestId) {
     const hasCoords = Number.isInteger(parsed.x) && Number.isInteger(parsed.y);
+    const excludeCampKeys = Array.isArray(parsed.excludeCampKeys)
+      ? parsed.excludeCampKeys
+        .filter((key): key is string => typeof key === 'string' && /^-?\d+,-?\d+$/.test(key))
+        .slice(-64)
+      : [];
     return {
       kind: 'bot-start',
       requestId: parsed.requestId,
-      ...(hasCoords ? { x: Number(parsed.x), y: Number(parsed.y) } : {})
+      ...(hasCoords ? { x: Number(parsed.x), y: Number(parsed.y) } : {}),
+      ...(excludeCampKeys.length > 0 ? { excludeCampKeys } : {})
     };
   }
   return null;
@@ -578,6 +608,48 @@ function cloneWorld(world: SerializedWorld): SerializedWorld {
     army: world.army ? { ...world.army } : undefined,
     banner: world.banner ? { ...world.banner } : undefined
   };
+}
+
+/** Overlay unconfirmed clicks on server truth so an earlier batch response
+ * never makes later optimistic orders disappear from the HUD. */
+function rebasePendingArmy(
+  world: SerializedWorld,
+  operations: readonly ArmyBatchOperation[],
+  infiniteResources: boolean,
+  includeArmyCounts = true
+): SerializedWorld {
+  if (operations.length === 0) return world;
+  const rebased = cloneWorld(world);
+  const army: Record<string, number> = { ...(rebased.army ?? {}) };
+  const foodCapacity = rebased.storage?.food ?? resourceCapacity(rebased.buildings).food;
+  for (const operation of operations) {
+    const definition = TROOP_DEFINITIONS[operation.type as TroopType];
+    if (!definition) continue;
+    const count = Math.max(1, Math.min(50, Math.floor(Number(operation.count) || 1)));
+    if (operation.kind === 'train') {
+      if (includeArmyCounts) army[operation.type] = (army[operation.type] ?? 0) + count;
+      if (!infiniteResources) {
+        rebased.resources.gold = Math.max(0, rebased.resources.gold - definition.cost * count);
+        rebased.resources.food = Math.max(0, Number(rebased.resources.food ?? 0) - troopFoodCostOf(operation.type as TroopType) * count);
+      }
+      continue;
+    }
+    const removed = includeArmyCounts ? Math.min(army[operation.type] ?? 0, count) : count;
+    if (removed <= 0) continue;
+    if (includeArmyCounts) {
+      if ((army[operation.type] ?? 0) === removed) delete army[operation.type];
+      else army[operation.type] -= removed;
+    }
+    if (!infiniteResources) {
+      rebased.resources.gold += definition.cost * removed;
+      rebased.resources.food = Math.min(
+        foodCapacity,
+        Number(rebased.resources.food ?? 0) + troopFoodCostOf(operation.type as TroopType) * removed
+      );
+    }
+  }
+  rebased.army = army;
+  return rebased;
 }
 
 function sameBuildingLayout(left: SerializedBuilding, right: SerializedBuilding): boolean {
@@ -684,6 +756,14 @@ export class Backend {
   private static pendingLayoutBases = new Map<string, SerializedWorld>();
   /** All revision-changing requests for one account pass through this chain. */
   private static mutationChains = new Map<string, Promise<void>>();
+  /** Debounced click bursts. `unconfirmed` also includes the prefix currently
+   * in flight, which lets every intervening world response rebase correctly. */
+  private static armyQueues = new Map<string, QueuedArmyOperation[]>();
+  private static armyUnconfirmed = new Map<string, QueuedArmyOperation[]>();
+  private static armyAuthorityBases = new Map<string, SerializedWorld>();
+  private static armyFlushTimers = new Map<string, number>();
+  private static armyDrainPromises = new Map<string, Promise<void>>();
+  private static armyOperationSequence = 0;
   private static authorityRequestSeq = new Map<string, number>();
   private static authorityResponseSeq = new Map<string, number>();
   private static knownRevision = new Map<string, number>();
@@ -813,6 +893,31 @@ export class Backend {
     throw lastError;
   }
 
+  /** Start an attack without a speculative active-session read. The normal
+   * case is one POST; only the exceptional cross-device lock pays for an
+   * abort and retry. The original idempotency key is preserved. */
+  private static async postAttackStartWithTakeover<T>(
+    path: string,
+    body: unknown,
+    userId: string
+  ): Promise<T> {
+    try {
+      return await Backend.postWithRetry<T>(path, body);
+    } catch (error) {
+      const status = (error as { status?: number } | null)?.status;
+      const message = error instanceof Error ? error.message : '';
+      if (status !== 409 || !/active attack|finish or abort/i.test(message)) throw error;
+
+      const authoritySeq = Backend.nextAuthorityRequest(userId);
+      const aborted = await Backend.apiPost<{ world?: SerializedWorld }>('/api/attacks/active/abort', {});
+      if (aborted.world) {
+        const effective = Backend.adoptRemoteWorld(userId, aborted.world, authoritySeq, true);
+        if (effective) Backend.announceWorldSync(effective);
+      }
+      return await Backend.postWithRetry<T>(path, body);
+    }
+  }
+
   private static scheduleBattleReconciliation(userId: string, delayMs = 3_000) {
     if (typeof window === 'undefined' || Backend.battleReconcileTimers.has(userId)) return;
     const timer = window.setTimeout(() => {
@@ -939,6 +1044,7 @@ export class Backend {
       next = rebaseLayout(base, current, serverWorld);
       Backend.pendingLayoutBases.set(userId, cloneWorld(serverWorld));
     }
+    next = Backend.withPendingArmy(userId, next);
     Backend.markAuthorityAdopted(userId, serverWorld.revision, requestSeq);
     Backend.setCachedWorld(userId, next);
     Backend.adoptWorldAdvertisements(serverWorld);
@@ -968,6 +1074,14 @@ export class Backend {
 
   private static markLayoutEdited(userId: string) {
     Backend.saveSeq.set(userId, (Backend.saveSeq.get(userId) ?? 0) + 1);
+  }
+
+  private static withPendingArmy(userId: string, world: SerializedWorld): SerializedWorld {
+    return rebasePendingArmy(
+      world,
+      Backend.armyUnconfirmed.get(userId) ?? [],
+      Boolean(Auth.getFeatures().infiniteResources)
+    );
   }
 
   private static enqueueMutation<T>(userId: string, operation: () => Promise<T>): Promise<T> {
@@ -1001,6 +1115,13 @@ export class Backend {
     Backend.committedSaveSeq.delete(userId);
     Backend.pendingLayoutBases.delete(userId);
     Backend.mutationChains.delete(userId);
+    const armyTimer = Backend.armyFlushTimers.get(userId);
+    if (armyTimer !== undefined && typeof window !== 'undefined') window.clearTimeout(armyTimer);
+    Backend.armyFlushTimers.delete(userId);
+    Backend.armyQueues.delete(userId);
+    Backend.armyUnconfirmed.delete(userId);
+    Backend.armyAuthorityBases.delete(userId);
+    Backend.armyDrainPromises.delete(userId);
     Backend.authorityRequestSeq.delete(userId);
     Backend.authorityResponseSeq.delete(userId);
     Backend.knownRevision.delete(userId);
@@ -1026,6 +1147,12 @@ export class Backend {
     Backend.committedSaveSeq.clear();
     Backend.pendingLayoutBases.clear();
     Backend.mutationChains.clear();
+    Backend.armyFlushTimers.forEach(timer => window.clearTimeout(timer));
+    Backend.armyFlushTimers.clear();
+    Backend.armyQueues.clear();
+    Backend.armyUnconfirmed.clear();
+    Backend.armyAuthorityBases.clear();
+    Backend.armyDrainPromises.clear();
     Backend.authorityRequestSeq.clear();
     Backend.authorityResponseSeq.clear();
     Backend.knownRevision.clear();
@@ -1049,9 +1176,17 @@ export class Backend {
 
   static hasPendingSave(userId?: string): boolean {
     if (userId) {
-      return Backend.saveTimers.has(userId) || Backend.inFlightSaves.has(userId) || Backend.mutationChains.has(userId);
+      return Backend.saveTimers.has(userId) || Backend.inFlightSaves.has(userId);
     }
-    return Backend.saveTimers.size > 0 || Backend.inFlightSaves.size > 0 || Backend.mutationChains.size > 0;
+    return Backend.saveTimers.size > 0 || Backend.inFlightSaves.size > 0;
+  }
+
+  static hasPendingArmy(userId?: string): boolean {
+    if (userId) {
+      return (Backend.armyUnconfirmed.get(userId)?.length ?? 0) > 0
+        || Backend.armyDrainPromises.has(userId);
+    }
+    return Backend.armyUnconfirmed.size > 0 || Backend.armyDrainPromises.size > 0;
   }
 
   /** Monotonic local layout edit sequence, used to reject stale background reads. */
@@ -1207,6 +1342,7 @@ export class Backend {
             } else {
               Backend.pendingLayoutBases.delete(userId);
             }
+            effective = Backend.withPendingArmy(userId, effective);
             Backend.markAuthorityAdopted(userId, authorityWorld.revision, authoritySeq);
             Backend.setCachedWorld(userId, effective);
             Backend.committedSaveSeq.set(userId, Math.max(Backend.committedSaveSeq.get(userId) ?? 0, attemptedSeq));
@@ -1265,6 +1401,7 @@ export class Backend {
     } else {
       Backend.pendingLayoutBases.delete(userId);
     }
+    next = Backend.withPendingArmy(userId, next);
     Backend.markAuthorityAdopted(userId, serverWorld.revision, requestSeq);
     Backend.setCachedWorld(userId, next);
     return next;
@@ -1273,16 +1410,20 @@ export class Backend {
   static async flushPendingSave(): Promise<void> {
     const pending = new Set<string>([
       ...Backend.saveTimers.keys(),
-      ...Backend.inFlightSaves.keys(),
-      ...Backend.mutationChains.keys()
+      ...Backend.inFlightSaves.keys()
     ]);
     // saveNow serializes behind any request already in flight. Awaiting these
     // returned promises therefore means every edit known at call time reached
     // the server (or this method truthfully rejects).
     await Promise.all(Array.from(pending).map(async userId => {
       await Backend.saveNow(userId);
-      await Backend.mutationChains.get(userId);
     }));
+  }
+
+  /** Account/session switches need both independent persistence lanes. */
+  static async flushAllPending(): Promise<void> {
+    await Backend.flushPendingArmy();
+    await Backend.flushPendingSave();
   }
 
   /** Fire-and-forget keepalive save for `beforeunload`. */
@@ -1326,6 +1467,19 @@ export class Backend {
       const response = await Backend.apiGet<{ world: SerializedWorld | null }>('/api/world');
       return response.world ? Backend.adoptRemoteWorld(user.id, response.world, requestSeq, true) : null;
     } catch {
+      return null;
+    }
+  }
+
+  /** Compact HOME heartbeat: one small response replaces the incoming-raid,
+   * shield and full-world polling loops. A full world is fetched separately
+   * only when this revision says the cached snapshot is stale. */
+  static async fetchHomeSync(): Promise<HomeSyncResponse | null> {
+    if (!Auth.isOnlineMode() || !Auth.getCurrentUser()) return null;
+    try {
+      return await Backend.apiGet<HomeSyncResponse>('/api/home/sync');
+    } catch (error) {
+      console.warn('Home sync failed:', error);
       return null;
     }
   }
@@ -1613,9 +1767,15 @@ export class Backend {
       if (typeof balances.food === 'number') world.resources.food = Math.max(0, Math.floor(balances.food));
       if (typeof balances.revision === 'number') world.revision = balances.revision;
       if (balances.army) world.army = { ...balances.army };
+      const effective = rebasePendingArmy(
+        world,
+        Backend.armyUnconfirmed.get(userId) ?? [],
+        Boolean(Auth.getFeatures().infiniteResources),
+        Boolean(balances.army)
+      );
       Backend.markAuthorityAdopted(userId, balances.revision, requestSeq);
-      Backend.setCachedWorld(userId, world);
-      Backend.announceWorldSync(world);
+      Backend.setCachedWorld(userId, effective);
+      Backend.announceWorldSync(effective);
     } else {
       Backend.markAuthorityAdopted(userId, balances.revision, requestSeq);
     }
@@ -1627,35 +1787,205 @@ export class Backend {
     return true;
   }
 
-  /**
-   * Train troops. The server owns the army: it checks the barracks unlock,
-   * camp housing and the bill (gold + food), then returns the new state.
-   */
-  static async trainTroop(type: string, count = 1): Promise<ArmyTransactionResult | null> {
-    if (!Auth.isOnlineMode()) return null;
-    const user = Auth.getCurrentUser();
-    if (!user) return null;
-    const requestId = makeRequestId('train');
-    return await Backend.enqueueMutation(user.id, async () => {
-      const authoritySeq = Backend.nextAuthorityRequest(user.id);
-      const result = await Backend.apiPost<ArmyTransactionResult>('/api/army/train', { type, count, requestId });
-      Backend.adoptBalances(user.id, result, authoritySeq);
-      return result;
-    });
+  private static scheduleArmyDrain(userId: string) {
+    const existing = Backend.armyFlushTimers.get(userId);
+    if (existing !== undefined && typeof window !== 'undefined') window.clearTimeout(existing);
+    if (typeof window === 'undefined') {
+      void Backend.drainArmyQueue(userId).catch(() => undefined);
+      return;
+    }
+    Backend.armyFlushTimers.set(userId, window.setTimeout(() => {
+      Backend.armyFlushTimers.delete(userId);
+      void Backend.drainArmyQueue(userId).catch(() => undefined);
+    }, ARMY_BATCH_DEBOUNCE_MS));
   }
 
-  /** Dismiss troops for a full refund of their training bill. */
-  static async untrainTroop(type: string, count = 1): Promise<ArmyTransactionResult | null> {
-    if (!Auth.isOnlineMode()) return null;
+  /** Queue one optimistic click. Adjacent identical clicks coalesce up to the
+   * server's existing 50-troop count cap; mixed operations retain click order. */
+  static queueArmyOperation(kind: 'train' | 'untrain', type: string, count = 1): boolean {
+    if (!Auth.isOnlineMode()) return false;
+    const user = Auth.getCurrentUser();
+    const definition = TROOP_DEFINITIONS[type as TroopType];
+    if (!user || !definition) return false;
+    let remaining = Math.max(1, Math.min(50, Math.floor(Number(count) || 1)));
+    const optimisticCount = remaining;
+    const queue = Backend.armyQueues.get(user.id) ?? [];
+    const unconfirmed = Backend.armyUnconfirmed.get(user.id) ?? [];
+    const cached = Backend.getCachedWorld(user.id);
+    if (unconfirmed.length === 0 && cached) {
+      Backend.armyAuthorityBases.set(user.id, cloneWorld(cached));
+    }
+    while (remaining > 0) {
+      const previous = queue[queue.length - 1];
+      if (previous && previous.kind === kind && previous.type === type && previous.count < 50) {
+        const added = Math.min(remaining, 50 - previous.count);
+        previous.count += added;
+        remaining -= added;
+        continue;
+      }
+      const operation: QueuedArmyOperation = {
+        id: ++Backend.armyOperationSequence,
+        kind,
+        type,
+        count: Math.min(50, remaining)
+      };
+      queue.push(operation);
+      unconfirmed.push(operation);
+      remaining -= operation.count;
+    }
+    Backend.armyQueues.set(user.id, queue);
+    Backend.armyUnconfirmed.set(user.id, unconfirmed);
+    if (cached) {
+      Backend.memoryCache.set(user.id, rebasePendingArmy(
+        cached,
+        [{ kind, type, count: optimisticCount }],
+        Boolean(Auth.getFeatures().infiniteResources)
+      ));
+    }
+    Backend.scheduleArmyDrain(user.id);
+    return true;
+  }
+
+  private static clearArmyOrders(userId: string) {
+    const timer = Backend.armyFlushTimers.get(userId);
+    if (timer !== undefined && typeof window !== 'undefined') window.clearTimeout(timer);
+    Backend.armyFlushTimers.delete(userId);
+    Backend.armyQueues.delete(userId);
+    Backend.armyUnconfirmed.delete(userId);
+    Backend.armyAuthorityBases.delete(userId);
+  }
+
+  private static async reconcileFailedArmyBatch(userId: string, error: unknown) {
+    const authorityBase = Backend.armyAuthorityBases.get(userId);
+    const current = Backend.getCachedWorld(userId);
+    Backend.clearArmyOrders(userId);
+    if (authorityBase) {
+      const restored = current ? {
+        ...current,
+        resources: { ...authorityBase.resources },
+        storage: authorityBase.storage ? { ...authorityBase.storage } : current.storage,
+        army: authorityBase.army ? { ...authorityBase.army } : {},
+        revision: Math.max(Number(current.revision ?? 0), Number(authorityBase.revision ?? 0))
+      } : cloneWorld(authorityBase);
+      Backend.setCachedWorld(userId, restored);
+      Backend.announceWorldSync(restored);
+    }
+    try {
+      const truth = await Backend.fetchOwnWorldForReconcile(userId);
+      if (truth) {
+        const effective = Backend.adoptRemoteWorld(userId, truth.world, truth.requestSeq, true);
+        if (effective) Backend.announceWorldSync(effective);
+      }
+    } catch (reconcileError) {
+      console.warn('Failed to reconcile rejected army batch:', reconcileError);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('clash:army-sync-failed', {
+        detail: { message: error instanceof Error ? error.message : 'Army update failed' }
+      }));
+    }
+  }
+
+  private static drainArmyQueue(userId: string): Promise<void> {
+    const existing = Backend.armyDrainPromises.get(userId);
+    if (existing) return existing;
+    const timer = Backend.armyFlushTimers.get(userId);
+    if (timer !== undefined && typeof window !== 'undefined') window.clearTimeout(timer);
+    Backend.armyFlushTimers.delete(userId);
+
+    const task = (async () => {
+      while (true) {
+        const queue = Backend.armyQueues.get(userId);
+        if (!queue || queue.length === 0) {
+          Backend.armyQueues.delete(userId);
+          return;
+        }
+        const batch = queue.splice(0, 50);
+        const requestId = makeRequestId('army-batch');
+        try {
+          const authoritySeq = Backend.nextAuthorityRequest(userId);
+          const result = await Backend.enqueueMutation(userId, () => Backend.postWithRetry<ArmyTransactionResult>(
+            '/api/army/batch',
+            {
+              operations: batch.map(({ kind, type, count }) => ({ kind, type, count })),
+              requestId
+            }
+          ));
+          const confirmedIds = new Set(batch.map(operation => operation.id));
+          const pending = (Backend.armyUnconfirmed.get(userId) ?? [])
+            .filter(operation => !confirmedIds.has(operation.id));
+          if (pending.length > 0) Backend.armyUnconfirmed.set(userId, pending);
+          else Backend.armyUnconfirmed.delete(userId);
+
+          if (result.world) {
+            if (pending.length > 0) Backend.armyAuthorityBases.set(userId, cloneWorld(result.world));
+            else Backend.armyAuthorityBases.delete(userId);
+            const effective = Backend.adoptRemoteWorld(userId, result.world, authoritySeq, true);
+            if (effective) Backend.announceWorldSync(effective);
+          } else {
+            if (pending.length === 0) Backend.armyAuthorityBases.delete(userId);
+            Backend.adoptBalances(userId, result, authoritySeq);
+          }
+        } catch (error) {
+          await Backend.reconcileFailedArmyBatch(userId, error);
+          throw error;
+        }
+      }
+    })();
+    const tracked = task.finally(() => {
+      if (Backend.armyDrainPromises.get(userId) === tracked) {
+        Backend.armyDrainPromises.delete(userId);
+      }
+    });
+    Backend.armyDrainPromises.set(userId, tracked);
+    return tracked;
+  }
+
+  /** Drain every order currently known to the Backend. Attack starts call
+   * this directly, so there is no latent React queue that can race reservation. */
+  static async flushPendingArmy(userId?: string): Promise<void> {
+    const ids = userId
+      ? [userId]
+      : Array.from(new Set([
+        ...Backend.armyQueues.keys(),
+        ...Backend.armyUnconfirmed.keys(),
+        ...Backend.armyDrainPromises.keys()
+      ]));
+    await Promise.all(ids.map(id => Backend.drainArmyQueue(id)));
+  }
+
+  /** Compatibility helpers for callers that need an immediate acknowledged
+   * single operation rather than the UI's debounced fire-and-continue path. */
+  static async trainTroop(type: string, count = 1): Promise<ArmyTransactionResult | null> {
+    if (!Backend.queueArmyOperation('train', type, count)) return null;
     const user = Auth.getCurrentUser();
     if (!user) return null;
-    const requestId = makeRequestId('untrain');
-    return await Backend.enqueueMutation(user.id, async () => {
-      const authoritySeq = Backend.nextAuthorityRequest(user.id);
-      const result = await Backend.apiPost<ArmyTransactionResult>('/api/army/untrain', { type, count, requestId });
-      Backend.adoptBalances(user.id, result, authoritySeq);
-      return result;
-    });
+    await Backend.flushPendingArmy(user.id);
+    const world = Backend.getCachedWorld(user.id);
+    return world ? {
+      army: { ...(world.army ?? {}) },
+      gold: world.resources.gold,
+      ore: Number(world.resources.ore ?? 0),
+      food: Number(world.resources.food ?? 0),
+      revision: Number(world.revision ?? 0),
+      world
+    } : null;
+  }
+
+  static async untrainTroop(type: string, count = 1): Promise<ArmyTransactionResult | null> {
+    if (!Backend.queueArmyOperation('untrain', type, count)) return null;
+    const user = Auth.getCurrentUser();
+    if (!user) return null;
+    await Backend.flushPendingArmy(user.id);
+    const world = Backend.getCachedWorld(user.id);
+    return world ? {
+      army: { ...(world.army ?? {}) },
+      gold: world.resources.gold,
+      ore: Number(world.resources.ore ?? 0),
+      food: Number(world.resources.food ?? 0),
+      revision: Number(world.revision ?? 0),
+      world
+    } : null;
   }
 
   /** Take one of today's merchant deals; the server re-derives and prices it. */
@@ -1677,27 +2007,48 @@ export class Backend {
    * selected on the visible world map; omitting them asks the server for a
    * cloud opponent. The stable request id makes a lost response retry safe.
    */
-  static async botStart(x?: number, y?: number): Promise<StartedBotRaid | null> {
+  static async botStart(
+    x?: number,
+    y?: number,
+    options: { excludeCampKeys?: string[] } = {}
+  ): Promise<StartedBotRaid | null> {
     if (!Auth.isOnlineMode()) return null;
     const user = Auth.getCurrentUser();
     if (!user) return null;
-    await Backend.reconcileInterruptedBattle({ takeover: true }).catch(error => {
-      console.warn('A previous battle is still being reconciled:', error);
-    });
+    try {
+      await Backend.flushPendingArmy(user.id);
+    } catch (error) {
+      console.warn('Army synchronization failed before bot raid:', error);
+      return null;
+    }
+    // The clean path has no active battle, so do not pay for a speculative
+    // /attacks/active GET. Local recovery metadata still reconciles eagerly;
+    // a remote-device conflict is handled after the start's 409 below.
+    if (readRememberedBattle(user.id) || readPendingBattleStart(user.id)) {
+      await Backend.reconcileInterruptedBattle({ takeover: true }).catch(error => {
+        console.warn('A previous battle is still being reconciled:', error);
+      });
+    }
     if (readRememberedBattle(user.id) || readPendingBattleStart(user.id)) return null;
     const requestId = makeRequestId('botstart');
+    const excludeCampKeys = (options.excludeCampKeys ?? [])
+      .filter(key => /^-?\d+,-?\d+$/.test(key))
+      .slice(-64);
     const pending: PendingBattleStart = {
       kind: 'bot-start',
       requestId,
-      ...(x !== undefined && y !== undefined ? { x, y } : {})
+      ...(x !== undefined && y !== undefined ? { x, y } : {}),
+      ...(excludeCampKeys.length > 0 ? { excludeCampKeys } : {})
     };
     rememberPendingBattleStart(user.id, pending);
     try {
       return await Backend.enqueueMutation(user.id, async () => {
-        const result = await Backend.postWithRetry<StartedBotRaid>('/api/attacks/bot-start', {
+        const body = {
           ...(x !== undefined && y !== undefined ? { x, y } : {}),
+          ...(excludeCampKeys.length > 0 ? { excludeCampKeys } : {}),
           requestId
-        });
+        };
+        const result = await Backend.postAttackStartWithTakeover<StartedBotRaid>('/api/attacks/bot-start', body, user.id);
         if (!Backend.validStartedBotRaid(result)) {
           throw new Error('Bot raid start returned an invalid world');
         }
@@ -1880,6 +2231,7 @@ export class Backend {
           '/api/attacks/bot-start',
           {
             ...(pending.x !== undefined && pending.y !== undefined ? { x: pending.x, y: pending.y } : {}),
+            ...(pending.excludeCampKeys?.length ? { excludeCampKeys: pending.excludeCampKeys } : {}),
             requestId: pending.requestId
           }
         ));
@@ -2102,9 +2454,17 @@ export class Backend {
     if (!Auth.isOnlineMode()) return null;
     const user = Auth.getCurrentUser();
     if (!user) return null;
-    await Backend.reconcileInterruptedBattle({ takeover: true }).catch(error => {
-      console.warn('A previous battle is still being reconciled:', error);
-    });
+    try {
+      await Backend.flushPendingArmy(user.id);
+    } catch (error) {
+      console.warn('Army synchronization failed before matchmaking:', error);
+      return null;
+    }
+    if (readRememberedBattle(user.id) || readPendingBattleStart(user.id)) {
+      await Backend.reconcileInterruptedBattle({ takeover: true }).catch(error => {
+        console.warn('A previous battle is still being reconciled:', error);
+      });
+    }
     if (readRememberedBattle(user.id) || readPendingBattleStart(user.id)) return null;
     const requestId = makeRequestId('matchmake');
     const excludeTargetId = typeof options.excludeTargetId === 'string' && options.excludeTargetId
@@ -2122,11 +2482,11 @@ export class Backend {
     });
     try {
       return await Backend.enqueueMutation(user.id, async () => {
-        const result = await Backend.postWithRetry<StartedAttack>('/api/attacks/matchmake', {
+        const result = await Backend.postAttackStartWithTakeover<StartedAttack>('/api/attacks/matchmake', {
           ...(excludeTargetId ? { excludeTargetId } : {}),
           ...(excludeTargetIds.length > 0 ? { excludeTargetIds } : {}),
           requestId
-        });
+        }, user.id);
         if (!result?.attackId || !Array.isArray(result.world?.buildings)
           || !Number.isInteger(result.target?.x) || !Number.isInteger(result.target?.y)) {
           throw new Error('Matchmaking returned an invalid world');
@@ -2150,15 +2510,27 @@ export class Backend {
     if (!Auth.isOnlineMode()) return null;
     const user = Auth.getCurrentUser();
     if (!user) return null;
-    await Backend.reconcileInterruptedBattle({ takeover: true }).catch(error => {
-      console.warn('A previous battle is still being reconciled:', error);
-    });
+    try {
+      await Backend.flushPendingArmy(user.id);
+    } catch (error) {
+      console.warn('Army synchronization failed before attack:', error);
+      return null;
+    }
+    if (readRememberedBattle(user.id) || readPendingBattleStart(user.id)) {
+      await Backend.reconcileInterruptedBattle({ takeover: true }).catch(error => {
+        console.warn('A previous battle is still being reconciled:', error);
+      });
+    }
     if (readRememberedBattle(user.id) || readPendingBattleStart(user.id)) return null;
     const requestId = makeRequestId('attackstart');
     rememberPendingBattleStart(user.id, { kind: 'pvp-start', requestId, matchmade: false, targetId });
     try {
       return await Backend.enqueueMutation(user.id, async () => {
-        const result = await Backend.postWithRetry<StartedAttack>('/api/attacks/start', { targetId, requestId });
+        const result = await Backend.postAttackStartWithTakeover<StartedAttack>(
+          '/api/attacks/start',
+          { targetId, requestId },
+          user.id
+        );
         if (!result?.attackId || !Array.isArray(result.world?.buildings)
           || !Number.isInteger(result.target?.x) || !Number.isInteger(result.target?.y)) {
           throw new Error('Attack start returned an invalid world');

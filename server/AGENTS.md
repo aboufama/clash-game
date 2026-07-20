@@ -16,7 +16,8 @@ proposed snapshot and the server decides what actually happened.
 `POST /api/world/save` sends the **full** layout. The server normalizes +
 validates it, **prices the diff** (what changed since the last revision),
 checks funds, charges, does `revision += 1`, and returns the authoritative
-world. The army never rides a layout save (separate `/army/train|untrain`).
+world. The army never rides a layout save: browser click bursts use atomic
+`/army/batch`; `/army/train|untrain` remain compatibility endpoints.
 `sanitizeBuildings` is fully data-driven — it drops unknown building types
 (`if (!definition) continue`), which is the "old saves self-clean / deleting a
 building type is safe" guarantee, and clamps to `maxCount`/`maxLevel`/footprint.

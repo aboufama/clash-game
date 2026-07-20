@@ -210,6 +210,25 @@ test('embedded PostgreSQL durably stores bot villages before map or attack consu
         worldId: 'main', minX: 0, maxX: 10, minY: -10, maxY: 0, now: NOW, limit: 5
       }), [stored])
 
+      const batched = persistedBot('bot-pglite-batched', stored.x + 1, stored.y)
+      await tx.world.provisionBotVillages([batched])
+      await tx.world.provisionBotVillages([{
+        ...batched,
+        createdAt: new Date(NOW.getTime() + 10),
+        updatedAt: new Date(NOW.getTime() + 10)
+      }])
+      assert.deepEqual(await tx.world.getBotVillage(batched.id), batched)
+      const regenerated: BotVillageRecord = {
+        ...batched,
+        generatorVersion: 2,
+        profile: { ...batched.profile, generatorVersion: 2 },
+        world: { ...batched.world, revision: 2 },
+        revision: 2,
+        updatedAt: new Date(NOW.getTime() + 1_000)
+      }
+      await tx.world.provisionBotVillages([regenerated])
+      assert.deepEqual(await tx.world.getBotVillage(batched.id), regenerated)
+
       const advanced: BotVillageRecord = {
         ...stored,
         trophies: 3_250,
@@ -230,7 +249,7 @@ test('embedded PostgreSQL durably stores bot villages before map or attack consu
       'SELECT count(*)::integer AS count FROM bot_villages WHERE world_id = $1',
       ['main']
     )
-    assert.equal(rows.rows[0]?.count, 1)
+    assert.equal(rows.rows[0]?.count, 2)
 
     await database.query(
       'INSERT INTO accounts(id, username_key, password_hash, registered, created_at) VALUES ($1, NULL, NULL, false, $2)',
@@ -1000,6 +1019,23 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
       body: { type: 'warrior', count: 2, requestId: 'http-pglite-train' }
     })
     assert.equal(trained.army.warrior, 2)
+    const batched = await requestJson<{
+      army: { warrior: number }
+      revision: number
+      world: { army: { warrior: number }; revision: number }
+    }>(origin, '/army/batch', {
+      method: 'POST', token: attacker.token,
+      body: {
+        operations: [
+          { kind: 'train', type: 'warrior', count: 1 },
+          { kind: 'untrain', type: 'warrior', count: 1 }
+        ],
+        requestId: 'http-pglite-army-batch'
+      }
+    })
+    assert.equal(batched.army.warrior, 2)
+    assert.equal(batched.world.army.warrior, 2)
+    assert.equal(batched.world.revision, batched.revision)
 
     const started = await requestJson<{ attackId: string; world: { ownerId: string } }>(
       origin,

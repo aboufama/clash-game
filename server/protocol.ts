@@ -199,4 +199,7 @@ export interface StartedAttackResponse {
     y: number
     plotVersion: number
   }
+  /** Optional target-centered presentation window. Older clients ignore it;
+   * newer clients avoid a second map request during the cloud transition. */
+  focusWindow?: unknown
 }

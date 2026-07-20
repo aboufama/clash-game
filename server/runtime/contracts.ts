@@ -20,6 +20,11 @@ export interface ArmyMutationRequest {
   requestId?: unknown
 }
 
+export interface ArmyBatchRequest {
+  operations?: unknown
+  requestId?: unknown
+}
+
 export interface MerchantTradeRequest {
   offerId?: unknown
   requestId?: unknown
@@ -28,8 +33,12 @@ export interface MerchantTradeRequest {
 export interface BotStartRequest {
   x?: unknown
   y?: unknown
+  /** Previously offered cloud-camp coordinates (`"x,y"`), max 64. */
+  excludeCampKeys?: unknown
   requestId?: unknown
 }
+
+export const BOT_CAMP_EXCLUSION_LIMIT = 64
 
 export interface BotSettleRequest extends BotStartRequest {
   raidId?: unknown
@@ -59,6 +68,19 @@ export interface MatchmakeRequest {
    * code MATCH_POOL_EXHAUSTED so the client can fall back to bot camps.
    */
   excludeTargetIds?: unknown
+}
+
+export interface HomeSyncResponse {
+  serverNow: number
+  world: { revision: number; lastSaveTime: number }
+  shieldUntil: number
+  incomingAttack: null | {
+    attackId: string
+    attackerId: string
+    attackerName: string
+    startedAt: number
+    updatedAt: number
+  }
 }
 
 export interface AttackCommandRequest {
@@ -103,10 +125,12 @@ export interface ApiService<Principal> {
   setBanner(player: Principal, rawBanner: unknown): Awaitable<unknown>
 
   getWorld(player: Principal): Awaitable<unknown>
+  homeSync(player: Principal): Awaitable<HomeSyncResponse>
   saveWorld(player: Principal, body: SaveWorldRequest): Awaitable<unknown>
   applyResources(player: Principal, body: ResourceMutationRequest): Awaitable<unknown>
   trainTroop(player: Principal, body: ArmyMutationRequest): Awaitable<unknown>
   untrainTroop(player: Principal, body: ArmyMutationRequest): Awaitable<unknown>
+  armyBatch(player: Principal, body: ArmyBatchRequest): Awaitable<unknown>
   merchantTrade(player: Principal, body: MerchantTradeRequest): Awaitable<unknown>
 
   atlas(player: Principal): Awaitable<unknown>

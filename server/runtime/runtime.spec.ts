@@ -332,6 +332,44 @@ test('normalized banner authority rejects incomplete choices and propagates the 
   }
 })
 
+test('normalized attack starts include an optional target-centered focus window', async () => {
+  const persistence = new MemoryPersistence()
+  const targetX = 1
+  const targetY = 0
+  const authorized = new Set([`${targetX},${targetY}`])
+  const attacks = attackStub(authorized)
+  let world: SessionResponse['world']
+  attacks.matchmake = async () => ({
+    attackId: 'focus-window-attack',
+    world,
+    lootCap: 0,
+    lootCapOre: 0,
+    lootCapFood: 0,
+    target: { worldId: 'main', x: targetX, y: targetY, plotVersion: 1 }
+  })
+  const service = new PersistenceGameService(persistence, {
+    attacks,
+    now: () => new Date('2026-07-11T11:15:00.000Z'),
+    starterShieldMs: 0,
+    allowGuestSessions: true
+  })
+  try {
+    const session = grantedSession(await service.ensureSession('', 'focus-window'))
+    world = session.world
+    const started = record(await service.matchmake(
+      { playerId: session.player.id },
+      { requestId: 'focus-window' },
+      session.token
+    ))
+    const focusWindow = record(started.focusWindow)
+    assert.equal((focusWindow.plots as unknown[]).length, 9)
+    assert.equal(record(focusWindow.me).x, session.player.plotX)
+    assert.equal(record(focusWindow.me).y, session.player.plotY)
+  } finally {
+    await service.close()
+  }
+})
+
 test('normalized HTTP authority blocks gameplay mutations until banner onboarding completes', async () => {
   const persistence = new MemoryPersistence()
   const now = new Date('2026-07-11T11:30:00.000Z')
@@ -364,6 +402,7 @@ test('normalized HTTP authority blocks gameplay mutations until banner onboardin
     for (const [path, body] of [
       ['/world/save', { world: session.world, requestId: 'blocked-save' }],
       ['/resources/apply', { delta: 1, reason: 'debug_grant', requestId: 'blocked-grant' }],
+      ['/army/batch', { operations: [{ kind: 'train', type: 'warrior', count: 1 }], requestId: 'blocked-army-batch' }],
       ['/army/train', { type: 'warrior', count: 1, requestId: 'blocked-train' }],
       ['/player/rename', { name: 'BlockedChief' }],
       ['/attacks/matchmake', { requestId: 'blocked-match' }],
@@ -443,6 +482,20 @@ test('MemoryPersistence serves the async core routes without global scans or che
     plots: 1,
     forUpdate: 1
   }, 'healthy authentication locks only the account root so moderation cannot race; village authority stays skipped')
+
+  persistence.resetAuthorityReads()
+  await Promise.all([
+    service.authenticate(token),
+    service.authenticate(token),
+    service.authenticate(token)
+  ])
+  assert.deepEqual(persistence.authorityReads, {
+    sessions: 1,
+    accounts: 1,
+    villages: 0,
+    plots: 1,
+    forUpdate: 1
+  }, 'same-instance authentication bursts coalesce into one database transaction')
 
   persistence.resetAuthorityReads()
   const resumed = grantedSession(await service.ensureSession(token, 'resume-lock-order'))
@@ -649,6 +702,25 @@ test('MemoryPersistence serves the async core routes without global scans or che
     body: { type: 'warrior', count: 1, requestId: 'untrain-one' }
   })
   assert.equal(untrained.status, 200)
+  const armyBatch = await call('POST', '/army/batch', {
+    token,
+    body: {
+      operations: [
+        { kind: 'train', type: 'warrior', count: 2 },
+        { kind: 'untrain', type: 'warrior', count: 1 }
+      ],
+      requestId: 'runtime-mixed-army-batch'
+    }
+  })
+  assert.equal(armyBatch.status, 200)
+  assert.equal((record(armyBatch.body).army as Record<string, number>).warrior, 2)
+  assert.equal(record(record(armyBatch.body).world).revision, record(armyBatch.body).revision)
+  const homeSync = await call('GET', '/home/sync', { token })
+  assert.equal(homeSync.status, 200)
+  assert.equal(typeof record(homeSync.body).serverNow, 'number')
+  assert.equal(typeof record(record(homeSync.body).world).revision, 'number')
+  assert.equal(typeof record(record(homeSync.body).world).lastSaveTime, 'number')
+  assert.equal(record(homeSync.body).incomingAttack, null)
 
   // Populate several neighboring authorities, then prove the local map uses
   // one bounded active-edge projection rather than one incoming query per row.
