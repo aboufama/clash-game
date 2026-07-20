@@ -5,6 +5,7 @@ import { VILLAGE_SIMULATION_VERSION } from '../domain/village'
 import { ensurePersistedBotVillage } from './bot-villages'
 import { assertGameplayMutationAllowed } from './maintenance-fence'
 import { PersistenceGameService } from './service'
+import { materializeVillage } from './village-state'
 
 const NOW = new Date('2026-07-19T18:00:00.000Z')
 
@@ -97,9 +98,12 @@ test('normalized admin service keeps reads bounded/secret-free and audits every 
   assert.equal(JSON.stringify(detail).includes('tokenHash'), false)
   assert.equal(JSON.stringify(detail.village).includes('gold'), false)
 
-  await service.adminPlayerAction('player_admin_test', {
-    type: 'adjust_resources', gold: 250, ore: -50, reason: 'support correction'
+  const resourceAdjustment = await service.adminPlayerAction('player_admin_test', {
+    type: 'adjust_resources', gold: 250, ore: -50, food: 75, reason: 'support correction'
   })
+  assert.equal(resourceAdjustment.changed, true)
+  assert.equal(resourceAdjustment.affected, 3,
+    'each changed resource is persisted and represented by its own ledger entry')
   await service.adminPlayerAction('player_admin_test', {
     type: 'set_trophies', trophies: 777, reason: 'event award'
   })
@@ -115,7 +119,7 @@ test('normalized admin service keeps reads bounded/secret-free and audits every 
   assert.equal(suspension.changed, true)
 
   const updated = await service.adminPlayer('player_admin_test')
-  assert.deepEqual(updated.resources, { gold: 750, ore: 150, food: 100 })
+  assert.deepEqual(updated.resources, { gold: 750, ore: 150, food: 175 })
   assert.equal(updated.trophies, 777)
   assert.equal(updated.username, 'RenamedChief')
   assert.equal(updated.access, 'suspended')
@@ -144,10 +148,51 @@ test('normalized admin service keeps reads bounded/secret-free and audits every 
   const economy = await service.adminEconomy(1)
   assert.equal(economy.days.length, 1)
   assert.ok(economy.days[0]!.faucets.gold >= 250)
+  assert.ok(economy.days[0]!.faucets.food >= 75)
+  assert.ok(economy.days[0]!.sinks.ore >= 50)
 
   await assert.rejects(service.adminPlayers('', 101), /limit/i)
   await assert.rejects(service.adminBots({}, 128, 1), /radius/i)
   await assert.rejects(service.adminAudit(251), /limit/i)
+  await service.close()
+})
+
+test('normalized admin resource deltas apply after pending producer income is materialized', async () => {
+  const persistence = new MemoryPersistence()
+  const stale = village()
+  stale.buildings = [
+    { id: 'hall', type: 'town_hall', gridX: 10, gridY: 10, level: 1 },
+    { id: 'mine', type: 'mine', gridX: 5, gridY: 5, level: 1 },
+    { id: 'farm', type: 'farm', gridX: 15, gridY: 15, level: 1 }
+  ]
+  stale.ore = 0
+  stale.food = 0
+  stale.population = { count: 8, lastGrowthAt: NOW.getTime() - 60_000, bornAt: [] }
+  stale.simulatedThrough = new Date(NOW.getTime() - 60_000)
+
+  const materialized = structuredClone(stale)
+  const pending = materializeVillage(materialized, NOW, { populationLocked: true })
+  assert.ok(pending.produced.ore > 0)
+  assert.ok(pending.produced.food > 0)
+  await persistence.transaction(async tx => {
+    await tx.accounts.insert(account())
+    await tx.villages.insert(stale)
+  })
+  const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+
+  const result = await service.adminPlayerAction(stale.playerId, {
+    type: 'adjust_resources', ore: -1, food: 2, reason: 'apply after pending production'
+  })
+  assert.equal(result.changed, true)
+  assert.equal(result.affected, 2)
+  const persisted = await persistence.transaction(tx => tx.villages.get(stale.playerId))
+  assert.equal(persisted?.ore, materialized.ore - 1,
+    'the debit is applied to the materialized ore balance')
+  assert.equal(persisted?.food, materialized.food + 2,
+    'the grant is applied after pending food production')
+  assert.equal(persisted?.simulatedThrough.getTime(), NOW.getTime(),
+    'the admin transaction persists the producer checkpoint atomically')
+
   await service.close()
 })
 
@@ -494,6 +539,72 @@ test('normalized admin player detail materializes a read-only current village pr
   )) as { level?: number; upgradingTo?: number } | undefined
   assert.equal(persistedCannon?.level, 1, 'an admin preview must not mutate the stored village')
   assert.equal(persistedCannon?.upgradingTo, 2)
+
+  await service.close()
+})
+
+test('normalized admin overflow survives world loads, ordinary income, debits, and saves', async () => {
+  const persistence = new MemoryPersistence()
+  const storedVillage = village()
+  storedVillage.buildings = [
+    { id: 'hall', type: 'town_hall', gridX: 10, gridY: 10, level: 1 }
+  ]
+  storedVillage.population = { count: 5, lastGrowthAt: NOW.getTime(), bornAt: [] }
+  await persistence.transaction(async tx => {
+    await tx.accounts.insert(account())
+    await tx.villages.insert(storedVillage)
+    await tx.world.ensureRegion({
+      worldId: 'main', regionId: 'main:admin-overflow', regionX: 0, regionY: 0,
+      size: 32, generationVersion: 1, createdAt: NOW
+    })
+    await tx.world.assign({
+      worldId: 'main', x: 0, y: 0, regionId: 'main:admin-overflow',
+      playerId: storedVillage.playerId, plotVersion: 1, assignedAt: NOW,
+      leaseId: null, leaseIssuedAt: null, leaseRenewedAt: null, leaseExpiresAt: null
+    })
+  })
+  let now = new Date(NOW)
+  const service = new PersistenceGameService(persistence, { now: () => new Date(now) })
+  const principal = { playerId: storedVillage.playerId }
+
+  await service.adminPlayerAction(storedVillage.playerId, {
+    type: 'adjust_resources', ore: 100_000, food: 1_000_000, reason: 'restore production incident'
+  })
+  const restored = { ore: 100_200, food: 1_000_100 }
+
+  now = new Date(NOW.getTime() + 60_000)
+  const loaded = await service.getWorld(principal)
+  assert.deepEqual(
+    { ore: loaded.resources.ore, food: loaded.resources.food },
+    restored,
+    'the next authoritative world materialization must not collapse an admin restore to storage caps'
+  )
+
+  const cappedIncome = await service.applyResources(principal, {
+    resource: 'ore', delta: 25, reason: 'rock_haul', requestId: 'over-cap-normal-income'
+  }) as { ore: number }
+  assert.equal(cappedIncome.ore, restored.ore,
+    'normal income has no headroom while an existing balance is over capacity')
+  const debited = await service.applyResources(principal, {
+    resource: 'food', delta: -9, reason: 'support verification', requestId: 'over-cap-debit'
+  }) as { food: number }
+  assert.equal(debited.food, restored.food - 9,
+    'an ordinary debit applies to the persisted overflow instead of first clamping it')
+
+  const beforeSave = await service.getWorld(principal)
+  const saved = await service.saveWorld(principal, {
+    world: beforeSave,
+    requestId: 'over-cap-noop-save'
+  })
+  assert.deepEqual(
+    { ore: saved.resources.ore, food: saved.resources.food },
+    { ore: restored.ore, food: restored.food - 9 }
+  )
+  const persisted = await persistence.transaction(tx => tx.villages.get(storedVillage.playerId))
+  assert.deepEqual(
+    { ore: persisted?.ore, food: persisted?.food },
+    { ore: restored.ore, food: restored.food - 9 }
+  )
 
   await service.close()
 })

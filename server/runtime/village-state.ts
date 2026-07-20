@@ -76,7 +76,7 @@ export function villagePopulation(village: Pick<VillageRecord, 'population'>): V
 export function materializeVillage(
   village: VillageRecord,
   now: Date,
-  options: { populationLocked?: boolean; preserveOverCapacity?: boolean } = {}
+  options: { populationLocked?: boolean } = {}
 ): VillageAdvanceResult {
   const normalizedBuildings = normalizePersistedBuildings(village.buildings)
   if (hasUnsupportedVillageArmy(village)) {
@@ -95,8 +95,7 @@ export function materializeVillage(
   }
   const result = advanceVillage(simulation, now.getTime(), {
     maxBalance: MAX_PLAYER_GOLD,
-    populationLocked: options.populationLocked,
-    preserveOverCapacity: options.preserveOverCapacity
+    populationLocked: options.populationLocked
   })
   village.buildings = simulation.buildings as unknown as JsonValue[]
   village.gold = simulation.balance

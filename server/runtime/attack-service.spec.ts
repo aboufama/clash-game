@@ -186,6 +186,39 @@ async function patchAccount(
   })
 }
 
+async function patchVillage(
+  persistence: Persistence,
+  playerId: string,
+  patch: (record: VillageRecord) => void
+): Promise<void> {
+  await persistence.transaction(async tx => {
+    const record = await tx.villages.get(playerId)
+    assert.ok(record)
+    const expectedRevision = record.economyRevision
+    patch(record)
+    record.economyRevision += 1
+    assert.equal(await tx.villages.update(record, expectedRevision), true)
+  })
+}
+
+test('attack materialization preserves authoritative ore and food above storage capacity', async () => {
+  const { persistence, now, service } = await fixture()
+  const attackerResources = { ore: 100_021, food: 1_000_009 }
+  const defenderResources = { ore: 200_021, food: 2_000_009 }
+  await patchVillage(persistence, 'attacker', record => Object.assign(record, attackerResources))
+  await patchVillage(persistence, 'defender', record => Object.assign(record, defenderResources))
+
+  now.value = new Date(START.getTime() + 60_000)
+  await service.startAttack({ playerId: 'attacker' }, {
+    targetId: 'defender', requestId: 'start-over-cap-authority'
+  }, false, 'device-token')
+
+  const attacker = await villageOf(persistence, 'attacker')
+  const defender = await villageOf(persistence, 'defender')
+  assert.deepEqual({ ore: attacker.ore, food: attacker.food }, attackerResources)
+  assert.deepEqual({ ore: defender.ore, food: defender.food }, defenderResources)
+})
+
 test('player attacks reserve once, fence on first deploy, command exactly once, and settle from deterministic authority', async () => {
   const { persistence, now, service } = await fixture(['attacker', 'defender', 'outsider'])
   const principal = { playerId: 'attacker' }

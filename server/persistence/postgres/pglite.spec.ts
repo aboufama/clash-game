@@ -302,7 +302,9 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
     }
     const village: VillageRecord = {
       playerId: account.id,
-      buildings: [],
+      buildings: [
+        { id: 'pg-admin-hall', type: 'town_hall', gridX: 10, gridY: 10, level: 1 }
+      ],
       obstacles: [],
       army: {},
       wallLevel: 1,
@@ -310,7 +312,7 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
       ore: 20,
       food: 30,
       productionRemainders: { ore: 0, food: 0 },
-      population: { count: 1 },
+      population: { count: 5, lastGrowthAt: NOW.getTime(), bornAt: [] },
       banner: null,
       simulatedThrough: NOW,
       lastMutationAt: NOW,
@@ -327,12 +329,48 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
         tokenHash: 'b'.repeat(64), playerId: account.id, createdAt: NOW, lastUsedAt: NOW,
         expiresAt: new Date(NOW.getTime() + 60_000), deviceId: 'pg-admin-spec'
       })
+      await tx.world.ensureRegion({
+        worldId: 'main', regionId: 'main:pg-admin', regionX: 0, regionY: 0,
+        size: 32, generationVersion: 1, createdAt: NOW
+      })
+      await tx.world.assign({
+        worldId: 'main', x: 0, y: 0, regionId: 'main:pg-admin',
+        playerId: account.id, plotVersion: 1, assignedAt: NOW,
+        leaseId: null, leaseIssuedAt: null, leaseRenewedAt: null, leaseExpiresAt: null
+      })
     })
-    const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+    let now = new Date(NOW)
+    const service = new PersistenceGameService(persistence, { now: () => new Date(now) })
     assert.equal((await service.adminPlayers('PgAdmin', 5))[0]?.id, account.id)
-    await service.adminPlayerAction(account.id, {
-      type: 'adjust_resources', gold: 90, food: -10, reason: 'postgres parity'
+    const resourceAdjustment = await service.adminPlayerAction(account.id, {
+      type: 'adjust_resources', gold: 90, ore: 100_001, food: 999_979, reason: 'postgres parity'
     })
+    assert.equal(resourceAdjustment.changed, true)
+    assert.equal(resourceAdjustment.affected, 3)
+    now = new Date(NOW.getTime() + 60_000)
+    const principal = { playerId: account.id }
+    const loaded = await service.getWorld(principal)
+    assert.deepEqual(
+      { ore: loaded.resources.ore, food: loaded.resources.food },
+      { ore: 100_021, food: 1_000_009 },
+      'PostgreSQL materialization retains an admin restore above storage capacity'
+    )
+    const cappedIncome = await service.applyResources(principal, {
+      resource: 'ore', delta: 25, reason: 'rock_haul', requestId: 'pg-admin-over-cap-income'
+    }) as { ore: number }
+    assert.equal(cappedIncome.ore, 100_021)
+    const debited = await service.applyResources(principal, {
+      resource: 'food', delta: -9, reason: 'support verification', requestId: 'pg-admin-over-cap-debit'
+    }) as { food: number }
+    assert.equal(debited.food, 1_000_000)
+    const beforeSave = await service.getWorld(principal)
+    const saved = await service.saveWorld(principal, {
+      world: beforeSave, requestId: 'pg-admin-over-cap-save'
+    })
+    assert.deepEqual(
+      { ore: saved.resources.ore, food: saved.resources.food },
+      { ore: 100_021, food: 1_000_000 }
+    )
     await service.adminPlayerAction(account.id, {
       type: 'set_access', state: 'banned', reason: 'postgres parity'
     })
@@ -341,12 +379,32 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
     })
 
     const player = await service.adminPlayer(account.id)
-    assert.deepEqual(player.resources, { gold: 100, ore: 20, food: 20 })
+    assert.deepEqual(player.resources, { gold: 100, ore: 100_021, food: 1_000_000 })
     assert.equal(player.access, 'banned')
     assert.equal(player.activeSessions, 0)
     assert.equal((await service.adminConfig()).maintenance.enabled, true)
     assert.equal((await service.adminAudit(10)).length, 3)
     assert.equal(JSON.stringify(player).includes('private-test-hash'), false)
+
+    const resourceLedger = await database.query<{
+      currency: string
+      delta: string | number
+      balance_after: string | number
+    }>(String.raw`
+      SELECT currency, delta, balance_after
+      FROM balance_ledger
+      WHERE player_id = $1 AND operation = 'admin.adjust_resources'
+      ORDER BY currency
+    `, [account.id])
+    assert.deepEqual(resourceLedger.rows.map(row => ({
+      currency: row.currency,
+      delta: Number(row.delta),
+      balanceAfter: Number(row.balance_after)
+    })), [
+      { currency: 'food', delta: 999_979, balanceAfter: 1_000_009 },
+      { currency: 'gold', delta: 90, balanceAfter: 100 },
+      { currency: 'ore', delta: 100_001, balanceAfter: 100_021 }
+    ])
 
     await assert.rejects(
       database.query('DELETE FROM admin_audit_log WHERE target_id = $1', [account.id]),

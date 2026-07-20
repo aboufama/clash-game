@@ -25,6 +25,7 @@ const auth = () => createAdminAuth({
 function makeService() {
   let maintenance = false
   let playerActions = 0
+  let lastPlayerAction: AdminPlayerActionRequest | null = null
   const config = (): AdminConfig => ({
     maintenance: { enabled: maintenance, message: maintenance ? 'Upgrading the keep' : null },
     accessPolicy: { suspendedSessionsRevoked: true, bannedSessionsRevoked: true },
@@ -51,8 +52,9 @@ function makeService() {
     adminAttacks: async () => [],
     adminAudit: async () => [],
     adminEconomy: async () => ({ today: 1, days: [] }),
-    adminPlayerAction: async (_id: unknown, _action: AdminPlayerActionRequest) => {
+    adminPlayerAction: async (_id: unknown, action: AdminPlayerActionRequest) => {
       playerActions += 1
+      lastPlayerAction = structuredClone(action)
       return { ok: true as const, action: 'set_trophies', targetId: 'p1', changed: true, affected: 1, auditId: 'a1' }
     },
     adminOperation: async (operation: AdminOperationRequest) => {
@@ -62,7 +64,8 @@ function makeService() {
   }
   return {
     service: service as unknown as ApiService<string> & AdminApiService,
-    playerActionCount: () => playerActions
+    playerActionCount: () => playerActions,
+    lastPlayerAction: () => lastPlayerAction
   }
 }
 
@@ -130,10 +133,13 @@ test('admin HTTP plane requires a signed cookie and CSRF on mutations', async ()
     path: '/admin/players/p1/actions',
     cookie,
     adminCsrfToken: csrfToken,
-    body: { type: 'set_trophies', trophies: 10, reason: 'spec' }
+    body: { type: 'adjust_resources', gold: 125, ore: -20, food: 45, reason: 'support correction' }
   }))
   assert.equal(mutation.status, 200)
   assert.equal(fixture.playerActionCount(), 1)
+  assert.deepEqual(fixture.lastPlayerAction(), {
+    type: 'adjust_resources', gold: 125, ore: -20, food: 45, reason: 'support correction'
+  }, 'the authenticated HTTP plane forwards all three resource deltas intact')
 
   const logout = await handle(request({
     method: 'POST',

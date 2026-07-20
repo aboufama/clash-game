@@ -105,7 +105,6 @@ type IdFactory = (prefix: 'atk' | 'botraid') => string
 export interface PersistenceAttackServiceOptions {
   now?: Clock
   createId?: IdFactory
-  preserveOverCapacity?: boolean
 }
 
 type StartedPlayerAttack = {
@@ -450,14 +449,11 @@ export class PersistenceAttackService implements RuntimeAttackService {
   private readonly persistence: Persistence
   private readonly now: Clock
   private readonly createId: IdFactory
-  private readonly preserveOverCapacity: boolean
 
   constructor(persistence: Persistence, options: PersistenceAttackServiceOptions = {}) {
     this.persistence = persistence
     this.now = options.now ?? (() => new Date())
     this.createId = options.createId ?? randomId
-    this.preserveOverCapacity = options.preserveOverCapacity
-      ?? process.env.CLASH_ALLOW_DEBUG_GRANTS === '1'
   }
 
   private async serializable<T>(work: (tx: UnitOfWork, now: Date) => Promise<T>): Promise<T> {
@@ -489,8 +485,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
   ) {
     const before = { gold: village.gold, ore: village.ore, food: village.food }
     const result = materializeVillage(village, now, {
-      populationLocked,
-      preserveOverCapacity: this.preserveOverCapacity
+      populationLocked
     })
     const auditId = `sim:${result.from}:${result.through}`
     for (const currency of ['gold', 'ore', 'food'] as const) {

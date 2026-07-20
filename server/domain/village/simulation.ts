@@ -52,8 +52,6 @@ export interface VillageAdvanceOptions {
   maxBalance?: number
   /** Raid settlement can freeze births while food is reserved as displayed loot. */
   populationLocked?: boolean
-  /** Local debug grants may intentionally hold ore/food above storage capacity. */
-  preserveOverCapacity?: boolean
 }
 
 export interface VillageAdvanceResult {
@@ -176,8 +174,7 @@ function accrueSegment(
   from: number,
   to: number,
   maxBalance: number,
-  produced: VillageAdvanceResult['produced'],
-  preserveOverCapacity: boolean
+  produced: VillageAdvanceResult['produced']
 ): void {
   if (to <= from) return
   const seconds = (to - from) / 1000
@@ -191,9 +188,11 @@ function accrueSegment(
   produced.gold += Math.max(0, Math.floor(village.balance) - beforeGold)
 
   const credit = (kind: 'ore' | 'food', rate: number, cap: number) => {
-    village[kind] = preserveOverCapacity
-      ? Math.max(0, finiteInt(village[kind], 0))
-      : clamp(finiteInt(village[kind], 0), 0, cap)
+    // Capacity limits new income; it must never destroy authority that was
+    // already persisted above the current cap (for example an admin restore
+    // or a later storehouse removal). While over capacity no production is
+    // credited, and ordinary debits can naturally bring the stock back down.
+    village[kind] = Math.max(0, finiteInt(village[kind], 0))
     if (village[kind] >= cap) {
       remainders[kind] = 0
       return
@@ -313,7 +312,7 @@ export function advanceVillage(
       boundary = Math.min(boundary, dueAt > cursor ? dueAt : foodReadyAt(village, cursor))
     }
     if (!Number.isFinite(boundary) || boundary <= cursor) boundary = target
-    accrueSegment(village, cursor, boundary, maxBalance, result.produced, Boolean(options.preserveOverCapacity))
+    accrueSegment(village, cursor, boundary, maxBalance, result.produced)
     cursor = boundary
     village.lastAccrualAt = cursor
     result.through = cursor

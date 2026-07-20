@@ -20,6 +20,8 @@ test('legacy JSON runtime provides durable, audited admin parity', () => {
     if (!('token' in session)) return
     const playerId = session.player.id
     const originalGold = session.world.resources.gold
+    const originalOre = Number(session.world.resources.ore ?? 0)
+    const originalFood = Number(session.world.resources.food ?? 0)
 
     assert.equal(service.adminOverview().players.total, 1)
     assert.equal(service.adminPlayers('AdminSpec', 10)[0]?.id, playerId)
@@ -45,7 +47,17 @@ test('legacy JSON runtime provides durable, audited admin parity', () => {
       reason: 'Correct a support incident'
     })
     assert.equal(resourceResult.changed, true)
-    assert.equal(service.adminPlayer(playerId).resources.gold, originalGold + 125)
+    assert.equal(resourceResult.affected, 3)
+    assert.deepEqual(service.adminPlayer(playerId).resources, {
+      gold: originalGold + 125,
+      ore: originalOre + 20,
+      food: originalFood + 10
+    })
+    const resourceEconomy = service.adminEconomy(1).days[0]
+    assert.ok(resourceEconomy)
+    assert.ok(resourceEconomy.faucets.gold >= 125)
+    assert.ok(resourceEconomy.faucets.ore >= 20)
+    assert.ok(resourceEconomy.faucets.food >= 10)
 
     service.adminPlayerAction(playerId, {
       type: 'send_notice',
@@ -141,6 +153,117 @@ test('legacy JSON runtime provides durable, audited admin parity', () => {
       'a durable reset epoch prevents a legacy bot cache-token collision after restart')
     assert.ok(restarted.adminAudit(250).some(entry => entry.action === 'adjust_resources'))
     assert.ok(restarted.adminAudit(250).some(entry => entry.action === 'reset_all_bases'))
+    assert.ok(restarted.flush())
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('legacy admin overflow survives world loads, debits, saves, and restart without earning past cap', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'clash-admin-overflow-legacy-'))
+  try {
+    const service = new GameService(root)
+    const session = service.register(null, 'OverflowChief', 'valid-password-123')
+    assert.ok('token' in session)
+    if (!('token' in session)) return
+    const playerId = session.player.id
+    const restored = {
+      ore: Number(session.world.resources.ore ?? 0) + 100_000,
+      food: Number(session.world.resources.food ?? 0) + 1_000_000
+    }
+
+    service.adminPlayerAction(playerId, {
+      type: 'adjust_resources', ore: 100_000, food: 1_000_000,
+      reason: 'Restore a production incident'
+    })
+    assert.deepEqual(service.adminPlayer(playerId).resources, {
+      gold: session.world.resources.gold,
+      ...restored
+    })
+
+    const player = service.authenticate(session.token)
+    const loaded = service.getWorld(player)
+    assert.deepEqual(
+      { ore: loaded.resources.ore, food: loaded.resources.food },
+      restored,
+      'the next legacy world materialization must retain the authoritative restore'
+    )
+    const cappedIncome = service.applyResources(player, {
+      resource: 'ore', delta: 25, reason: 'rock_haul', requestId: 'legacy-over-cap-income'
+    })
+    assert.equal(cappedIncome.ore, restored.ore,
+      'ordinary income cannot increase an already-over-cap stock')
+    const oreDebit = service.applyResources(player, {
+      resource: 'ore', delta: -11, reason: 'support verification', requestId: 'legacy-over-cap-ore-debit'
+    })
+    const foodDebit = service.applyResources(player, {
+      resource: 'food', delta: -7, reason: 'support verification', requestId: 'legacy-over-cap-food-debit'
+    })
+    const afterDebits = { ore: restored.ore - 11, food: restored.food - 7 }
+    assert.equal(oreDebit.ore, afterDebits.ore)
+    assert.equal(foodDebit.food, afterDebits.food)
+
+    const beforeSave = service.getWorld(player)
+    const saved = service.saveWorld(player, { world: beforeSave, requestId: 'legacy-over-cap-save' })
+    assert.deepEqual(
+      { ore: saved.resources.ore, food: saved.resources.food },
+      afterDebits
+    )
+    assert.ok(service.flush())
+
+    const restarted = new GameService(root)
+    const reopened = restarted.getWorld(restarted.authenticate(session.token))
+    assert.deepEqual(
+      { ore: reopened.resources.ore, food: reopened.resources.food },
+      afterDebits,
+      'the legacy JSON reload must not normalize restored balances back to storage capacity'
+    )
+    assert.ok(restarted.flush())
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('legacy admin adjustments materialize producer income first and persist zero-delta catch-up', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'clash-admin-accrual-legacy-'))
+  try {
+    const service = new GameService(root)
+    const session = service.register(null, 'AccrualChief', 'valid-password-123')
+    assert.ok('token' in session)
+    if (!('token' in session)) return
+    assert.ok(session.world.buildings.some(building => building.type === 'mine'),
+      'the starter village supplies the producer used by this regression')
+    const player = service.authenticate(session.token)
+
+    player.ore = 0
+    player.lastAccrualAt = Date.now() - 10 * 60_000
+    player.simulatedThrough = player.lastAccrualAt
+    player.productionRemainders = { ore: 0, food: 0 }
+    const granted = service.adminPlayerAction(player.id, {
+      type: 'adjust_resources', ore: 10, reason: 'Apply grant after pending mine income'
+    })
+    assert.equal(granted.changed, true)
+    assert.ok(player.ore > 10,
+      'pending mine income lands before the admin grant instead of after it')
+    assert.ok(service.flush())
+
+    // Flush clears the prior dirty marker. This second catch-up therefore
+    // proves that a zero admin delta still persists the advanced checkpoint.
+    player.ore = 0
+    player.lastAccrualAt = Date.now() - 10 * 60_000
+    player.simulatedThrough = player.lastAccrualAt
+    player.productionRemainders = { ore: 0, food: 0 }
+    const caughtUp = service.adminPlayerAction(player.id, {
+      type: 'adjust_resources', ore: 0, reason: 'Persist pending mine income only'
+    })
+    assert.equal(caughtUp.changed, false)
+    assert.equal(caughtUp.affected, 0)
+    assert.ok(player.ore > 0)
+    const persistedOre = player.ore
+    assert.ok(service.flush())
+
+    const restarted = new GameService(root)
+    assert.equal(restarted.adminPlayer(player.id).resources.ore, persistedOre)
     assert.ok(restarted.flush())
   } finally {
     rmSync(root, { recursive: true, force: true })
