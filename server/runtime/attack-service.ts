@@ -63,6 +63,7 @@ import {
   type WorldPlotRecord
 } from '../persistence'
 import {
+  BOT_CAMP_EXCLUSION_LIMIT,
   MATCHMAKE_EXCLUSION_LIMIT,
   type AttackCommandRequest,
   type AttackEndRequest,
@@ -201,6 +202,28 @@ function matchmakeExclusions(raw: unknown): Set<string> {
     throw new ApiError(400, `excludeTargetIds must be an array of at most ${MATCHMAKE_EXCLUSION_LIMIT} ids`)
   }
   return new Set(raw.map(entry => strictId(entry, 'excludeTargetIds entry')))
+}
+
+function botCampExclusions(raw: unknown): Set<string> {
+  if (raw === undefined) return new Set()
+  if (!Array.isArray(raw) || raw.length > BOT_CAMP_EXCLUSION_LIMIT) {
+    throw new ApiError(400, `excludeCampKeys must contain at most ${BOT_CAMP_EXCLUSION_LIMIT} coordinates`)
+  }
+  const exclusions = new Set<string>()
+  for (const value of raw) {
+    if (typeof value !== 'string' || !/^-?\d+,-?\d+$/.test(value)) {
+      throw new ApiError(400, 'Every excluded camp must use the x,y coordinate format')
+    }
+    const [rawX, rawY] = value.split(',')
+    const x = Number(rawX)
+    const y = Number(rawY)
+    if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)
+      || Math.abs(x) > WORLD_COORD_LIMIT || Math.abs(y) > WORLD_COORD_LIMIT) {
+      throw new ApiError(400, 'Excluded camp coordinates are outside the world')
+    }
+    exclusions.add(`${x},${y}`)
+  }
+  return exclusions
 }
 
 function requestId(raw: unknown, operation: string): string {
@@ -745,6 +768,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     rawX: unknown,
     rawY: unknown,
     operationId: string,
+    excludedCampKeys: ReadonlySet<string>,
     now: Date
   ): Promise<{ x: number; y: number; seed: number; revisionEpoch: number; visible: boolean }> {
     const explicit = rawX !== undefined || rawY !== undefined
@@ -757,7 +781,8 @@ export class PersistenceAttackService implements RuntimeAttackService {
     const revisionEpoch = allocation?.botRevisionEpoch ?? 1
     const candidateAt = (x: number, y: number) => {
       const seed = settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius })
-      if (seed === null || now.getTime() - botCooldown(account, x, y) < BOT_RAID_COOLDOWN_MS) return null
+      if (seed === null || (!explicit && excludedCampKeys.has(`${x},${y}`))
+        || now.getTime() - botCooldown(account, x, y) < BOT_RAID_COOLDOWN_MS) return null
       return { x, y, seed }
     }
     if (explicit) {
@@ -773,6 +798,44 @@ export class PersistenceAttackService implements RuntimeAttackService {
         throw new ApiError(409, 'That camp is unavailable or still recovering')
       }
       return { ...camp, revisionEpoch, visible: true }
+    }
+
+    // Prefer already-durable camps from map/cron provisioning. This removes
+    // procedural generation from the cloud-match latency path in established
+    // worlds while retaining the bounded deterministic probe as an empty-pool
+    // fallback for a brand-new database.
+    const persistedPool = await tx.world.listBotVillages({
+      worldId: plot.worldId,
+      minX: -127,
+      maxX: 128,
+      minY: -127,
+      maxY: 128,
+      now,
+      limit: BOT_PROBE_LIMIT
+    })
+    if (persistedPool.length > 0) {
+      const occupied = new Set((await tx.world.listOccupantsAt(
+        plot.worldId,
+        persistedPool.map(bot => ({ x: bot.x, y: bot.y }))
+      )).map(item => `${item.x},${item.y}`))
+      const eligible = persistedPool.filter(bot => {
+        const key = `${bot.x},${bot.y}`
+        const resources = bot.world.resources
+        return !occupied.has(key)
+          && !excludedCampKeys.has(key)
+          && now.getTime() - botCooldown(account, bot.x, bot.y) >= BOT_RAID_COOLDOWN_MS
+          && (resources.gold + (resources.ore ?? 0) + (resources.food ?? 0)) > 0
+      })
+      if (eligible.length > 0) {
+        const selected = eligible[hashString(`${account.id}:${operationId}:persisted-bot`) % eligible.length]!
+        return {
+          x: selected.x,
+          y: selected.y,
+          seed: selected.seed,
+          revisionEpoch,
+          visible: false
+        }
+      }
     }
 
     const random = mulberry32(hashString(`${account.id}:${operationId}:bot`))
@@ -796,6 +859,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
 
   async botStart(principal: RuntimePrincipal, body: BotStartRequest, rawToken?: unknown): Promise<StartedBotAttack> {
     const operationId = requestId(body?.requestId, 'Bot raid start')
+    const excludedCampKeys = botCampExclusions(body?.excludeCampKeys)
     return this.serializable(async (tx, now) => {
       const result = await idempotentMutation(tx, {
         actorId: principal.playerId,
@@ -814,7 +878,8 @@ export class PersistenceAttackService implements RuntimeAttackService {
           attacker.account.botRaidCooldowns, now.getTime()
         ))
         const camp = await this.chooseBotCamp(
-          tx, attacker.account, attacker.village, attacker.plot, body?.x, body?.y, operationId, now
+          tx, attacker.account, attacker.village, attacker.plot, body?.x, body?.y,
+          operationId, excludedCampKeys, now
         )
         if (accountFingerprint(attacker.account) !== attackerAccountBefore) {
           await updateAccount(tx, attacker.account, attackerAccountRevision)

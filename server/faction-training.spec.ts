@@ -358,6 +358,62 @@ test('normalized runtime materializes and persists known buildings at their curr
   }
 })
 
+test('normalized army batch is mixed, atomic, idempotent, and returns its authoritative world', async () => {
+  const persistence = new MemoryPersistence()
+  const now = new Date('2026-07-18T15:00:00.000Z')
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    infiniteResources: false
+  })
+  try {
+    const session = grantedSession(await service.ensureSession('', 'army-batch-runtime'))
+    const principal: RuntimePrincipal = { playerId: session.player.id }
+    const initialRevision = session.world.revision ?? 0
+    const result = await service.armyBatch(principal, {
+      operations: [
+        { kind: 'train', type: 'warrior', count: 3 },
+        { kind: 'untrain', type: 'warrior', count: 1 }
+      ],
+      requestId: 'mixed-runtime-batch'
+    }) as {
+      army: Record<string, number>
+      gold: number
+      food: number
+      revision: number
+      world: { army?: Record<string, number>; resources: { gold: number; food?: number }; revision?: number }
+    }
+    assert.equal(result.army.warrior, 2)
+    assert.equal(result.gold, session.world.resources.gold - TROOP_DEFINITIONS.warrior.cost * 2)
+    assert.equal(result.food, (session.world.resources.food ?? 0) - 4)
+    assert.equal(result.revision, initialRevision + 1, 'the complete burst advances authority once')
+    assert.deepEqual(result.world.army, result.army)
+    assert.equal(result.world.resources.gold, result.gold)
+    assert.equal(result.world.resources.food, result.food)
+
+    const replay = await service.armyBatch(principal, {
+      operations: [{ kind: 'train', type: 'warrior', count: 50 }],
+      requestId: 'mixed-runtime-batch'
+    })
+    assert.deepEqual(replay, result, 'the request id replays the exact committed response')
+
+    const beforeRejected = await service.getWorld(principal)
+    await assert.rejects(service.armyBatch(principal, {
+      operations: [
+        { kind: 'train', type: 'warrior', count: 1 },
+        { kind: 'untrain', type: 'warrior', count: 50 }
+      ],
+      requestId: 'rejected-runtime-batch'
+    }), error => error instanceof ApiError && error.status === 409)
+    const afterRejected = await service.getWorld(principal)
+    assert.deepEqual(afterRejected.army, beforeRejected.army)
+    assert.deepEqual(afterRejected.resources, beforeRejected.resources)
+    assert.equal(afterRejected.revision, beforeRejected.revision, 'a rejected suffix commits no prefix')
+  } finally {
+    await service.close()
+  }
+})
+
 test('legacy runtime enforces Army Camp core unlocks and both Barracks paths', () => {
   const dataRoot = mkdtempSync(path.join(tmpdir(), 'clash-two-path-training-'))
   let game: GameService | undefined
@@ -402,6 +458,54 @@ test('legacy runtime enforces Army Camp core unlocks and both Barracks paths', (
         type, count: 1, requestId: `missing-${type}-legacy`
       }), error => error instanceof ApiError && error.status === 403 && error.message.includes(name))
     }
+  } finally {
+    game?.flush()
+    rmSync(dataRoot, { recursive: true, force: true })
+  }
+})
+
+test('legacy army batch commits mixed orders once and rolls back a rejected suffix', () => {
+  const dataRoot = mkdtempSync(path.join(tmpdir(), 'clash-army-batch-legacy-'))
+  let game: GameService | undefined
+  try {
+    game = new GameService(dataRoot)
+    const session = grantedSession(game.ensureSession(undefined, 'army-batch-legacy'))
+    const player = game.authenticate(session.token)
+    const initialRevision = player.revision
+    const initialGold = Math.floor(player.balance)
+    const initialFood = player.food
+    const result = game.armyBatch(player, {
+      operations: [
+        { kind: 'train', type: 'warrior', count: 3 },
+        { kind: 'untrain', type: 'warrior', count: 1 }
+      ],
+      requestId: 'mixed-legacy-batch'
+    })
+    assert.equal(result.army.warrior, 2)
+    assert.equal(result.gold, initialGold - TROOP_DEFINITIONS.warrior.cost * 2)
+    assert.equal(result.food, initialFood - 4)
+    assert.equal(result.revision, initialRevision + 1)
+    assert.deepEqual(result.world.army, result.army)
+
+    const replay = game.armyBatch(player, {
+      operations: [{ kind: 'train', type: 'warrior', count: 50 }],
+      requestId: 'mixed-legacy-batch'
+    })
+    assert.equal(replay.revision, result.revision)
+    assert.deepEqual(replay.army, result.army)
+
+    const beforeRejected = game.getWorld(player)
+    assert.throws(() => game?.armyBatch(player, {
+      operations: [
+        { kind: 'train', type: 'warrior', count: 1 },
+        { kind: 'untrain', type: 'warrior', count: 50 }
+      ],
+      requestId: 'rejected-legacy-batch'
+    }), error => error instanceof ApiError && error.status === 409)
+    const afterRejected = game.getWorld(player)
+    assert.deepEqual(afterRejected.army, beforeRejected.army)
+    assert.deepEqual(afterRejected.resources, beforeRejected.resources)
+    assert.equal(afterRejected.revision, beforeRejected.revision)
   } finally {
     game?.flush()
     rmSync(dataRoot, { recursive: true, force: true })

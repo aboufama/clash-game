@@ -71,6 +71,7 @@ import {
   boundWorldAtlasQuery,
   boundWorldPlayerDirectoryQuery,
   boundWorldOccupancyBatch,
+  boundBotVillageProvisionBatch,
   QUERY_LIMITS
 } from './query-bounds'
 import { createHash } from 'node:crypto'
@@ -610,6 +611,38 @@ class MemoryWorld implements WorldRepository {
     this.state.botVillages.set(record.id, copy(record))
     this.state.botVillageIdsByPlot.set(coordinateKey, record.id)
     return 'inserted'
+  }
+
+  async provisionBotVillages(rawRecords: readonly BotVillageRecord[]): Promise<void> {
+    const records = boundBotVillageProvisionBatch(rawRecords)
+    for (const record of records) {
+      assertBotVillageRecord(record)
+      const coordinateKey = plotKey(record.worldId, record.x, record.y)
+      if (this.state.plotOccupants.has(coordinateKey)) continue
+      const currentById = this.state.botVillages.get(record.id)
+      const currentIdAtPlot = this.state.botVillageIdsByPlot.get(coordinateKey)
+      const current = currentById ?? (currentIdAtPlot
+        ? this.state.botVillages.get(currentIdAtPlot)
+        : undefined)
+      if (!current) {
+        this.state.botVillages.set(record.id, copy(record))
+        this.state.botVillageIdsByPlot.set(coordinateKey, record.id)
+        continue
+      }
+      if (current.id !== record.id || current.worldId !== record.worldId
+        || current.x !== record.x || current.y !== record.y || current.seed !== record.seed
+        || current.plotVersion !== record.plotVersion
+        || current.worldGenerationVersion !== record.worldGenerationVersion) {
+        throw new PersistenceConflictError('Bot village identity or coordinate already exists with different provenance')
+      }
+      if (record.generatorVersion === current.generatorVersion) continue
+      if (record.generatorVersion < current.generatorVersion) continue
+      if (record.revision !== current.revision + 1
+        || record.createdAt.getTime() !== current.createdAt.getTime()) {
+        throw new PersistenceConflictError('Bot village generator upgrade lost its revision fence')
+      }
+      this.state.botVillages.set(record.id, copy(record))
+    }
   }
 
   async updateBotVillage(record: BotVillageRecord, expectedRevision: number): Promise<boolean> {

@@ -7,6 +7,7 @@ import type {
 } from './admin-contract'
 import type {
   ApiService,
+  ArmyBatchRequest,
   ArmyMutationRequest,
   AttackCommandRequest,
   AttackEndRequest,
@@ -52,6 +53,7 @@ const GAMEPLAY_MUTATION_PATHS = new Set([
   '/player/rename',
   '/world/save',
   '/resources/apply',
+  '/army/batch',
   '/army/train',
   '/army/untrain',
   '/merchant/trade',
@@ -91,6 +93,10 @@ export function createApiHandler<Principal>(
 ) {
   const adminAuth = options.adminAuth ?? createAdminAuth()
   let maintenanceCache: { checkedAt: number; enabled: boolean; message: string | null } | null = null
+  // Player mutations still take the database maintenance fence inside their
+  // authority transaction. This cache only avoids a separate config
+  // transaction on every read/auth request and may safely be a little slower.
+  const maintenanceCacheTtlMs = 5_000
 
   const requireAdminService = (): AdminApiService => {
     const candidate = game as Partial<AdminApiService>
@@ -113,7 +119,7 @@ export function createApiHandler<Principal>(
 
   const maintenanceStatus = async () => {
     const now = Date.now()
-    if (maintenanceCache && now - maintenanceCache.checkedAt < 1_000) return maintenanceCache
+    if (maintenanceCache && now - maintenanceCache.checkedAt < maintenanceCacheTtlMs) return maintenanceCache
     const adminCandidate = game as ApiService<Principal> & Partial<AdminApiService>
     if (typeof adminCandidate.adminConfig !== 'function') {
       maintenanceCache = { checkedAt: now, enabled: false, message: null }
@@ -323,11 +329,17 @@ export function createApiHandler<Principal>(
       if (method === 'GET' && path === '/world') {
         return { status: 200, body: { world: await game.getWorld(player) } }
       }
+      if (method === 'GET' && path === '/home/sync') {
+        return { status: 200, body: await game.homeSync(player) }
+      }
       if (method === 'POST' && path === '/world/save') {
         return { status: 200, body: { world: await game.saveWorld(player, body as SaveWorldRequest) } }
       }
       if (method === 'POST' && path === '/resources/apply') {
         return { status: 200, body: await game.applyResources(player, body as ResourceMutationRequest) }
+      }
+      if (method === 'POST' && path === '/army/batch') {
+        return { status: 200, body: await game.armyBatch(player, body as ArmyBatchRequest) }
       }
       if (method === 'POST' && path === '/army/train') {
         return { status: 200, body: await game.trainTroop(player, body as ArmyMutationRequest) }

@@ -116,11 +116,34 @@ The shared caps and validation live in `query-bounds.ts`. Migration 5 adds the
 matching ordered/partial indexes. These methods may clamp an oversized result
 limit, but reject invalid cursors, trophy ranges, or atlas spans before SQL runs.
 
+## Vercel release migrations
+
+Vercel request handlers never run schema migrations. Apply migrations once,
+before promoting a deployment, with the production `DATABASE_URL` explicitly
+loaded into the release shell:
+
+```sh
+npm run db:migrate:release -- --confirm=APPLY_RELEASE_MIGRATIONS
+npx vercel --prod
+```
+
+Do not put `db:migrate` in the Vercel build command: build workers are not a
+release lock and multiple preview/production builds may overlap. The migration
+CLI already uses a database advisory lock, checks every applied checksum, and
+fails before deployment if production schema authority cannot be reached. The
+release variant also preprovisions a bounded central bot pool so cloud bot
+matching does not have to synthesize its first opponent on a player request.
+
+Set `CRON_SECRET` in the production Vercel environment. `vercel.json` invokes
+the authenticated `/api/internal/maintenance` job once daily (compatible with
+Vercel Hobby as well as paid plans); ordinary player requests never execute
+response-tail maintenance.
+
 ## Runtime maintenance and storage bounds
 
-Every API process runs small overlap-guarded maintenance passes. PostgreSQL
-uses `FOR UPDATE SKIP LOCKED`, so processes cooperate instead of selecting the
-same rows:
+The authenticated scheduled maintenance job runs small bounded passes.
+PostgreSQL uses `FOR UPDATE SKIP LOCKED`, so a delayed/overlapping invocation
+cannot select the same rows:
 
 - up to 50 expired guest plot leases are released per pass;
 - up to 50 due attacks are expired or deterministically settled per pass;

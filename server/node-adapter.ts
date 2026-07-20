@@ -180,6 +180,11 @@ export function createApiMiddleware<Principal>(
   }
 
   return async function middleware(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+    const requestStartedAt = process.hrtime.bigint()
+    const setServerTiming = () => {
+      const durationMs = Number(process.hrtime.bigint() - requestStartedAt) / 1_000_000
+      res.setHeader('Server-Timing', `app;dur=${durationMs.toFixed(1)}`)
+    }
     const url = new URL(req.url ?? '/', 'http://localhost')
     if (!url.pathname.startsWith('/api/')) return false
 
@@ -202,6 +207,7 @@ export function createApiMiddleware<Principal>(
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         res.setHeader('Cache-Control', 'no-store')
         res.setHeader('Retry-After', '10')
+        setServerTiming()
         res.end(JSON.stringify({ error: 'Too many authenticated mutations; retry shortly', code: 'RATE_LIMITED' }))
         return true
       }
@@ -241,6 +247,7 @@ export function createApiMiddleware<Principal>(
     res.statusCode = status
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
     res.setHeader('Cache-Control', 'no-store')
+    setServerTiming()
     res.end(JSON.stringify(payload))
     return true
   }

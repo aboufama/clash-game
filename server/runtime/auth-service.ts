@@ -105,6 +105,8 @@ export class AuthSessionService {
   private readonly upgradePolicy?: AdvertisedUpgradePolicy
   private readonly allowGuestSessions: boolean
   private readonly limiter: InMemoryAuthRateLimiter
+  /** Same-instance request bursts share one authorization transaction. */
+  private readonly authenticationFlights = new Map<string, Promise<RuntimePrincipal>>()
 
   constructor(persistence: Persistence, authority: VillageAuthority, options: AuthSessionOptions) {
     this.persistence = persistence
@@ -358,6 +360,19 @@ export class AuthSessionService {
   }
 
   async authenticate(rawToken: unknown): Promise<RuntimePrincipal> {
+    const token = normalizeSessionToken(rawToken)
+    if (!token) throw new ApiError(401, 'Unknown device token')
+    const key = hashSessionToken(token)
+    const existing = this.authenticationFlights.get(key)
+    if (existing) return existing
+    const pending = this.authenticateUncached(token).finally(() => {
+      if (this.authenticationFlights.get(key) === pending) this.authenticationFlights.delete(key)
+    })
+    this.authenticationFlights.set(key, pending)
+    return pending
+  }
+
+  private async authenticateUncached(rawToken: unknown): Promise<RuntimePrincipal> {
     const token = normalizeSessionToken(rawToken)
     if (!token) throw new ApiError(401, 'Unknown device token')
     const tokenHash = hashSessionToken(token)

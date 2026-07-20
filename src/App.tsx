@@ -494,14 +494,10 @@ function App() {
           return;
         }
 
+        // Session/world reads already materialize elapsed production on the
+        // server. A second calculateOfflineProduction request repeated that
+        // same authority read and held the first village reveal open.
         updateVillageLoadCloud(58);
-        const offline = await Backend.calculateOfflineProduction(userId);
-
-        // Re-read from cache which now has updated wallet balance from production
-        const latestWorld = Backend.getCachedWorld(userId);
-        if (latestWorld) {
-          world = latestWorld;
-        }
         if (!world) {
           console.error('Failed to initialize base.');
           return;
@@ -558,9 +554,6 @@ function App() {
         loaded = sceneLoaded;
         setWorldReady(sceneLoaded);
 
-        if (offline.gold > 0) {
-          console.log(`Welcome back ${userRef.current?.username ?? ''}! Offline Production: ${offline.gold} GOLD`);
-        }
       } catch (error) {
         console.error('Error initializing game:', error);
         setWorldReady(false);
@@ -637,12 +630,6 @@ function App() {
   const armyRef = useRef(army);
   const selectedTroopTypeRef = useRef(selectedTroopType);
   const populationRef = useRef(population);
-  // Army orders (train/untrain) queue instead of rejecting while one is in
-  // flight: rapid clicks each land optimistically and their server calls run
-  // strictly in click order. Chaining locally (on top of the Backend's own
-  // per-user mutation queue) also keeps a failed order's snapshot revert from
-  // racing the next order's request.
-  const armyOrderChainRef = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     populationRef.current = population;
   }, [population]);
@@ -696,25 +683,6 @@ function App() {
       setCapacity(prev => ({ ...prev, current: totalSpace }));
     }
   }, []);
-
-  // Population/production poll: the server grows the village on its own clock;
-  // every so often we adopt the authoritative snapshot (births walk out of the
-  // town hall as children, balances re-anchor the predictive counters).
-  useEffect(() => {
-    if (!userId || !isOnline || view !== 'HOME') return;
-    let cancelled = false;
-    const tick = async () => {
-      if (document.hidden) return;
-      const world = await Backend.fetchWorldSnapshot();
-      if (cancelled || !world) return;
-      adoptWorld(world);
-    };
-    const interval = window.setInterval(() => void tick(), 45_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [userId, isOnline, view, adoptWorld]);
 
   // ---- predictive HUD counters ----
   // The displayed balances tick forward between authoritative syncs using the
@@ -824,16 +792,26 @@ function App() {
       if (!Number.isFinite(trophies)) return;
       setUser(prev => prev ? { ...prev, trophies: Math.max(0, Math.floor(trophies)) } : prev);
     };
+    const onArmySyncFailed = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message;
+      showToast(`${message ?? 'Army update failed'} — camp restored from the server.`);
+    };
     window.addEventListener('clash:world-synced', onSynced);
     window.addEventListener('clash:save-rejected', onRejected);
     window.addEventListener('clash:trophies-synced', onTrophies);
+    window.addEventListener('clash:army-sync-failed', onArmySyncFailed);
     return () => {
       window.removeEventListener('clash:world-synced', onSynced);
       window.removeEventListener('clash:save-rejected', onRejected);
       window.removeEventListener('clash:trophies-synced', onTrophies);
+      window.removeEventListener('clash:army-sync-failed', onArmySyncFailed);
     };
   }, [adoptWorld, showToast]);
 
+  // One lightweight home heartbeat replaces the former independent incoming
+  // attack (2.5s) and full-world (45s) polls. The summary endpoint tells us
+  // when a heavier world read is actually necessary, and hidden tabs make no
+  // requests until they become visible again.
   useEffect(() => {
     if (!userId || !isOnline || view !== 'HOME') {
       setIncomingAttack(null);
@@ -841,43 +819,72 @@ function App() {
     }
 
     let cancelled = false;
+    let inFlight = false;
 
-    const refreshIncoming = async () => {
-      if (document.hidden) return;
+    const refreshHome = async () => {
+      if (document.hidden || inFlight) return;
+      inFlight = true;
       try {
-        const sessions = await Backend.getIncomingAttacks(userId);
-        if (cancelled) return;
-        const latest = sessions[0] ?? null;
+        const sync = await Backend.fetchHomeSync();
+        if (cancelled || !sync) return;
+
+        gameManager.syncHomeStatus(sync.serverNow, sync.shieldUntil);
+
+        const latest: IncomingAttackSession | null = sync.incomingAttack
+          ? { ...sync.incomingAttack, victimId: userId }
+          : null;
         // Even a dismissed popup keeps the villagers hiding — the raid is still live.
-        // This poll is the ONE siege detector: it also drives the in-scene banner.
+        // The heartbeat is the ONE siege detector and drives the in-scene banner.
         gameManager.setUnderAttack(Boolean(latest), latest?.attackId ?? null);
         if (!latest) {
           setIncomingAttack(null);
           setDismissedIncomingAttackId(null);
-          return;
-        }
-        if (latest.attackId === dismissedIncomingAttackRef.current) {
+        } else if (latest.attackId === dismissedIncomingAttackRef.current) {
           setIncomingAttack(null);
-          return;
+        } else {
+          setIncomingAttack(latest);
         }
-        setIncomingAttack(latest);
+
+        const cached = Backend.getCachedWorld(userId);
+        const localRevision = Math.max(
+          lastAdoptedRevRef.current,
+          Number(cached?.revision ?? 0) || 0
+        );
+        const localLastSaveTime = Number(cached?.lastSaveTime ?? 0) || 0;
+        const remoteRevision = Number(sync.world.revision ?? 0) || 0;
+        const remoteLastSaveTime = Number(sync.world.lastSaveTime ?? 0) || 0;
+        const worldIsStale = remoteRevision > localRevision
+          || remoteLastSaveTime > localLastSaveTime;
+
+        if (
+          worldIsStale
+          && !Backend.hasPendingSave(userId)
+          && !Backend.hasPendingArmy(userId)
+        ) {
+          const world = await Backend.fetchWorldSnapshot();
+          if (!cancelled && world) adoptWorld(world);
+        }
       } catch (error) {
-        if (!cancelled) {
-          console.warn('Failed to fetch incoming attacks:', error);
-        }
+        if (!cancelled) console.warn('Failed to synchronize home status:', error);
+      } finally {
+        inFlight = false;
       }
     };
 
-    void refreshIncoming();
-    const interval = window.setInterval(() => {
-      void refreshIncoming();
-    }, 2500);
+    const onVisibilityChange = () => {
+      if (!document.hidden) void refreshHome();
+    };
+
+    void refreshHome();
+    const interval = window.setInterval(() => void refreshHome(), 12_000);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [userId, isOnline, view]);
+  }, [userId, isOnline, view, adoptWorld]);
 
   useEffect(() => {
     selectedInMapRef.current = selectedInMap;
@@ -887,7 +894,7 @@ function App() {
   }, [selectedInMap, army, selectedTroopType, resources]);
 
   const handleRenameAccount = async (name: string) => {
-    await Backend.flushPendingSave();
+    await Backend.flushAllPending();
     const renamed = await Auth.rename(name);
     if (userId) await Backend.forceLoadFromCloud(userId);
     setUser(prev => (prev ? { ...prev, username: renamed.username } : prev));
@@ -896,7 +903,7 @@ function App() {
   };
 
   const handleRegisterAccount = async (username: string, password: string) => {
-    await Backend.flushPendingSave();
+    await Backend.flushAllPending();
     const player = await Auth.register(username, password);
     if (userId) await Backend.forceLoadFromCloud(userId);
     setUser(prev => (prev ? { ...prev, username: player.username, registered: true } : prev));
@@ -909,14 +916,14 @@ function App() {
   const handleLoginAccount = async (username: string, password: string) => {
     // Do not abandon unsaved edits just because the account switch was
     // requested; a failed flush leaves the current session fully intact.
-    await Backend.flushPendingSave();
+    await Backend.flushAllPending();
     await Auth.login(username, password);
     Backend.clearAllCaches();
     window.location.reload();
   };
 
   const handleLogoutAccount = async () => {
-    await Backend.flushPendingSave().catch(() => undefined);
+    await Backend.flushAllPending().catch(() => undefined);
     await Auth.logout();
     Backend.clearAllCaches();
     window.location.reload();
@@ -957,7 +964,7 @@ function App() {
   }, [adoptGateSession]);
 
   const handleReseedWorld = async () => {
-    await Backend.flushPendingSave();
+    await Backend.flushAllPending();
     const result = await Auth.reseedWorld();
     Backend.clearAllCaches();
     // Leave the success notice visible briefly, then rebuild every world-map
@@ -1473,28 +1480,9 @@ function App() {
     setCapacity(prev => ({ ...prev, current: prev.current + space }));
 
     if (!isOnline) return;
-    armyOrderChainRef.current = armyOrderChainRef.current.then(async () => {
-      try {
-        const result = await Backend.trainTroop(type, 1);
-        if (!result) throw new Error('Training did not reach the server');
-      } catch (error) {
-        console.warn('Training failed, reverting:', error);
-        const truth = await Backend.fetchWorldSnapshot();
-        if (truth) {
-          adoptWorld(truth);
-        } else {
-          if (!infiniteResources) {
-            setResources(prev => ({ ...prev, gold: prev.gold + cost, food: prev.food + foodCost }));
-          }
-          setArmy(prev => {
-            const key = type as keyof typeof prev;
-            return { ...prev, [key]: Math.max(0, (prev[key] ?? 0) - 1) };
-          });
-          setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - space) }));
-        }
-        gameManager.showToast(`${error instanceof Error ? error.message : 'Training failed'}`);
-      }
-    });
+    if (!Backend.queueArmyOperation('train', type, 1)) {
+      showToast('Training could not be queued. Reconnect and try again.');
+    }
   };
 
   const handleUntrainTroop = (type: string) => {
@@ -1525,31 +1513,9 @@ function App() {
     setCapacity(prev => ({ ...prev, current: prev.current - space }));
 
     if (!isOnline) return;
-    armyOrderChainRef.current = armyOrderChainRef.current.then(async () => {
-      try {
-        const result = await Backend.untrainTroop(type, 1);
-        if (!result) throw new Error('Dismissal did not reach the server');
-      } catch (error) {
-        console.warn('Untrain failed, reverting:', error);
-        const truth = await Backend.fetchWorldSnapshot();
-        if (truth) {
-          adoptWorld(truth);
-        } else {
-          if (!infiniteResources) {
-            setResources(prev => ({
-              ...prev,
-              gold: Math.max(0, prev.gold - cost),
-              food: Math.max(0, prev.food - foodRefundApplied)
-            }));
-          }
-          setArmy(prev => {
-            const key = type as keyof typeof prev;
-            return { ...prev, [key]: (prev[key] ?? 0) + 1 };
-          });
-          setCapacity(prev => ({ ...prev, current: prev.current + space }));
-        }
-      }
-    });
+    if (!Backend.queueArmyOperation('untrain', type, 1)) {
+      showToast('Dismissal could not be queued. Reconnect and try again.');
+    }
   };
 
   const transitionHome = useCallback((rewardAmount: number = 0) => {
@@ -1866,9 +1832,15 @@ function App() {
         </div>
       )}
 
-      {/* Notifications and Leaderboard - only show when in HOME mode and online */}
-      {view === 'HOME' && isOnline && user && (
-        <div className="top-right-btns">
+      {/* Keep the social controls mounted through a raid so returning HOME
+          does not remount both panels and immediately refetch leaderboard +
+          notification state. They remain visually/inertly absent off HOME. */}
+      {isOnline && user && (
+        <div
+          className="top-right-btns"
+          style={view === 'HOME' ? undefined : { display: 'none' }}
+          aria-hidden={view !== 'HOME'}
+        >
           <button className="atlas-btn" title="Replay theatre" onClick={() => { soundSystem.play('uiOpen'); setShowTheatre(true); }}>
             <span className="sym sym-watch" />
           </button>

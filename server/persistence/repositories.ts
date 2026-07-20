@@ -133,7 +133,13 @@ export interface WorldRepository {
   listBotVillages(query: WorldAtlasQuery): Promise<BotVillageRecord[]>
   /** Idempotent only for equivalent content/provenance; the committed row's timestamps win. */
   insertBotVillage(record: BotVillageRecord): Promise<'inserted' | 'existing'>
-  /** CAS update; identity, coordinate, plot version and generator provenance are immutable. */
+  /**
+   * One bounded persistence boundary for a map window. Inserts missing camps
+   * and advances same-provenance camps to a newer generator revision. Player
+   * claims always win; callers re-read the window before presenting bots.
+   */
+  provisionBotVillages(records: readonly BotVillageRecord[]): Promise<void>
+  /** Ordinary CAS update; generator-version advances use provisionBotVillages. */
   updateBotVillage(record: BotVillageRecord, expectedRevision: number): Promise<boolean>
   deleteBotVillage(id: string): Promise<boolean>
   listAtlas(query: WorldAtlasQuery): Promise<WorldAtlasEntry[]>

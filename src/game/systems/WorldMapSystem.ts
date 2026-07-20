@@ -118,7 +118,9 @@ const QUADRANT_FACES: Record<WildernessJunctionQuadrant, readonly [keyof Wildern
     se: ['s', 'e'],
     sw: ['s', 'w']
 };
-const REFRESH_MS = 25_000;
+// The compact /home/sync heartbeat carries fast-changing home authority.
+// Postcard snapshots only need a slower revision refresh while HOME is open.
+const REFRESH_MS = 60_000;
 const SNAPSHOT_SCALE = PLAYER_POSTCARD_SCALE; // player villages are never downsampled
 
 /**
@@ -375,9 +377,6 @@ export class WorldMapSystem {
     private fallbackViewsActive = false;
     private focusEpoch = 0;
     // ---- home defence: siege detection, alarm banner, shields ----
-    private nextHomePollAt = 0;
-    private homePolling = false;
-    private homePollInFlight: Promise<void> | null = null;
     private homeAttackId: string | null = null;
     private dismissedSiegeId: string | null = null;
     private myShieldUntil = 0;
@@ -387,6 +386,14 @@ export class WorldMapSystem {
      * the player's own home as a postcard. The world never cuts away.
      */
     private focusPlot: { x: number; y: number } | null = null;
+    /**
+     * The already-rendered HOME ring is parked while a raid is in focus. Keeping
+     * these eight near postcards avoids a network fetch plus eight full-size RT
+     * paints on the cloud-covered return path. Only one home ring is retained;
+     * NEXT attacks replace the battle ring while this original set stays parked.
+     */
+    private parkedHomeViews: Map<string, NeighborView> | null = null;
+    private parkedHomeKindHints: Map<string, WorldMapPlot['kind']> | null = null;
     /** The war caravan marching down the roads toward a neighbour. */
     private caravan: {
         points: Array<{ x: number; y: number }>;
@@ -521,10 +528,6 @@ export class WorldMapSystem {
                 this.nextRefreshAt = time + REFRESH_MS;
                 void this.refresh();
             }
-            if (time >= this.nextHomePollAt && !this.homePolling) {
-                this.nextHomePollAt = time + 8000;
-                void this.pollHome();
-            }
         }
         this.checkDesignRepaint(time);
         // The deep bank is culled to the camera it was built for; a pan or
@@ -601,7 +604,7 @@ export class WorldMapSystem {
      */
     private pendingFocus: PendingFocus | null = null;
 
-    prepareFocus(target: { x: number; y: number }) {
+    prepareFocus(target: { x: number; y: number }, prefetchedWindow: WorldMapWindow | null = null) {
         // A second march can supersede the first while its hidden postcards are
         // still being painted. Destroy the abandoned GPU textures immediately.
         this.dropPendingFocus();
@@ -619,14 +622,16 @@ export class WorldMapSystem {
         // keeps its earned radius; a battle focuses one exact 3x3 context.
         const focusRadius = 1;
         void (async () => {
-            let window: Awaited<ReturnType<typeof Backend.fetchMap>> = null;
-            try {
-                window = await Backend.fetchMap(target.x, target.y, focusRadius);
-            } catch (error) {
-                // The live target world is already loaded by the attack
-                // start. A failed neighbour postcard request can safely fall
-                // back to deterministic wilderness without stalling the road.
-                console.warn('focus map request failed; using wilderness ring:', error);
+            let window: Awaited<ReturnType<typeof Backend.fetchMap>> = prefetchedWindow;
+            if (!window) {
+                try {
+                    window = await Backend.fetchMap(target.x, target.y, focusRadius);
+                } catch (error) {
+                    // The live target world is already loaded by the attack
+                    // start. A failed neighbour postcard request can safely fall
+                    // back to deterministic wilderness without stalling the road.
+                    console.warn('focus map request failed; using wilderness ring:', error);
+                }
             }
             if (!this.focusIsLive(pending)) return;
             if (window) this.adoptPresentationSeedVersion(window.seedVersion, window.serverNow);
@@ -647,9 +652,12 @@ export class WorldMapSystem {
                 if (dx === 0 && dy === 0) continue; // the battlefield itself
                 if (!this.focusIsLive(pending)) return;
 
-                // One postcard per frame: eight synchronous RT paints in a
-                // single tick stalls the click frame visibly.
-                await new Promise(resolve => setTimeout(resolve, 34));
+                // Yield between paints so input/audio can breathe, but do not
+                // impose the old 34 ms timer floor on every one of eight views.
+                // The clouds already own this transition; a zero-delay task
+                // boundary avoids a single monolithic frame without adding a
+                // guaranteed 272 ms to every match.
+                await new Promise(resolve => setTimeout(resolve, 0));
                 if (!this.focusIsLive(pending)) return;
                 const view = this.createView(`${plot.x},${plot.y}`, plot, dx, dy);
                 try {
@@ -765,7 +773,24 @@ export class WorldMapSystem {
         const pending = this.pendingFocus;
         if (!pending || !pending.ready) return null;
         this.pendingFocus = null;
-        for (const view of this.views.values()) this.destroyView(view);
+        if (!this.focusPlot && !this.parkedHomeViews) {
+            // First hop away from HOME: retain the exact rendered ring. Shared
+            // resident registries must move to the battle views, so park their
+            // owners while keeping the expensive RenderTextures alive.
+            this.parkedHomeViews = this.views;
+            this.parkedHomeKindHints = new Map(this.knownPlotKindHints);
+            for (const view of this.parkedHomeViews.values()) {
+                this.setViewParked(view, true);
+                // Keep the immediately visible 3x3 exact. Far-ring metadata
+                // remains reusable, but release its GPU surface while raiding.
+                if (Math.max(Math.abs(view.dx), Math.abs(view.dy)) > 1) {
+                    this.releaseViewVisuals(view, false);
+                }
+            }
+        } else {
+            // NEXT while already raiding: only the current battle ring is stale.
+            for (const view of this.views.values()) this.destroyView(view);
+        }
         this.views = pending.views;
         for (const view of this.views.values()) {
             view.rt?.setVisible(true);
@@ -816,6 +841,14 @@ export class WorldMapSystem {
         }
         const homeAgain = pending.target.x === this.myPlot.x && pending.target.y === this.myPlot.y;
         this.focusPlot = homeAgain ? null : { ...pending.target };
+        if (homeAgain && this.parkedHomeViews) {
+            // The legacy prepared-homecoming path supplied a newer complete
+            // home ring. It supersedes the parked invasion snapshot.
+            for (const view of this.parkedHomeViews.values()) this.destroyView(view);
+            this.parkedHomeViews.clear();
+            this.parkedHomeViews = null;
+            this.parkedHomeKindHints = null;
+        }
         // Focused battles get at least one visible world ring even when the
         // player's home sight is zero. Rebuild the fog in the swap frame so
         // the prepared neighboring villages are not immediately covered by
@@ -833,14 +866,54 @@ export class WorldMapSystem {
         return { dx: shiftPlotsX, dy: shiftPlotsY };
     }
 
-    /** Back home: drop focus and let the normal HOME refresh rebuild the map. */
-    endFocus() {
+    /**
+     * Back home. Returns true when the retained home ring was restored and the
+     * caller may skip a blocking map prime; a revision refresh is scheduled in
+     * the background immediately afterward.
+     */
+    endFocus(): boolean {
         this.dropPendingFocus();
-        if (!this.focusPlot) return;
+        if (!this.focusPlot) return false;
         this.focusPlot = null;
-        this.teardown();
-        this.nextRefreshAt = 0;
-        this.nextHomePollAt = 0;
+        if (!this.parkedHomeViews) {
+            this.teardown();
+            this.nextRefreshAt = 0;
+            return false;
+        }
+
+        this.fenceMapRequests();
+        for (const view of this.views.values()) this.destroyView(view);
+        this.views = this.parkedHomeViews;
+        this.parkedHomeViews = null;
+        if (this.parkedHomeKindHints) this.knownPlotKindHints = this.parkedHomeKindHints;
+        this.parkedHomeKindHints = null;
+        for (const view of this.views.values()) this.setViewParked(view, false);
+        this.sightSwapPending = true;
+        this.ensureFog(this.computeViewRadius());
+        this.rebuildWildernessLinks(this.myPlot);
+        // Reveal can use the retained ring now. Authority catches up just after
+        // the transition instead of extending the opaque cloud hold.
+        const now = this.lastUpdateTime || this.scene.time?.now || 0;
+        this.nextRefreshAt = now + 250;
+        return true;
+    }
+
+    /** Hide/show a retained view without discarding its GPU texture or source. */
+    private setViewParked(view: NeighborView, parked: boolean) {
+        if (parked && view.residentsRegistered) {
+            this.scene.dayNight?.clearPostcardLights?.(view.key);
+            this.neighborLifeSim?.removeVillage(view.key);
+            view.residentsRegistered = false;
+        }
+        view.rt?.setVisible(!parked);
+        view.battle?.setVisible(!parked);
+        view.life?.setVisible(!parked);
+        view.glow?.setVisible(!parked);
+        if (parked) view.battleTween?.pause();
+        else {
+            view.battleTween?.resume();
+            if (!view.residentsRegistered) this.registerVillageResidents(view);
+        }
     }
 
     private dropPendingFocus() {
@@ -1810,9 +1883,7 @@ export class WorldMapSystem {
         this.latestHomeResponseSequence = this.mapRequestSequence;
         if (Number.isFinite(serverNow)) this.latestHomeServerNow = Math.max(this.latestHomeServerNow, Number(serverNow));
         this.refreshInFlight = null;
-        this.homePollInFlight = null;
         this.refreshing = false;
-        this.homePolling = false;
     }
 
     private clearFallbackViews() {
@@ -1865,11 +1936,10 @@ export class WorldMapSystem {
     /** Load + render the whole neighbourhood once, so a reveal never pops in late. */
     async prime(now: number): Promise<void> {
         this.nextRefreshAt = now + REFRESH_MS;
-        this.nextHomePollAt = now + 8000;
-        // Boot must have a deadline. Both requests are transport-bounded and
-        // independent, so run them together and degrade to wilderness if one
-        // fails instead of holding the village reveal open indefinitely.
-        const results = await Promise.allSettled([this.refresh(), this.pollHome()]);
+        // Boot must have a deadline. The map request is transport-bounded and
+        // degrades to wilderness; home authority arrives through App's compact
+        // /home/sync loop instead of a duplicate r=0 map request.
+        const results = await Promise.allSettled([this.refresh()]);
         for (const result of results) {
             if (result.status === 'rejected') console.warn('World map prime request failed:', result.reason);
         }
@@ -1908,6 +1978,7 @@ export class WorldMapSystem {
 
     private async performRefresh(ticket: MapRequestTicket): Promise<void> {
         const radius = this.computeViewRadius();
+        const revealCriticalOnly = this.views.size === 0 || this.fallbackViewsActive;
         const knownPlots: Record<string, KnownMapPlot> = {};
         for (const view of this.views.values()) {
             if ((view.plot.kind === 'player' || view.plot.kind === 'bot')
@@ -1944,10 +2015,10 @@ export class WorldMapSystem {
             }
         }
 
-        for (const plot of window.plots) {
+        const paintPlot = async (plot: WorldMapPlot) => {
             const dx = plot.x - this.myPlot.x;
             const dy = plot.y - this.myPlot.y;
-            if (dx === 0 && dy === 0) continue; // that's us, live on the local grid
+            if (dx === 0 && dy === 0) return; // that's us, live on the local grid
             try {
                 await this.ensureView(`${plot.x},${plot.y}`, plot, dx, dy);
             } catch (error) {
@@ -1955,6 +2026,42 @@ export class WorldMapSystem {
                 // not blank the rest of the ring or reject the poll task.
                 console.warn(`map postcard failed for ${plot.x},${plot.y}:`, error);
             }
+        };
+        const ordered = window.plots.slice().sort((a, b) => {
+            const ar = Math.max(Math.abs(a.x - this.myPlot.x), Math.abs(a.y - this.myPlot.y));
+            const br = Math.max(Math.abs(b.x - this.myPlot.x), Math.abs(b.y - this.myPlot.y));
+            return ar - br;
+        });
+        const near = ordered.filter(plot => Math.max(
+            Math.abs(plot.x - this.myPlot.x), Math.abs(plot.y - this.myPlot.y)) <= 1);
+        const far = ordered.filter(plot => Math.max(
+            Math.abs(plot.x - this.myPlot.x), Math.abs(plot.y - this.myPlot.y)) > 1);
+
+        for (const plot of near) {
+            await paintPlot(plot);
+            if (!this.sceneLive()) return;
+        }
+
+        if (revealCriticalOnly && far.length > 0) {
+            // Ring one is the only context adjacent to the live lawn. Let boot
+            // reveal it immediately; earned ring-two metadata is already known
+            // and its cheaper postcards fill in cooperatively behind the clouds
+            // opening instead of extending the critical path.
+            this.rebuildWildernessLinks(this.myPlot);
+            void (async () => {
+                for (const plot of far) {
+                    if (!this.sceneLive()
+                        || ticket.authorityEpoch !== this.mapAuthorityEpoch
+                        || ticket.sequence < this.latestHomeResponseSequence) return;
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    await paintPlot(plot);
+                }
+                if (this.sceneLive()) this.rebuildWildernessLinks(this.myPlot);
+            })().catch(error => console.warn('Deferred map postcard paint failed:', error));
+            return;
+        }
+        for (const plot of far) {
+            await paintPlot(plot);
             if (!this.sceneLive()) return;
         }
         this.rebuildWildernessLinks(this.myPlot);
@@ -3364,40 +3471,13 @@ export class WorldMapSystem {
 
     // ================= home defence heartbeat =================
 
-    /**
-     * The fast heartbeat: is MY village under siege right now? Rides a tiny
-     * r=0 map query so the alarm sounds within seconds of the first torch.
-     */
-    private pollHome(): Promise<void> {
-        if (this.homePollInFlight) return this.homePollInFlight;
-        if (!this.sceneLive()) return Promise.resolve();
-        this.homePolling = true;
-        const ticket = this.beginMapRequest();
-        const run = this.performHomePoll(ticket);
-        const task = run.finally(() => {
-            if (this.homePollInFlight === task) {
-                this.homePollInFlight = null;
-                this.homePolling = false;
-            }
-        });
-        this.homePollInFlight = task;
-        return task;
-    }
-
-    private async performHomePoll(ticket: MapRequestTicket): Promise<void> {
-        const window = await Backend.fetchMap(null, null, 0);
-        if (!window || !this.sceneLive() || !this.acceptMapHome(window, ticket)) return;
-        this.adoptServerHomeRoster(window);
-        DayNightSystem.serverOffsetMs = window.serverNow - Date.now();
-        // An r=0 heartbeat can be the first request to recover after an
-        // outage. Drop the coordinate-placeholder ring and pull the real one
-        // on the next frame.
-        if (this.fallbackViewsActive) {
-            this.clearFallbackViews();
-            this.nextRefreshAt = 0;
-        }
-        const meShield = Number((window.me as { shieldUntil?: number }).shieldUntil ?? 0);
-        const serverNow = Date.now() + DayNightSystem.serverOffsetMs;
+    /** Apply the compact server heartbeat forwarded by React. Incoming-attack
+     * state uses setSiege; this method owns clock/shield presentation only. */
+    applyHomeStatus(authoritativeNow: number, shieldUntil: number) {
+        if (!Number.isFinite(authoritativeNow)) return;
+        DayNightSystem.serverOffsetMs = authoritativeNow - Date.now();
+        const meShield = Math.max(0, Number(shieldUntil) || 0);
+        const serverNow = authoritativeNow;
         if (meShield > serverNow + 1000 && meShield > this.myShieldUntil + 1000) {
             const mins = Math.round((meShield - serverNow) / 60_000);
             this.scene.villageBubbles?.raise({
@@ -3858,6 +3938,12 @@ export class WorldMapSystem {
         this.lastTravellerUpdateAt = 0;
         for (const view of this.views.values()) this.destroyView(view);
         this.views.clear();
+        if (this.parkedHomeViews) {
+            for (const view of this.parkedHomeViews.values()) this.destroyView(view);
+            this.parkedHomeViews.clear();
+            this.parkedHomeViews = null;
+        }
+        this.parkedHomeKindHints = null;
         this.fallbackViewsActive = false;
         this.wilderness?.destroy();
         this.wilderness = null;

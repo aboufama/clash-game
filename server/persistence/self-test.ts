@@ -367,6 +367,27 @@ test('persistent bot villages are idempotent, bounded, CAS-safe, and survive pla
     assert.deepEqual(await tx.world.listBotVillages({
       worldId: 'main', minX: 0, maxX: 5, minY: -5, maxY: 0, now: NOW, limit: 10
     }), [stored])
+
+    const batched = botVillage('bot-batched', 5, -3)
+    await tx.world.provisionBotVillages([batched])
+    await tx.world.provisionBotVillages([{
+      ...batched,
+      createdAt: new Date(NOW.getTime() + 5),
+      updatedAt: new Date(NOW.getTime() + 5)
+    }])
+    assert.deepEqual(await tx.world.getBotVillage(batched.id), batched,
+      'same-generator batch retries adopt committed timestamps')
+    const regenerated: BotVillageRecord = {
+      ...batched,
+      generatorVersion: 2,
+      profile: { ...batched.profile, generatorVersion: 2 },
+      world: { ...batched.world, revision: 2 },
+      revision: 2,
+      updatedAt: new Date(NOW.getTime() + 1_000)
+    }
+    await tx.world.provisionBotVillages([regenerated])
+    assert.deepEqual(await tx.world.getBotVillage(batched.id), regenerated,
+      'one bounded batch advances same-provenance generator authority')
     await assert.rejects(tx.world.insertBotVillage({
       ...stored,
       id: 'bot-coordinate-collision',

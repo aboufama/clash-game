@@ -122,8 +122,91 @@ interface UnitRecord {
     manifest: BuildingManifest | TroopManifest | WreckManifest | ObstacleManifest;
 }
 
+interface SpriteIndexUnit {
+    kind: string;
+    unit: string;
+    atlas: string;
+    frames: string;
+    manifest: string;
+}
+
 interface SpriteIndex {
-    units: Array<{ kind: string; unit: string; atlas: string; frames: string; manifest: string }>;
+    units: SpriteIndexUnit[];
+}
+
+export interface SpriteUnitRequirement {
+    kind: string;
+    unit: string;
+}
+
+/** Small, frequently-visible figure bank required before HOME is revealed.
+ *  Buildings/obstacles/troops are selected from the player's actual world;
+ *  these figures cover home life plus the immediately-visible road ring. */
+const HOME_FIGURE_REQUIREMENTS: readonly SpriteUnitRequirement[] = [
+    'bird_dove', 'bird_heron', 'bird_sparrow', 'chicken', 'dog', 'dragon',
+    'merchant', 'owl', 'stall', 'thief', 'villager'
+].map(unit => ({ kind: 'villagers', unit }));
+
+const HOME_ROAD_FIGURE_REQUIREMENTS: readonly SpriteUnitRequirement[] = [
+    'caravan_soldier', 'fish', 'traveller_courier', 'traveller_hunter',
+    'traveller_marketgoer', 'traveller_monk', 'traveller_patrol',
+    'traveller_shepherd', 'traveller_wanderer', 'traveller_woodcutter'
+].map(unit => ({ kind: 'figures', unit }));
+
+/** Neighbor postcards are visible at HOME and rasterize obstacles directly
+ *  from this bank, so the tiny obstacle roster is boot-critical even when the
+ *  player's own starter lawn happens to contain none. */
+const HOME_OBSTACLE_REQUIREMENTS: readonly SpriteUnitRequirement[] = [
+    'grass_patch', 'rock_large', 'rock_small', 'tree_oak', 'tree_pine'
+].map(unit => ({ kind: 'obstacles', unit }));
+
+const BATTLE_PROJECTILE_REQUIREMENTS: readonly SpriteUnitRequirement[] = [
+    'arrow', 'ballista_bolt', 'cannonball', 'dragon_rocket', 'mm_shell',
+    'mortar_shell', 'ornithopter_bomb', 'spike_ball', 'trebuchet_stone',
+    'xbow_bolt'
+].map(unit => ({ kind: 'projectiles', unit }));
+
+const dedupeRequirements = (requirements: Iterable<SpriteUnitRequirement>): SpriteUnitRequirement[] => {
+    const result = new Map<string, SpriteUnitRequirement>();
+    for (const requirement of requirements) {
+        if (!requirement.kind || !requirement.unit) continue;
+        result.set(`${requirement.kind}:${requirement.unit}`, requirement);
+    }
+    return [...result.values()];
+};
+
+/** Pure requirement planners keep MainScene free of sprite-catalog policy and
+ *  make phased-load request counts straightforward to regression-check. */
+export function homeSpriteRequirements(input: {
+    buildingTypes: Iterable<string>;
+    obstacleTypes: Iterable<string>;
+    troopTypes: Iterable<string>;
+}): SpriteUnitRequirement[] {
+    return dedupeRequirements([
+        ...[...input.buildingTypes].map(unit => ({ kind: 'buildings', unit })),
+        ...[...input.obstacleTypes].map(unit => ({ kind: 'obstacles', unit })),
+        ...[...input.troopTypes].map(unit => ({ kind: 'troops', unit })),
+        ...HOME_FIGURE_REQUIREMENTS,
+        ...HOME_ROAD_FIGURE_REQUIREMENTS,
+        ...HOME_OBSTACLE_REQUIREMENTS
+    ]);
+}
+
+export function battleSpriteRequirements(input: {
+    buildingTypes: Iterable<string>;
+    obstacleTypes: Iterable<string>;
+    troopTypes: Iterable<string>;
+}): SpriteUnitRequirement[] {
+    const buildings = [...input.buildingTypes];
+    const troops = [...input.troopTypes];
+    return dedupeRequirements([
+        ...buildings.map(unit => ({ kind: 'buildings', unit })),
+        ...buildings.map(unit => ({ kind: 'wrecks', unit })),
+        ...[...input.obstacleTypes].map(unit => ({ kind: 'obstacles', unit })),
+        ...troops.map(unit => ({ kind: 'troops', unit })),
+        ...troops.map(unit => ({ kind: 'troop_deaths', unit })),
+        ...BATTLE_PROJECTILE_REQUIREMENTS
+    ]);
 }
 
 const fnv = (id: string): number => {
@@ -173,29 +256,29 @@ interface ShadowRec {
 class SpriteBankImpl {
     enabled = true;
     ready = false;
-    /** 0..1 progress for the initial atlas bank, consumed by the boot cloud UI. */
+    /** 0..1 progress for the boot-critical subset, consumed by the cloud UI. */
     loadProgress = 0;
-    /** Resolves only after the initial atlas loader has either completed or
-     *  failed. MainScene uses this to keep the first village reveal behind
-     *  cloud cover, so a slow network can never expose the vector fallback. */
-    private loadPromise: Promise<void> | null = null;
-    /** The scene the in-flight load is bound to (its loader + settle emit).
-     *  Non-null only while a load is pending: App destroys and recreates the
-     *  whole Phaser game on connectivity blips, so a pending load can end up
-     *  bound to a DEAD scene — its loader never fires COMPLETE and its
-     *  'spritebank:ready' emit targets a dead emitter. init() detects that
-     *  (sceneLive) and restarts the load on the new scene. */
+    /** Index discovery is independent from Phaser's scene-bound loader. */
+    private indexPromise: Promise<void> | null = null;
+    private index: SpriteIndex | null = null;
+    private indexRevision = '';
+    private catalog = new Map<string, SpriteIndexUnit>();
+    /** Boot settles after ensureBootUnits' exact home inventory, not after the
+     *  entire atlas catalog. */
+    private bootPromise: Promise<void> | null = null;
+    /** Only one Phaser loader batch may own COMPLETE/PROGRESS at a time. */
+    private activeLoadPromise: Promise<void> | null = null;
     private loadingScene: Phaser.Scene | null = null;
-    /** Resolver of the CURRENT loadPromise — abandonLoad() calls it so any
-     *  live waitUntilSettled() chaser wakes and re-chases the swapped
-     *  promise instead of hanging on a loader that can never COMPLETE. */
-    private loadResolve: (() => void) | null = null;
+    private activeLoadResolve: (() => void) | null = null;
     /** Monotonic load generation. Every async hop of a load checks it and
      *  bails when superseded, so an abandoned dead-scene load can never
-     *  clobber singleton state (e.g. its dead-scene throw landing in .catch
-     *  and downgrading enabled=false under the RESTARTED load). */
+     *  clobber singleton state. */
     private loadGen = 0;
+    private backgroundGen = 0;
     private units = new Map<string, UnitRecord>();
+    /** A catalogued unit whose files failed is allowed to use the deliberate
+     *  vector fallback; an unloaded-but-pending unit stays held empty. */
+    private failedUnits = new Set<string>();
     /** Design-variant slots present in the bank: 'kind:unit' → slots (sorted).
      *  Populated from '@'-tagged atlas dirs ('cannon@A') at load time. */
     private variantSlots = new Map<string, string[]>();
@@ -213,189 +296,210 @@ class SpriteBankImpl {
     private troopBodyEllipses = new Map<string, { cx: number; cy: number; rx: number; ry: number }>();
     private lastSweep = 0;
 
-    /** Abandon a pending load: bump the generation (inert-izing the old
-     *  load's remaining callbacks), release any waitUntilSettled() chasers
-     *  (they re-chase whatever loadPromise is by then), and clear the load
-     *  state so the next init()/watchdog starts fresh. */
-    private abandonLoad() {
+    /** Release a loader tied to a destroyed/replaced scene. Its old callbacks
+     *  are inert after the generation bump; waiters re-check on the new scene. */
+    private abandonActiveLoad() {
         this.loadGen++;
-        const release = this.loadResolve;
-        this.loadResolve = null;
-        this.loadPromise = null;
+        const release = this.activeLoadResolve;
+        this.activeLoadResolve = null;
+        this.activeLoadPromise = null;
         this.loadingScene = null;
-        this.loadProgress = 0;
         release?.();
     }
 
-    /** Kick off loading; call from scene create(). Safe to call once. */
+    /** Discover the catalog. Actual atlases are selected after home hydration. */
     init(scene: Phaser.Scene): Promise<void> {
         try {
             if (localStorage.getItem('clash.sprites.off') === '1') {
-                // The kill switch must also release any pending load — a
-                // stuck dead-scene loadPromise would otherwise hang every
-                // future waitUntilSettled() (boot clouds never open).
-                if (this.loadPromise) this.abandonLoad();
+                if (this.activeLoadPromise) this.abandonActiveLoad();
+                this.backgroundGen++;
                 this.enabled = false;
                 this.loadProgress = 1;
                 return Promise.resolve();
             }
         } catch { /* storage unavailable → stay enabled */ }
+
         if (this.ready || this.units.size > 0) {
-            // Dev-HMR hazard: a hot update that re-creates the Phaser game
-            // hands us a FRESH TextureManager while this module singleton
-            // still says ready — stale atlas keys would stamp __MISSING
-            // green boxes over every unit (worse than the vector fallback).
-            // Detect the empty manager and reload the bank into it; the
-            // 'spritebank:ready' emit below re-busts the scene's draw caches.
-            const stale = [...this.units.values()].some(u => !scene.textures.exists(u.atlasKey));
-            if (!stale) {
-                this.loadProgress = 1;
-                return Promise.resolve();
-            }
+            // A module singleton can outlive the Phaser TextureManager during
+            // HMR/connectivity game recreation. Never stamp stale atlas keys.
+            const stale = [...this.units.values()].some(unit => !scene.textures.exists(unit.atlasKey));
+            if (!stale) return Promise.resolve();
             this.ready = false;
             this.units.clear();
-            this.variantSlots.clear();
             this.shadows.clear();
             this.troopTopOffsets.clear();
-            this.loadPromise = null;
+            this.troopBodyEllipses.clear();
+            this.failedUnits.clear();
+            this.bootPromise = null;
             this.loadProgress = 0;
+            this.backgroundGen++;
         }
-        if (this.loadPromise) {
-            // A pending load bound to a scene that is still alive: share it.
-            // Bound to a DEAD scene (App destroyed/recreated the game on a
-            // connectivity blip mid-load): its loader can never fire COMPLETE
-            // and its settle emit would target the dead scene's emitter — the
-            // live scene would hold-empty forever. Abandon it (the gen bump
-            // below inert-izes its remaining callbacks) and restart fresh on
-            // this scene; waitUntilSettled follows the swap to the new
-            // promise.
-            if (this.loadingScene === null || this.sceneLive(this.loadingScene)) {
-                return this.loadPromise;
-            }
-            this.abandonLoad();
+        if (this.activeLoadPromise && this.loadingScene !== scene) {
+            this.backgroundGen++;
+            this.abandonActiveLoad();
         }
+        if (this.index) return Promise.resolve();
+        if (this.indexPromise) return this.indexPromise;
 
-        this.loadingScene = scene;
-        const gen = ++this.loadGen;
-        this.loadPromise = new Promise<void>((resolve) => {
-            this.loadResolve = resolve;
-            fetch('/assets/sprites/index.json')
-                .then(async r => {
-                    if (!r.ok) return null;
-                    const raw = await r.text();
-                    return {
-                        index: JSON.parse(raw) as SpriteIndex,
-                        // Asset paths are stable across bakes, so the index
-                        // content hash is their deployment-safe cache key.
-                        revision: fnv(raw).toString(36)
-                    };
-                })
-                .then(async payload => {
-                    if (gen !== this.loadGen) { resolve(); return; } // superseded — a newer load owns the state
-                    if (!this.sceneLive(scene)) {
-                        // The loading scene died mid-fetch (game destroyed on
-                        // a connectivity blip). NOT a bank failure — don't
-                        // downgrade to vector; abandon so the next scene's
-                        // init() restarts the load fresh.
-                        this.loadPromise = null;
-                        this.loadingScene = null;
-                        resolve();
-                        return;
-                    }
-                    if (!payload) {
-                        this.enabled = false;
-                        this.loadProgress = 1;
-                        this.loadingScene = null;
-                        // Draws made under the pre-ready hold stamped nothing;
-                        // now that the bank is permanently unavailable they
-                        // must repaint through the vector path — same settle
-                        // emit as the ready case.
-                        scene.events.emit('spritebank:ready');
-                        resolve();
-                        return;
-                    }
-                    const { index, revision } = payload;
-                    const version = `?v=${revision}`;
-                    for (const u of index.units) {
-                        const atlasKey = `bank:${u.kind}:${u.unit}`;
-                        scene.load.atlas(
-                            atlasKey,
-                            `/assets/sprites/${u.atlas}${version}`,
-                            `/assets/sprites/${u.frames}${version}`
-                        );
-                        scene.load.json(`${atlasKey}:man`, `/assets/sprites/${u.manifest}${version}`);
-                    }
-                    const trackProgress = (value: number) => { this.loadProgress = value; };
-                    scene.load.on(Phaser.Loader.Events.PROGRESS, trackProgress);
-                    scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
-                        scene.load.off(Phaser.Loader.Events.PROGRESS, trackProgress);
-                        if (gen !== this.loadGen) { resolve(); return; } // superseded — a newer load owns the state
-                        for (const u of index.units) {
-                            const atlasKey = `bank:${u.kind}:${u.unit}`;
+        this.loadProgress = Math.max(this.loadProgress, 0.01);
+        this.indexPromise = fetch('/assets/sprites/index.json')
+            .then(async response => {
+                if (!response.ok) throw new Error(`sprite index ${response.status}`);
+                const raw = await response.text();
+                const index = JSON.parse(raw) as SpriteIndex;
+                this.index = index;
+                this.indexRevision = fnv(raw).toString(36);
+                this.catalog.clear();
+                this.variantSlots.clear();
+                for (const unit of index.units) {
+                    this.catalog.set(`${unit.kind}:${unit.unit}`, unit);
+                    const at = unit.unit.indexOf('@');
+                    if (at <= 0) continue;
+                    const key = `${unit.kind}:${unit.unit.slice(0, at)}`;
+                    const slots = this.variantSlots.get(key) ?? [];
+                    slots.push(unit.unit.slice(at + 1));
+                    this.variantSlots.set(key, [...new Set(slots)].sort());
+                }
+                this.loadProgress = Math.max(this.loadProgress, 0.05);
+            })
+            .catch(error => {
+                console.warn('SpriteBank: baked sprite index unavailable; using vector fallback', error);
+                this.enabled = false;
+                this.loadProgress = 1;
+                if (this.sceneLive(scene)) scene.events.emit('spritebank:ready');
+            })
+            .finally(() => {
+                this.indexPromise = null;
+            });
+        return this.indexPromise;
+    }
+
+    private keyOf(requirement: SpriteUnitRequirement): string {
+        return `${requirement.kind}:${this.resolveVariantUnit(requirement.kind, requirement.unit)}`;
+    }
+
+    private async loadKeys(
+        scene: Phaser.Scene,
+        requestedKeys: Iterable<string>,
+        progress?: (value: number) => void
+    ): Promise<void> {
+        const wanted = [...new Set(requestedKeys)].filter(key => this.catalog.has(key));
+        while (this.enabled && this.sceneLive(scene)) {
+            const missing = wanted.filter(key => !this.units.has(key) && !this.failedUnits.has(key));
+            if (missing.length === 0) return;
+            if (this.activeLoadPromise) {
+                await this.activeLoadPromise;
+                continue;
+            }
+
+            const gen = ++this.loadGen;
+            this.loadingScene = scene;
+            const batch = new Promise<void>(resolve => {
+                this.activeLoadResolve = resolve;
+                const version = `?v=${this.indexRevision}`;
+                for (const key of missing) {
+                    const unit = this.catalog.get(key)!;
+                    const atlasKey = `bank:${unit.kind}:${unit.unit}`;
+                    scene.load.atlas(
+                        atlasKey,
+                        `/assets/sprites/${unit.atlas}${version}`,
+                        `/assets/sprites/${unit.frames}${version}`
+                    );
+                    scene.load.json(`${atlasKey}:man`, `/assets/sprites/${unit.manifest}${version}`);
+                }
+                const trackProgress = (value: number) => progress?.(value);
+                scene.load.on(Phaser.Loader.Events.PROGRESS, trackProgress);
+                scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+                    scene.load.off(Phaser.Loader.Events.PROGRESS, trackProgress);
+                    if (gen === this.loadGen) {
+                        for (const key of missing) {
+                            const unit = this.catalog.get(key)!;
+                            const atlasKey = `bank:${unit.kind}:${unit.unit}`;
                             const manifest = scene.cache.json.get(`${atlasKey}:man`);
-                            if (!manifest || !scene.textures.exists(atlasKey)) continue;
-                            // Baked atlases must follow the active PixelMode (NEAREST outside legacy).
-                            registerPixelSurface(scene.textures.get(atlasKey));
-                            this.units.set(`${u.kind}:${u.unit}`, { kind: u.kind, unit: u.unit, atlasKey, manifest });
-                            // Design-variant bakes live in '@'-tagged sibling dirs
-                            // ('cannon@A') and load as ordinary units; record the
-                            // slot so resolveVariantUnit can route the plain name.
-                            const at = u.unit.indexOf('@');
-                            if (at > 0) {
-                                const key = `${u.kind}:${u.unit.slice(0, at)}`;
-                                const slots = this.variantSlots.get(key) ?? [];
-                                slots.push(u.unit.slice(at + 1));
-                                this.variantSlots.set(key, slots.sort());
+                            if (!manifest || !scene.textures.exists(atlasKey)) {
+                                this.failedUnits.add(key);
+                                continue;
                             }
+                            registerPixelSurface(scene.textures.get(atlasKey));
+                            this.units.set(key, {
+                                kind: unit.kind,
+                                unit: unit.unit,
+                                atlasKey,
+                                manifest
+                            });
                         }
-                        this.ready = this.units.size > 0;
-                        // A COMPLETE with ZERO usable units (every atlas or
-                        // manifest failed) must not strand the game enabled-
-                        // but-never-ready — the pre-ready hold would draw
-                        // nothing forever. The bank is unavailable: downgrade
-                        // to the deliberate vector fallback, exactly like the
-                        // index-fetch failure path below.
-                        if (!this.ready) this.enabled = false;
-                        this.loadProgress = 1;
-                        this.loadingScene = null;
-                        console.info(`SpriteBank: ${this.units.size} unit atlases live`);
-                        // Anything painted before this moment fell back to
-                        // vector — or, under the pre-ready hold, to nothing at
-                        // all. Most surfaces repaint themselves every few
-                        // frames, but one-shot art (walls, idle camp figures,
-                        // the merchant's stall) never would — announce
-                        // settlement UNCONDITIONALLY so the scene forces one
-                        // full repaint: from the bank when ready, from the
-                        // vector path when the load downgraded to
-                        // enabled=false.
-                        scene.events.emit('spritebank:ready');
-                        resolve();
-                    });
-                    scene.load.start();
-                })
-                .catch(() => {
-                    if (gen !== this.loadGen) { resolve(); return; } // superseded — a newer load owns the state
-                    if (!this.sceneLive(scene)) {
-                        // A throw caused by the loading scene dying (nulled
-                        // loader/plugins), not by the bank itself — abandon so
-                        // the next scene's init() restarts, exactly like the
-                        // mid-fetch dead-scene branch above.
-                        this.loadPromise = null;
-                        this.loadingScene = null;
-                        resolve();
-                        return;
                     }
-                    this.enabled = false;
-                    this.loadProgress = 1;
-                    this.loadingScene = null;
-                    // Same settle emit as above: held-empty pre-ready draws
-                    // (idle camp figures, walls) repaint via vector now.
-                    scene.events.emit('spritebank:ready');
                     resolve();
                 });
-        });
-        return this.loadPromise;
+                try {
+                    scene.load.start();
+                } catch (error) {
+                    console.warn('SpriteBank: atlas batch could not start', error);
+                    if (gen === this.loadGen) missing.forEach(key => this.failedUnits.add(key));
+                    scene.load.off(Phaser.Loader.Events.PROGRESS, trackProgress);
+                    resolve();
+                }
+            });
+            this.activeLoadPromise = batch;
+            await batch;
+            if (this.activeLoadPromise === batch) {
+                this.activeLoadPromise = null;
+                this.activeLoadResolve = null;
+                this.loadingScene = null;
+            }
+        }
     }
+
+    /** Gate first reveal on exactly the assets visible in the hydrated home. */
+    ensureBootUnits(scene: Phaser.Scene, requirements: Iterable<SpriteUnitRequirement>): Promise<void> {
+        const task = (async () => {
+            await this.init(scene);
+            if (!this.enabled || !this.index || !this.sceneLive(scene)) return;
+            const keys = dedupeRequirements(requirements).map(requirement => this.keyOf(requirement));
+            this.loadProgress = 0.05;
+            await this.loadKeys(scene, keys, value => {
+                this.loadProgress = 0.05 + value * 0.95;
+            });
+            if (!this.sceneLive(scene)) return;
+            this.ready = this.units.size > 0;
+            if (!this.ready) this.enabled = false;
+            this.loadProgress = 1;
+            console.info(`SpriteBank: ${this.units.size}/${this.catalog.size} boot-critical unit atlases live`);
+            scene.events.emit('spritebank:ready');
+        })();
+        this.bootPromise = task;
+        return task;
+    }
+
+    /** Priority load used by battle transitions and newly-needed live art. */
+    async ensureUnits(scene: Phaser.Scene, requirements: Iterable<SpriteUnitRequirement>): Promise<void> {
+        await this.init(scene);
+        if (!this.enabled || !this.index || !this.sceneLive(scene)) return;
+        const keys = dedupeRequirements(requirements).map(requirement => this.keyOf(requirement));
+        await this.loadKeys(scene, keys);
+    }
+
+    /** Stream everything else without extending the home reveal gate. Two
+     *  units per batch bounds how long a later battle-priority request waits
+     *  behind background work. */
+    startBackgroundLoad(scene: Phaser.Scene): void {
+        const generation = ++this.backgroundGen;
+        void (async () => {
+            await this.init(scene);
+            if (!this.enabled || !this.index) return;
+            const keys = [...this.catalog.keys()];
+            for (let offset = 0; offset < keys.length; offset += 2) {
+                if (generation !== this.backgroundGen || !this.sceneLive(scene)) return;
+                await new Promise<void>(resolve => setTimeout(resolve, 16));
+                if (generation !== this.backgroundGen || !this.sceneLive(scene)) return;
+                await this.loadKeys(scene, keys.slice(offset, offset + 2));
+            }
+            if (generation !== this.backgroundGen || !this.sceneLive(scene)) return;
+            console.info(`SpriteBank: background catalog complete (${this.units.size}/${this.catalog.size})`);
+            scene.events.emit('spritebank:background-ready');
+        })();
+    }
+
 
     /** True while a scene can still receive loader events and settle emits;
      *  false once it (or its whole game) was destroyed. Never throws:
@@ -414,21 +518,9 @@ class SpriteBankImpl {
         }
     }
 
-    /** Await the current boot load without starting another one. "Settled"
-     *  means the pre-ready hold is over: this resolves only with ready=true
-     *  (atlases live) or enabled=false (kill switch, or a load failure that
-     *  downgraded to the deliberate vector fallback) — NEVER while
-     *  enabled && !ready. A reveal gated on this promise therefore cannot
-     *  expose the held-empty stage or the vector fallback. Follows RESTARTS:
-     *  if the awaited load was abandoned (dead loading scene → init()
-     *  restarted on a new scene, resolving the abandoned promise), this
-     *  chases the NEW loadPromise instead of reporting a false settle. */
+    /** Await the current boot-critical phase without following background. */
     waitUntilSettled(): Promise<void> {
-        const p = this.loadPromise;
-        if (!p) return Promise.resolve();
-        return p.then(() => {
-            if (p !== this.loadPromise) return this.waitUntilSettled();
-        });
+        return this.bootPromise ?? this.indexPromise ?? Promise.resolve();
     }
 
     /**
@@ -495,6 +587,20 @@ class SpriteBankImpl {
      */
     get holdVector(): boolean {
         return this.enabled && !this.ready;
+    }
+
+    /** Once boot is ready, a catalogued unit may still be streaming. Keep its
+     *  carrier empty until the pixel atlas arrives rather than flashing the
+     *  vector authoring source. Truly unbaked/failed units retain fallback. */
+    private holdUnit(kind: string, unit: string): boolean {
+        if (!this.enabled) return false;
+        if (!this.ready) return true;
+        const key = `${kind}:${this.resolveVariantUnit(kind, unit)}`;
+        return this.catalog.has(key) && !this.units.has(key) && !this.failedUnits.has(key);
+    }
+
+    isPending(kind: string, unit: string): boolean {
+        return this.holdUnit(kind, unit);
     }
 
     // ------------------------------------------------------------ shadows --
@@ -632,14 +738,13 @@ class SpriteBankImpl {
      *  propagates carrier changes (hide-inside fades, night hiding, move-carry
      *  hiding, off-screen walking) to the baked sprite between stamps. */
     update(time: number, scene?: Phaser.Scene) {
-        // Watchdog for the two-live-games window: a load SHARED while the old
-        // scene still looked alive has no restarter once that scene dies
-        // (init() already ran on the live scene). The live scene's per-frame
-        // update detects the orphaned load and restarts it here.
-        if (scene && this.loadPromise && this.loadingScene
+        // A Phaser loader bound to a destroyed game never emits COMPLETE.
+        // Release the batch so the replacement scene can request its own
+        // boot-critical inventory instead of hanging behind an orphan.
+        if (scene && this.activeLoadPromise && this.loadingScene
             && this.loadingScene !== scene
             && !this.sceneLive(this.loadingScene) && this.sceneLive(scene)) {
-            this.abandonLoad();
+            this.abandonActiveLoad();
             void this.init(scene);
         }
         for (const [carrier, rec] of this.shadows) {
@@ -817,7 +922,7 @@ class SpriteBankImpl {
         time: number,
         opts: { wallTag?: string; jukeboxPlaying?: boolean } = {}
     ): boolean {
-        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
+        if (this.holdUnit('buildings', type)) return true;
         if (!this.backed('buildings', type)) return false;
         const pick = this.pickBuildingFrame(type, level, building, time, opts);
         if (!pick) return false;
@@ -1055,7 +1160,7 @@ class SpriteBankImpl {
         attackAge: number,
         time: number
     ): boolean {
-        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
+        if (this.holdUnit('troops', troop.type)) return true;
         const pick = this.pickTroopFrame(
             troop.type, troop.owner, troop.level ?? 1, troop.facingAngle ?? 0,
             isMoving, attackAge, time,
@@ -1081,7 +1186,7 @@ class SpriteBankImpl {
         facingAngle: number,
         pose: string
     ): boolean {
-        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
+        if (this.holdUnit('troops', type)) return true;
         const pick = this.pickTroopFrame(type, owner, level, facingAngle, false, -1, 0, { pose });
         if (!pick) return false;
         this.stamp(scene, carrier, pick.atlasKey, pick.meta, carrier.x, carrier.y, {
@@ -1137,7 +1242,7 @@ class SpriteBankImpl {
         time: number,
         flipX = false
     ): boolean {
-        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
+        if (this.holdUnit('troops', type)) return true;
         const pick = this.pickTroopFrame(type, owner, level, facingAngle, isMoving, -1, time);
         if (!pick) return false;
         // Multi-direction manifests carry facing in the frame itself (the
@@ -1215,7 +1320,7 @@ class SpriteBankImpl {
         flipX = false,
         opts: { kind?: string; depthBias?: number; at?: { x: number; y: number }; scaleMul?: number } = {}
     ): boolean {
-        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
+        if (this.holdUnit(opts.kind ?? 'villagers', unit)) return true;
         const pick = this.pickFigureFrame(opts.kind ?? 'villagers', unit, variant, state, phase);
         if (!pick) return false;
         // depthBias sinks the sprite a hair below its carrier so overlays the
@@ -1252,7 +1357,7 @@ class SpriteBankImpl {
         // from battle destruction and battles sit behind the boot reveal
         // (loadBase awaits waitUntilSettled) — this hold is reachable only in
         // a dev-HMR bank reload, where an empty wreck beats a vector one.
-        if (this.holdVector) return true;
+        if (this.holdUnit('wrecks', type)) return true;
         if (!this.backed('wrecks', type)) return false;
         const rec = this.unitOf('wrecks', type)!;
         const man = rec.manifest as WreckManifest;
@@ -1320,7 +1425,7 @@ class SpriteBankImpl {
         gridY: number,
         time: number
     ): boolean {
-        if (this.holdVector) return true; // pre-ready: stamp nothing, suppress vector
+        if (this.holdUnit('obstacles', type)) return true;
         const pick = this.pickObstacleFrame(type, id, gridX, gridY, time);
         if (!pick) return false;
         const cx = (gridX + 0.5 - (gridY + 0.5)) * (TILE_WIDTH / 2);

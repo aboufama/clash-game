@@ -1562,6 +1562,30 @@ async function main() {
   const untrained = (await api('POST', '/army/untrain', { token: eco.token, body: { type: 'warrior', count: 1, requestId: 'eco-untrain-1' } })).json
   ok(untrained.army.warrior === 1 && untrained.gold === trained.gold + 25 && untrained.food === trained.food + 2,
     'untraining refunds the full bill')
+  const mixedArmyBatch = (await api('POST', '/army/batch', {
+    token: eco.token,
+    body: {
+      operations: [
+        { kind: 'train', type: 'warrior', count: 3 },
+        { kind: 'untrain', type: 'warrior', count: 3 }
+      ],
+      requestId: 'eco-mixed-army-batch'
+    }
+  })).json
+  ok(mixedArmyBatch.army.warrior === 1
+    && mixedArmyBatch.world.army.warrior === 1
+    && mixedArmyBatch.revision === mixedArmyBatch.world.revision,
+  'a mixed click burst commits once and returns the authoritative world')
+  const replayedArmyBatch = (await api('POST', '/army/batch', {
+    token: eco.token,
+    body: {
+      operations: [{ kind: 'train', type: 'warrior', count: 50 }],
+      requestId: 'eco-mixed-army-batch'
+    }
+  })).json
+  ok(replayedArmyBatch.army.warrior === mixedArmyBatch.army.warrior
+    && replayedArmyBatch.revision === mixedArmyBatch.revision,
+  'the mixed army batch is idempotent')
 
   // ARMY CAMP CORE — remove both faction barracks from a fresh village. The
   // L1-L4 Camp curve unlocks exactly one foundational troop per completed

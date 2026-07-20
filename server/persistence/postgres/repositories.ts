@@ -71,6 +71,7 @@ import {
   boundWorldAtlasQuery,
   boundWorldPlayerDirectoryQuery,
   boundWorldOccupancyBatch,
+  boundBotVillageProvisionBatch,
   QUERY_LIMITS
 } from '../query-bounds'
 import type { SqlExecutor } from './database'
@@ -1058,6 +1059,65 @@ class PgWorld implements WorldRepository {
       throw new PersistenceConflictError('A player already occupies that bot village coordinate')
     }
     throw new PersistenceConflictError('Bot village identity or coordinate already exists with different data')
+  }
+
+  async provisionBotVillages(rawRecords: readonly BotVillageRecord[]): Promise<void> {
+    const records = boundBotVillageProvisionBatch(rawRecords)
+    if (records.length === 0) return
+    for (const record of records) assertBotVillageRecord(record)
+    await this.sql.query(String.raw`
+      WITH candidates AS (
+        SELECT
+          item ->> 'id' AS id,
+          item ->> 'worldId' AS world_id,
+          (item ->> 'x')::integer AS x,
+          (item ->> 'y')::integer AS y,
+          (item ->> 'plotVersion')::bigint AS plot_version,
+          (item ->> 'worldGenerationVersion')::integer AS world_generation_version,
+          (item ->> 'generatorVersion')::integer AS generator_version,
+          (item ->> 'seed')::bigint AS seed,
+          item ->> 'username' AS username,
+          (item ->> 'trophies')::integer AS trophies,
+          item -> 'profile' AS profile,
+          item -> 'world' AS world,
+          (item ->> 'revision')::bigint AS revision,
+          (item ->> 'createdAt')::timestamptz AS created_at,
+          (item ->> 'updatedAt')::timestamptz AS updated_at
+        FROM jsonb_array_elements($1::jsonb) AS item
+      )
+      INSERT INTO bot_villages(
+        id, world_id, x, y, plot_version, world_generation_version,
+        generator_version, seed, username, trophies, profile, world, revision,
+        created_at, updated_at
+      )
+      SELECT
+        candidate.id, candidate.world_id, candidate.x, candidate.y,
+        candidate.plot_version, candidate.world_generation_version,
+        candidate.generator_version, candidate.seed, candidate.username,
+        candidate.trophies, candidate.profile, candidate.world,
+        candidate.revision, candidate.created_at, candidate.updated_at
+      FROM candidates candidate
+      WHERE NOT EXISTS (
+        SELECT 1 FROM world_plots player_plot
+        WHERE player_plot.world_id = candidate.world_id
+          AND player_plot.x = candidate.x AND player_plot.y = candidate.y
+      )
+      ON CONFLICT (world_id, x, y) DO UPDATE SET
+        generator_version = EXCLUDED.generator_version,
+        username = EXCLUDED.username,
+        trophies = EXCLUDED.trophies,
+        profile = EXCLUDED.profile,
+        world = EXCLUDED.world,
+        revision = EXCLUDED.revision,
+        updated_at = EXCLUDED.updated_at
+      WHERE bot_villages.id = EXCLUDED.id
+        AND bot_villages.seed = EXCLUDED.seed
+        AND bot_villages.plot_version = EXCLUDED.plot_version
+        AND bot_villages.world_generation_version = EXCLUDED.world_generation_version
+        AND bot_villages.created_at = EXCLUDED.created_at
+        AND bot_villages.generator_version < EXCLUDED.generator_version
+        AND bot_villages.revision + 1 = EXCLUDED.revision
+    `, [JSON.stringify(records)])
   }
 
   async updateBotVillage(record: BotVillageRecord, expectedRevision: number): Promise<boolean> {
