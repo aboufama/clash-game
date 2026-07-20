@@ -211,6 +211,12 @@ export interface WorldAllocationRecord {
    * shape itself is unchanged, hence not part of schemaVersion.
    */
   allocationModel?: number
+  /**
+   * Durable lower bound for the first revision of every newly provisioned bot
+   * village. Destructive bot purges advance this beyond every retired bot so
+   * a pre-purge map cache token can never suppress the replacement payload.
+   */
+  botRevisionEpoch?: number
   revision: number
   updatedAt: Date
 }
@@ -505,6 +511,20 @@ export interface AdminRuntimeConfigRecord {
   maintenanceMessage: string | null
   updatedAt: Date
   revision: number
+}
+
+/** Atomic authority rows affected by the guarded, system-wide village reset. */
+export interface AdminBaseResetRecord {
+  accountsPreserved: number
+  sessionsPreserved: number
+  playerPlotsPreserved: number
+  playerVillagesReset: number
+  botVillagesPurged: number
+  attacksPurged: number
+  combatRecordsPurged: number
+  notificationsPurged: number
+  economyRecordsPurged: number
+  auxiliaryRecordsPurged: number
 }
 
 export interface TransactionOptions {

@@ -215,10 +215,11 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   facing pair) so the interstitial ground becomes a walled ward that baits
   attackers (owner: like real castles; MOST heavy bases must follow this
   format — spec-enforced >=55/100 on fortress/extreme), an occasional full
-  concentric enceinte (outer ring wrapping the keep, keep walls one level
-  above the ring), single tree links kept for light bands, full internal
-  dividing walls
-  (sealed cells) at high bands, per-loop/per-side wall levels — then derives
+  concentric enceinte (outer ring wrapping the keep), single tree links
+  kept for light bands, full internal dividing walls
+  (sealed cells) at high bands, ONE cohort wall level per base (v3 wall-level
+  enforcer: walls upgrade as a cohort in this game, so bot walls all match
+  world.wallLevel) — then derives
   compartments by flood fill and sites defenses by marginal range coverage
   (real `range`/`minRange`, mortar blind spots respected), storages as
   guarded shields, and the economy/military skirt hugging the walls outside,

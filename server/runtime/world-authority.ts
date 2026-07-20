@@ -109,6 +109,7 @@ async function lockedAllocation(tx: UnitOfWork, now: Date): Promise<WorldAllocat
     currentGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
     nextOrdinal: 0,
     allocationModel: SPIRAL_ALLOCATION_MODEL,
+    botRevisionEpoch: 1,
     revision: 0,
     updatedAt: now
   }

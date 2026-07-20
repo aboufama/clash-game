@@ -1,6 +1,7 @@
 import type {
   AccountRecord,
   AccountModerationRecord,
+  AdminBaseResetRecord,
   AdminAttackQuery,
   AdminAuditRecord,
   AdminOverviewRecord,
@@ -57,7 +58,7 @@ import type {
   VillageRepository,
   WorldRepository
 } from './repositories'
-import { PersistenceConflictError } from './repositories'
+import { AdminBaseResetPreconditionError, PersistenceConflictError } from './repositories'
 import {
   boundAttackCommandQuery,
   boundAdminAttackQuery,
@@ -72,6 +73,7 @@ import {
   boundWorldOccupancyBatch,
   QUERY_LIMITS
 } from './query-bounds'
+import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import {
   assertAttackRecordAuthority,
@@ -484,6 +486,7 @@ class MemoryWorld implements WorldRepository {
     }
     if (record.nextOrdinal < current.nextOrdinal) return false
     if ((record.allocationModel ?? 1) < (current.allocationModel ?? 1)) return false
+    if ((record.botRevisionEpoch ?? 1) < (current.botRevisionEpoch ?? 1)) return false
     this.state.worldAllocations.set(record.worldId, copy(record))
     return true
   }
@@ -1552,6 +1555,116 @@ class MemoryAdmin implements AdminRepository {
   async appendAudit(record: AdminAuditRecord): Promise<void> {
     if (this.state.adminAudit.has(record.id)) throw new Error(`Admin audit id already exists: ${record.id}`)
     this.state.adminAudit.set(record.id, copy(record))
+  }
+
+  async resetAllBases(starter: VillageRecord, starterShieldUntil: Date): Promise<AdminBaseResetRecord> {
+    const incompleteAccounts = [...this.state.accounts.values()].filter(account => (
+      !this.state.villages.has(account.id) || !this.state.plotsByPlayer.has(account.id)
+    )).length
+    const orphanBotWorlds = new Set(
+      [...this.state.botVillages.values()]
+        .filter(bot => !this.state.worldAllocations.has(bot.worldId))
+        .map(bot => bot.worldId)
+    ).size
+    if (incompleteAccounts > 0 || orphanBotWorlds > 0) {
+      throw new AdminBaseResetPreconditionError(incompleteAccounts, orphanBotWorlds)
+    }
+    const accountsPreserved = this.state.accounts.size
+    const sessionsPreserved = this.state.sessions.size
+    const playerPlotsPreserved = this.state.plotsByPlayer.size
+    const botVillagesPurged = this.state.botVillages.size
+    const attacksPurged = this.state.attacks.size
+    const combatRecordsPurged = attacksPurged
+      + this.state.commandsBySequence.size
+      + this.state.settlements.size
+      + this.state.replayChunks.size
+      + this.state.presentationUsage.size
+    const notificationsPurged = this.state.notifications.size
+    const economyRecordsPurged = this.state.balanceLedger.size
+    const auxiliaryRecordsPurged = this.state.idempotency.size
+      + this.state.outbox.size
+      + this.state.markers.size
+
+    const highestBotRevisionByWorld = new Map<string, number>()
+    for (const bot of this.state.botVillages.values()) {
+      highestBotRevisionByWorld.set(
+        bot.worldId,
+        Math.max(highestBotRevisionByWorld.get(bot.worldId) ?? 0, bot.revision)
+      )
+    }
+    for (const [worldId, current] of this.state.worldAllocations) {
+      const allocation = copy(current)
+      allocation.botRevisionEpoch = Math.max(
+        allocation.botRevisionEpoch ?? 1,
+        highestBotRevisionByWorld.get(worldId) ?? 0
+      ) + 1
+      allocation.revision += 1
+      allocation.updatedAt = new Date(starter.lastMutationAt)
+      this.state.worldAllocations.set(worldId, allocation)
+    }
+
+    for (const [playerId, currentAccount] of this.state.accounts) {
+      const account = copy(currentAccount)
+      const previous = this.state.villages.get(playerId)
+      const resetRevision = Math.max(
+        account.revision,
+        previous?.layoutRevision ?? 0,
+        previous?.appearanceRevision ?? 0,
+        previous?.economyRevision ?? 0
+      ) + 1
+      account.trophies = 0
+      account.shieldUntil = new Date(starterShieldUntil)
+      account.revengeRights = {}
+      account.botRaidCooldowns = {}
+      account.revision = resetRevision
+      this.state.accounts.set(playerId, account)
+      const buildings = starter.buildings.map((building, index) => {
+        if (!building || typeof building !== 'object' || Array.isArray(building)) return copy(building)
+        const sourceId = typeof building.id === 'string' ? building.id : String(index)
+        const digest = createHash('sha256')
+          .update(`${playerId}\u0000${starter.playerId}\u0000${sourceId}\u0000${index}`)
+          .digest('hex')
+          .slice(0, 24)
+        return { ...copy(building), id: `b_${digest}` }
+      })
+      this.state.villages.set(playerId, {
+        ...copy(starter),
+        playerId,
+        buildings,
+        banner: null,
+        layoutRevision: resetRevision,
+        appearanceRevision: resetRevision,
+        economyRevision: resetRevision
+      })
+    }
+
+    this.state.botVillages.clear()
+    this.state.botVillageIdsByPlot.clear()
+    this.state.attacks.clear()
+    this.state.commandsBySequence.clear()
+    this.state.commandIds.clear()
+    this.state.settlements.clear()
+    this.state.replayChunks.clear()
+    this.state.presentationBytes.clear()
+    this.state.presentationUsage.clear()
+    this.state.notifications.clear()
+    this.state.idempotency.clear()
+    this.state.outbox.clear()
+    this.state.markers.clear()
+    this.state.balanceLedger.clear()
+
+    return {
+      accountsPreserved,
+      sessionsPreserved,
+      playerPlotsPreserved,
+      playerVillagesReset: accountsPreserved,
+      botVillagesPurged,
+      attacksPurged,
+      combatRecordsPurged,
+      notificationsPurged,
+      economyRecordsPurged,
+      auxiliaryRecordsPurged
+    }
   }
 }
 

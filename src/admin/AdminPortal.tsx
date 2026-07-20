@@ -21,6 +21,7 @@ import {
   CircleDollarSign,
   Coins,
   Command,
+  DatabaseZap,
   Gauge,
   LayoutDashboard,
   LoaderCircle,
@@ -58,6 +59,7 @@ import {
   CardHeader,
   CardTitle,
 } from './ui/card'
+import { Checkbox } from './ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -105,6 +107,9 @@ import { cn } from './lib/utils'
 import './AdminPortal.css'
 
 const PlayerVillagePreview = lazy(() => import('./PlayerVillagePreview'))
+
+const ADMIN_DATA_REFRESH_EVENT = 'clash:admin-data-refresh'
+const RESET_ALL_BASES_CONFIRMATION = 'RESET ALL BASES'
 
 type ViewId = 'overview' | 'players' | 'economy' | 'combat' | 'world' | 'liveops' | 'audit' | 'security'
 type LoadState =
@@ -189,8 +194,18 @@ function useAdminData(path: string, onUnauthorized: () => void) {
     return () => { current = false }
   }, [onUnauthorized, path, requestKey])
 
+  useEffect(() => {
+    const refresh = () => setNonce(value => value + 1)
+    window.addEventListener(ADMIN_DATA_REFRESH_EVENT, refresh)
+    return () => window.removeEventListener(ADMIN_DATA_REFRESH_EVENT, refresh)
+  }, [])
+
   const state: LoadState = result.key === requestKey ? result.state : { kind: 'loading' }
   return { state, reload: () => setNonce(value => value + 1) }
+}
+
+function refreshAdminData() {
+  window.dispatchEvent(new Event(ADMIN_DATA_REFRESH_EVENT))
 }
 
 function recordAt(value: unknown, path: readonly string[]): JsonRecord {
@@ -923,8 +938,149 @@ function OperationDialog({ operation, onClose, onComplete, onUnauthorized }: {
   </form></DialogFrame>
 }
 
+type ResetAllBasesStep = 'scope' | 'confirm' | 'running' | 'complete'
+
+const RESET_RESULT_FIELDS = [
+  ['accountsPreserved', 'Accounts preserved'],
+  ['sessionsPreserved', 'Login sessions preserved'],
+  ['playerPlotsPreserved', 'Player plots preserved'],
+  ['playerVillagesReset', 'Player villages reset'],
+  ['botVillagesPurged', 'Bot villages purged'],
+  ['attacksPurged', 'Attack records purged'],
+  ['combatRecordsPurged', 'Combat records purged'],
+  ['notificationsPurged', 'Notifications purged'],
+  ['economyRecordsPurged', 'Economy records purged'],
+  ['auxiliaryRecordsPurged', 'Auxiliary records purged'],
+] as const
+
+function resetResultRows(payload: unknown): { label: string; value: number }[] {
+  const root = asRecord(unwrapData(payload))
+  const summary = asRecord(root.resetSummary)
+  const rows: { label: string; value: number }[] = []
+  for (const [field, label] of RESET_RESULT_FIELDS) {
+    const value = Number(summary[field])
+    if (!Number.isFinite(value)) continue
+    rows.push({ label, value })
+  }
+  if (!rows.length && Number.isFinite(Number(root.affected))) {
+    rows.push({ label: 'Player villages reset', value: Number(root.affected) })
+  }
+  return rows
+}
+
+function ResetAllBasesDialog({ onClose, onReset, onUnauthorized }: {
+  onClose: () => void
+  onReset: (message: string) => void
+  onUnauthorized: () => void
+}) {
+  const [step, setStep] = useState<ResetAllBasesStep>('scope')
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [reason, setReason] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [result, setResult] = useState<unknown>(null)
+  const [error, setError] = useState<string | null>(null)
+  const reasonRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (step === 'confirm') window.requestAnimationFrame(() => reasonRef.current?.focus())
+  }, [step])
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (reason.trim().length < 12 || confirmation !== RESET_ALL_BASES_CONFIRMATION) return
+    setStep('running')
+    setError(null)
+    try {
+      const payload = await adminApi.resetAllBases(reason.trim(), confirmation)
+      setResult(payload)
+      refreshAdminData()
+      setStep('complete')
+      onReset('Every player village was reset and all base-scoped data was purged. Admin data has been refreshed.')
+    } catch (caught) {
+      if (caught instanceof AdminApiError && caught.unauthorized) {
+        onUnauthorized()
+        return
+      }
+      const maintenanceRequired = caught instanceof AdminApiError
+        && caught.code === 'ADMIN_MAINTENANCE_REQUIRED'
+      setError(maintenanceRequired
+        ? 'Maintenance mode must be enabled before the realm can be reset. Close this dialog, configure maintenance mode, then try again.'
+        : caught instanceof Error ? caught.message : 'The realm reset could not be completed.')
+      setStep('confirm')
+    }
+  }
+
+  const stepNumber = step === 'scope' ? 1 : step === 'complete' ? 3 : 2
+  const resultRows = resetResultRows(result)
+  return <DialogFrame
+    title="Reset every base"
+    subtitle="Permanently replace all villages and purge base-scoped realm data."
+    onClose={() => { if (step !== 'running') onClose() }}
+  >
+    <div className="grid grid-cols-3 gap-2" aria-label={`Step ${stepNumber} of 3`}>
+      {(['Review scope', 'Confirm reset', 'Complete'] as const).map((label, index) => {
+        const number = index + 1
+        const active = number === stepNumber
+        const done = number < stepNumber
+        return <div className={cn('rounded-lg border px-2.5 py-2', active && 'border-destructive/40 bg-destructive/5', done && 'bg-muted/50')} key={label}>
+          <span className={cn('mb-1 flex size-5 items-center justify-center rounded-full border text-[0.625rem] font-semibold', active && 'border-destructive bg-destructive text-white', done && 'border-emerald-600 bg-emerald-600 text-white')}>{done ? <CheckCircle2 className="size-3" /> : number}</span>
+          <strong className="block text-[0.6875rem] leading-4">{label}</strong>
+        </div>
+      })}
+    </div>
+
+    {step === 'scope' ? <div className="grid gap-4">
+      <Alert variant="destructive"><DatabaseZap /><AlertTitle>Realm-wide, irreversible reset</AlertTitle><AlertDescription>This replaces every player village with the current starter configuration and permanently deletes auxiliary base data across all worlds.</AlertDescription></Alert>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-destructive/20 bg-destructive/[0.025] p-3">
+          <strong className="text-destructive">Reset or purged</strong>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-[0.6875rem] leading-4 text-muted-foreground">
+            <li>Every player layout, resource balance, army, and upgrade state</li>
+            <li>Every persistent bot village</li>
+            <li>Base-scoped combat, economy, notification, and history data</li>
+          </ul>
+        </div>
+        <div className="rounded-lg border bg-muted/25 p-3">
+          <strong>Preserved</strong>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-[0.6875rem] leading-4 text-muted-foreground">
+            <li>Accounts, credentials, login sessions, and moderation state</li>
+            <li>Admin configuration and the immutable audit trail</li>
+            <li>Each player’s current world and plot coordinates</li>
+          </ul>
+        </div>
+      </div>
+      <Alert><ShieldAlert /><AlertTitle>Maintenance mode is required</AlertTitle><AlertDescription>Enable maintenance mode before authorizing the reset. It fences game traffic while the server performs the guarded purge. Each rebuilt starter village will have an empty flag and must choose a variant again.</AlertDescription></Alert>
+      <label className="flex items-start gap-3 rounded-lg border p-3" htmlFor="reset-scope-acknowledgement">
+        <Checkbox id="reset-scope-acknowledgement" className="mt-0.5" checked={acknowledged} onCheckedChange={setAcknowledged} />
+        <span><strong className="block font-medium">I understand the full realm scope</strong><span className="mt-0.5 block text-[0.6875rem] leading-4 text-muted-foreground">There is no undo or per-player recovery from this operation.</span></span>
+      </label>
+      <DialogFooter><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button variant="destructive" type="button" disabled={!acknowledged} onClick={() => setStep('confirm')}>Continue to confirmation<ArrowRight data-icon="inline-end" /></Button></DialogFooter>
+    </div> : null}
+
+    {step === 'confirm' ? <form className="grid gap-4" onSubmit={submit}>
+      <Alert variant="destructive"><AlertTriangle /><AlertTitle>Final authorization</AlertTitle><AlertDescription>Maintenance mode must already be enabled. On submission, the purge starts immediately and cannot be cancelled.</AlertDescription></Alert>
+      <FormField id="reset-all-bases-reason" label="Required audit reason" hint="Written permanently to the admin audit trail. Minimum 12 characters."><Textarea ref={reasonRef} id="reset-all-bases-reason" rows={3} minLength={12} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Explain why the entire realm must be reset…" required /></FormField>
+      <FormField id="reset-all-bases-confirmation" label={`Type ${RESET_ALL_BASES_CONFIRMATION} exactly`} hint="Case and spacing must match."><Input id="reset-all-bases-confirmation" autoComplete="off" spellCheck={false} value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder={RESET_ALL_BASES_CONFIRMATION} /></FormField>
+      {error ? <Alert variant="destructive" role="alert"><AlertCircle /><AlertTitle>Reset blocked</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+      <DialogFooter><Button variant="outline" type="button" onClick={() => { setError(null); setStep('scope') }}>Back</Button><Button variant="destructive" type="submit" disabled={reason.trim().length < 12 || confirmation !== RESET_ALL_BASES_CONFIRMATION}><DatabaseZap />Reset every base permanently</Button></DialogFooter>
+    </form> : null}
+
+    {step === 'running' ? <div className="grid gap-4 py-2" role="status" aria-live="polite">
+      <div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/[0.025] p-4"><LoaderCircle className="mt-0.5 size-5 shrink-0 animate-spin text-destructive" /><div><strong className="block">Resetting the realm…</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">The server is running the guarded village replacement and base-data purge. Keep this window open.</p></div></div>
+      <Progress value={null} aria-label="Realm reset in progress" className="[&_[data-slot=progress-indicator]]:w-1/2 [&_[data-slot=progress-indicator]]:animate-pulse [&_[data-slot=progress-indicator]]:bg-destructive"><ProgressLabel>Authoritative purge in progress</ProgressLabel></Progress>
+    </div> : null}
+
+    {step === 'complete' ? <div className="grid gap-4">
+      <Alert className="border-emerald-500/30 bg-emerald-500/5" role="status"><CheckCircle2 className="text-emerald-600" /><AlertTitle>Realm reset complete</AlertTitle><AlertDescription>Every account now has a fresh starter village with an empty flag. Dashboard, player, world, combat, economy, and audit data have been refreshed.</AlertDescription></Alert>
+      {resultRows.length ? <div className="grid gap-2 sm:grid-cols-2">{resultRows.map(row => <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2" key={row.label}><span className="text-muted-foreground">{row.label}</span><strong className="tabular-nums">{formatMetric(row.value, false)}</strong></div>)}</div> : null}
+      <DialogFooter><Button type="button" onClick={onClose}>Close</Button></DialogFooter>
+    </div> : null}
+  </DialogFrame>
+}
+
 function LiveOpsView({ onUnauthorized }: { onUnauthorized: () => void }) {
   const [operation, setOperation] = useState<OperationType | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const capabilities = [
     ['Player support', 'Search, balances, trophies, names, shields, access, notices', 'Available'],
@@ -934,6 +1090,7 @@ function LiveOpsView({ onUnauthorized }: { onUnauthorized: () => void }) {
     ['Combat investigation', 'Attack lifecycle, simulation version, loot, replay references', 'Read only'],
     ['Maintenance mode', 'Enable or disable the player-facing maintenance gate', 'Available'],
     ['Global shield clear', 'Remove active protection from all accounts', 'Available'],
+    ['Full base reset', 'Rebuild every player village and purge base-scoped realm data', 'Available'],
     ['Audit & configuration', 'Operator history plus safely redacted runtime config', 'Available'],
   ] as const
   return <>
@@ -942,12 +1099,26 @@ function LiveOpsView({ onUnauthorized }: { onUnauthorized: () => void }) {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="shadow-xs"><CardHeader><div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"><RadioTower className="size-4" /></div><CardTitle>Maintenance mode</CardTitle><CardDescription>Open or close the game to player traffic with a clear player-facing status message.</CardDescription></CardHeader><CardContent><Button type="button" onClick={() => setOperation('set_maintenance')}>Configure maintenance<ArrowRight data-icon="inline-end" /></Button></CardContent></Card>
       <Card className="border-destructive/20 bg-destructive/[0.025] shadow-xs"><CardHeader><div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive"><ShieldAlert className="size-4" /></div><CardTitle>Clear all shields</CardTitle><CardDescription>Remove attack protection globally. Reserved for incident recovery and controlled testing.</CardDescription></CardHeader><CardContent><Button variant="destructive" type="button" onClick={() => setOperation('clear_shields')}>Clear every shield<ArrowRight data-icon="inline-end" /></Button></CardContent></Card>
+      <Card className="border-destructive/50 bg-destructive/[0.04] shadow-sm lg:col-span-2">
+        <CardHeader className="gap-3 border-b border-destructive/15 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-destructive text-white"><DatabaseZap className="size-4" /></div>
+            <div><Badge variant="destructive" className="mb-2">Danger zone</Badge><CardTitle>Reset all bases</CardTitle><CardDescription className="mt-1 max-w-3xl">Replace every player village with the current starter configuration, clear every flag, and purge persistent bots plus base-scoped combat and economy records. Accounts, sessions, moderation, admin configuration, and player coordinates are preserved.</CardDescription></div>
+          </div>
+          <Badge variant="outline" className="shrink-0 border-destructive/30 text-destructive">Maintenance required</Badge>
+        </CardHeader>
+        <CardContent className="flex flex-col items-start justify-between gap-3 pt-4 sm:flex-row sm:items-center">
+          <p className="max-w-3xl text-xs leading-5 text-muted-foreground">This is irreversible and realm-wide. A two-step review, exact typed phrase, audit reason, and server-side maintenance gate are required.</p>
+          <Button variant="destructive" type="button" className="shrink-0" onClick={() => { setNotice(null); setResetOpen(true) }}><DatabaseZap />Review full reset</Button>
+        </CardContent>
+      </Card>
     </div>
     <Panel title="Administrative capability matrix" eyebrow="Current deployment">
       <div className="grid gap-px overflow-hidden rounded-lg border bg-border md:grid-cols-2">{capabilities.map(([name, detail, status]) => <div className="flex items-start justify-between gap-4 bg-card p-3" key={name}><div><strong className="font-medium">{name}</strong><p className="mt-0.5 text-xs leading-4 text-muted-foreground">{detail}</p></div><StatusPill value={status === 'Available' ? 'ready' : status} /></div>)}</div>
     </Panel>
-    <Alert><ShieldCheck /><AlertTitle>Deliberate safety boundary</AlertTitle><AlertDescription>Database consoles, arbitrary JSON writes, user impersonation, secret display, and unscoped delete buttons do not belong in a web admin surface. They are intentionally absent.</AlertDescription></Alert>
+    <Alert><ShieldCheck /><AlertTitle>Deliberate safety boundary</AlertTitle><AlertDescription>Database consoles, arbitrary JSON writes, user impersonation, and secret display remain intentionally absent. The full reset is a single audited server operation with an exact scope and maintenance prerequisite.</AlertDescription></Alert>
     {operation ? <OperationDialog operation={operation} onClose={() => setOperation(null)} onUnauthorized={onUnauthorized} onComplete={message => { setOperation(null); setNotice(message) }} /> : null}
+    {resetOpen ? <ResetAllBasesDialog onClose={() => setResetOpen(false)} onUnauthorized={onUnauthorized} onReset={setNotice} /> : null}
   </>
 }
 

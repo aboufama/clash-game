@@ -622,6 +622,12 @@ CREATE TRIGGER admin_audit_append_only
   FOR EACH ROW EXECUTE FUNCTION reject_admin_audit_mutation();
 `
 
+const BOT_REVISION_EPOCH_SQL = String.raw`
+ALTER TABLE world_allocation_state
+  ADD COLUMN bot_revision_epoch bigint NOT NULL DEFAULT 1
+  CHECK (bot_revision_epoch > 0);
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -636,7 +642,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 11, name: 'spiral_center_allocation', sql: SPIRAL_CENTER_ALLOCATION_SQL },
   { version: 12, name: 'village_banner', sql: VILLAGE_BANNER_SQL },
   { version: 13, name: 'persistent_bot_villages', sql: PERSISTENT_BOT_VILLAGES_SQL },
-  { version: 14, name: 'admin_authority', sql: ADMIN_AUTHORITY_SQL }
+  { version: 14, name: 'admin_authority', sql: ADMIN_AUTHORITY_SQL },
+  { version: 15, name: 'bot_revision_epoch', sql: BOT_REVISION_EPOCH_SQL }
 ]
 
 function checksum(sql: string): string {

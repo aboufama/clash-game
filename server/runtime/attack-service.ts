@@ -83,6 +83,7 @@ import {
   villageBuildings
 } from './village-state'
 import { botWorldForAttack, ensurePersistedBotVillage } from './bot-villages'
+import { assertGameplayMutationAllowed } from './maintenance-fence'
 
 const WORLD_COORD_LIMIT = 1_000_000
 const START_IDEMPOTENCY_TTL_MS = 24 * 60 * 60_000
@@ -433,7 +434,10 @@ export class PersistenceAttackService implements RuntimeAttackService {
   private async serializable<T>(work: (tx: UnitOfWork, now: Date) => Promise<T>): Promise<T> {
     const now = this.now()
     try {
-      return await this.persistence.transaction(tx => work(tx, now), {
+      return await this.persistence.transaction(async tx => {
+        await assertGameplayMutationAllowed(tx)
+        return work(tx, now)
+      }, {
         isolation: 'serializable',
         maxRetries: 3
       })
@@ -742,7 +746,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     rawY: unknown,
     operationId: string,
     now: Date
-  ): Promise<{ x: number; y: number; seed: number; visible: boolean }> {
+  ): Promise<{ x: number; y: number; seed: number; revisionEpoch: number; visible: boolean }> {
     const explicit = rawX !== undefined || rawY !== undefined
     // The settled-frontier rule the map presents: structural clans everywhere,
     // plus deterministic fill camps at unclaimed central spiral plots — a camp
@@ -750,6 +754,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     // separately below, so a claimed plot never validates as a camp.
     const allocation = await tx.world.getAllocation(plot.worldId)
     const frontierRadius = botFrontierRadiusForCursor(allocation?.nextOrdinal ?? 0)
+    const revisionEpoch = allocation?.botRevisionEpoch ?? 1
     const candidateAt = (x: number, y: number) => {
       const seed = settledFrontierBotVillageSeedAt({ x, y }, { frontierRadius })
       if (seed === null || now.getTime() - botCooldown(account, x, y) < BOT_RAID_COOLDOWN_MS) return null
@@ -767,7 +772,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
       if (!camp || await tx.world.getOccupant(plot.worldId, x, y)) {
         throw new ApiError(409, 'That camp is unavailable or still recovering')
       }
-      return { ...camp, visible: true }
+      return { ...camp, revisionEpoch, visible: true }
     }
 
     const random = mulberry32(hashString(`${account.id}:${operationId}:bot`))
@@ -784,7 +789,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     const occupied = new Set((await tx.world.listOccupantsAt(plot.worldId, candidates))
       .map(occupant => `${occupant.x},${occupant.y}`))
     for (const camp of candidates) {
-      if (!occupied.has(`${camp.x},${camp.y}`)) return { ...camp, visible: false }
+      if (!occupied.has(`${camp.x},${camp.y}`)) return { ...camp, revisionEpoch, visible: false }
     }
     throw new ApiError(404, 'No bot camps are available within the bounded search')
   }
@@ -817,6 +822,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
         const bot = await ensurePersistedBotVillage(tx, {
           worldId: attacker.plot.worldId,
           worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
+          revisionEpoch: camp.revisionEpoch,
           x: camp.x,
           y: camp.y,
           seed: camp.seed,

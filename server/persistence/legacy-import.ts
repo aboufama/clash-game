@@ -796,6 +796,7 @@ async function seedLegacyWorldAllocation(
   const storedAllocation = stored ? object(stored.value.allocation) : null
   const generationVersion = integer(storedAllocation?.currentGenerationVersion, 1)
   const presentationSeedVersion = normalizeWorldPresentationSeedVersion(stored?.value.presentationSeedVersion)
+  const botRevisionEpoch = Math.max(1, integer(stored?.value.botRevisionEpoch, 1))
   const nextOrdinal = storedAllocation
     ? integer(storedAllocation.nextOrdinal)
     : (occupied.size === 0 ? 0 : Math.max(...occupied) + 1)
@@ -824,6 +825,7 @@ async function seedLegacyWorldAllocation(
   if (!await uow.world.updateAllocation({
     ...allocation,
     nextOrdinal,
+    botRevisionEpoch,
     revision: allocation.revision + 1,
     updatedAt: importedAt
   }, allocation.revision)) {

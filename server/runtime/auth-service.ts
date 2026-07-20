@@ -30,6 +30,10 @@ import { outboxEvent, postgresErrorCode } from '../persistence'
 import type { SessionResponse } from '../protocol'
 import type { RuntimePrincipal } from './contracts'
 import { randomId } from './ids'
+import {
+  acquireMaintenanceMutationFence,
+  assertGameplayMutationAllowed
+} from './maintenance-fence'
 import { profileOf, serializedWorldOf, type AdvertisedUpgradePolicy } from './village-state'
 import { VillageAuthority, type OwnedState } from './village-authority'
 import {
@@ -62,7 +66,11 @@ export interface AuthSessionOptions {
   allowGuestSessions?: boolean
 }
 
-function starterVillage(playerId: string, now: Date): VillageRecord {
+export function createStarterVillageRecord(
+  playerId: string,
+  now: Date,
+  revision = 1
+): VillageRecord {
   const starter = createStarterVillage(() => randomId('b', 6))
   return {
     playerId,
@@ -78,9 +86,9 @@ function starterVillage(playerId: string, now: Date): VillageRecord {
     banner: null,
     simulatedThrough: now,
     lastMutationAt: now,
-    layoutRevision: 1,
-    appearanceRevision: 1,
-    economyRevision: 1,
+    layoutRevision: revision,
+    appearanceRevision: revision,
+    economyRevision: revision,
     simulationVersion: VILLAGE_SIMULATION_VERSION,
     nextEventAt: null
   }
@@ -120,6 +128,7 @@ export class AuthSessionService {
   async sweepExpiredGuestLeases(limit = 50): Promise<{ released: number; archived: number }> {
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const releasedIds = (await releaseExpiredGuestPlotClaims(tx, now, limit))
         .map(plot => plot.playerId)
       const archived = await tx.accounts.deleteUnreferencedGuests(releasedIds)
@@ -207,6 +216,7 @@ export class AuthSessionService {
     const tokenHash = hashSessionToken(token)
     const now = this.clock()
     const result = await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const discovered = await tx.sessions.getByTokenHash(tokenHash)
       if (!discovered) return null
       // Lock player authority before the token row. Guest reaping/account
@@ -292,6 +302,7 @@ export class AuthSessionService {
   ): Promise<SessionResponse> {
     const registered = identity.passwordHash !== null
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       if (identity.usernameKey) {
         const existing = await tx.accounts.getByUsernameKey(identity.usernameKey, { forUpdate: true })
         if (existing) throw new ApiError(409, 'That username is already taken — use LOG IN instead', 'USERNAME_TAKEN')
@@ -312,7 +323,7 @@ export class AuthSessionService {
         botRaidCooldowns: {}
       }
       await tx.accounts.insert(account)
-      const village = starterVillage(playerId, now)
+      const village = createStarterVillageRecord(playerId, now)
       await tx.villages.insert(village)
       await tx.sessions.insert({
         tokenHash: hashSessionToken(newToken),
@@ -352,6 +363,7 @@ export class AuthSessionService {
     const tokenHash = hashSessionToken(token)
     const now = this.clock()
     const observed = await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const session = await tx.sessions.getByTokenHash(tokenHash)
       if (!session) return { kind: 'missing' as const }
       if (session.expiresAt <= now) return { kind: 'cleanup' as const, playerId: session.playerId }
@@ -384,6 +396,7 @@ export class AuthSessionService {
     // Error cases are rare. Re-read them under locks so expiry cleanup cannot
     // race registration, lease renewal, relocation, or another API process.
     const recovered = await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const account = await tx.accounts.getById(observed.playerId, { forUpdate: true })
       const plot = await tx.world.getPlayerPlot(observed.playerId, { forUpdate: true })
       const session = await tx.sessions.getByTokenHash(tokenHash, { forUpdate: true })
@@ -474,6 +487,7 @@ export class AuthSessionService {
     const now = this.clock()
     return this.usernameMutation(async () => {
       const result = await this.persistence.transaction(async tx => {
+        await assertGameplayMutationAllowed(tx)
         const state = await this.authority.owned(tx, principal.playerId, true)
         const accessBlock = await this.revokeBlockedAccess(tx, state.account.id, now)
         if (accessBlock) return { kind: 'blocked' as const, block: accessBlock }
@@ -526,6 +540,7 @@ export class AuthSessionService {
     this.limiter.recordLoginSuccess(attempt.failureKey)
     const token = createOpaqueSessionToken()
     const result = await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, account.id, true)
       const accessBlock = await this.revokeBlockedAccess(tx, state.account.id, now)
       if (accessBlock) return { kind: 'blocked' as const, block: accessBlock }
@@ -562,6 +577,7 @@ export class AuthSessionService {
     const now = this.clock()
     const hash = hashSessionToken(token)
     await this.persistence.transaction(async tx => {
+      await acquireMaintenanceMutationFence(tx)
       const discovered = await tx.sessions.getByTokenHash(hash)
       if (!discovered) return
       const account = await tx.accounts.getById(discovered.playerId, { forUpdate: true })
@@ -595,6 +611,7 @@ export class AuthSessionService {
     const key = normalizeUsernameKey(name)
     const now = this.clock()
     return this.usernameMutation(() => this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, principal.playerId, true)
       if (state.account.username === name) return profileOf(state.account, state.plot)
       const existing = await tx.accounts.getByUsernameKey(key, { forUpdate: true })

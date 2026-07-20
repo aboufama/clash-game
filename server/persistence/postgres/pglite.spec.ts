@@ -9,6 +9,7 @@ import { PGlite } from '@electric-sql/pglite'
 import type { QueryResult, QueryResultRow } from 'pg'
 import { MIGRATIONS, migrate } from '../migrations'
 import { PostgresPersistence } from './persistence'
+import { PostgresUnitOfWork } from './repositories'
 import type { SqlDatabase, SqlExecutor } from './database'
 import { PersistenceGameService } from '../../runtime/service'
 import { createPersistenceAttackService } from '../../runtime/attack-service'
@@ -75,6 +76,38 @@ class EmbeddedPostgres implements SqlDatabase {
 
 const NOW = new Date('2026-07-11T18:00:00.000Z')
 const DAY_MS = 86_400_000
+
+test('PostgreSQL maintenance fence emits shared/update row locks and rejects ambiguous lock modes', async () => {
+  const statements: string[] = []
+  const sql: SqlExecutor = {
+    async query<Row extends QueryResultRow = QueryResultRow>(statement: string): Promise<QueryResult<Row>> {
+      statements.push(statement)
+      return {
+        command: 'SELECT',
+        oid: 0,
+        fields: [],
+        rows: [{
+          maintenance_enabled: false,
+          maintenance_message: null,
+          updated_at: NOW,
+          revision: 1
+        }] as unknown as Row[],
+        rowCount: 1
+      }
+    }
+  }
+  const unit = new PostgresUnitOfWork(sql)
+
+  await unit.admin.getConfig({ forShare: true })
+  await unit.admin.getConfig({ forUpdate: true })
+  assert.match(statements[0]?.trim() ?? '', /FOR SHARE$/)
+  assert.match(statements[1]?.trim() ?? '', /FOR UPDATE$/)
+  await assert.rejects(
+    unit.admin.getConfig({ forShare: true, forUpdate: true }),
+    /lock mode is ambiguous/i
+  )
+  assert.equal(statements.length, 2, 'ambiguous lock options fail before issuing SQL')
+})
 
 function persistedBot(id = 'bot-pglite', x = 7, y = -5): BotVillageRecord {
   return {
@@ -301,6 +334,228 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
       /append-only/i
     )
     assert.equal((await service.adminAudit(10)).length, 3)
+  } finally {
+    await database.close()
+  }
+})
+
+test('embedded PostgreSQL base reset preserves account/session/plot authority and purges imported base payloads', async () => {
+  const database = new EmbeddedPostgres()
+  try {
+    await migrate(database)
+    const persistence = new PostgresPersistence(database)
+    const service = new PersistenceGameService(persistence, {
+      now: () => new Date(NOW),
+      starterShieldMs: 7_200_000
+    })
+    const session = await service.register(null, 'PgResetChief', 'valid-password-123', 'pg-reset')
+    assert.ok('token' in session)
+    if (!('token' in session)) return
+
+    const initialPlot = await persistence.transaction(tx => tx.world.getPlayerPlot(session.player.id))
+    assert.ok(initialPlot)
+    if (!initialPlot) return
+    await database.query(String.raw`
+      UPDATE villages SET
+        buildings = buildings || $2::jsonb,
+        layout_revision = layout_revision + 1,
+        last_mutation_at = $3
+      WHERE player_id = $1
+    `, [
+      session.player.id,
+      [{ id: 'pg-reset-watchtower', type: 'watchtower', gridX: 3, gridY: 3, level: 1 }],
+      NOW
+    ])
+    const advertised = await service.map(
+      { playerId: session.player.id },
+      initialPlot.x,
+      initialPlot.y,
+      1
+    )
+    const advertisedBot = advertised.plots.find(plot => plot.kind === 'bot' && plot.world)
+    assert.ok(advertisedBot, 'the PostgreSQL map fixture must persist and advertise a nearby bot')
+    if (!advertisedBot) return
+    const retiredBotRevision = 41
+    await database.query(String.raw`
+      UPDATE bot_villages SET
+        revision = $2,
+        world = jsonb_set(world, '{revision}', to_jsonb($2::bigint), true),
+        updated_at = $3
+      WHERE id = $1
+    `, [advertisedBot.ownerId, retiredBotRevision, NOW])
+    const retiredKnown = `${advertisedBot.x},${advertisedBot.y}:${advertisedBot.ownerId}:${retiredBotRevision}`
+
+    const before = await persistence.transaction(async tx => ({
+      account: await tx.accounts.getById(session.player.id),
+      village: await tx.villages.get(session.player.id),
+      plot: await tx.world.getPlayerPlot(session.player.id)
+    }))
+    await service.adminPlayerAction(session.player.id, {
+      type: 'adjust_resources', gold: 999, reason: 'Seed postgres reset history'
+    })
+    await database.query(String.raw`
+      INSERT INTO legacy_import_manifest(collection, record_key, sha256, payload, imported_at)
+      VALUES ('players', 'old-player', $1, $2::jsonb, $3)
+    `, ['c'.repeat(64), { buildings: [{ id: 'old-secret-base' }] }, NOW])
+    await service.adminOperation({
+      type: 'set_maintenance', enabled: true, message: 'Reset in progress', reason: 'Prepare postgres base reset'
+    })
+
+    // Isolate a missing profile while the registered account's village and
+    // plot remain complete. The replacement INSERT is sourced from profiles,
+    // so accepting this shape would silently preserve identity without a base.
+    await database.query('DELETE FROM player_profiles WHERE player_id = $1', [session.player.id])
+    await assert.rejects(service.adminOperation({
+      type: 'reset_all_bases',
+      confirmation: 'RESET ALL BASES',
+      reason: 'Reject missing postgres profile authority'
+    }), (error: unknown) => error instanceof Error && 'code' in error
+      && error.code === 'ADMIN_RESET_INTEGRITY_FAILED')
+    assert.ok(before.account)
+    if (!before.account) return
+    await database.query(String.raw`
+      INSERT INTO player_profiles(
+        player_id, username, trophies, shield_until, last_seen_at, revision,
+        revenge_rights, bot_raid_cooldowns
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
+    `, [
+      before.account.id,
+      before.account.username,
+      before.account.trophies,
+      before.account.shieldUntil,
+      before.account.lastSeenAt,
+      before.account.revision,
+      before.account.revengeRights,
+      before.account.botRaidCooldowns
+    ])
+
+    // Guests are preserved/reset too, so an incomplete guest root must not be
+    // omitted from the integrity check or counted as a successfully reset base.
+    await database.query(String.raw`
+      INSERT INTO accounts(id, username_key, password_hash, registered, created_at)
+      VALUES ('pg-orphan-guest', NULL, NULL, false, $1)
+    `, [NOW])
+    await assert.rejects(service.adminOperation({
+      type: 'reset_all_bases',
+      confirmation: 'RESET ALL BASES',
+      reason: 'Reject incomplete postgres guest authority'
+    }), (error: unknown) => error instanceof Error && 'code' in error
+      && error.code === 'ADMIN_RESET_INTEGRITY_FAILED')
+    await database.query("DELETE FROM accounts WHERE id = 'pg-orphan-guest'")
+
+    // A future/corrupt realm can satisfy bot_villages' realm FK without
+    // owning world_allocation_state, leaving nowhere durable to advance its
+    // replacement cache epoch. Reset must fail closed before deleting it.
+    const orphanWorldId = 'pg-orphan-bot-realm'
+    const orphanBotId = persistentBotVillageIdAt(orphanWorldId, 8, 8)
+    const orphanBot: BotVillageRecord = {
+      ...persistedBot(orphanBotId, 8, 8),
+      worldId: orphanWorldId
+    }
+    await database.query(String.raw`
+      INSERT INTO world_realms(id, generator_version, created_at)
+      VALUES ($1, 1, $2)
+    `, [orphanWorldId, NOW])
+    await persistence.transaction(tx => tx.world.insertBotVillage(orphanBot))
+    await assert.rejects(service.adminOperation({
+      type: 'reset_all_bases',
+      confirmation: 'RESET ALL BASES',
+      reason: 'Reject missing postgres bot epoch authority'
+    }), (error: unknown) => error instanceof Error && 'code' in error
+      && error.code === 'ADMIN_RESET_INTEGRITY_FAILED')
+    assert.ok(await persistence.transaction(tx => tx.world.getBotVillage(orphanBotId)),
+      'failed bot-epoch preflight must leave the persisted bot intact')
+    await persistence.transaction(tx => tx.world.deleteBotVillage(orphanBotId))
+    await database.query('DELETE FROM world_realms WHERE id = $1', [orphanWorldId])
+
+    const reset = await service.adminOperation({
+      type: 'reset_all_bases',
+      confirmation: 'RESET ALL BASES',
+      reason: 'Scheduled postgres authority reset'
+    })
+    assert.equal(reset.resetSummary?.accountsPreserved, 1)
+    assert.equal(reset.resetSummary?.sessionsPreserved, 1)
+    assert.equal(reset.resetSummary?.playerPlotsPreserved, 1)
+    assert.equal(reset.resetSummary?.playerVillagesReset, 1)
+    assert.ok((reset.resetSummary?.auxiliaryRecordsPurged ?? 0) >= 2)
+
+    const after = await persistence.transaction(async tx => ({
+      account: await tx.accounts.getById(session.player.id),
+      village: await tx.villages.get(session.player.id),
+      plot: await tx.world.getPlayerPlot(session.player.id),
+      sessions: await tx.sessions.listForPlayer(session.player.id, 10)
+    }))
+    assert.equal(after.account?.username, 'PgResetChief')
+    assert.equal(after.account?.passwordHash, before.account?.passwordHash)
+    assert.equal(after.account?.trophies, 0)
+    assert.equal(after.account?.shieldUntil?.getTime(), NOW.getTime() + 7_200_000)
+    assert.deepEqual(after.plot, before.plot)
+    assert.equal(after.sessions.length, 1)
+    assert.equal(after.village?.banner, null)
+    assert.ok((after.village?.layoutRevision ?? 0) > (before.village?.layoutRevision ?? 0))
+    const beforeIds = new Set(before.village?.buildings.map(building => (
+      typeof building === 'object' && building !== null && !Array.isArray(building) ? String(building.id) : ''
+    )))
+    const afterIds = after.village?.buildings.map(building => (
+      typeof building === 'object' && building !== null && !Array.isArray(building) ? String(building.id) : ''
+    )) ?? []
+    assert.equal(new Set(afterIds).size, afterIds.length)
+    assert.equal(afterIds.some(id => beforeIds.has(id)), false)
+
+    const purged = await database.query<{
+      attacks: string | number
+      bots: string | number
+      notifications: string | number
+      ledger: string | number
+      manifests: string | number
+    }>(String.raw`
+      SELECT
+        (SELECT COUNT(*) FROM attacks) AS attacks,
+        (SELECT COUNT(*) FROM bot_villages) AS bots,
+        (SELECT COUNT(*) FROM notifications) AS notifications,
+        (SELECT COUNT(*) FROM balance_ledger) AS ledger,
+        (SELECT COUNT(*) FROM legacy_import_manifest) AS manifests
+    `)
+    assert.deepEqual(purged.rows[0] && {
+      attacks: Number(purged.rows[0].attacks),
+      bots: Number(purged.rows[0].bots),
+      notifications: Number(purged.rows[0].notifications),
+      ledger: Number(purged.rows[0].ledger),
+      manifests: Number(purged.rows[0].manifests)
+    }, { attacks: 0, bots: 0, notifications: 0, ledger: 0, manifests: 0 })
+    assert.equal((await service.adminConfig()).maintenance.enabled, true)
+    assert.ok((await service.adminAudit(10)).some(entry => entry.action === 'reset_all_bases'))
+
+    const allocation = await persistence.transaction(tx => tx.world.getAllocation(initialPlot.worldId))
+    assert.ok((allocation?.botRevisionEpoch ?? 0) > retiredBotRevision,
+      'the production reset must durably cross every purged bot revision')
+    await database.query(String.raw`
+      UPDATE villages SET
+        buildings = buildings || $2::jsonb,
+        layout_revision = layout_revision + 1,
+        last_mutation_at = $3
+      WHERE player_id = $1
+    `, [
+      session.player.id,
+      [{ id: 'pg-reset-watchtower-after', type: 'watchtower', gridX: 3, gridY: 3, level: 1 }],
+      NOW
+    ])
+    await service.adminOperation({
+      type: 'set_maintenance', enabled: false, reason: 'Verify postgres bot cache epoch'
+    })
+    const refreshed = await service.map(
+      { playerId: session.player.id },
+      initialPlot.x,
+      initialPlot.y,
+      1,
+      retiredKnown
+    )
+    const replacement = refreshed.plots.find(plot => (
+      plot.x === advertisedBot.x && plot.y === advertisedBot.y && plot.kind === 'bot'
+    ))
+    assert.ok(replacement?.world, 'a stale pre-reset known token must receive the replacement bot world')
+    assert.equal(replacement?.ownerId, advertisedBot.ownerId, 'coordinate-derived bot identity remains stable')
+    assert.ok(Number(replacement?.revision ?? 0) > retiredBotRevision)
   } finally {
     await database.close()
   }

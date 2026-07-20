@@ -136,6 +136,14 @@ class AdminApi {
     })
   }
 
+  resetAllBases(reason: string, confirmation: string) {
+    return this.post('operations', {
+      type: 'reset_all_bases',
+      reason,
+      confirmation,
+    })
+  }
+
   clearMemory() {
     this.csrfToken = null
   }
@@ -163,4 +171,3 @@ export function rowsFrom(value: unknown, keys: readonly string[]): JsonRecord[] 
   }
   return []
 }
-

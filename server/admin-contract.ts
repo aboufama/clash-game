@@ -177,6 +177,20 @@ export type AdminPlayerActionRequest =
 export type AdminOperationRequest =
   | { type: 'clear_shields'; reason?: unknown }
   | { type: 'set_maintenance'; enabled?: unknown; message?: unknown; reason?: unknown }
+  | { type: 'reset_all_bases'; confirmation?: unknown; reason?: unknown }
+
+export interface AdminBaseResetSummary {
+  accountsPreserved: number
+  sessionsPreserved: number
+  playerPlotsPreserved: number
+  playerVillagesReset: number
+  botVillagesPurged: number
+  attacksPurged: number
+  combatRecordsPurged: number
+  notificationsPurged: number
+  economyRecordsPurged: number
+  auxiliaryRecordsPurged: number
+}
 
 export interface AdminMutationResult {
   ok: true
@@ -185,6 +199,8 @@ export interface AdminMutationResult {
   changed: boolean
   affected: number
   auditId: string
+  /** Present only for the destructive, system-wide base reset operation. */
+  resetSummary?: AdminBaseResetSummary
 }
 
 export interface AdminApiService {

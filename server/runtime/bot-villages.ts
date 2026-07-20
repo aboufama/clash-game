@@ -15,6 +15,8 @@ import {
 export interface PersistedBotVillageInput {
   worldId: string
   worldGenerationVersion: number
+  /** Durable lower bound advanced whenever persisted bots are purged. */
+  revisionEpoch: number
   x: number
   y: number
   seed: number
@@ -79,9 +81,12 @@ export async function ensurePersistedBotVillage(
   }
 
   const id = persistentBotVillageIdAt(input.worldId, input.x, input.y)
+  if (!Number.isSafeInteger(input.revisionEpoch) || input.revisionEpoch < 1) {
+    throw new PersistenceConflictError('Bot village revision epoch must be a positive safe integer')
+  }
   const difficulty = proceduralVillageDifficulty(input.seed)
   const world = generateProceduralVillage(input.seed, { id, ownerId: id, difficulty })
-  world.revision = 1
+  world.revision = input.revisionEpoch
   // The first persisted payload must be identical across concurrent servers;
   // actual provisioning time lives on the record, not inside generated data.
   world.lastSaveTime = 0
@@ -102,7 +107,7 @@ export async function ensurePersistedBotVillage(
       generatorVersion: PROCEDURAL_VILLAGE_GENERATOR_VERSION
     },
     world,
-    revision: 1,
+    revision: input.revisionEpoch,
     createdAt: input.now,
     updatedAt: input.now
   }

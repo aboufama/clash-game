@@ -46,6 +46,7 @@ import type {
   AdminApiService,
   AdminAttackSummary,
   AdminAuditEntry,
+  AdminBaseResetSummary,
   AdminBotSummary,
   AdminConfig,
   AdminEconomy,
@@ -67,8 +68,8 @@ import type {
   VillageRecord,
   WorldAtlasEntry
 } from '../persistence'
-import { outboxEvent, QUERY_LIMITS } from '../persistence'
-import { AuthSessionService } from './auth-service'
+import { AdminBaseResetPreconditionError, outboxEvent, QUERY_LIMITS } from '../persistence'
+import { AuthSessionService, createStarterVillageRecord } from './auth-service'
 import type {
   ApiService,
   ArmyMutationRequest,
@@ -111,8 +112,11 @@ import {
   releasePlayerPlotClaim
 } from './world-authority'
 import { ensurePersistedBotVillage, publicBotWorldOf } from './bot-villages'
+import { assertGameplayMutationAllowed } from './maintenance-fence'
 
 const ONLINE_WINDOW_MS = 60_000
+const DEFAULT_STARTER_SHIELD_MS = 2 * 60 * 60_000
+const ADMIN_RESET_CONFIRMATION = 'RESET ALL BASES'
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60_000
 const OUTBOX_PUBLISHED_RETENTION_MS = 24 * 60 * 60_000
 const OUTBOX_DELIVERY_WINDOW_MS = 7 * 24 * 60 * 60_000
@@ -424,6 +428,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
   private readonly persistence: Persistence
   private readonly attacks: RuntimeAttackService
   private readonly clock: () => Date
+  private readonly starterShieldMs: number
   private readonly allowDebugGrants: boolean
   private readonly infiniteResources: boolean
   private readonly upgradeTimeScale: number
@@ -436,6 +441,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     this.persistence = persistence
     this.attacks = options.attacks ?? NO_ATTACKS
     this.clock = options.now ?? (() => new Date())
+    this.starterShieldMs = options.starterShieldMs ?? DEFAULT_STARTER_SHIELD_MS
     this.allowDebugGrants = options.allowDebugGrants ?? process.env.CLASH_ALLOW_DEBUG_GRANTS === '1'
     this.infiniteResources = options.infiniteResources ?? process.env.CLASH_INFINITE_RESOURCES === '1'
     const configuredScale = options.upgradeTimeScale ?? Number(process.env.CLASH_UPGRADE_TIME_SCALE ?? 1)
@@ -456,7 +462,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     this.authority = new VillageAuthority(this.allowDebugGrants)
     this.auth = new AuthSessionService(persistence, this.authority, {
       clock: this.clock,
-      starterShieldMs: options.starterShieldMs,
+      starterShieldMs: this.starterShieldMs,
       sessionTtlMs: options.sessionTtlMs,
       infiniteResources: this.infiniteResources,
       upgradePolicy: this.upgradePolicy,
@@ -600,6 +606,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     }
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, principal.playerId, true)
       if (sameBanner(state.village.banner, banner)) return { banner: { ...banner } }
       const expectedAppearanceRevision = state.village.appearanceRevision
@@ -627,6 +634,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
   async getWorld(principal: RuntimePrincipal): Promise<SerializedWorld> {
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, principal.playerId, true)
       await this.authority.materializeOwned(
         tx,
@@ -644,6 +652,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const claim = await this.claimRequest(tx, principal, 'world.save', id, now)
       if (claim.replayed) return claim.response as unknown as SerializedWorld
       const state = await this.authority.owned(tx, principal.playerId, true)
@@ -780,6 +789,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const now = this.clock()
     try {
       return await this.persistence.transaction(async tx => {
+        await assertGameplayMutationAllowed(tx)
         const claim = await this.claimRequest(tx, principal, 'resources.apply', id, now)
         if (claim.replayed) return claim.response
         const state = await this.authority.owned(tx, principal.playerId, true)
@@ -858,6 +868,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const claim = await this.claimRequest(tx, principal, 'army.train', id, now)
       if (claim.replayed) return claim.response
       const state = await this.authority.owned(tx, principal.playerId, true)
@@ -917,6 +928,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const claim = await this.claimRequest(tx, principal, 'army.untrain', id, now)
       if (claim.replayed) return claim.response
       const state = await this.authority.owned(tx, principal.playerId, true)
@@ -969,6 +981,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     try {
       return await this.persistence.transaction(async tx => {
+        await assertGameplayMutationAllowed(tx)
         const claim = await this.claimRequest(tx, principal, 'merchant.trade', id, now)
         if (claim.replayed) return claim.response
         const state = await this.authority.owned(tx, principal.playerId, true)
@@ -1033,6 +1046,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const targetId = sanitizeId(rawTargetId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const viewer = await this.authority.owned(tx, principal.playerId)
       const target = await this.authority.owned(tx, targetId, true)
       const sight = watchtowerSightOf(villageBuildings(viewer.village))
@@ -1059,6 +1073,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
   ) {
     const now = this.clock()
     const viewer = await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, principal.playerId, true)
       await this.authority.materializeOwned(
         tx,
@@ -1088,6 +1103,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const known = knownRevisions(rawKnown)
 
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       // Unclaimed spiral plots inside the settled frontier present as bot
       // camps until a real account claims them; the radius follows the
       // world's admission cursor so the neighbourhood always looks alive.
@@ -1159,6 +1175,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           const bot = await ensurePersistedBotVillage(tx, {
             worldId: viewer.plot.worldId,
             worldGenerationVersion: CURRENT_WORLD_GENERATION_VERSION,
+            revisionEpoch: allocation?.botRevisionEpoch ?? 1,
             x,
             y,
             seed,
@@ -1278,6 +1295,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
   async relocate(principal: RuntimePrincipal, rawX: unknown, rawY: unknown) {
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, principal.playerId, true)
       if (await this.authority.hasActiveOutgoing(tx, principal.playerId)) throw new ApiError(409, 'Cannot relocate during an active attack')
       if (await this.authority.hasActiveIncoming(tx, principal.playerId)) throw new ApiError(409, 'Cannot relocate while your village is under attack')
@@ -1340,6 +1358,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
   async markNotificationsRead(principal: RuntimePrincipal): Promise<void> {
     const now = this.clock()
     await this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       await tx.notifications.markAllRead(principal.playerId, now)
     })
   }
@@ -1808,6 +1827,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       let changed = false
       let affected = 0
       let details: JsonObject = { reason }
+      let resetSummary: AdminBaseResetSummary | undefined
       if (type === 'clear_shields') {
         affected = await tx.accounts.clearShields(now, 1_000)
         changed = affected > 0
@@ -1837,11 +1857,64 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           after: input.enabled,
           message: input.enabled ? message : null
         }
+      } else if (type === 'reset_all_bases') {
+        const input = rawAction as Extract<AdminOperationRequest, { type: 'reset_all_bases' }>
+        if (reason.length < 12) {
+          throw new ApiError(400, 'Base reset reason must contain at least 12 characters', 'ADMIN_INVALID_INPUT')
+        }
+        if (input.confirmation !== ADMIN_RESET_CONFIRMATION) {
+          throw new ApiError(
+            400,
+            `Type ${ADMIN_RESET_CONFIRMATION} to confirm the full base reset`,
+            'ADMIN_RESET_CONFIRMATION_REQUIRED'
+          )
+        }
+        const config = await tx.admin.getConfig({ forUpdate: true })
+        if (!config.maintenanceEnabled) {
+          throw new ApiError(
+            409,
+            'Enable maintenance mode before resetting all bases',
+            'ADMIN_MAINTENANCE_REQUIRED'
+          )
+        }
+        const starter = createStarterVillageRecord(auditId, now)
+        try {
+          resetSummary = await tx.admin.resetAllBases(
+            starter,
+            new Date(now.getTime() + this.starterShieldMs)
+          )
+        } catch (error) {
+          if (!(error instanceof AdminBaseResetPreconditionError)) throw error
+          throw new ApiError(
+            409,
+            'Cannot reset while base authority or bot revision epochs are incomplete',
+            'ADMIN_RESET_INTEGRITY_FAILED',
+            {
+              incompleteAccounts: error.incompleteAccounts,
+              orphanBotWorlds: error.orphanBotWorlds
+            }
+          )
+        }
+        affected = resetSummary.playerVillagesReset + resetSummary.botVillagesPurged
+        changed = affected > 0
+          || resetSummary.combatRecordsPurged > 0
+          || resetSummary.notificationsPurged > 0
+          || resetSummary.economyRecordsPurged > 0
+          || resetSummary.auxiliaryRecordsPurged > 0
+        details = { reason, confirmation: 'verified', ...resetSummary }
       } else {
         throw new ApiError(400, 'Unknown admin operation', 'ADMIN_INVALID_INPUT')
       }
       await this.appendAdminAudit(tx, { id: auditId, action: type, targetId: null, details, now })
-      return { ok: true, action: type, targetId: null, changed, affected, auditId }
+      return {
+        ok: true,
+        action: type,
+        targetId: null,
+        changed,
+        affected,
+        auditId,
+        ...(resetSummary ? { resetSummary } : {})
+      }
     }, { isolation: 'serializable', maxRetries: 3 })
   }
 
@@ -1849,6 +1922,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     if (!this.allowDebugGrants) throw new ApiError(403, 'Debug tools are disabled')
     const now = this.clock()
     return this.persistence.transaction(async tx => {
+      await assertGameplayMutationAllowed(tx)
       const cleared = await tx.accounts.clearShields(now, 1_000)
       return { cleared, truncated: cleared === 1_000 }
     })

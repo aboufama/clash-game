@@ -360,8 +360,10 @@ function assertWorld(world: SerializedWorld, difficulty: ProceduralVillageDiffic
     assert.ok(breachable, `enclosed region ${region} has no clear breach lane`)
   }
 
-  assert.ok(new Set(walls.map(wall => wall.level)).size >= 2, 'wall works should have heterogeneous levels')
-  assert.equal(Math.max(...walls.map(wall => wall.level)), world.wallLevel)
+  // Wall-level enforcer: walls upgrade as a cohort in this game, so every
+  // wall segment of a bot base must share one level, matching world.wallLevel.
+  assert.equal(new Set(walls.map(wall => wall.level)).size, 1, 'bot walls must share one cohort level')
+  assert.ok(walls.every(wall => wall.level === world.wallLevel), 'wall cohort level must match world.wallLevel')
 
   const defenses = world.buildings.filter(building => building.type !== 'wall'
     && BUILDING_DEFINITIONS[building.type].category === 'defense')
@@ -375,7 +377,7 @@ function assertWorld(world: SerializedWorld, difficulty: ProceduralVillageDiffic
   assert.equal(JSON.stringify(roundTrip), JSON.stringify(world))
 }
 
-assert.equal(PROCEDURAL_VILLAGE_GENERATOR_VERSION, 2)
+assert.equal(PROCEDURAL_VILLAGE_GENERATOR_VERSION, 3)
 assert.throws(() => generateProceduralVillage(Number.NaN), /32-bit integer/)
 assert.throws(() => generateProceduralVillage(0x1_0000_0000), /32-bit integer/)
 assert.deepEqual(generateProceduralVillage(-1), generateProceduralVillage(0xffff_ffff))
@@ -397,7 +399,7 @@ const custom = generateProceduralVillage(42, {
 assert.equal(custom.id, 'coordinate:7,-3')
 assert.equal(custom.ownerId, 'bot-owner:7,-3')
 assert.equal(custom.username, 'Test Castellan')
-assert.equal(custom.life?.identity, 'pv2:bot-owner:7,-3')
+assert.equal(custom.life?.identity, 'pv3:bot-owner:7,-3')
 
 const distribution: Record<ProceduralVillageDifficulty, number> = {
   established: 0,

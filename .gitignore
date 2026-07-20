@@ -31,3 +31,6 @@ dist-server/
 # graphify: commit the graph itself (graph.json/report/manifest) so every
 # agent/session can query it without rebuilding; the AST cache stays local
 graphify-out/cache/
+
+# Local trailer capture identity; never publish device credentials.
+tools/trailer/.trailer-device-token.json

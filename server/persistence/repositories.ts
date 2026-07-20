@@ -1,6 +1,7 @@
 import type {
   AccountRecord,
   AccountModerationRecord,
+  AdminBaseResetRecord,
   AdminAttackQuery,
   AdminAuditRecord,
   AdminOverviewRecord,
@@ -45,6 +46,20 @@ import type {
 export class PersistenceConflictError extends Error {
   constructor(message: string) {
     super(message)
+  }
+}
+
+export class AdminBaseResetPreconditionError extends Error {
+  readonly incompleteAccounts: number
+  readonly orphanBotWorlds: number
+
+  constructor(incompleteAccounts: number, orphanBotWorlds = 0) {
+    super(
+      `${incompleteAccounts} account(s) lack complete profile/village/plot authority; `
+      + `${orphanBotWorlds} bot world(s) lack a durable allocation epoch`
+    )
+    this.incompleteAccounts = incompleteAccounts
+    this.orphanBotWorlds = orphanBotWorlds
   }
 }
 
@@ -242,10 +257,16 @@ export interface AdminRepository {
   listAttacks(query: AdminAttackQuery): Promise<AttackRecord[]>
   getModeration(playerId: string, options?: { forUpdate?: boolean }): Promise<AccountModerationRecord | null>
   upsertModeration(record: AccountModerationRecord, expectedRevision: number | null): Promise<boolean>
-  getConfig(options?: { forUpdate?: boolean }): Promise<AdminRuntimeConfigRecord>
+  getConfig(options?: { forUpdate?: boolean; forShare?: boolean }): Promise<AdminRuntimeConfigRecord>
   updateConfig(record: AdminRuntimeConfigRecord, expectedRevision: number): Promise<boolean>
   listAudit(limit: number): Promise<AdminAuditRecord[]>
   appendAudit(record: AdminAuditRecord): Promise<void>
+  /**
+   * Replaces every player village with one current starter template while
+   * preserving account/session/plot/admin authority, then purges all
+   * base-coupled combat, bot, economy and request state.
+   */
+  resetAllBases(starter: VillageRecord, starterShieldUntil: Date): Promise<AdminBaseResetRecord>
 }
 
 export interface UnitOfWork {

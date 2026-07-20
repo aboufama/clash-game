@@ -2,6 +2,7 @@ import type { QueryResultRow } from 'pg'
 import type {
   AccountRecord,
   AccountModerationRecord,
+  AdminBaseResetRecord,
   AdminAttackQuery,
   AdminAuditRecord,
   AdminOverviewRecord,
@@ -57,7 +58,7 @@ import type {
   VillageRepository,
   WorldRepository
 } from '../repositories'
-import { PersistenceConflictError } from '../repositories'
+import { AdminBaseResetPreconditionError, PersistenceConflictError } from '../repositories'
 import {
   boundAttackCandidateQuery,
   boundAdminAttackQuery,
@@ -531,6 +532,7 @@ interface AllocationRow extends QueryResultRow {
   current_generation_version: number
   next_ordinal: string | number
   allocation_model: number
+  bot_revision_epoch: string | number
   revision: string | number
   updated_at: Date | string
 }
@@ -543,6 +545,7 @@ function allocationFromRow(row: AllocationRow): WorldAllocationRecord {
     currentGenerationVersion: row.current_generation_version,
     nextOrdinal: Number(row.next_ordinal),
     allocationModel: row.allocation_model,
+    botRevisionEpoch: Number(row.bot_revision_epoch ?? 1),
     revision: Number(row.revision),
     updatedAt: date(row.updated_at)
   }
@@ -550,7 +553,7 @@ function allocationFromRow(row: AllocationRow): WorldAllocationRecord {
 
 const ALLOCATION_SELECT = String.raw`
   SELECT world_id, schema_version, region_size, current_generation_version,
-    next_ordinal, allocation_model, revision, updated_at
+    next_ordinal, allocation_model, bot_revision_epoch, revision, updated_at
   FROM world_allocation_state
 `
 
@@ -790,8 +793,8 @@ class PgWorld implements WorldRepository {
     await this.sql.query(String.raw`
       INSERT INTO world_allocation_state(
         world_id, schema_version, region_size, current_generation_version,
-        next_ordinal, allocation_model, revision, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        next_ordinal, allocation_model, bot_revision_epoch, revision, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [
       record.worldId,
       record.schemaVersion,
@@ -799,6 +802,7 @@ class PgWorld implements WorldRepository {
       record.currentGenerationVersion,
       record.nextOrdinal,
       record.allocationModel ?? 1,
+      record.botRevisionEpoch ?? 1,
       record.revision,
       record.updatedAt
     ])
@@ -811,10 +815,11 @@ class PgWorld implements WorldRepository {
     const result = await this.sql.query(String.raw`
       UPDATE world_allocation_state SET
         schema_version = $3, region_size = $4, current_generation_version = $5,
-        next_ordinal = $6, allocation_model = $7, revision = $8, updated_at = $9
+        next_ordinal = $6, allocation_model = $7, bot_revision_epoch = $8,
+        revision = $9, updated_at = $10
       WHERE world_id = $1 AND revision = $2
         AND schema_version = $3 AND region_size = $4 AND next_ordinal <= $6
-        AND allocation_model <= $7
+        AND allocation_model <= $7 AND bot_revision_epoch <= $8
     `, [
       record.worldId,
       expectedRevision,
@@ -823,6 +828,7 @@ class PgWorld implements WorldRepository {
       record.currentGenerationVersion,
       record.nextOrdinal,
       record.allocationModel ?? 1,
+      record.botRevisionEpoch ?? 1,
       record.revision,
       record.updatedAt
     ])
@@ -2624,7 +2630,11 @@ class PgAdmin implements AdminRepository {
     ])).rowCount === 1
   }
 
-  async getConfig(options: { forUpdate?: boolean } = {}): Promise<AdminRuntimeConfigRecord> {
+  async getConfig(
+    options: { forUpdate?: boolean; forShare?: boolean } = {}
+  ): Promise<AdminRuntimeConfigRecord> {
+    if (options.forUpdate && options.forShare) throw new Error('Admin config lock mode is ambiguous')
+    const lock = options.forUpdate ? ' FOR UPDATE' : options.forShare ? ' FOR SHARE' : ''
     const result = await this.sql.query<{
       maintenance_enabled: boolean
       maintenance_message: string | null
@@ -2632,7 +2642,7 @@ class PgAdmin implements AdminRepository {
       revision: string | number
     }>(String.raw`
       SELECT maintenance_enabled, maintenance_message, updated_at, revision
-      FROM admin_runtime_config WHERE singleton = true${options.forUpdate ? ' FOR UPDATE' : ''}
+      FROM admin_runtime_config WHERE singleton = true${lock}
     `)
     const row = result.rows[0]
     if (!row) throw new Error('Admin runtime config is missing')
@@ -2697,6 +2707,216 @@ class PgAdmin implements AdminRepository {
       record.details,
       record.occurredAt
     ])
+  }
+
+  async resetAllBases(starter: VillageRecord, starterShieldUntil: Date): Promise<AdminBaseResetRecord> {
+    // Maintenance mode prevents new HTTP gameplay work. These table locks also
+    // drain any in-flight transaction and serialize concurrent admin actions,
+    // so no old village/attack write can commit after the reset fence.
+    await this.sql.query(String.raw`
+      LOCK TABLE
+        accounts, player_profiles, sessions, villages, world_plots,
+        world_allocation_state,
+        bot_villages, attacks, attack_commands, attack_settlements,
+        replay_chunks, replay_presentation_usage, notifications,
+        balance_ledger, economy_ledger_days, idempotency_keys,
+        operation_markers, outbox_events, legacy_import_manifest
+      IN ACCESS EXCLUSIVE MODE
+    `)
+
+    const integrity = await this.sql.query<{ incomplete: string | number }>(String.raw`
+      SELECT COUNT(*) AS incomplete
+      FROM accounts account
+      LEFT JOIN player_profiles profile ON profile.player_id = account.id
+      LEFT JOIN villages village ON village.player_id = account.id
+      LEFT JOIN world_plots plot ON plot.player_id = account.id
+      WHERE profile.player_id IS NULL
+        OR village.player_id IS NULL
+        OR plot.player_id IS NULL
+    `)
+    const incompleteAccounts = Number(integrity.rows[0]?.incomplete ?? 0)
+    const botIntegrity = await this.sql.query<{ incomplete: string | number }>(String.raw`
+      SELECT COUNT(DISTINCT bot.world_id) AS incomplete
+      FROM bot_villages bot
+      LEFT JOIN world_allocation_state allocation
+        ON allocation.world_id = bot.world_id
+      WHERE allocation.world_id IS NULL
+    `)
+    const orphanBotWorlds = Number(botIntegrity.rows[0]?.incomplete ?? 0)
+    if (incompleteAccounts > 0 || orphanBotWorlds > 0) {
+      throw new AdminBaseResetPreconditionError(incompleteAccounts, orphanBotWorlds)
+    }
+
+    const snapshot = await this.sql.query<{
+      accounts_preserved: string | number
+      sessions_preserved: string | number
+      player_plots_preserved: string | number
+      bot_villages_purged: string | number
+      attacks_purged: string | number
+      combat_records_purged: string | number
+      notifications_purged: string | number
+      economy_records_purged: string | number
+      auxiliary_records_purged: string | number
+    }>(String.raw`
+      SELECT
+        (SELECT COUNT(*) FROM accounts) AS accounts_preserved,
+        (SELECT COUNT(*) FROM sessions) AS sessions_preserved,
+        (SELECT COUNT(*) FROM world_plots) AS player_plots_preserved,
+        (SELECT COUNT(*) FROM bot_villages) AS bot_villages_purged,
+        (SELECT COUNT(*) FROM attacks) AS attacks_purged,
+        (
+          (SELECT COUNT(*) FROM attacks)
+          + (SELECT COUNT(*) FROM attack_commands)
+          + (SELECT COUNT(*) FROM attack_settlements)
+          + (SELECT COUNT(*) FROM replay_chunks)
+          + (SELECT COUNT(*) FROM replay_presentation_usage)
+        ) AS combat_records_purged,
+        (SELECT COUNT(*) FROM notifications) AS notifications_purged,
+        (
+          (SELECT COUNT(*) FROM balance_ledger)
+          + (SELECT COUNT(*) FROM economy_ledger_days)
+        ) AS economy_records_purged,
+        (
+          (SELECT COUNT(*) FROM idempotency_keys)
+          + (SELECT COUNT(*) FROM operation_markers)
+          + (SELECT COUNT(*) FROM outbox_events)
+          + (SELECT COUNT(*) FROM legacy_import_manifest)
+        ) AS auxiliary_records_purged
+    `)
+    const row = snapshot.rows[0]
+    if (!row) throw new Error('Admin base reset count query returned no row')
+
+    // Bot ids are coordinate-stable, so their first replacement revision must
+    // cross a durable world-level fence before the old rows disappear. A
+    // client advertising the retired (ownerId, revision) pair will therefore
+    // receive the complete replacement world instead of a false cache hit.
+    await this.sql.query(String.raw`
+      UPDATE world_allocation_state allocation SET
+        bot_revision_epoch = GREATEST(
+          allocation.bot_revision_epoch,
+          COALESCE((
+            SELECT MAX(bot.revision)
+            FROM bot_villages bot
+            WHERE bot.world_id = allocation.world_id
+          ), 0)
+        ) + 1,
+        revision = allocation.revision + 1,
+        updated_at = $1
+    `, [starter.lastMutationAt])
+
+    // Child settlements intentionally do not cascade; the remaining combat
+    // presentation/command rows do cascade from attacks.
+    await this.sql.query('DELETE FROM attack_settlements')
+    await this.sql.query('DELETE FROM attacks')
+    await this.sql.query('DELETE FROM bot_villages')
+    await this.sql.query('DELETE FROM notifications')
+    await this.sql.query('DELETE FROM balance_ledger')
+    await this.sql.query('DELETE FROM economy_ledger_days')
+    await this.sql.query('DELETE FROM idempotency_keys')
+    await this.sql.query('DELETE FROM operation_markers')
+    await this.sql.query('DELETE FROM outbox_events')
+    await this.sql.query('DELETE FROM legacy_import_manifest')
+
+    // Fold every former village revision into the profile fence before
+    // replacing the village. A stale client can therefore never replay an old
+    // layout after maintenance ends, even when its original revision was 1.
+    await this.sql.query(String.raw`
+      UPDATE player_profiles profile SET
+        trophies = 0,
+        shield_until = $1,
+        revenge_rights = '{}'::jsonb,
+        bot_raid_cooldowns = '{}'::jsonb,
+        revision = GREATEST(
+          profile.revision,
+          COALESCE((
+            SELECT GREATEST(
+              village.layout_revision,
+              village.appearance_revision,
+              village.economy_revision
+            )
+            FROM villages village
+            WHERE village.player_id = profile.player_id
+          ), 0)
+        ) + 1
+    `, [starterShieldUntil])
+
+    await this.sql.query(String.raw`
+      INSERT INTO villages(
+        player_id, buildings, obstacles, army, wall_level, gold, ore, food,
+        production_remainders, population, banner, simulated_through,
+        last_mutation_at, layout_revision, appearance_revision,
+        economy_revision, simulation_version, next_event_at
+      )
+      SELECT
+        profile.player_id,
+        (
+          SELECT COALESCE(
+            jsonb_agg(
+              jsonb_set(
+                item,
+                '{id}',
+                to_jsonb('b_' || substring(md5(
+                  profile.player_id || ':' || $13::text || ':'
+                  || COALESCE(item ->> 'id', '') || ':' || ordinality::text
+                ), 1, 24)),
+                true
+              )
+              ORDER BY ordinality
+            ),
+            '[]'::jsonb
+          )
+          FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS starter_building(item, ordinality)
+        ),
+        $2::jsonb, $3::jsonb, $4, $5, $6, $7,
+        $8::jsonb, $9::jsonb, NULL, $10, $11,
+        profile.revision, profile.revision, profile.revision, $12, NULL
+      FROM player_profiles profile
+      ON CONFLICT (player_id) DO UPDATE SET
+        buildings = EXCLUDED.buildings,
+        obstacles = EXCLUDED.obstacles,
+        army = EXCLUDED.army,
+        wall_level = EXCLUDED.wall_level,
+        gold = EXCLUDED.gold,
+        ore = EXCLUDED.ore,
+        food = EXCLUDED.food,
+        production_remainders = EXCLUDED.production_remainders,
+        population = EXCLUDED.population,
+        banner = NULL,
+        simulated_through = EXCLUDED.simulated_through,
+        last_mutation_at = EXCLUDED.last_mutation_at,
+        layout_revision = EXCLUDED.layout_revision,
+        appearance_revision = EXCLUDED.appearance_revision,
+        economy_revision = EXCLUDED.economy_revision,
+        simulation_version = EXCLUDED.simulation_version,
+        next_event_at = NULL
+    `, [
+      JSON.stringify(starter.buildings),
+      JSON.stringify(starter.obstacles),
+      starter.army,
+      starter.wallLevel,
+      starter.gold,
+      starter.ore,
+      starter.food,
+      starter.productionRemainders,
+      starter.population,
+      starter.simulatedThrough,
+      starter.lastMutationAt,
+      starter.simulationVersion,
+      starter.playerId
+    ])
+
+    return {
+      accountsPreserved: Number(row.accounts_preserved),
+      sessionsPreserved: Number(row.sessions_preserved),
+      playerPlotsPreserved: Number(row.player_plots_preserved),
+      playerVillagesReset: Number(row.accounts_preserved),
+      botVillagesPurged: Number(row.bot_villages_purged),
+      attacksPurged: Number(row.attacks_purged),
+      combatRecordsPurged: Number(row.combat_records_purged),
+      notificationsPurged: Number(row.notifications_purged),
+      economyRecordsPurged: Number(row.economy_records_purged),
+      auxiliaryRecordsPurged: Number(row.auxiliary_records_purged)
+    }
   }
 }
 

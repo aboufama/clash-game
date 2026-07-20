@@ -61,6 +61,17 @@ export class RequestReplayIndex {
     return deleted
   }
 
+  /** Drops every legacy retry marker after a system-wide authority reset. */
+  clear(): number {
+    const deleted = this.markers.size
+    this.markers.clear()
+    return deleted
+  }
+
+  get size(): number {
+    return this.markers.size
+  }
+
   prune(now = Date.now()): void {
     for (const [key, marker] of this.markers) {
       if (now - marker.createdAt >= this.ttlMs) this.markers.delete(key)

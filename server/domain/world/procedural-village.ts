@@ -13,7 +13,7 @@ import type {
 } from '../../../src/game/data/Models'
 import { populationCapacity, staffingFactor, workersNeeded } from '../village/simulation'
 
-export const PROCEDURAL_VILLAGE_GENERATOR_VERSION = 2
+export const PROCEDURAL_VILLAGE_GENERATOR_VERSION = 3
 
 export type ProceduralVillageDifficulty =
   | 'established'
@@ -628,17 +628,8 @@ function planLoops(seed: number, profile: DifficultyProfile, extraReserve = 0): 
     else shrinkable.height -= 1
   }
 
-  // Heterogeneous wall levels: outer/smaller works lag the main enceinte.
-  if (loops.length > 1 && profile.wallLevel > 1) {
-    let smallest = loops[1]
-    for (const loop of loops.slice(1)) {
-      if (loop.width * loop.height < smallest.width * smallest.height) smallest = loop
-    }
-    smallest.level = profile.wallLevel - 1
-    for (const loop of loops.slice(1)) {
-      if (loop !== smallest && random.int(1_000) < 400) loop.level = profile.wallLevel - 1
-    }
-  }
+  // Wall-level enforcer: walls upgrade as a cohort in this game, so every
+  // segment of a bot base shares one level — no lagging outer works.
   return loops
 }
 
@@ -684,16 +675,10 @@ function planConcentric(seed: number, profile: DifficultyProfile): LoopRect[] | 
         outerY + 1 + clearance,
         outerY + outerHeight - 1 - clearance - innerHeight
       )
-      // The keep holds the strongest walls; the enceinte lags a level.
+      // Cohort rule: keep and enceinte share the band's wall level.
       return [
         { x: innerX, y: innerY, width: innerWidth, height: innerHeight, level: profile.wallLevel },
-        {
-          x: outerX,
-          y: outerY,
-          width: outerWidth,
-          height: outerHeight,
-          level: Math.max(1, profile.wallLevel - 1)
-        }
+        { x: outerX, y: outerY, width: outerWidth, height: outerHeight, level: profile.wallLevel }
       ]
     }
     if (clearance > 2) clearance -= 1
@@ -1202,25 +1187,6 @@ function planWalls(seed: number, profile: DifficultyProfile): WallPlan {
   for (const loop of loops) {
     for (const cell of perimeterOf(loop)) {
       cells.set(key(cell.x, cell.y), { ...cell, level: loop.level })
-    }
-  }
-  // Single-enceinte works still read as lived-in: one stretch of the wall
-  // lags a level behind, like a repaired breach.
-  if (loops.length === 1 && profile.wallLevel > 1) {
-    const random = streamFor(seed, TOPOLOGY_SALT ^ 0x0f0f_0f0f)
-    const loop = loops[0]
-    const side = random.int(4)
-    for (const cell of perimeterOf(loop)) {
-      const onSide = side === 0
-        ? cell.y === loop.y
-        : side === 1
-          ? cell.y === loop.y + loop.height - 1
-          : side === 2
-            ? cell.x === loop.x
-            : cell.x === loop.x + loop.width - 1
-      if (onSide) {
-        cells.set(key(cell.x, cell.y), { x: cell.x, y: cell.y, level: profile.wallLevel - 1 })
-      }
     }
   }
   if (!concentric) {

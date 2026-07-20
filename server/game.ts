@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { BUILDING_DEFINITIONS, GENERATED_ONLY, STARTER_VILLAGE, TROOP_DEFINITIONS, createStarterVillage, getTroopStats, isTrainableTroopType, normalizeTroopLevel, troopFoodCostOf, troopTrainingRequirement, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
 import {
   BOT_RAID_COOLDOWN_MS,
@@ -54,6 +54,7 @@ import type {
   AdminApiService,
   AdminAttackSummary,
   AdminAuditEntry,
+  AdminBaseResetSummary,
   AdminBotSummary,
   AdminConfig,
   AdminEconomy,
@@ -66,6 +67,7 @@ import type {
 } from './admin-contract'
 import {
   STARTING_POPULATION,
+  VILLAGE_SIMULATION_VERSION,
   VillageRuleError,
   advanceVillage,
   appearanceRevisionDelta,
@@ -341,11 +343,26 @@ interface AdminRuntimeConfigRecord {
 
 interface LegacyAdminAuditRecord extends AdminAuditEntry {}
 
+interface LegacyBaseResetJournal {
+  resetId: string
+  auditId: string
+  reason: string
+  startedAt: number
+  starterShieldUntil: number
+  /** Deterministic stale-client fence reused verbatim during crash recovery. */
+  revisionEpoch: number
+  /** Bot cache fence pinned before any persisted bot row is deleted. */
+  botRevisionEpoch?: number
+  summary: AdminBaseResetSummary
+}
+
 interface WorldStateRecord {
   allocation: WorldAllocationIndex
   releasedSlots: ReleasedPlotSlot[]
   /** Mutable topology epoch for bots, preserves, hydrology and all generated nature. */
   presentationSeedVersion: number
+  /** Lower bound for newly provisioned bot revisions after destructive purges. */
+  botRevisionEpoch?: number
   /** Epoch for which allocation/released slots were rebuilt. Missing means legacy epoch zero. */
   allocationSeedVersion?: number
   /**
@@ -354,6 +371,8 @@ interface WorldStateRecord {
    * indexed as free slots once, so new accounts fill the world center first.
    */
   spiralModelVersion?: number
+  /** Crash-recovery fence for the destructive legacy JSON base reset. */
+  baseResetJournal?: LegacyBaseResetJournal
 }
 
 /** Durable JSON-authority counterpart of the PostgreSQL bot_villages row. */
@@ -479,6 +498,11 @@ function randomHex(bytes: number) {
 function toInt(value: unknown, fallback: number) {
   const n = Number(value)
   return Number.isFinite(n) ? Math.floor(n) : fallback
+}
+
+function normalizeBotRevisionEpoch(value: unknown): number {
+  const epoch = toInt(value, 1)
+  return Number.isSafeInteger(epoch) && epoch >= 1 ? epoch : 1
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -782,12 +806,14 @@ export class GameService implements AdminApiService {
       ? {
           ...storedWorldState,
           presentationSeedVersion: normalizeWorldPresentationSeedVersion(storedWorldState.presentationSeedVersion),
+          botRevisionEpoch: normalizeBotRevisionEpoch(storedWorldState.botRevisionEpoch),
           allocationSeedVersion: normalizeWorldPresentationSeedVersion(storedWorldState.allocationSeedVersion)
         }
       : {
           allocation: createAllocationIndex({ worldId: LEGACY_WORLD_ID }),
           releasedSlots: [],
           presentationSeedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION,
+          botRevisionEpoch: 1,
           allocationSeedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION
         }
     // Rebuild plot occupancy, then migrate the old origin scan to one durable
@@ -847,6 +873,7 @@ export class GameService implements AdminApiService {
         allocation: createAllocationIndex({ worldId: LEGACY_WORLD_ID, nextOrdinal }),
         releasedSlots,
         presentationSeedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION,
+        botRevisionEpoch: 1,
         allocationSeedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION,
         spiralModelVersion: 2
       }
@@ -856,10 +883,14 @@ export class GameService implements AdminApiService {
         allocation: normalizeAllocationIndex(storedWorldState.allocation),
         releasedSlots: Array.isArray(storedWorldState.releasedSlots) ? storedWorldState.releasedSlots : [],
         presentationSeedVersion: normalizeWorldPresentationSeedVersion(storedWorldState.presentationSeedVersion),
+        botRevisionEpoch: normalizeBotRevisionEpoch(storedWorldState.botRevisionEpoch),
         allocationSeedVersion: normalizeWorldPresentationSeedVersion(storedWorldState.allocationSeedVersion),
         spiralModelVersion: Number.isSafeInteger(storedWorldState.spiralModelVersion)
           ? storedWorldState.spiralModelVersion
-          : 1
+          : 1,
+        ...(this.allocationState.baseResetJournal
+          ? { baseResetJournal: this.allocationState.baseResetJournal }
+          : {})
       }
       if (this.allocationState.allocation.nextOrdinal <= greatestOccupiedOrdinal) {
         this.allocationState.allocation = {
@@ -872,6 +903,10 @@ export class GameService implements AdminApiService {
       // cursor repair was required; later in-place epoch bumps then persist.
       this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
     }
+    // Recover only after the stored world state has been fully normalized and
+    // installed. Reconstructing from the pre-recovery object afterwards would
+    // roll the journal's newly persisted bot revision epoch back.
+    if (this.allocationState.baseResetJournal) this.recoverPendingLegacyBaseReset()
     if (this.allocationState.allocationSeedVersion !== this.allocationState.presentationSeedVersion) {
       this.rebuildAllocationForGeneratedTopology()
     }
@@ -1193,6 +1228,15 @@ export class GameService implements AdminApiService {
     const nextSeedVersion = nextWorldPresentationSeedVersion(
       this.allocationState.presentationSeedVersion
     )
+    const nextBotRevisionEpoch = Math.max(
+      normalizeBotRevisionEpoch(this.allocationState.botRevisionEpoch),
+      ...[...this.botVillages.values()].map(bot => bot.revision)
+    ) + 1
+    this.allocationState.botRevisionEpoch = nextBotRevisionEpoch
+    this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+    if (!this.worldState.flushOne(LEGACY_WORLD_ID)) {
+      throw new ApiError(503, 'Could not persist the bot cache fence for reseed')
+    }
     caller.worldTopologyPinned = true
     this.players.markDirty(caller.id)
 
@@ -1427,8 +1471,12 @@ export class GameService implements AdminApiService {
       allocation: previous,
       releasedSlots: [],
       presentationSeedVersion: this.allocationState.presentationSeedVersion,
+      botRevisionEpoch: normalizeBotRevisionEpoch(this.allocationState.botRevisionEpoch),
       allocationSeedVersion: this.allocationState.presentationSeedVersion,
-      spiralModelVersion: 1
+      spiralModelVersion: 1,
+      ...(this.allocationState.baseResetJournal
+        ? { baseResetJournal: this.allocationState.baseResetJournal }
+        : {})
     }
     this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
     this.upgradeAllocationToSpiralModel()
@@ -1515,9 +1563,10 @@ export class GameService implements AdminApiService {
     }
 
     const now = Date.now()
+    const revisionEpoch = normalizeBotRevisionEpoch(this.allocationState.botRevisionEpoch)
     const difficulty = proceduralVillageDifficulty(seed)
     const world = generateProceduralVillage(seed, { id, ownerId: id, difficulty })
-    world.revision = 1
+    world.revision = revisionEpoch
     world.lastSaveTime = 0
     const record: LegacyBotVillageRecord = {
       id,
@@ -1537,7 +1586,7 @@ export class GameService implements AdminApiService {
         generatorVersion: PROCEDURAL_VILLAGE_GENERATOR_VERSION
       },
       world,
-      revision: 1,
+      revision: revisionEpoch,
       createdAt: now,
       updatedAt: now
     }
@@ -4890,6 +4939,151 @@ export class GameService implements AdminApiService {
     return id
   }
 
+  private legacyBaseResetSummary(): AdminBaseResetSummary {
+    let sessionsPreserved = 0
+    let playerPlotsPreserved = 0
+    let auxiliaryRecordsPurged = this.startRequestIndex.size
+    for (const player of this.players.values()) {
+      sessionsPreserved += player.tokenHashes.length
+      if (Number.isInteger(player.plotX) && Number.isInteger(player.plotY)) {
+        playerPlotsPreserved += 1
+      }
+      auxiliaryRecordsPurged += player.requestKeys.length
+      for (const markers of [
+        player.merchantRedemptions,
+        player.botSettlements,
+        player.battleSettlements,
+        player.attackStarts
+      ]) auxiliaryRecordsPurged += Object.keys(markers ?? {}).length
+    }
+    const attacksPurged = this.replays.size + this.botRaidSessions.size
+    return {
+      accountsPreserved: this.players.size,
+      sessionsPreserved,
+      playerPlotsPreserved,
+      playerVillagesReset: this.players.size,
+      botVillagesPurged: this.botVillages.size,
+      attacksPurged,
+      combatRecordsPurged: attacksPurged + this.settlements.size,
+      notificationsPurged: this.notifications.size,
+      economyRecordsPurged: this.ledger.size,
+      auxiliaryRecordsPurged
+    }
+  }
+
+  private resetLegacyPlayerBase(player: PlayerRecord, journal: LegacyBaseResetJournal): void {
+    const resetRevision = journal.revisionEpoch
+    let buildingOrdinal = 0
+    const starter = createStarterVillage(() => {
+      const digest = createHash('sha256')
+        .update(`${journal.resetId}\u0000${player.id}\u0000${buildingOrdinal++}`)
+        .digest('hex')
+        .slice(0, 24)
+      return `b_${digest}`
+    })
+    player.trophies = 0
+    player.shieldUntil = journal.starterShieldUntil
+    player.revengeRights = {}
+    player.botRaids = {}
+    player.merchantRedemptions = {}
+    player.botSettlements = {}
+    player.battleSettlements = {}
+    player.attackStarts = {}
+    player.balance = starter.resources.gold
+    player.ore = starter.resources.ore
+    player.food = starter.resources.food
+    player.lastAccrualAt = journal.startedAt
+    player.lastMutationAt = journal.startedAt
+    player.simulatedThrough = journal.startedAt
+    player.simulationVersion = VILLAGE_SIMULATION_VERSION
+    player.revision = resetRevision
+    player.layoutRevision = resetRevision
+    player.appearanceRevision = resetRevision
+    player.buildings = starter.buildings
+    player.obstacles = starter.obstacles
+    player.army = starter.army
+    player.wallLevel = starter.wallLevel
+    player.requestKeys = []
+    player.population = {
+      count: STARTING_POPULATION,
+      lastGrowthAt: journal.startedAt,
+      bornAt: []
+    }
+    player.productionRemainders = { ore: 0, food: 0 }
+    delete player.banner
+    this.players.markDirty(player.id)
+  }
+
+  private ensureLegacyBaseResetAudit(journal: LegacyBaseResetJournal): void {
+    if (this.adminAuditLog.get(journal.auditId)) return
+    const details = {
+      reason: journal.reason,
+      confirmation: 'verified',
+      ...journal.summary
+    }
+    this.adminAuditLog.set(journal.auditId, {
+      id: journal.auditId,
+      actor: 'admin',
+      action: 'reset_all_bases',
+      targetType: 'system',
+      targetId: null,
+      reason: journal.reason,
+      outcome: 'success',
+      requestId: journal.auditId,
+      details,
+      createdAt: journal.startedAt,
+      occurredAt: journal.startedAt
+    })
+  }
+
+  /**
+   * Deterministic second phase of the legacy JSON reset journal. Deletions may
+   * span files, so a crash leaves the journal durable and startup repeats this
+   * exact rewrite before any indexes or API surface become available.
+   */
+  private applyLegacyBaseReset(journal: LegacyBaseResetJournal): void {
+    this.allocationState.botRevisionEpoch = Math.max(
+      normalizeBotRevisionEpoch(this.allocationState.botRevisionEpoch),
+      normalizeBotRevisionEpoch(journal.botRevisionEpoch ?? journal.revisionEpoch)
+    )
+    this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+    for (const player of this.players.values()) this.resetLegacyPlayerBase(player, journal)
+    for (const [id] of [...this.replays.entries()]) this.replays.delete(id)
+    for (const [id] of [...this.settlements.entries()]) this.settlements.delete(id)
+    for (const [id] of [...this.botRaidSessions.entries()]) this.botRaidSessions.delete(id)
+    for (const [id] of [...this.botVillages.entries()]) this.botVillages.delete(id)
+    for (const [id] of [...this.notifications.entries()]) this.notifications.delete(id)
+    for (const [id] of [...this.ledger.entries()]) this.ledger.delete(id)
+
+    this.liveByVictim.clear()
+    this.liveByAttacker.clear()
+    this.liveBotByAttacker.clear()
+    this.finishedBotRaids.length = 0
+    this.finishedBotRaidIds.clear()
+    this.startRequestIndex.clear()
+    this.grantWindows.clear()
+    this.replayBytesTotal = 0
+    this.leaderboardCache = null
+    this.ensureLegacyBaseResetAudit(journal)
+
+    if (!this.flush()) {
+      throw new Error('Could not durably apply the legacy base reset')
+    }
+    delete this.allocationState.baseResetJournal
+    this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+    if (!this.worldState.flushOne(LEGACY_WORLD_ID)) {
+      this.allocationState.baseResetJournal = journal
+      this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+      throw new Error('Could not durably complete the legacy base reset journal')
+    }
+  }
+
+  private recoverPendingLegacyBaseReset(): void {
+    const journal = this.allocationState.baseResetJournal
+    if (!journal) return
+    this.applyLegacyBaseReset(journal)
+  }
+
   adminOverview(): AdminOverview {
     const now = Date.now()
     let registered = 0
@@ -5430,6 +5624,106 @@ export class GameService implements AdminApiService {
         beforeMessage: before.message,
         after: input.enabled,
         message: nextMessage
+      }
+    } else if (type === 'reset_all_bases') {
+      const input = rawAction as Extract<AdminOperationRequest, { type: 'reset_all_bases' }>
+      if (reason.length < 12) {
+        throw new ApiError(400, 'Base reset reason must contain at least 12 characters', 'ADMIN_INVALID_INPUT')
+      }
+      if (input.confirmation !== 'RESET ALL BASES') {
+        throw new ApiError(
+          400,
+          'Type RESET ALL BASES to confirm the full base reset',
+          'ADMIN_RESET_CONFIRMATION_REQUIRED'
+        )
+      }
+      if (!this.currentAdminConfig().maintenanceEnabled) {
+        throw new ApiError(
+          409,
+          'Enable maintenance mode before resetting all bases',
+          'ADMIN_MAINTENANCE_REQUIRED'
+        )
+      }
+      const incompleteAccounts = [...this.players.values()].filter(player => (
+        !Array.isArray(player.buildings)
+          || !Number.isInteger(player.plotX)
+          || !Number.isInteger(player.plotY)
+      )).length
+      if (incompleteAccounts > 0) {
+        throw new ApiError(
+          409,
+          'Cannot reset while accounts have incomplete village or plot authority',
+          'ADMIN_RESET_INTEGRITY_FAILED',
+          { incompleteAccounts }
+        )
+      }
+
+      const pending = this.allocationState.baseResetJournal
+      if (pending) {
+        try {
+          this.applyLegacyBaseReset(pending)
+        } catch {
+          throw new ApiError(503, 'The previous base reset is still being recovered', 'ADMIN_RESET_RECOVERY_PENDING')
+        }
+        return {
+          ok: true,
+          action: type,
+          targetId: null,
+          changed: true,
+          affected: pending.summary.playerVillagesReset + pending.summary.botVillagesPurged,
+          auditId: pending.auditId,
+          resetSummary: pending.summary
+        }
+      }
+
+      const resetSummary = this.legacyBaseResetSummary()
+      const auditId = `admin_audit_${randomHex(10)}`
+      const revisionEpoch = Math.max(
+        now,
+        normalizeBotRevisionEpoch(this.allocationState.botRevisionEpoch),
+        ...[...this.botVillages.values()].map(bot => bot.revision),
+        ...[...this.players.values()].flatMap(player => [
+          toInt(player.revision, 0),
+          toInt(player.layoutRevision, 0),
+          toInt(player.appearanceRevision, 0)
+        ])
+      ) + 1
+      const journal: LegacyBaseResetJournal = {
+        resetId: `base_reset_${randomHex(12)}`,
+        auditId,
+        reason,
+        startedAt: now,
+        starterShieldUntil: now + STARTER_SHIELD_MS,
+        revisionEpoch,
+        botRevisionEpoch: revisionEpoch,
+        summary: resetSummary
+      }
+      this.allocationState.baseResetJournal = journal
+      this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+      if (!this.worldState.flushOne(LEGACY_WORLD_ID)) {
+        delete this.allocationState.baseResetJournal
+        this.worldState.set(LEGACY_WORLD_ID, this.allocationState)
+        this.worldState.flushOne(LEGACY_WORLD_ID)
+        throw new ApiError(503, 'Could not prepare the durable base reset journal', 'ADMIN_RESET_JOURNAL_FAILED')
+      }
+      try {
+        this.applyLegacyBaseReset(journal)
+      } catch {
+        throw new ApiError(503, 'The base reset is pending durable recovery', 'ADMIN_RESET_RECOVERY_PENDING')
+      }
+      return {
+        ok: true,
+        action: type,
+        targetId: null,
+        changed: resetSummary.playerVillagesReset > 0
+          || resetSummary.botVillagesPurged > 0
+          || resetSummary.combatRecordsPurged > 0
+          || resetSummary.notificationsPurged > 0
+          || resetSummary.economyRecordsPurged > 0
+          || resetSummary.auxiliaryRecordsPurged > 0,
+        affected: resetSummary.playerVillagesReset + resetSummary.botVillagesPurged,
+        auditId,
+        resetSummary
       }
     } else {
       throw new ApiError(400, 'Unknown admin operation', 'ADMIN_INVALID_INPUT')

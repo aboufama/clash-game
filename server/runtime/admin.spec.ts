@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { MemoryPersistence, type AccountRecord, type VillageRecord } from '../persistence'
 import { VILLAGE_SIMULATION_VERSION } from '../domain/village'
+import { ensurePersistedBotVillage } from './bot-villages'
+import { assertGameplayMutationAllowed } from './maintenance-fence'
 import { PersistenceGameService } from './service'
 
 const NOW = new Date('2026-07-19T18:00:00.000Z')
@@ -158,6 +160,305 @@ test('normalized admin player detail reports a missing authoritative village as 
   assert.equal(detail.village, null)
   assert.equal(detail.buildingCount, 0)
   assert.equal(detail.obstacleCount, 0)
+
+  await service.adminOperation({
+    type: 'set_maintenance', enabled: true, reason: 'Prepare integrity preflight'
+  })
+  await assert.rejects(service.adminOperation({
+    type: 'reset_all_bases', confirmation: 'RESET ALL BASES', reason: 'Exercise integrity preflight'
+  }), (error: unknown) => error instanceof Error && 'code' in error
+    && error.code === 'ADMIN_RESET_INTEGRITY_FAILED')
+
+  await service.close()
+})
+
+test('normalized reset fails closed when a persisted bot world has no durable allocation epoch', async () => {
+  const persistence = new MemoryPersistence()
+  const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+  const session = await service.register(null, 'OrphanBotChief', 'strong-password-orphan', 'orphan-bot-admin')
+  assert.ok('token' in session)
+  if (!('token' in session)) return
+
+  const orphan = await persistence.transaction(tx => ensurePersistedBotVillage(tx, {
+    worldId: 'orphan-realm',
+    worldGenerationVersion: 1,
+    revisionEpoch: 1,
+    x: 4,
+    y: 4,
+    seed: 4_200_000_003,
+    now: NOW
+  }))
+  await service.adminOperation({
+    type: 'set_maintenance', enabled: true, reason: 'Prepare orphan bot integrity check'
+  })
+  await assert.rejects(service.adminOperation({
+    type: 'reset_all_bases',
+    confirmation: 'RESET ALL BASES',
+    reason: 'Reject missing bot revision authority'
+  }), (error: unknown) => error instanceof Error && 'code' in error
+    && error.code === 'ADMIN_RESET_INTEGRITY_FAILED')
+  assert.ok(await persistence.transaction(tx => tx.world.getBotVillage(orphan.id)),
+    'failed preflight leaves the bot authority intact')
+  await service.close()
+})
+
+test('normalized maintenance fence drains admitted writes before reset and rejects queued stale mutations', async () => {
+  const persistence = new MemoryPersistence()
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(NOW),
+    starterShieldMs: 7_200_000
+  })
+  const session = await service.register(null, 'BarrierChief', 'strong-password-barrier', 'reset-barrier')
+  assert.ok('token' in session)
+  if (!('token' in session)) return
+
+  let enteredResolve!: () => void
+  let releaseResolve!: () => void
+  const entered = new Promise<void>(resolve => { enteredResolve = resolve })
+  const release = new Promise<void>(resolve => { releaseResolve = resolve })
+  const admittedWrite = persistence.transaction(async tx => {
+    await assertGameplayMutationAllowed(tx)
+    enteredResolve()
+    await release
+    const current = await tx.villages.get(session.player.id)
+    assert.ok(current)
+    const updated = await tx.villages.update({
+      ...current,
+      gold: 987_654,
+      economyRevision: current.economyRevision + 1,
+      lastMutationAt: new Date(NOW)
+    }, current.economyRevision)
+    assert.equal(updated, true)
+  })
+  await entered
+
+  let maintenanceFinished = false
+  const maintenance = service.adminOperation({
+    type: 'set_maintenance',
+    enabled: true,
+    message: 'Reset barrier active',
+    reason: 'Exercise reset transaction barrier'
+  }).then(result => {
+    maintenanceFinished = true
+    return result
+  })
+  const reset = service.adminOperation({
+    type: 'reset_all_bases',
+    confirmation: 'RESET ALL BASES',
+    reason: 'Reset after admitted mutation drains'
+  })
+  const staleMutationRejected = assert.rejects(
+    service.setBanner({ playerId: session.player.id }, { palette: 1, emblem: 2, pattern: 3 }),
+    (error: unknown) => error instanceof Error && 'code' in error && error.code === 'MAINTENANCE'
+  )
+
+  await new Promise<void>(resolve => setImmediate(resolve))
+  assert.equal(maintenanceFinished, false, 'maintenance waits for mutations already admitted by the fence')
+  releaseResolve()
+
+  await admittedWrite
+  await maintenance
+  const resetResult = await reset
+  await staleMutationRejected
+  assert.equal(resetResult.resetSummary?.playerVillagesReset, 1)
+
+  const after = await persistence.transaction(tx => tx.villages.get(session.player.id))
+  assert.ok(after)
+  assert.notEqual(after.gold, 987_654, 'the drained pre-maintenance write is replaced by the reset')
+  assert.equal(after.banner, null, 'the queued stale mutation cannot write after reset')
+  await service.close()
+})
+
+test('normalized admin reset atomically restores unique starter villages while preserving identity, sessions, and plots', async () => {
+  const persistence = new MemoryPersistence()
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(NOW),
+    starterShieldMs: 7_200_000
+  })
+  const first = await service.register(null, 'ResetChiefOne', 'strong-password-one', 'reset-admin-one')
+  const second = await service.register(null, 'ResetChiefTwo', 'strong-password-two', 'reset-admin-two')
+  assert.ok('token' in first && 'token' in second)
+  if (!('token' in first) || !('token' in second)) return
+
+  await service.adminPlayerAction(first.player.id, {
+    type: 'adjust_resources', gold: 500, ore: 50, reason: 'Seed reset economy history'
+  })
+  await service.adminPlayerAction(first.player.id, {
+    type: 'set_trophies', trophies: 900, reason: 'Seed reset profile history'
+  })
+  await service.adminPlayerAction(first.player.id, {
+    type: 'send_notice', title: 'Old notice', message: 'Purge this notice', reason: 'Seed reset notices'
+  })
+
+  const before = await persistence.transaction(async tx => ({
+    firstAccount: await tx.accounts.getById(first.player.id),
+    firstVillage: await tx.villages.get(first.player.id),
+    secondVillage: await tx.villages.get(second.player.id),
+    firstPlot: await tx.world.getPlayerPlot(first.player.id),
+    secondPlot: await tx.world.getPlayerPlot(second.player.id)
+  }))
+
+  await assert.rejects(service.adminOperation({
+    type: 'reset_all_bases', confirmation: 'RESET ALL BASES', reason: 'Maintenance is not enabled'
+  }), (error: unknown) => error instanceof Error && 'code' in error
+    && error.code === 'ADMIN_MAINTENANCE_REQUIRED')
+  await service.adminOperation({
+    type: 'set_maintenance', enabled: true, message: 'Resetting every base', reason: 'Prepare guarded base reset'
+  })
+  await assert.rejects(service.adminOperation({
+    type: 'reset_all_bases', confirmation: 'reset all bases', reason: 'Wrong confirmation is rejected'
+  }), (error: unknown) => error instanceof Error && 'code' in error
+    && error.code === 'ADMIN_RESET_CONFIRMATION_REQUIRED')
+  await assert.rejects(service.adminOperation({
+    type: 'reset_all_bases', confirmation: 'RESET ALL BASES', reason: 'too short'
+  }), /at least 12 characters/i)
+
+  const reset = await service.adminOperation({
+    type: 'reset_all_bases',
+    confirmation: 'RESET ALL BASES',
+    reason: 'Scheduled full authority reset'
+  })
+  assert.equal(reset.changed, true)
+  assert.deepEqual(reset.resetSummary && {
+    accountsPreserved: reset.resetSummary.accountsPreserved,
+    sessionsPreserved: reset.resetSummary.sessionsPreserved,
+    playerPlotsPreserved: reset.resetSummary.playerPlotsPreserved,
+    playerVillagesReset: reset.resetSummary.playerVillagesReset
+  }, {
+    accountsPreserved: 2,
+    sessionsPreserved: 2,
+    playerPlotsPreserved: 2,
+    playerVillagesReset: 2
+  })
+  assert.ok((reset.resetSummary?.notificationsPurged ?? 0) >= 1)
+  assert.ok((reset.resetSummary?.economyRecordsPurged ?? 0) >= 2)
+  assert.ok((reset.resetSummary?.auxiliaryRecordsPurged ?? 0) >= 2)
+
+  const after = await persistence.transaction(async tx => ({
+    firstAccount: await tx.accounts.getById(first.player.id),
+    firstVillage: await tx.villages.get(first.player.id),
+    secondVillage: await tx.villages.get(second.player.id),
+    firstPlot: await tx.world.getPlayerPlot(first.player.id),
+    secondPlot: await tx.world.getPlayerPlot(second.player.id),
+    firstSessions: await tx.sessions.listForPlayer(first.player.id, 10),
+    secondSessions: await tx.sessions.listForPlayer(second.player.id, 10),
+    notices: await tx.notifications.listForPlayer({ playerId: first.player.id, limit: 10 })
+  }))
+  assert.equal(after.firstAccount?.username, 'ResetChiefOne')
+  assert.equal(after.firstAccount?.passwordHash, before.firstAccount?.passwordHash)
+  assert.equal(after.firstAccount?.trophies, 0)
+  assert.equal(after.firstAccount?.shieldUntil?.getTime(), NOW.getTime() + 7_200_000)
+  assert.deepEqual(after.firstAccount?.revengeRights, {})
+  assert.deepEqual(after.firstAccount?.botRaidCooldowns, {})
+  assert.deepEqual(after.firstPlot, before.firstPlot)
+  assert.deepEqual(after.secondPlot, before.secondPlot)
+  assert.equal(after.firstSessions.length, 1)
+  assert.equal(after.secondSessions.length, 1)
+  assert.equal(after.notices.length, 0)
+  assert.equal(after.firstVillage?.banner, null)
+  assert.equal(after.secondVillage?.banner, null)
+  assert.deepEqual(
+    { gold: after.firstVillage?.gold, ore: after.firstVillage?.ore, food: after.firstVillage?.food },
+    first.world.resources
+  )
+  assert.ok((after.firstVillage?.layoutRevision ?? 0) > (before.firstVillage?.layoutRevision ?? 0))
+  assert.ok((after.secondVillage?.layoutRevision ?? 0) > (before.secondVillage?.layoutRevision ?? 0))
+  const firstIds = new Set(after.firstVillage?.buildings.map(building => (
+    typeof building === 'object' && building !== null && !Array.isArray(building) ? String(building.id) : ''
+  )))
+  const secondIds = new Set(after.secondVillage?.buildings.map(building => (
+    typeof building === 'object' && building !== null && !Array.isArray(building) ? String(building.id) : ''
+  )))
+  assert.equal(firstIds.size, after.firstVillage?.buildings.length)
+  assert.equal(secondIds.size, after.secondVillage?.buildings.length)
+  assert.equal([...firstIds].some(id => secondIds.has(id)), false, 'starter ids are unique across players')
+  assert.equal([...firstIds].some(id => before.firstVillage?.buildings.some(building => (
+    typeof building === 'object' && building !== null && !Array.isArray(building) && building.id === id
+  ))), false, 'the reset issues a fresh building identity epoch')
+
+  assert.equal((await service.adminConfig()).maintenance.enabled, true)
+  assert.ok((await service.adminAudit(10)).some(entry => entry.action === 'reset_all_bases'))
+  await service.adminOperation({
+    type: 'set_maintenance', enabled: false, message: null, reason: 'Reset verification completed'
+  })
+  const resumed = await service.ensureSession(first.token)
+  assert.ok('token' in resumed)
+  if ('token' in resumed) assert.equal(resumed.player.id, first.player.id)
+  await service.close()
+})
+
+test('normalized base reset invalidates pre-reset bot map cache tokens', async () => {
+  const persistence = new MemoryPersistence()
+  const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+  const session = await service.register(null, 'BotEpochChief', 'strong-password-epoch', 'bot-epoch-admin')
+  assert.ok('token' in session)
+  if (!('token' in session)) return
+  const principal = await service.authenticate(session.token)
+
+  const grantMapSight = async () => {
+    await persistence.transaction(async tx => {
+      const stored = await tx.villages.get(session.player.id)
+      assert(stored)
+      const expectedRevision = stored.economyRevision
+      stored.buildings = [
+        ...stored.buildings.filter(building => !building || typeof building !== 'object'
+          || Array.isArray(building) || building.type !== 'watchtower'),
+        { id: 'admin-reset-watchtower', type: 'watchtower', level: 1, gridX: 2, gridY: 2 }
+      ]
+      stored.layoutRevision += 1
+      stored.appearanceRevision += 1
+      stored.economyRevision += 1
+      stored.lastMutationAt = new Date(NOW)
+      assert.equal(await tx.villages.update(stored, expectedRevision), true)
+    })
+  }
+
+  await grantMapSight()
+  const before = await service.map(
+    principal,
+    session.player.plotX,
+    session.player.plotY,
+    1
+  )
+  const oldBot = before.plots.find(plot => plot.kind === 'bot' && 'world' in plot)
+  assert(oldBot, 'the initial map provisions at least one adjacent persisted bot')
+  const oldRevision = Number(oldBot.revision)
+  const oldOwnerId = String(oldBot.ownerId)
+  const oldX = Number(oldBot.x)
+  const oldY = Number(oldBot.y)
+
+  await service.adminOperation({
+    type: 'set_maintenance', enabled: true, reason: 'Prepare bot cache epoch reset'
+  })
+  const reset = await service.adminOperation({
+    type: 'reset_all_bases',
+    confirmation: 'RESET ALL BASES',
+    reason: 'Verify replacement bot cache identity'
+  })
+  assert.ok((reset.resetSummary?.botVillagesPurged ?? 0) >= 1)
+  const allocation = await persistence.transaction(tx => tx.world.getAllocation('main'))
+  assert.ok((allocation?.botRevisionEpoch ?? 0) > oldRevision)
+
+  // The reset correctly removes the watchtower; restore sight directly while
+  // maintenance is still active so the first public map read after reopening
+  // is the one carrying the stale client token under test.
+  await grantMapSight()
+  await service.adminOperation({
+    type: 'set_maintenance', enabled: false, reason: 'Bot cache epoch reset completed'
+  })
+  const known = `${oldX},${oldY}:${oldOwnerId}:${oldRevision}`
+  const after = await service.map(
+    principal,
+    session.player.plotX,
+    session.player.plotY,
+    1,
+    known
+  )
+  const replacement = after.plots.find(plot => plot.x === oldX && plot.y === oldY)
+  assert(replacement)
+  assert.equal(replacement.ownerId, oldOwnerId, 'coordinate-scoped bot identity remains stable')
+  assert.ok(Number(replacement.revision) > oldRevision, 'replacement revision crosses the purge epoch')
+  assert.ok('world' in replacement, 'a pre-reset known token must not suppress the replacement world')
 
   await service.close()
 })
