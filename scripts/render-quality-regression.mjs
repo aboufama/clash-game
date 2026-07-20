@@ -223,8 +223,8 @@ assert.match(davinciTankSource, /Math\.pow\(Math\.max\(0, 1 - spin \/ 0\.8\), 1\
   'Da Vinci Tank recoil must fully recuperate by spin01=0.8 so the spin seam stays byte-identical');
 assert.match(mainSceneSource, /troop\.tankSpin01\s*=\s*rotationTarget\.spin01[\s\S]*?troop\.facingAngle\s*=\s*Phaser\.Math\.Angle\.Normalize\(newAngle\)[\s\S]*?troop\.tankSpin01\s*=\s*0/,
   'live tank attacks must drive intermediate poses before committing the next bay');
-assert.match(mainSceneSource, /aimAngleToTarget\s*=\s*Math\.atan2\([\s\S]*?targetPos\.y\s*-\s*tankPos\.y\)\s*\*\s*2[\s\S]*?relativeAim[\s\S]*?muzzleOffset\s*=\s*38/,
-  'Da Vinci shots must choose a cannon in unprojected aim space and leave from its 38 px barrel tip');
+assert.match(mainSceneSource, /aimAngleToTarget\s*=\s*Math\.atan2\([\s\S]*?targetPos\.y\s*-\s*tankPos\.y\)\s*\*\s*2[\s\S]*?relativeAim[\s\S]*?muzzleOffset\s*=\s*45/,
+  'Da Vinci shots must choose a cannon in unprojected aim space and leave from its 45 px barrel tip');
 assert.match(mainSceneSource, /nextFacing[\s\S]*?angleStep[\s\S]*?nextT\s*-\s*baySteps\s*\*\s*200[\s\S]*?troop\.tankSpin01\s*=\s*turns\s*-\s*completedTurns/,
   'replay playback must reconstruct every 200 ms tank spin between coarse heading samples');
 assert.match(spriteBankSource, /if \(!meta\s*&&\s*!driver\s*&&\s*attackAge\s*>=\s*0/,

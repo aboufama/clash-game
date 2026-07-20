@@ -9,67 +9,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d00_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d00_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d00_death2.png",
-              "texelW": 56,
-              "texelH": 36,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5586419753086418
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l1_P_d00_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l1_P_d00_death4.png",
-              "texelW": 56,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_P_d00_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5185185185185185,
-              "originY": 0.39068100358422925
+              "originX": 0.4865319865319864,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_P_d00_death6.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 64,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5100182149362477,
-              "originY": 0.3253968253968253
+              "originX": 0.4861111111111111,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l1_P_d00_death7.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         },
@@ -78,11 +78,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d00_remnant0.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         }
@@ -95,67 +95,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d01_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d01_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d01_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l1_P_d01_death3.png",
-              "texelW": 59,
-              "texelH": 41,
+              "texelW": 67,
+              "texelH": 48,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.6124661246612466
+              "originX": 0.5091210613598672,
+              "originY": 0.6064814814814813
             },
             {
               "file": "davincitank_l1_P_d01_death4.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 69,
+              "texelH": 41,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.3460317460317459
+              "originX": 0.47987117552334935,
+              "originY": 0.39295392953929537
             },
             {
               "file": "davincitank_l1_P_d01_death5.png",
-              "texelW": 60,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.3460317460317459
+              "originX": 0.4722222222222221,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l1_P_d01_death6.png",
-              "texelW": 60,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.28472222222222215
+              "originX": 0.45622895622895615,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l1_P_d01_death7.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -164,11 +164,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d01_remnant0.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -181,67 +181,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d02_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d02_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d02_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l1_P_d02_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l1_P_d02_death4.png",
+              "texelW": 66,
+              "texelH": 36,
+              "cellWorldPx": 1.35,
+              "originX": 0.5016835016835016,
+              "originY": 0.47530864197530853
+            },
+            {
+              "file": "davincitank_l1_P_d02_death5.png",
+              "texelW": 65,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.4940170940170939,
+              "originY": 0.43174603174603154
+            },
+            {
+              "file": "davincitank_l1_P_d02_death6.png",
+              "texelW": 60,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.5018518518518519,
+              "originY": 0.3460317460317459
+            },
+            {
+              "file": "davincitank_l1_P_d02_death7.png",
               "texelW": 56,
               "texelH": 34,
               "cellWorldPx": 1.35,
               "originX": 0.5019841269841269,
-              "originY": 0.4444444444444442
-            },
-            {
-              "file": "davincitank_l1_P_d02_death5.png",
-              "texelW": 56,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
-            },
-            {
-              "file": "davincitank_l1_P_d02_death6.png",
-              "texelW": 52,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.32616487455197113
-            },
-            {
-              "file": "davincitank_l1_P_d02_death7.png",
-              "texelW": 51,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originY": 0.326797385620915
             }
           ]
         },
@@ -250,11 +250,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d02_remnant0.png",
-              "texelW": 51,
-              "texelH": 31,
+              "texelW": 56,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originX": 0.5019841269841269,
+              "originY": 0.326797385620915
             }
           ]
         }
@@ -267,67 +267,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d03_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d03_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d03_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l1_P_d03_death3.png",
-              "texelW": 58,
-              "texelH": 44,
+              "texelW": 67,
+              "texelH": 51,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6388888888888887
+              "originX": 0.5091210613598672,
+              "originY": 0.6296296296296294
             },
             {
               "file": "davincitank_l1_P_d03_death4.png",
-              "texelW": 61,
-              "texelH": 39,
+              "texelW": 68,
+              "texelH": 43,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.41310541310541304
+              "originX": 0.5163398692810457,
+              "originY": 0.42118863049095584
             },
             {
               "file": "davincitank_l1_P_d03_death5.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.3460317460317459
+              "originX": 0.5163398692810457,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l1_P_d03_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.28472222222222215
+              "originX": 0.5401709401709401,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l1_P_d03_death7.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -336,11 +336,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d03_remnant0.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -353,67 +353,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d04_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d04_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d04_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l1_P_d04_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l1_P_d04_death4.png",
-              "texelW": 56,
-              "texelH": 33,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.4276094276094275
+              "originX": 0.5016835016835016,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_P_d04_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.48518518518518516,
-              "originY": 0.39068100358422925
+              "originX": 0.5091210613598672,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_P_d04_death6.png",
-              "texelW": 59,
-              "texelH": 28,
+              "texelW": 63,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.3253968253968253
+              "originX": 0.509700176366843,
+              "originY": 0.37037037037037035
             },
             {
               "file": "davincitank_l1_P_d04_death7.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         },
@@ -422,11 +422,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d04_remnant0.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         }
@@ -439,67 +439,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d05_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d05_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d05_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l1_P_d05_death3.png",
-              "texelW": 58,
-              "texelH": 40,
+              "texelW": 67,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6027777777777777
+              "originX": 0.5091210613598672,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l1_P_d05_death4.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 68,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.43253968253968234
+              "originX": 0.5163398692810457,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_P_d05_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.39068100358422925
+              "originX": 0.5163398692810457,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_P_d05_death6.png",
-              "texelW": 59,
-              "texelH": 29,
+              "texelW": 65,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.38314176245210724
+              "originX": 0.5401709401709401,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l1_P_d05_death7.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         },
@@ -508,11 +508,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d05_remnant0.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         }
@@ -525,67 +525,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d06_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d06_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d06_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5705705705705706
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l1_P_d06_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l1_P_d06_death4.png",
-              "texelW": 56,
-              "texelH": 28,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.43253968253968234
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_P_d06_death5.png",
-              "texelW": 55,
-              "texelH": 34,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.49292929292929283,
-              "originY": 0.35620915032679723
+              "originX": 0.4940170940170939,
+              "originY": 0.4084084084084082
             },
             {
               "file": "davincitank_l1_P_d06_death6.png",
-              "texelW": 52,
-              "texelH": 29,
+              "texelW": 60,
+              "texelH": 32,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.279693486590038
+              "originX": 0.5018518518518519,
+              "originY": 0.3472222222222222
             },
             {
               "file": "davincitank_l1_P_d06_death7.png",
-              "texelW": 51,
-              "texelH": 29,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.4923747276688452,
-              "originY": 0.279693486590038
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         },
@@ -594,11 +594,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d06_remnant0.png",
-              "texelW": 52,
-              "texelH": 30,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.2703703703703701
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         }
@@ -611,67 +611,67 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d07_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d07_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_P_d07_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5435435435435434
+              "originX": 0.5016835016835016,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l1_P_d07_death3.png",
-              "texelW": 59,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 44,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.5555555555555555
+              "originX": 0.5091210613598672,
+              "originY": 0.5707070707070706
             },
             {
               "file": "davincitank_l1_P_d07_death4.png",
-              "texelW": 61,
-              "texelH": 29,
+              "texelW": 69,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.41762452107279674
+              "originX": 0.47987117552334935,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_P_d07_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.39068100358422925
+              "originX": 0.4722222222222221,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_P_d07_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.3472222222222222
+              "originX": 0.45622895622895615,
+              "originY": 0.3746031746031744
             },
             {
               "file": "davincitank_l1_P_d07_death7.png",
-              "texelW": 58,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.43295019157088116,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         },
@@ -680,11 +680,11 @@
           "frames": [
             {
               "file": "davincitank_l1_P_d07_remnant0.png",
-              "texelW": 59,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         }
@@ -697,67 +697,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d00_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d00_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d00_death2.png",
-              "texelW": 56,
-              "texelH": 36,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5586419753086418
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l1_E_d00_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l1_E_d00_death4.png",
-              "texelW": 56,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_E_d00_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5185185185185185,
-              "originY": 0.39068100358422925
+              "originX": 0.4865319865319864,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_E_d00_death6.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 64,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5100182149362477,
-              "originY": 0.3253968253968253
+              "originX": 0.4861111111111111,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l1_E_d00_death7.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         },
@@ -766,11 +766,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d00_remnant0.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         }
@@ -783,67 +783,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d01_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d01_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d01_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l1_E_d01_death3.png",
-              "texelW": 59,
-              "texelH": 41,
+              "texelW": 67,
+              "texelH": 48,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.6124661246612466
+              "originX": 0.5091210613598672,
+              "originY": 0.6064814814814813
             },
             {
               "file": "davincitank_l1_E_d01_death4.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 69,
+              "texelH": 41,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.3460317460317459
+              "originX": 0.47987117552334935,
+              "originY": 0.39295392953929537
             },
             {
               "file": "davincitank_l1_E_d01_death5.png",
-              "texelW": 60,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.3460317460317459
+              "originX": 0.4722222222222221,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l1_E_d01_death6.png",
-              "texelW": 60,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.28472222222222215
+              "originX": 0.45622895622895615,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l1_E_d01_death7.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -852,11 +852,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d01_remnant0.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -869,67 +869,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d02_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d02_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d02_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l1_E_d02_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l1_E_d02_death4.png",
+              "texelW": 66,
+              "texelH": 36,
+              "cellWorldPx": 1.35,
+              "originX": 0.5016835016835016,
+              "originY": 0.47530864197530853
+            },
+            {
+              "file": "davincitank_l1_E_d02_death5.png",
+              "texelW": 65,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.4940170940170939,
+              "originY": 0.43174603174603154
+            },
+            {
+              "file": "davincitank_l1_E_d02_death6.png",
+              "texelW": 60,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.5018518518518519,
+              "originY": 0.3460317460317459
+            },
+            {
+              "file": "davincitank_l1_E_d02_death7.png",
               "texelW": 56,
               "texelH": 34,
               "cellWorldPx": 1.35,
               "originX": 0.5019841269841269,
-              "originY": 0.4444444444444442
-            },
-            {
-              "file": "davincitank_l1_E_d02_death5.png",
-              "texelW": 56,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
-            },
-            {
-              "file": "davincitank_l1_E_d02_death6.png",
-              "texelW": 52,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.32616487455197113
-            },
-            {
-              "file": "davincitank_l1_E_d02_death7.png",
-              "texelW": 51,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originY": 0.326797385620915
             }
           ]
         },
@@ -938,11 +938,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d02_remnant0.png",
-              "texelW": 51,
-              "texelH": 31,
+              "texelW": 56,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originX": 0.5019841269841269,
+              "originY": 0.326797385620915
             }
           ]
         }
@@ -955,67 +955,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d03_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d03_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d03_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l1_E_d03_death3.png",
-              "texelW": 58,
-              "texelH": 44,
+              "texelW": 67,
+              "texelH": 51,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6388888888888887
+              "originX": 0.5091210613598672,
+              "originY": 0.6296296296296294
             },
             {
               "file": "davincitank_l1_E_d03_death4.png",
-              "texelW": 61,
-              "texelH": 39,
+              "texelW": 68,
+              "texelH": 43,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.41310541310541304
+              "originX": 0.5163398692810457,
+              "originY": 0.42118863049095584
             },
             {
               "file": "davincitank_l1_E_d03_death5.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.3460317460317459
+              "originX": 0.5163398692810457,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l1_E_d03_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.28472222222222215
+              "originX": 0.5401709401709401,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l1_E_d03_death7.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -1024,11 +1024,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d03_remnant0.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -1041,67 +1041,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d04_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d04_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d04_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l1_E_d04_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l1_E_d04_death4.png",
-              "texelW": 56,
-              "texelH": 33,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.4276094276094275
+              "originX": 0.5016835016835016,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_E_d04_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.48518518518518516,
-              "originY": 0.39068100358422925
+              "originX": 0.5091210613598672,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_E_d04_death6.png",
-              "texelW": 59,
-              "texelH": 28,
+              "texelW": 63,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.3253968253968253
+              "originX": 0.509700176366843,
+              "originY": 0.37037037037037035
             },
             {
               "file": "davincitank_l1_E_d04_death7.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         },
@@ -1110,11 +1110,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d04_remnant0.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         }
@@ -1127,67 +1127,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d05_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d05_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d05_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l1_E_d05_death3.png",
-              "texelW": 58,
-              "texelH": 40,
+              "texelW": 67,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6027777777777777
+              "originX": 0.5091210613598672,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l1_E_d05_death4.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 68,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.43253968253968234
+              "originX": 0.5163398692810457,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_E_d05_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.39068100358422925
+              "originX": 0.5163398692810457,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_E_d05_death6.png",
-              "texelW": 59,
-              "texelH": 29,
+              "texelW": 65,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.38314176245210724
+              "originX": 0.5401709401709401,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l1_E_d05_death7.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         },
@@ -1196,11 +1196,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d05_remnant0.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         }
@@ -1213,67 +1213,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d06_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d06_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d06_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5705705705705706
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l1_E_d06_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l1_E_d06_death4.png",
-              "texelW": 56,
-              "texelH": 28,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.43253968253968234
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_E_d06_death5.png",
-              "texelW": 55,
-              "texelH": 34,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.49292929292929283,
-              "originY": 0.35620915032679723
+              "originX": 0.4940170940170939,
+              "originY": 0.4084084084084082
             },
             {
               "file": "davincitank_l1_E_d06_death6.png",
-              "texelW": 52,
-              "texelH": 29,
+              "texelW": 60,
+              "texelH": 32,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.279693486590038
+              "originX": 0.5018518518518519,
+              "originY": 0.3472222222222222
             },
             {
               "file": "davincitank_l1_E_d06_death7.png",
-              "texelW": 51,
-              "texelH": 29,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.4923747276688452,
-              "originY": 0.279693486590038
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         },
@@ -1282,11 +1282,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d06_remnant0.png",
-              "texelW": 52,
-              "texelH": 30,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.2703703703703701
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         }
@@ -1299,67 +1299,67 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d07_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d07_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l1_E_d07_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5435435435435434
+              "originX": 0.5016835016835016,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l1_E_d07_death3.png",
-              "texelW": 59,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 44,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.5555555555555555
+              "originX": 0.5091210613598672,
+              "originY": 0.5707070707070706
             },
             {
               "file": "davincitank_l1_E_d07_death4.png",
-              "texelW": 61,
-              "texelH": 29,
+              "texelW": 69,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.41762452107279674
+              "originX": 0.47987117552334935,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l1_E_d07_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.39068100358422925
+              "originX": 0.4722222222222221,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l1_E_d07_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.3472222222222222
+              "originX": 0.45622895622895615,
+              "originY": 0.3746031746031744
             },
             {
               "file": "davincitank_l1_E_d07_death7.png",
-              "texelW": 58,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.43295019157088116,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         },
@@ -1368,11 +1368,11 @@
           "frames": [
             {
               "file": "davincitank_l1_E_d07_remnant0.png",
-              "texelW": 59,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         }
@@ -1385,67 +1385,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d00_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d00_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d00_death2.png",
-              "texelW": 56,
-              "texelH": 36,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5586419753086418
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l2_P_d00_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l2_P_d00_death4.png",
-              "texelW": 56,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_P_d00_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5185185185185185,
-              "originY": 0.39068100358422925
+              "originX": 0.4865319865319864,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_P_d00_death6.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 64,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5100182149362477,
-              "originY": 0.3253968253968253
+              "originX": 0.4861111111111111,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l2_P_d00_death7.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         },
@@ -1454,11 +1454,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d00_remnant0.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         }
@@ -1471,67 +1471,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d01_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d01_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d01_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l2_P_d01_death3.png",
-              "texelW": 59,
-              "texelH": 41,
+              "texelW": 67,
+              "texelH": 48,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.6124661246612466
+              "originX": 0.5091210613598672,
+              "originY": 0.6064814814814813
             },
             {
               "file": "davincitank_l2_P_d01_death4.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 69,
+              "texelH": 41,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.3460317460317459
+              "originX": 0.47987117552334935,
+              "originY": 0.39295392953929537
             },
             {
               "file": "davincitank_l2_P_d01_death5.png",
-              "texelW": 60,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.3460317460317459
+              "originX": 0.4722222222222221,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l2_P_d01_death6.png",
-              "texelW": 60,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.28472222222222215
+              "originX": 0.45622895622895615,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l2_P_d01_death7.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -1540,11 +1540,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d01_remnant0.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -1557,67 +1557,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d02_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d02_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d02_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l2_P_d02_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l2_P_d02_death4.png",
+              "texelW": 66,
+              "texelH": 36,
+              "cellWorldPx": 1.35,
+              "originX": 0.5016835016835016,
+              "originY": 0.47530864197530853
+            },
+            {
+              "file": "davincitank_l2_P_d02_death5.png",
+              "texelW": 65,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.4940170940170939,
+              "originY": 0.43174603174603154
+            },
+            {
+              "file": "davincitank_l2_P_d02_death6.png",
+              "texelW": 60,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.5018518518518519,
+              "originY": 0.3460317460317459
+            },
+            {
+              "file": "davincitank_l2_P_d02_death7.png",
               "texelW": 56,
               "texelH": 34,
               "cellWorldPx": 1.35,
               "originX": 0.5019841269841269,
-              "originY": 0.4444444444444442
-            },
-            {
-              "file": "davincitank_l2_P_d02_death5.png",
-              "texelW": 56,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
-            },
-            {
-              "file": "davincitank_l2_P_d02_death6.png",
-              "texelW": 52,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.32616487455197113
-            },
-            {
-              "file": "davincitank_l2_P_d02_death7.png",
-              "texelW": 51,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originY": 0.326797385620915
             }
           ]
         },
@@ -1626,11 +1626,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d02_remnant0.png",
-              "texelW": 51,
-              "texelH": 31,
+              "texelW": 56,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originX": 0.5019841269841269,
+              "originY": 0.326797385620915
             }
           ]
         }
@@ -1643,67 +1643,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d03_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d03_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d03_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l2_P_d03_death3.png",
-              "texelW": 58,
-              "texelH": 44,
+              "texelW": 67,
+              "texelH": 51,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6388888888888887
+              "originX": 0.5091210613598672,
+              "originY": 0.6296296296296294
             },
             {
               "file": "davincitank_l2_P_d03_death4.png",
-              "texelW": 61,
-              "texelH": 39,
+              "texelW": 68,
+              "texelH": 43,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.41310541310541304
+              "originX": 0.5163398692810457,
+              "originY": 0.42118863049095584
             },
             {
               "file": "davincitank_l2_P_d03_death5.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.3460317460317459
+              "originX": 0.5163398692810457,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l2_P_d03_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.28472222222222215
+              "originX": 0.5401709401709401,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l2_P_d03_death7.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -1712,11 +1712,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d03_remnant0.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -1729,67 +1729,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d04_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d04_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d04_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l2_P_d04_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l2_P_d04_death4.png",
-              "texelW": 56,
-              "texelH": 33,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.4276094276094275
+              "originX": 0.5016835016835016,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_P_d04_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.48518518518518516,
-              "originY": 0.39068100358422925
+              "originX": 0.5091210613598672,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_P_d04_death6.png",
-              "texelW": 59,
-              "texelH": 28,
+              "texelW": 63,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.3253968253968253
+              "originX": 0.509700176366843,
+              "originY": 0.37037037037037035
             },
             {
               "file": "davincitank_l2_P_d04_death7.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         },
@@ -1798,11 +1798,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d04_remnant0.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         }
@@ -1815,67 +1815,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d05_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d05_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d05_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l2_P_d05_death3.png",
-              "texelW": 58,
-              "texelH": 40,
+              "texelW": 67,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6027777777777777
+              "originX": 0.5091210613598672,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l2_P_d05_death4.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 68,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.43253968253968234
+              "originX": 0.5163398692810457,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_P_d05_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.39068100358422925
+              "originX": 0.5163398692810457,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_P_d05_death6.png",
-              "texelW": 59,
-              "texelH": 29,
+              "texelW": 65,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.38314176245210724
+              "originX": 0.5401709401709401,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l2_P_d05_death7.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         },
@@ -1884,11 +1884,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d05_remnant0.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         }
@@ -1901,67 +1901,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d06_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d06_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d06_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5705705705705706
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l2_P_d06_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l2_P_d06_death4.png",
-              "texelW": 56,
-              "texelH": 28,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.43253968253968234
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_P_d06_death5.png",
-              "texelW": 55,
-              "texelH": 34,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.49292929292929283,
-              "originY": 0.35620915032679723
+              "originX": 0.4940170940170939,
+              "originY": 0.4084084084084082
             },
             {
               "file": "davincitank_l2_P_d06_death6.png",
-              "texelW": 52,
-              "texelH": 29,
+              "texelW": 60,
+              "texelH": 32,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.279693486590038
+              "originX": 0.5018518518518519,
+              "originY": 0.3472222222222222
             },
             {
               "file": "davincitank_l2_P_d06_death7.png",
-              "texelW": 51,
-              "texelH": 29,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.4923747276688452,
-              "originY": 0.279693486590038
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         },
@@ -1970,11 +1970,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d06_remnant0.png",
-              "texelW": 52,
-              "texelH": 30,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.2703703703703701
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         }
@@ -1987,67 +1987,67 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d07_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d07_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_P_d07_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5435435435435434
+              "originX": 0.5016835016835016,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l2_P_d07_death3.png",
-              "texelW": 59,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 44,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.5555555555555555
+              "originX": 0.5091210613598672,
+              "originY": 0.5707070707070706
             },
             {
               "file": "davincitank_l2_P_d07_death4.png",
-              "texelW": 61,
-              "texelH": 29,
+              "texelW": 69,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.41762452107279674
+              "originX": 0.47987117552334935,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_P_d07_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.39068100358422925
+              "originX": 0.4722222222222221,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_P_d07_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.3472222222222222
+              "originX": 0.45622895622895615,
+              "originY": 0.3746031746031744
             },
             {
               "file": "davincitank_l2_P_d07_death7.png",
-              "texelW": 58,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.43295019157088116,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         },
@@ -2056,11 +2056,11 @@
           "frames": [
             {
               "file": "davincitank_l2_P_d07_remnant0.png",
-              "texelW": 59,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         }
@@ -2073,67 +2073,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d00_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d00_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d00_death2.png",
-              "texelW": 56,
-              "texelH": 36,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5586419753086418
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l2_E_d00_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l2_E_d00_death4.png",
-              "texelW": 56,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_E_d00_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5185185185185185,
-              "originY": 0.39068100358422925
+              "originX": 0.4865319865319864,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_E_d00_death6.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 64,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5100182149362477,
-              "originY": 0.3253968253968253
+              "originX": 0.4861111111111111,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l2_E_d00_death7.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         },
@@ -2142,11 +2142,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d00_remnant0.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         }
@@ -2159,67 +2159,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d01_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d01_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d01_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l2_E_d01_death3.png",
-              "texelW": 59,
-              "texelH": 41,
+              "texelW": 67,
+              "texelH": 48,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.6124661246612466
+              "originX": 0.5091210613598672,
+              "originY": 0.6064814814814813
             },
             {
               "file": "davincitank_l2_E_d01_death4.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 69,
+              "texelH": 41,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.3460317460317459
+              "originX": 0.47987117552334935,
+              "originY": 0.39295392953929537
             },
             {
               "file": "davincitank_l2_E_d01_death5.png",
-              "texelW": 60,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.3460317460317459
+              "originX": 0.4722222222222221,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l2_E_d01_death6.png",
-              "texelW": 60,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.28472222222222215
+              "originX": 0.45622895622895615,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l2_E_d01_death7.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -2228,11 +2228,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d01_remnant0.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -2245,67 +2245,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d02_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d02_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d02_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l2_E_d02_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l2_E_d02_death4.png",
+              "texelW": 66,
+              "texelH": 36,
+              "cellWorldPx": 1.35,
+              "originX": 0.5016835016835016,
+              "originY": 0.47530864197530853
+            },
+            {
+              "file": "davincitank_l2_E_d02_death5.png",
+              "texelW": 65,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.4940170940170939,
+              "originY": 0.43174603174603154
+            },
+            {
+              "file": "davincitank_l2_E_d02_death6.png",
+              "texelW": 60,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.5018518518518519,
+              "originY": 0.3460317460317459
+            },
+            {
+              "file": "davincitank_l2_E_d02_death7.png",
               "texelW": 56,
               "texelH": 34,
               "cellWorldPx": 1.35,
               "originX": 0.5019841269841269,
-              "originY": 0.4444444444444442
-            },
-            {
-              "file": "davincitank_l2_E_d02_death5.png",
-              "texelW": 56,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
-            },
-            {
-              "file": "davincitank_l2_E_d02_death6.png",
-              "texelW": 52,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.32616487455197113
-            },
-            {
-              "file": "davincitank_l2_E_d02_death7.png",
-              "texelW": 51,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originY": 0.326797385620915
             }
           ]
         },
@@ -2314,11 +2314,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d02_remnant0.png",
-              "texelW": 51,
-              "texelH": 31,
+              "texelW": 56,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originX": 0.5019841269841269,
+              "originY": 0.326797385620915
             }
           ]
         }
@@ -2331,67 +2331,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d03_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d03_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d03_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l2_E_d03_death3.png",
-              "texelW": 58,
-              "texelH": 44,
+              "texelW": 67,
+              "texelH": 51,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6388888888888887
+              "originX": 0.5091210613598672,
+              "originY": 0.6296296296296294
             },
             {
               "file": "davincitank_l2_E_d03_death4.png",
-              "texelW": 61,
-              "texelH": 39,
+              "texelW": 68,
+              "texelH": 43,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.41310541310541304
+              "originX": 0.5163398692810457,
+              "originY": 0.42118863049095584
             },
             {
               "file": "davincitank_l2_E_d03_death5.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.3460317460317459
+              "originX": 0.5163398692810457,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l2_E_d03_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.28472222222222215
+              "originX": 0.5401709401709401,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l2_E_d03_death7.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -2400,11 +2400,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d03_remnant0.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -2417,67 +2417,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d04_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d04_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d04_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l2_E_d04_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l2_E_d04_death4.png",
-              "texelW": 56,
-              "texelH": 33,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.4276094276094275
+              "originX": 0.5016835016835016,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_E_d04_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.48518518518518516,
-              "originY": 0.39068100358422925
+              "originX": 0.5091210613598672,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_E_d04_death6.png",
-              "texelW": 59,
-              "texelH": 28,
+              "texelW": 63,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.3253968253968253
+              "originX": 0.509700176366843,
+              "originY": 0.37037037037037035
             },
             {
               "file": "davincitank_l2_E_d04_death7.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         },
@@ -2486,11 +2486,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d04_remnant0.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         }
@@ -2503,67 +2503,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d05_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d05_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d05_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l2_E_d05_death3.png",
-              "texelW": 58,
-              "texelH": 40,
+              "texelW": 67,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6027777777777777
+              "originX": 0.5091210613598672,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l2_E_d05_death4.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 68,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.43253968253968234
+              "originX": 0.5163398692810457,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_E_d05_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.39068100358422925
+              "originX": 0.5163398692810457,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_E_d05_death6.png",
-              "texelW": 59,
-              "texelH": 29,
+              "texelW": 65,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.38314176245210724
+              "originX": 0.5401709401709401,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l2_E_d05_death7.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         },
@@ -2572,11 +2572,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d05_remnant0.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         }
@@ -2589,67 +2589,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d06_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d06_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d06_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5705705705705706
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l2_E_d06_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l2_E_d06_death4.png",
-              "texelW": 56,
-              "texelH": 28,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.43253968253968234
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_E_d06_death5.png",
-              "texelW": 55,
-              "texelH": 34,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.49292929292929283,
-              "originY": 0.35620915032679723
+              "originX": 0.4940170940170939,
+              "originY": 0.4084084084084082
             },
             {
               "file": "davincitank_l2_E_d06_death6.png",
-              "texelW": 52,
-              "texelH": 29,
+              "texelW": 60,
+              "texelH": 32,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.279693486590038
+              "originX": 0.5018518518518519,
+              "originY": 0.3472222222222222
             },
             {
               "file": "davincitank_l2_E_d06_death7.png",
-              "texelW": 51,
-              "texelH": 29,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.4923747276688452,
-              "originY": 0.279693486590038
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         },
@@ -2658,11 +2658,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d06_remnant0.png",
-              "texelW": 52,
-              "texelH": 30,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.2703703703703701
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         }
@@ -2675,67 +2675,67 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d07_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d07_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l2_E_d07_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5435435435435434
+              "originX": 0.5016835016835016,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l2_E_d07_death3.png",
-              "texelW": 59,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 44,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.5555555555555555
+              "originX": 0.5091210613598672,
+              "originY": 0.5707070707070706
             },
             {
               "file": "davincitank_l2_E_d07_death4.png",
-              "texelW": 61,
-              "texelH": 29,
+              "texelW": 69,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.41762452107279674
+              "originX": 0.47987117552334935,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l2_E_d07_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.39068100358422925
+              "originX": 0.4722222222222221,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l2_E_d07_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.3472222222222222
+              "originX": 0.45622895622895615,
+              "originY": 0.3746031746031744
             },
             {
               "file": "davincitank_l2_E_d07_death7.png",
-              "texelW": 58,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.43295019157088116,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         },
@@ -2744,11 +2744,11 @@
           "frames": [
             {
               "file": "davincitank_l2_E_d07_remnant0.png",
-              "texelW": 59,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         }
@@ -2761,67 +2761,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d00_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d00_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d00_death2.png",
-              "texelW": 56,
-              "texelH": 36,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5586419753086418
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l3_P_d00_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l3_P_d00_death4.png",
-              "texelW": 56,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_P_d00_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5185185185185185,
-              "originY": 0.39068100358422925
+              "originX": 0.4865319865319864,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_P_d00_death6.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 64,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5100182149362477,
-              "originY": 0.3253968253968253
+              "originX": 0.4861111111111111,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l3_P_d00_death7.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         },
@@ -2830,11 +2830,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d00_remnant0.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         }
@@ -2847,67 +2847,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d01_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d01_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d01_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l3_P_d01_death3.png",
-              "texelW": 59,
-              "texelH": 41,
+              "texelW": 67,
+              "texelH": 48,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.6124661246612466
+              "originX": 0.5091210613598672,
+              "originY": 0.6064814814814813
             },
             {
               "file": "davincitank_l3_P_d01_death4.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 69,
+              "texelH": 41,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.3460317460317459
+              "originX": 0.47987117552334935,
+              "originY": 0.39295392953929537
             },
             {
               "file": "davincitank_l3_P_d01_death5.png",
-              "texelW": 60,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.3460317460317459
+              "originX": 0.4722222222222221,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l3_P_d01_death6.png",
-              "texelW": 60,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.28472222222222215
+              "originX": 0.45622895622895615,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l3_P_d01_death7.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -2916,11 +2916,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d01_remnant0.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -2933,67 +2933,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d02_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d02_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d02_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l3_P_d02_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l3_P_d02_death4.png",
+              "texelW": 66,
+              "texelH": 36,
+              "cellWorldPx": 1.35,
+              "originX": 0.5016835016835016,
+              "originY": 0.47530864197530853
+            },
+            {
+              "file": "davincitank_l3_P_d02_death5.png",
+              "texelW": 65,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.4940170940170939,
+              "originY": 0.43174603174603154
+            },
+            {
+              "file": "davincitank_l3_P_d02_death6.png",
+              "texelW": 60,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.5018518518518519,
+              "originY": 0.3460317460317459
+            },
+            {
+              "file": "davincitank_l3_P_d02_death7.png",
               "texelW": 56,
               "texelH": 34,
               "cellWorldPx": 1.35,
               "originX": 0.5019841269841269,
-              "originY": 0.4444444444444442
-            },
-            {
-              "file": "davincitank_l3_P_d02_death5.png",
-              "texelW": 56,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
-            },
-            {
-              "file": "davincitank_l3_P_d02_death6.png",
-              "texelW": 52,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.32616487455197113
-            },
-            {
-              "file": "davincitank_l3_P_d02_death7.png",
-              "texelW": 51,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originY": 0.326797385620915
             }
           ]
         },
@@ -3002,11 +3002,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d02_remnant0.png",
-              "texelW": 51,
-              "texelH": 31,
+              "texelW": 56,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originX": 0.5019841269841269,
+              "originY": 0.326797385620915
             }
           ]
         }
@@ -3019,67 +3019,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d03_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d03_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d03_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l3_P_d03_death3.png",
-              "texelW": 58,
-              "texelH": 44,
+              "texelW": 67,
+              "texelH": 51,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6388888888888887
+              "originX": 0.5091210613598672,
+              "originY": 0.6296296296296294
             },
             {
               "file": "davincitank_l3_P_d03_death4.png",
-              "texelW": 61,
-              "texelH": 39,
+              "texelW": 68,
+              "texelH": 43,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.41310541310541304
+              "originX": 0.5163398692810457,
+              "originY": 0.42118863049095584
             },
             {
               "file": "davincitank_l3_P_d03_death5.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.3460317460317459
+              "originX": 0.5163398692810457,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l3_P_d03_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.28472222222222215
+              "originX": 0.5401709401709401,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l3_P_d03_death7.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -3088,11 +3088,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d03_remnant0.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -3105,67 +3105,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d04_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d04_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d04_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l3_P_d04_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l3_P_d04_death4.png",
-              "texelW": 56,
-              "texelH": 33,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.4276094276094275
+              "originX": 0.5016835016835016,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_P_d04_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.48518518518518516,
-              "originY": 0.39068100358422925
+              "originX": 0.5091210613598672,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_P_d04_death6.png",
-              "texelW": 59,
-              "texelH": 28,
+              "texelW": 63,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.3253968253968253
+              "originX": 0.509700176366843,
+              "originY": 0.37037037037037035
             },
             {
               "file": "davincitank_l3_P_d04_death7.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         },
@@ -3174,11 +3174,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d04_remnant0.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         }
@@ -3191,67 +3191,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d05_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d05_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d05_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l3_P_d05_death3.png",
-              "texelW": 58,
-              "texelH": 40,
+              "texelW": 67,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6027777777777777
+              "originX": 0.5091210613598672,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l3_P_d05_death4.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 68,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.43253968253968234
+              "originX": 0.5163398692810457,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_P_d05_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.39068100358422925
+              "originX": 0.5163398692810457,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_P_d05_death6.png",
-              "texelW": 59,
-              "texelH": 29,
+              "texelW": 65,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.38314176245210724
+              "originX": 0.5401709401709401,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l3_P_d05_death7.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         },
@@ -3260,11 +3260,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d05_remnant0.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         }
@@ -3277,67 +3277,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d06_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d06_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d06_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5705705705705706
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l3_P_d06_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l3_P_d06_death4.png",
-              "texelW": 56,
-              "texelH": 28,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.43253968253968234
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_P_d06_death5.png",
-              "texelW": 55,
-              "texelH": 34,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.49292929292929283,
-              "originY": 0.35620915032679723
+              "originX": 0.4940170940170939,
+              "originY": 0.4084084084084082
             },
             {
               "file": "davincitank_l3_P_d06_death6.png",
-              "texelW": 52,
-              "texelH": 29,
+              "texelW": 60,
+              "texelH": 32,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.279693486590038
+              "originX": 0.5018518518518519,
+              "originY": 0.3472222222222222
             },
             {
               "file": "davincitank_l3_P_d06_death7.png",
-              "texelW": 51,
-              "texelH": 29,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.4923747276688452,
-              "originY": 0.279693486590038
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         },
@@ -3346,11 +3346,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d06_remnant0.png",
-              "texelW": 52,
-              "texelH": 30,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.2703703703703701
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         }
@@ -3363,67 +3363,67 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d07_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d07_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_P_d07_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5435435435435434
+              "originX": 0.5016835016835016,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l3_P_d07_death3.png",
-              "texelW": 59,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 44,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.5555555555555555
+              "originX": 0.5091210613598672,
+              "originY": 0.5707070707070706
             },
             {
               "file": "davincitank_l3_P_d07_death4.png",
-              "texelW": 61,
-              "texelH": 29,
+              "texelW": 69,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.41762452107279674
+              "originX": 0.47987117552334935,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_P_d07_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.39068100358422925
+              "originX": 0.4722222222222221,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_P_d07_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.3472222222222222
+              "originX": 0.45622895622895615,
+              "originY": 0.3746031746031744
             },
             {
               "file": "davincitank_l3_P_d07_death7.png",
-              "texelW": 58,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.43295019157088116,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         },
@@ -3432,11 +3432,11 @@
           "frames": [
             {
               "file": "davincitank_l3_P_d07_remnant0.png",
-              "texelW": 59,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         }
@@ -3449,67 +3449,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d00_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d00_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d00_death2.png",
-              "texelW": 56,
-              "texelH": 36,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5586419753086418
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l3_E_d00_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l3_E_d00_death4.png",
-              "texelW": 56,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_E_d00_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5185185185185185,
-              "originY": 0.39068100358422925
+              "originX": 0.4865319865319864,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_E_d00_death6.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 64,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5100182149362477,
-              "originY": 0.3253968253968253
+              "originX": 0.4861111111111111,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l3_E_d00_death7.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         },
@@ -3518,11 +3518,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d00_remnant0.png",
-              "texelW": 60,
-              "texelH": 26,
+              "texelW": 63,
+              "texelH": 29,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.2735042735042733
+              "originX": 0.4779541446208112,
+              "originY": 0.31417624521072784
             }
           ]
         }
@@ -3535,67 +3535,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d01_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d01_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d01_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l3_E_d01_death3.png",
-              "texelW": 59,
-              "texelH": 41,
+              "texelW": 67,
+              "texelH": 48,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.6124661246612466
+              "originX": 0.5091210613598672,
+              "originY": 0.6064814814814813
             },
             {
               "file": "davincitank_l3_E_d01_death4.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 69,
+              "texelH": 41,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.3460317460317459
+              "originX": 0.47987117552334935,
+              "originY": 0.39295392953929537
             },
             {
               "file": "davincitank_l3_E_d01_death5.png",
-              "texelW": 60,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.3460317460317459
+              "originX": 0.4722222222222221,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l3_E_d01_death6.png",
-              "texelW": 60,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.28472222222222215
+              "originX": 0.45622895622895615,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l3_E_d01_death7.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -3604,11 +3604,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d01_remnant0.png",
-              "texelW": 60,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.4518518518518518,
-              "originY": 0.2370370370370369
+              "originX": 0.44941956882255385,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -3621,67 +3621,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d02_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d02_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d02_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l3_E_d02_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l3_E_d02_death4.png",
+              "texelW": 66,
+              "texelH": 36,
+              "cellWorldPx": 1.35,
+              "originX": 0.5016835016835016,
+              "originY": 0.47530864197530853
+            },
+            {
+              "file": "davincitank_l3_E_d02_death5.png",
+              "texelW": 65,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.4940170940170939,
+              "originY": 0.43174603174603154
+            },
+            {
+              "file": "davincitank_l3_E_d02_death6.png",
+              "texelW": 60,
+              "texelH": 35,
+              "cellWorldPx": 1.35,
+              "originX": 0.5018518518518519,
+              "originY": 0.3460317460317459
+            },
+            {
+              "file": "davincitank_l3_E_d02_death7.png",
               "texelW": 56,
               "texelH": 34,
               "cellWorldPx": 1.35,
               "originX": 0.5019841269841269,
-              "originY": 0.4444444444444442
-            },
-            {
-              "file": "davincitank_l3_E_d02_death5.png",
-              "texelW": 56,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.39068100358422925
-            },
-            {
-              "file": "davincitank_l3_E_d02_death6.png",
-              "texelW": 52,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.32616487455197113
-            },
-            {
-              "file": "davincitank_l3_E_d02_death7.png",
-              "texelW": 51,
-              "texelH": 31,
-              "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originY": 0.326797385620915
             }
           ]
         },
@@ -3690,11 +3690,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d02_remnant0.png",
-              "texelW": 51,
-              "texelH": 31,
+              "texelW": 56,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5119825708061001,
-              "originY": 0.32616487455197113
+              "originX": 0.5019841269841269,
+              "originY": 0.326797385620915
             }
           ]
         }
@@ -3707,67 +3707,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d03_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d03_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d03_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l3_E_d03_death3.png",
-              "texelW": 58,
-              "texelH": 44,
+              "texelW": 67,
+              "texelH": 51,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6388888888888887
+              "originX": 0.5091210613598672,
+              "originY": 0.6296296296296294
             },
             {
               "file": "davincitank_l3_E_d03_death4.png",
-              "texelW": 61,
-              "texelH": 39,
+              "texelW": 68,
+              "texelH": 43,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.41310541310541304
+              "originX": 0.5163398692810457,
+              "originY": 0.42118863049095584
             },
             {
               "file": "davincitank_l3_E_d03_death5.png",
-              "texelW": 61,
-              "texelH": 35,
+              "texelW": 68,
+              "texelH": 40,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.3460317460317459
+              "originX": 0.5163398692810457,
+              "originY": 0.3777777777777776
             },
             {
               "file": "davincitank_l3_E_d03_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.28472222222222215
+              "originX": 0.5401709401709401,
+              "originY": 0.3273273273273272
             },
             {
               "file": "davincitank_l3_E_d03_death7.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         },
@@ -3776,11 +3776,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d03_remnant0.png",
-              "texelW": 58,
-              "texelH": 30,
+              "texelW": 63,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5708812260536397,
-              "originY": 0.2370370370370369
+              "originX": 0.5573192239858905,
+              "originY": 0.2679738562091502
             }
           ]
         }
@@ -3793,67 +3793,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d04_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d04_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d04_death2.png",
-              "texelW": 56,
-              "texelH": 40,
+              "texelW": 66,
+              "texelH": 49,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.6027777777777777
+              "originX": 0.5016835016835016,
+              "originY": 0.6145124716553287
             },
             {
               "file": "davincitank_l3_E_d04_death3.png",
-              "texelW": 57,
-              "texelH": 43,
+              "texelW": 67,
+              "texelH": 50,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.6304909560723513
+              "originX": 0.5091210613598672,
+              "originY": 0.6222222222222222
             },
             {
               "file": "davincitank_l3_E_d04_death4.png",
-              "texelW": 56,
-              "texelH": 33,
+              "texelW": 66,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.4276094276094275
+              "originX": 0.5016835016835016,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_E_d04_death5.png",
-              "texelW": 60,
-              "texelH": 31,
+              "texelW": 67,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.48518518518518516,
-              "originY": 0.39068100358422925
+              "originX": 0.5091210613598672,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_E_d04_death6.png",
-              "texelW": 59,
-              "texelH": 28,
+              "texelW": 63,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.3253968253968253
+              "originX": 0.509700176366843,
+              "originY": 0.37037037037037035
             },
             {
               "file": "davincitank_l3_E_d04_death7.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         },
@@ -3862,11 +3862,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d04_remnant0.png",
-              "texelW": 59,
-              "texelH": 26,
+              "texelW": 62,
+              "texelH": 30,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.2735042735042733
+              "originX": 0.517921146953405,
+              "originY": 0.30370370370370364
             }
           ]
         }
@@ -3879,67 +3879,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d05_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d05_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d05_death2.png",
-              "texelW": 56,
-              "texelH": 38,
+              "texelW": 66,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5818713450292397
+              "originX": 0.5016835016835016,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l3_E_d05_death3.png",
-              "texelW": 58,
-              "texelH": 40,
+              "texelW": 67,
+              "texelH": 47,
               "cellWorldPx": 1.35,
-              "originX": 0.5191570881226053,
-              "originY": 0.6027777777777777
+              "originX": 0.5091210613598672,
+              "originY": 0.5981087470449171
             },
             {
               "file": "davincitank_l3_E_d05_death4.png",
-              "texelW": 61,
-              "texelH": 28,
+              "texelW": 68,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.43253968253968234
+              "originX": 0.5163398692810457,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_E_d05_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.39068100358422925
+              "originX": 0.5163398692810457,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_E_d05_death6.png",
-              "texelW": 59,
-              "texelH": 29,
+              "texelW": 65,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5612052730696797,
-              "originY": 0.38314176245210724
+              "originX": 0.5401709401709401,
+              "originY": 0.39068100358422925
             },
             {
               "file": "davincitank_l3_E_d05_death7.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         },
@@ -3948,11 +3948,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d05_remnant0.png",
-              "texelW": 61,
-              "texelH": 30,
+              "texelW": 67,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.5428051001821492,
-              "originY": 0.37037037037037035
+              "originX": 0.5538971807628523,
+              "originY": 0.39068100358422925
             }
           ]
         }
@@ -3965,67 +3965,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d06_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d06_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d06_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 46,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5705705705705706
+              "originX": 0.5016835016835016,
+              "originY": 0.5893719806763283
             },
             {
               "file": "davincitank_l3_E_d06_death3.png",
-              "texelW": 57,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5107212475633528,
-              "originY": 0.5818713450292397
+              "originX": 0.5091210613598672,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l3_E_d06_death4.png",
-              "texelW": 56,
-              "texelH": 28,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.43253968253968234
+              "originX": 0.5016835016835016,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_E_d06_death5.png",
-              "texelW": 55,
-              "texelH": 34,
+              "texelW": 65,
+              "texelH": 37,
               "cellWorldPx": 1.35,
-              "originX": 0.49292929292929283,
-              "originY": 0.35620915032679723
+              "originX": 0.4940170940170939,
+              "originY": 0.4084084084084082
             },
             {
               "file": "davincitank_l3_E_d06_death6.png",
-              "texelW": 52,
-              "texelH": 29,
+              "texelW": 60,
+              "texelH": 32,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.279693486590038
+              "originX": 0.5018518518518519,
+              "originY": 0.3472222222222222
             },
             {
               "file": "davincitank_l3_E_d06_death7.png",
-              "texelW": 51,
-              "texelH": 29,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.4923747276688452,
-              "originY": 0.279693486590038
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         },
@@ -4034,11 +4034,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d06_remnant0.png",
-              "texelW": 52,
-              "texelH": 30,
+              "texelW": 56,
+              "texelH": 31,
               "cellWorldPx": 1.35,
-              "originX": 0.502136752136752,
-              "originY": 0.2703703703703701
+              "originX": 0.5019841269841269,
+              "originY": 0.32616487455197113
             }
           ]
         }
@@ -4051,67 +4051,67 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d07_death0.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d07_death1.png",
-              "texelW": 60,
-              "texelH": 41,
+              "texelW": 71,
+              "texelH": 52,
               "cellWorldPx": 1.35,
-              "originX": 0.5018518518518519,
-              "originY": 0.5880758807588076
+              "originX": 0.4945226917057902,
+              "originY": 0.6175213675213674
             },
             {
               "file": "davincitank_l3_E_d07_death2.png",
-              "texelW": 56,
-              "texelH": 37,
+              "texelW": 66,
+              "texelH": 45,
               "cellWorldPx": 1.35,
-              "originX": 0.5019841269841269,
-              "originY": 0.5435435435435434
+              "originX": 0.5016835016835016,
+              "originY": 0.5802469135802467
             },
             {
               "file": "davincitank_l3_E_d07_death3.png",
-              "texelW": 59,
-              "texelH": 38,
+              "texelW": 67,
+              "texelH": 44,
               "cellWorldPx": 1.35,
-              "originX": 0.49340866290018826,
-              "originY": 0.5555555555555555
+              "originX": 0.5091210613598672,
+              "originY": 0.5707070707070706
             },
             {
               "file": "davincitank_l3_E_d07_death4.png",
-              "texelW": 61,
-              "texelH": 29,
+              "texelW": 69,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.41762452107279674
+              "originX": 0.47987117552334935,
+              "originY": 0.4603174603174603
             },
             {
               "file": "davincitank_l3_E_d07_death5.png",
-              "texelW": 61,
-              "texelH": 31,
+              "texelW": 68,
+              "texelH": 34,
               "cellWorldPx": 1.35,
-              "originX": 0.46083788706739515,
-              "originY": 0.39068100358422925
+              "originX": 0.4722222222222221,
+              "originY": 0.4444444444444442
             },
             {
               "file": "davincitank_l3_E_d07_death6.png",
-              "texelW": 59,
-              "texelH": 32,
+              "texelW": 66,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.3472222222222222
+              "originX": 0.45622895622895615,
+              "originY": 0.3746031746031744
             },
             {
               "file": "davincitank_l3_E_d07_death7.png",
-              "texelW": 58,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.43295019157088116,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         },
@@ -4120,11 +4120,11 @@
           "frames": [
             {
               "file": "davincitank_l3_E_d07_remnant0.png",
-              "texelW": 59,
-              "texelH": 33,
+              "texelW": 64,
+              "texelH": 35,
               "cellWorldPx": 1.35,
-              "originX": 0.4425612052730696,
-              "originY": 0.33670033670033667
+              "originX": 0.43923611111111105,
+              "originY": 0.3460317460317459
             }
           ]
         }

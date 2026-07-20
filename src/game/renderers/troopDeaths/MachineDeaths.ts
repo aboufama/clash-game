@@ -291,9 +291,9 @@ function drawDaVinciTankDeath(g: G, view: View, isPlayer: boolean, level: number
         const spill = isFront && k !== 7 && crush > 0.55;
         if (spill) continue; // detached — drawn as grounded spills below
         if (!near && shear < 0.6) continue; // hidden behind the intact shell
-        const b0 = P(rel, 23, GG.HUB_H - sag * 1.5);
+        const b0 = P(rel, 24.5, GG.HUB_H - sag * 1.5);
         const b1 = P(rel, GG.RING_R + out, GG.HUB_H - sag * 4.5);
-        g.lineStyle(3.4, shade(pal.barrel, near ? 1 : 0.85), 1);
+        g.lineStyle(4.6, shade(pal.barrel, near ? 1 : 0.85), 1);
         g.lineBetween(b0[0], b0[1], b1[0], b1[1]);
         g.lineStyle(1.4, 0x252220, 1);
         g.lineBetween(b1[0], b1[1], b1[0] - (b1[0] - b0[0]) * 0.08, b1[1] - (b1[1] - b0[1]) * 0.08);
@@ -364,24 +364,24 @@ function drawDaVinciTankDeath(g: G, view: View, isPlayer: boolean, level: number
         for (const rel of [0.55, -0.5, 2.4]) {
             const c = P(rel, GG.RIM_R - 1, 1.2);
             g.fillStyle(pal.ironDk, 1);
-            g.fillEllipse(c[0], c[1], 7, 5.2);
+            g.fillEllipse(c[0], c[1], 8.6, 6.4);
             g.fillStyle(shade(pal.iron, 0.9), 1);
-            g.fillEllipse(c[0], c[1], 5, 3.6);
+            g.fillEllipse(c[0], c[1], 6.2, 4.5);
         }
     }
 
     // ---- spilled bombards on the ground (front pair, after detach) ----
     if (crush > 0.55) {
         const lay = (rel: number, ang: number, len: number): void => {
-            const c = dp(rel, GG.RING_R + 7, 0.8);
+            const c = dp(rel, GG.RING_R + 8, 0.8);
             const dx = Math.cos(ang) * len, dy = Math.sin(ang) * len * 0.5;
-            g.lineStyle(3.2, pal.barrel, 1);
+            g.lineStyle(4.2, pal.barrel, 1);
             g.lineBetween(c[0] - dx, c[1] - dy, c[0] + dx, c[1] + dy);
             g.fillStyle(0x26262b, 1);
-            g.fillEllipse(c[0] + dx, c[1] + dy, 2.6, 1.9);
+            g.fillEllipse(c[0] + dx, c[1] + dy, 3.4, 2.4);
         };
-        lay(0.18, 0.5, 6.5);
-        lay(BAY + 0.1, -0.35, 6);
+        lay(0.18, 0.5, 8.2);
+        lay(BAY + 0.1, -0.35, 7.6);
     }
 
     // ---- port flashes + flying lids during the rupture ----
@@ -417,7 +417,7 @@ function drawDaVinciTankDeath(g: G, view: View, isPlayer: boolean, level: number
         const c = view.point([cd, cw, Math.max(2.2, ch)]);
         const th = q >= 1 ? 1.15 : q * 2.6;
         const ux = Math.cos(th), uy = Math.sin(th);
-        const drumW = 4.6, drumH = 6.5;
+        const drumW = 5.4, drumH = 7.6;
         polygon(g, [
             [c[0] - ux * drumW + uy * drumH * 0.5, c[1] - uy * drumW * 0.6 - ux * drumH * 0.5],
             [c[0] + ux * drumW + uy * drumH * 0.5, c[1] + uy * drumW * 0.6 - ux * drumH * 0.5],
@@ -426,12 +426,13 @@ function drawDaVinciTankDeath(g: G, view: View, isPlayer: boolean, level: number
         ], pal.wood, 1);
         const capC: V2 = [c[0] + uy * drumH * 0.72, c[1] - ux * drumH * 0.72];
         polygon(g, [
-            [capC[0] - ux * 5.4, capC[1] - uy * 3],
-            [capC[0] + ux * 5.4, capC[1] + uy * 3],
-            [capC[0] + uy * 4.6, capC[1] - ux * 4.6]
+            [capC[0] - ux * 6.3, capC[1] - uy * 3.4],
+            [capC[0] + ux * 6.3, capC[1] + uy * 3.4],
+            [capC[0] + uy * 5.4, capC[1] - ux * 5.4]
         ], shade(pal.wood, 0.92));
-        g.fillStyle(pal.gold !== null ? pal.gold : pal.iron, 1);
-        g.fillCircle(capC[0] + uy * 5.4, capC[1] - ux * 5.4, 1.3);
+        // the snapped-off smokestack stub still rides the launched pod
+        g.fillStyle(pal.iron, 1);
+        g.fillRect(capC[0] + uy * 5.6 - 1.2, capC[1] - ux * 5.6 - 1.2, 2.6, 2.6);
         g.fillStyle(0x1f1c18, 0.9);
         g.fillRect(c[0] - 1.8, c[1] - 1.2, 1.3, 2.6);
     }

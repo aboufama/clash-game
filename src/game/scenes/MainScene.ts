@@ -3383,7 +3383,7 @@ export class MainScene extends Phaser.Scene {
             if (spriteTop != null) yOffset = Math.ceil(spriteTop + height + 4);
             else if (troop.type === 'warelephant') yOffset = 49;
             else if (troop.type === 'golem' || troop.type === 'icegolem') yOffset = 70;
-            else if (troop.type === 'davincitank') yOffset = 42;
+            else if (troop.type === 'davincitank') yOffset = 52;
             else if (troop.type === 'mobilemortar') yOffset = 26;
 
             y = pos.y - yOffset;
@@ -4226,15 +4226,15 @@ export class MainScene extends Phaser.Scene {
                                 const relativeAim = Phaser.Math.Angle.Wrap(aimAngleToTarget - ringAngle);
                                 const firingAngle = ringAngle + Math.round(relativeAim / snapIncrement) * snapIncrement;
 
-                                // Renderer geometry: ring radius 26 + barrel
-                                // length 12, with its hub 2 px below the anchor.
-                                const muzzleOffset = 38;
+                                // Renderer geometry: ring radius 29 + barrel
+                                // length 16, with its hub 2 px below the anchor.
+                                const muzzleOffset = 45;
                                 const muzzleX = tankPos.x + Math.cos(firingAngle) * muzzleOffset;
                                 const muzzleY = tankPos.y + 2 + Math.sin(firingAngle) * muzzleOffset * 0.5;
 
                                 // Start just beyond that exact barrel tip so
                                 // the ball never appears inside the hull.
-                                const ballOffset = 41;
+                                const ballOffset = 48;
                                 const ballX = tankPos.x + Math.cos(firingAngle) * ballOffset;
                                 const ballY = tankPos.y + 2 + Math.sin(firingAngle) * ballOffset * 0.5;
 
@@ -4249,8 +4249,8 @@ export class MainScene extends Phaser.Scene {
 
                                 // Muzzle flash
                                 const flash = this.trackBattleFx(this.add.graphics());
-                                pixelEllipse(flash, 0, 0, 8, 8, 0xffaa00, 0.9);
-                                pixelEllipse(flash, 0, 0, 4, 4, 0xffff00, 0.7);
+                                pixelEllipse(flash, 0, 0, 10, 10, 0xffaa00, 0.9);
+                                pixelEllipse(flash, 0, 0, 5, 5, 0xffff00, 0.7);
                                 flash.setPosition(muzzleX, muzzleY);
                                 flash.setDepth(depthForGroundEffect(launchGX, launchGY));
                                 this.tweens.add({
@@ -4260,10 +4260,10 @@ export class MainScene extends Phaser.Scene {
                                     onComplete: () => flash.destroy()
                                 });
 
-                                // Cannonball projectile - 2x SMALLER (3px radius)
+                                // Cannonball projectile — sized to the beefed-up bombards
                                 const ball = this.trackBattleFx(this.add.graphics());
-                                pixelEllipse(ball, 0, 0, 3, 3, 0x2a2a2a, 1);
-                                pixelEllipse(ball, -0.5, -0.5, 1, 1, 0x4a4a4a, 1);
+                                pixelEllipse(ball, 0, 0, 4, 4, 0x2a2a2a, 1);
+                                pixelEllipse(ball, -0.7, -0.7, 1.5, 1.5, 0x4a4a4a, 1);
                                 ball.setPosition(ballX, ballY);
                                 ball.setDepth(ballDepth);
 
@@ -4721,7 +4721,7 @@ export class MainScene extends Phaser.Scene {
         let legacy = 22;
         if (type === 'warelephant') legacy = 49;
         else if (type === 'golem' || type === 'icegolem') legacy = 70;
-        else if (type === 'davincitank') legacy = 42;
+        else if (type === 'davincitank') legacy = 52;
         else if (type === 'mobilemortar') legacy = 26;
         else if (type === 'siegetower') legacy = 62;
         else if (type === 'trebuchet') legacy = 46;

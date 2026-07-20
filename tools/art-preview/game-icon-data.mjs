@@ -336,9 +336,11 @@ export const ICONS = [
     note: "DA VINCI TANK - Testudo rebuild: two-pitch plank shell, bombard ring, cupola + crown banner",
     base: "#B5946A",
     px: `
-        /* Crown banner + finial */
-        0 -22px #8A8A96, 2px -22px #3F74B3, 4px -22px #3F74B3, 6px -22px #3F74B3,
-        0 -20px #3E3E47, 2px -20px #2D5486, 4px -20px #2D5486,
+        /* Smokestack crown + banner on its crossarm */
+        -2px -26px #3E3E47, 0 -26px #565661, 2px -26px #3E3E47,
+        0 -24px #46464F, 2px -24px #3F74B3, 4px -24px #3F74B3, 6px -24px #3F74B3,
+        0 -22px #46464F, 2px -22px #2D5486, 4px -22px #2D5486,
+        0 -20px #3E3E47,
         /* Cupola cap */
         0 -18px #A08155,
         -2px -16px #8A6844, 0 -16px #B5946A, 2px -16px #8A6844,
