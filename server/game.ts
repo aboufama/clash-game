@@ -3001,7 +3001,7 @@ export class GameService implements AdminApiService {
     })
   }
 
-  botStart(player: PlayerRecord, body: BotStartRequest, rawToken?: unknown): { raidId: string; x: number; y: number; seed: number; world: SerializedWorld; expiresAt: number; focusWindow?: unknown } {
+  botStart(player: PlayerRecord, body: BotStartRequest, rawToken?: unknown): { raidId: string; x: number; y: number; seed: number; world: SerializedWorld; reservedArmy: Record<string, number>; expiresAt: number; focusWindow?: unknown } {
     this.pruneFinishedBotRaids()
     const requestId = this.normalizeKey(body?.requestId)
     const excludedCampKeys = parseBotCampExclusions(body?.excludeCampKeys)
@@ -3022,6 +3022,7 @@ export class GameService implements AdminApiService {
           y: existing.y,
           seed: existing.seed,
           world: structuredClone(bot.world),
+          reservedArmy: { ...existing.reservedArmy },
           expiresAt: existing.expiresAt,
           focusWindow: this.attackFocusWindow(player, existing.x, existing.y)
         }
@@ -3078,6 +3079,7 @@ export class GameService implements AdminApiService {
       y: camp.y,
       seed: camp.seed,
       world,
+      reservedArmy: { ...raid.reservedArmy },
       expiresAt: raid.expiresAt,
       focusWindow: this.attackFocusWindow(player, camp.x, camp.y)
     }
@@ -4042,6 +4044,7 @@ export class GameService implements AdminApiService {
     return {
       attackId: existing.attackId,
       world: existing.enemyWorld,
+      reservedArmy: { ...existing.reservedArmy },
       lootCap: existing.lootCap,
       lootCapOre: existing.lootCapOre ?? 0,
       lootCapFood: existing.lootCapFood ?? 0,
@@ -4227,6 +4230,7 @@ export class GameService implements AdminApiService {
     return {
       attackId: replay.attackId,
       world: enemyWorld,
+      reservedArmy: { ...reservedArmy },
       lootCap: replay.lootCap,
       lootCapOre,
       lootCapFood,

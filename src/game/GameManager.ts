@@ -43,10 +43,15 @@ type UIHandlers = {
         trophyDelta?: number;
         settlementDelayed?: boolean;
     }) => void;
+    /** The attack-start response has already reserved this exact army on the
+     *  server. Mirror it synchronously before slow focus/asset loading. */
+    onAttackArmyPinned: (army: Record<string, number>) => void;
+    /** The reservation settled or aborted; restore the cached home authority. */
+    onAttackArmyReleased: () => void;
     getArmy: () => Record<string, number>;
     getResources: () => { gold: number; ore: number; food: number };
     getSelectedTroopType: () => string | null;
-    deployTroop: (type: string) => void;
+    deployTroop: (type: string, pinnedArmy?: Record<string, number>) => void;
     refreshCampCapacity: (campLevels: number[]) => void;
     onBuildingPlaced: (type: string, isFree?: boolean) => void;
     closeMenus: () => void;
@@ -104,6 +109,12 @@ type SceneCommands = {
 class GameManager {
     private uiHandlers: Partial<UIHandlers> = {};
     private sceneCommands: Partial<SceneCommands> = {};
+    /**
+     * Server-authoritative attack reservation. This lives outside React so
+     * the click -> response -> focus-load handoff can publish it synchronously;
+     * React state and HOME world polls cannot race the scene's first read.
+     */
+    private pinnedAttackArmy: { reservationId: string; army: Record<string, number> } | null = null;
 
     private async waitForSceneLoadCommand(timeoutMs = 1500): Promise<(() => Promise<boolean>) | null> {
         const start = Date.now();
@@ -125,6 +136,7 @@ class GameManager {
 
     clearUI() {
         this.uiHandlers = {};
+        this.pinnedAttackArmy = null;
     }
 
     clearScene() {
@@ -175,8 +187,31 @@ class GameManager {
         this.uiHandlers.onRetreatEnded?.(results);
     }
 
+    pinAttackArmy(reservationId: string, army: Record<string, number>) {
+        const pinned = Object.fromEntries(
+            Object.entries(army ?? {})
+                .filter(([type, count]) => Boolean(type) && Number.isFinite(Number(count)))
+                .map(([type, count]) => [type, Math.max(0, Math.floor(Number(count)))])
+        );
+        this.pinnedAttackArmy = { reservationId, army: pinned };
+        this.uiHandlers.onAttackArmyPinned?.({ ...pinned });
+    }
+
+    releaseAttackArmy(reservationId?: string) {
+        if (this.pinnedAttackArmy === null) return;
+        // A superseded transition may finish aborting after NEXT has already
+        // pinned its replacement. It may release only its own reservation.
+        if (reservationId && this.pinnedAttackArmy.reservationId !== reservationId) return;
+        this.pinnedAttackArmy = null;
+        this.uiHandlers.onAttackArmyReleased?.();
+    }
+
+    hasPinnedAttackArmy() {
+        return this.pinnedAttackArmy !== null;
+    }
+
     getArmy() {
-        return this.uiHandlers.getArmy?.() ?? {};
+        return this.pinnedAttackArmy?.army ?? this.uiHandlers.getArmy?.() ?? {};
     }
 
     getResources() {
@@ -188,7 +223,16 @@ class GameManager {
     }
 
     deployTroop(type: string) {
-        this.uiHandlers.deployTroop?.(type);
+        let pinnedArmy: Record<string, number> | undefined;
+        if (this.pinnedAttackArmy) {
+            const next = {
+                ...this.pinnedAttackArmy.army,
+                [type]: Math.max(0, (this.pinnedAttackArmy.army[type] ?? 0) - 1)
+            };
+            this.pinnedAttackArmy = { ...this.pinnedAttackArmy, army: next };
+            pinnedArmy = { ...next };
+        }
+        this.uiHandlers.deployTroop?.(type, pinnedArmy);
     }
 
     refreshCampCapacity(campLevels: number[]) {

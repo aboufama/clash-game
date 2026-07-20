@@ -53,3 +53,30 @@ test('generated Skeleton and Roman Warrior rows require and refresh from their t
   assert.equal(generatedTroopHasRootDeployment('skeleton', { phalanx: 1 }), false)
   assert.equal(generatedTroopHasRootDeployment('warrior', { warrior: 1 }), false)
 })
+
+test('legacy PvP starts and idempotent retries expose the immutable reserved army', () => {
+  const dataRoot = mkdtempSync(path.join(tmpdir(), 'clash-legacy-reservation-'))
+  try {
+    const game = new GameService(dataRoot)
+    const attackerSession = game.register(null, 'ReserveAttacker', 'valid-password-123')
+    const defenderSession = game.register(null, 'ReserveDefender', 'valid-password-123')
+    assert.ok('token' in attackerSession)
+    assert.ok('token' in defenderSession)
+    if (!('token' in attackerSession) || !('token' in defenderSession)) return
+
+    const attacker = game.authenticate(attackerSession.token)
+    const defender = game.authenticate(defenderSession.token)
+    attacker.army = { warrior: 2 }
+    defender.shieldUntil = 0
+
+    const started = game.matchmake(attacker, { requestId: 'legacy-reserved-army' }, attackerSession.token)
+    assert.deepEqual(started.reservedArmy, { warrior: 2 })
+    const retry = game.matchmake(attacker, { requestId: 'legacy-reserved-army' }, attackerSession.token)
+    assert.equal(retry.attackId, started.attackId)
+    assert.deepEqual(retry.reservedArmy, started.reservedArmy,
+      'the idempotent retry preserves the reservation snapshot exactly')
+    assert.equal(game.flush(), true)
+  } finally {
+    rmSync(dataRoot, { recursive: true, force: true })
+  }
+})

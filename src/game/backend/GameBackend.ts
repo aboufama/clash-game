@@ -185,6 +185,8 @@ export type AttackReplayState = {
 export type StartedAttack = {
   attackId: string;
   world: SerializedWorld;
+  /** Immutable attacker army captured by the server-side reservation. */
+  reservedArmy: Record<string, number>;
   lootCap: number;
   lootCapOre?: number;
   lootCapFood?: number;
@@ -274,6 +276,8 @@ export type StartedBotRaid = {
   y: number;
   seed: number;
   world: SerializedWorld;
+  /** Immutable attacker army captured by the server-side reservation. */
+  reservedArmy: Record<string, number>;
   expiresAt: number;
   /** Presentation window returned with the authoritative start. */
   focusWindow?: WorldMapWindow;
@@ -947,8 +951,11 @@ export class Backend {
       && status !== 429;
   }
 
-  /** Runtime-check the location identity before it can enter recovery storage. */
-  private static validStartedBotRaid(result: StartedBotRaid | null | undefined): result is StartedBotRaid {
+  /** A malformed presentation payload must still retain enough identity for
+   * crash recovery to close the server-side reservation. In particular, a
+   * mixed-version response may omit reservedArmy: refuse to render it, but do
+   * not strand the raid until its TTL by refusing to settle it too. */
+  private static validStartedBotRaidIdentity(result: StartedBotRaid | null | undefined): boolean {
     return Boolean(
       result
       && typeof result.raidId === 'string'
@@ -957,6 +964,25 @@ export class Backend {
       && Number.isInteger(result.x)
       && Number.isInteger(result.y)
       && Number.isInteger(result.seed)
+    );
+  }
+
+  /** Runtime-check the full presentation contract before it enters battle UI. */
+  private static validReservedArmy(value: unknown): value is Record<string, number> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const entries = Object.entries(value as Record<string, unknown>);
+    return entries.length > 0 && entries.every(([type, count]) => (
+      type.length > 0
+      && Number.isInteger(count)
+      && Number(count) > 0
+    ));
+  }
+
+  private static validStartedBotRaid(result: StartedBotRaid | null | undefined): result is StartedBotRaid {
+    return Boolean(
+      Backend.validStartedBotRaidIdentity(result)
+      && result
+      && Backend.validReservedArmy(result.reservedArmy)
     );
   }
 
@@ -2235,8 +2261,8 @@ export class Backend {
             requestId: pending.requestId
           }
         ));
-        if (!Backend.validStartedBotRaid(result)) {
-          throw new Error('Recovered bot raid start returned an invalid world');
+        if (!Backend.validStartedBotRaidIdentity(result)) {
+          throw new Error('Recovered bot raid start returned an invalid identity');
         }
         rememberBattle(user.id, { kind: 'bot', raidId: result.raidId, x: result.x, y: result.y });
         forgetPendingBattleStart(user.id);
@@ -2488,6 +2514,7 @@ export class Backend {
           requestId
         }, user.id);
         if (!result?.attackId || !Array.isArray(result.world?.buildings)
+          || !Backend.validReservedArmy(result.reservedArmy)
           || !Number.isInteger(result.target?.x) || !Number.isInteger(result.target?.y)) {
           throw new Error('Matchmaking returned an invalid world');
         }
@@ -2532,6 +2559,7 @@ export class Backend {
           user.id
         );
         if (!result?.attackId || !Array.isArray(result.world?.buildings)
+          || !Backend.validReservedArmy(result.reservedArmy)
           || !Number.isInteger(result.target?.x) || !Number.isInteger(result.target?.y)) {
           throw new Error('Attack start returned an invalid world');
         }

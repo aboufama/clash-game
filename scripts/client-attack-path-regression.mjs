@@ -3,11 +3,12 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 const battleResultsModalUrl = new URL('../src/components/BattleResultsModal.tsx', import.meta.url)
-const [app, appCss, notifications, backend, scene, worldMap, villageLife] = await Promise.all([
+const [app, appCss, notifications, backend, gameManager, scene, worldMap, villageLife] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/NotificationsPanel.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/backend/GameBackend.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/GameManager.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/scenes/MainScene.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/systems/WorldMapSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/systems/VillageLifeSystem.ts', import.meta.url), 'utf8')
@@ -42,11 +43,49 @@ for (const field of ['x', 'y', 'seed']) {
   assert.match(backend, new RegExp(`Number\\.isInteger\\(result\\.${field}\\)`),
     `Bot start must validate integer ${field}`)
 }
-assert.ok((backend.match(/Backend\.validStartedBotRaid\(result\)/g) ?? []).length >= 2,
-  'Normal and recovered bot starts must share runtime validation')
+assert.equal((backend.match(/Backend\.validStartedBotRaid\(result\)/g) ?? []).length, 1,
+  'A fresh bot start must require the full presentation contract')
+assert.equal((backend.match(/reservedArmy: Record<string, number>;/g) ?? []).length, 2,
+  'PvP and bot attack-start contracts must both carry the server-reserved army')
+assert.ok((backend.match(/Backend\.validReservedArmy\(result\.reservedArmy\)/g) ?? []).length >= 3,
+  'Every PvP and bot attack-start response must runtime-validate its reserved army')
+
+const managerPin = gameManager.slice(
+  gameManager.indexOf('pinAttackArmy('),
+  gameManager.indexOf('hasPinnedAttackArmy(')
+)
+assert.match(managerPin, /this\.pinnedAttackArmy = \{ reservationId, army: pinned \};[\s\S]*?onAttackArmyPinned\?\.\(\{ \.\.\.pinned \}\)/,
+  'Attack army pinning must publish synchronously before React or HOME polling can race it')
+assert.match(gameManager, /getArmy\(\) \{[\s\S]*?return this\.pinnedAttackArmy\?\.army \?\? this\.uiHandlers\.getArmy\?\.\(\) \?\? \{\};/,
+  'All scene army reads must prefer the active server reservation')
+const managerDeploy = gameManager.slice(
+  gameManager.indexOf('deployTroop(type: string)'),
+  gameManager.indexOf('refreshCampCapacity(', gameManager.indexOf('deployTroop(type: string)'))
+)
+assert.match(managerDeploy, /this\.pinnedAttackArmy = \{ \.\.\.this\.pinnedAttackArmy, army: next \};[\s\S]*?this\.uiHandlers\.deployTroop\?\.\(type, pinnedArmy\);/,
+  'Deployment must decrement the synchronous reservation before notifying React')
+assert.match(app, /if \(!gameManager\.hasPinnedAttackArmy\(\)\) Backend\.updateArmy\(userId, army\);/,
+  'HOME persistence must not write a reserved battle army back to the server cache')
+assert.match(app, /if \(world\.army && !gameManager\.hasPinnedAttackArmy\(\)\) \{[\s\S]*?armyRef\.current = nextArmy;/,
+  'Own-world heartbeats must not erase a pinned army during slow battle loading')
+assert.match(app, /onAttackArmyPinned:[\s\S]*?armyRef\.current = pinned;[\s\S]*?onAttackArmyReleased:/,
+  'The React army ref must mirror a reservation synchronously and expose a release path')
+assert.match(app, /const currentArmy = gameManager\.getArmy\(\);[\s\S]*?setVisibleTroops\(battleTroops\);/,
+  'ATTACK-mode HUD setup must read GameManager reservation truth, not a stale React ref')
 
 assert.ok((scene.match(/arriveAndFight\(/g) ?? []).length >= 3,
   'All issued attack starts must use the shared in-place arrival handoff')
+assert.equal((scene.match(/reservedArmy: (?:started|startedAttack)\.reservedArmy/g) ?? []).length, 4,
+  'Bot plot, generated bot, matchmade PvP, and direct-user PvP must all pin their start army')
+const arrivalHandoff = scene.slice(
+  scene.indexOf('private async arriveAndFight('),
+  scene.indexOf('/** Live destruction percentage', scene.indexOf('private async arriveAndFight('))
+)
+const pinAt = arrivalHandoff.indexOf('gameManager.pinAttackArmy(')
+const armyReadAt = arrivalHandoff.indexOf('gameManager.getArmy()')
+const slowLoadAt = arrivalHandoff.indexOf('await Promise.all([')
+assert.ok(pinAt >= 0 && pinAt < armyReadAt && armyReadAt < slowLoadAt,
+  'The authoritative army must be pinned before the first read and before slow focus/sprite loading')
 const botAttackLoader = scene.slice(
   scene.indexOf('private async generateEnemyVillage('),
   scene.indexOf('/** A fresh FIND MATCH', scene.indexOf('private async generateEnemyVillage('))
@@ -57,7 +96,7 @@ assert.doesNotMatch(botAttackLoader, /id: `bot_\$\{started\.seed/,
   'Bot seeds are provenance and must never become client entity/cache identities')
 assert.match(scene, /onMidpoint\(epoch\)\)[\s\S]*?\.finally\(\(\) => \{[\s\S]*?finishExclusiveTransition\(epoch\)/,
   'The cloud-transition midpoint must always release the transition lock in its finally')
-assert.match(scene, /private async arriveAndFight\([\s\S]*?Backend\.endAttack\(meta\.attackId, 'aborted'[\s\S]*?await this\.abortBotSession\(meta\)/,
+assert.match(scene, /private async abortUnpresentedAttack\([\s\S]*?await this\.abortBotSession\(meta\)[\s\S]*?Backend\.endAttack\(meta\.attackId, 'aborted'[\s\S]*?gameManager\.releaseAttackArmy\(reservationId\)/,
   'Arrival failure paths must close both the player attack and bot raid sessions')
 assert.match(worldMap, /prepareFocus[\s\S]*?const focusRadius = 1;/,
   'Battle focus must remain one local 3x3 ring regardless of exploration sight')
@@ -72,6 +111,8 @@ assert.doesNotMatch(nextMapHandler, /const loaded = await this\.generateEnemyVil
   'NEXT must never switch a world-map player search into the bot generator directly')
 assert.doesNotMatch(nextMapHandler, /resetMatchmakeSession/,
   'NEXT must keep the cycling session alive — only a fresh FIND MATCH resets it')
+assert.match(nextMapHandler, /const skippedReservationId[\s\S]*?await this\.abandonCurrentAttack\(\);[\s\S]*?gameManager\.releaseAttackArmy\(skippedReservationId\);[\s\S]*?generateFindMatchVillage\(epoch\)/,
+  'NEXT must release only the settled old reservation before starting its replacement')
 const findMatchHelper = scene.slice(
   scene.indexOf('private async generateFindMatchVillage('),
   scene.indexOf('// Matchmake against a random online player.')
@@ -103,6 +144,8 @@ const battleReconciliation = backend.slice(
   backend.indexOf('static async reconcileInterruptedBattle('),
   backend.indexOf('static async placeBuilding(')
 )
+assert.match(battleReconciliation, /Backend\.validStartedBotRaidIdentity\(result\)[\s\S]*?rememberBattle\(user\.id, \{ kind: 'bot'[\s\S]*?await Backend\.botSettle\(/,
+  'Recovery must abort an identified bot reservation even when its army snapshot is unsafe to present')
 assert.match(battleReconciliation, /pending\.matchmade && pending\.excludeTargetId[\s\S]*?excludeTargetId: pending\.excludeTargetId/,
   'Crash recovery must resend the same player exclusion with the stable request id')
 assert.match(battleReconciliation, /pending\.matchmade && pending\.excludeTargetIds\?\.length[\s\S]*?excludeTargetIds: pending\.excludeTargetIds/,
@@ -167,6 +210,25 @@ assert.match(scene, /private replaySiegeRampWallNear\([\s\S]*?building\.type !==
 assert.match(scene, /rampAuthorizationInvalidated = removed\.type === 'wall'[\s\S]*?troop\.parked01 === undefined[\s\S]*?troop\.navigationPlan\?\.rampWallId[\s\S]*?urgent = intentDestroyed \|\| activeDestroyed \|\| routeBlockerDestroyed[\s\S]*?rampAuthorizationInvalidated[\s\S]*?troop\.nextPathTime = rampAuthorizationInvalidated[\s\S]*?\? now/,
   'Destroying any wall must revoke and immediately reacquire an unparked Siege Tower first-ray-wall authorization')
 
+const botSettlement = scene.slice(
+  scene.indexOf('private async settleBotRaid('),
+  scene.indexOf('/** Clicked on (or near)', scene.indexOf('private async settleBotRaid('))
+)
+assert.match(botSettlement, /this\.botRaidSettled = true;[\s\S]*?gameManager\.releaseAttackArmy\(enemy\.botRaidId\);/,
+  'Bot settlement must release its own pin only after authoritative army adoption')
+const pvpSettlement = scene.slice(
+  scene.indexOf('private endAttackReplayCapture('),
+  scene.indexOf('private createReplayTroop(', scene.indexOf('private endAttackReplayCapture('))
+)
+assert.match(pvpSettlement, /Backend\.endAttack\([\s\S]*?\.then\(result => \{[\s\S]*?gameManager\.releaseAttackArmy\(state\.attackId\);/,
+  'PvP settlement must release its own pin only after authoritative army adoption')
+const goHome = scene.slice(
+  scene.indexOf('public async goHome()'),
+  scene.indexOf('private calculateMaxCameraZoom(', scene.indexOf('public async goHome()'))
+)
+assert.match(goHome, /await this\.settleBotRaid\(\);[\s\S]*?gameManager\.releaseAttackArmy\(\);[\s\S]*?gameManager\.setGameMode\('HOME'\);/,
+  'Returning home must retain the pin through settlement and then clear any recovery fallback')
+
 assert.doesNotMatch(villageLife, /fallbackBarracks/,
   'Core troop figures must never fall back to an arbitrary faction Barracks')
 assert.match(villageLife, /building\.type === FACTION_BARRACKS\[faction\]/,
@@ -176,4 +238,4 @@ assert.match(villageLife, /getTroopFaction\(type as TroopType\)[\s\S]*?\? factio
 assert.match(villageLife, /const trainingBuilding = getTroopFaction\(type\) \? factionBarracks : coreCamp;/,
   'Fresh Core troop figures must originate at their assigned Army Camp')
 
-console.log('client attack path regression: 56 checks passed')
+console.log('client attack path regression: all checks passed (reserved-army race covered)')

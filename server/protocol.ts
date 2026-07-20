@@ -190,6 +190,8 @@ export interface EndAttackResponse {
 export interface StartedAttackResponse {
   attackId: string
   world: SerializedWorld
+  /** Immutable attacker army owned by this attack reservation. */
+  reservedArmy: Record<string, number>
   lootCap: number
   lootCapOre: number
   lootCapFood: number

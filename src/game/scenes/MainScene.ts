@@ -800,6 +800,7 @@ export class MainScene extends Phaser.Scene {
             this.sceneReadyForBaseLoad = false;
             this.invalidateTransitions();
             this.endAttackReplayCapture('aborted');
+            gameManager.releaseAttackArmy();
             this.clearReplayWatchState();
             this.cancelBattleAsyncWork();
             this.dropGroundBake();
@@ -2216,6 +2217,7 @@ export class MainScene extends Phaser.Scene {
             this.worldMap.prepareFocus(plot, started.focusWindow ?? null);
             this.prepareGroundBake(meta.id);
             await this.arriveAndFight(plot, started.world, meta, epoch, {
+                reservedArmy: started.reservedArmy,
                 cameraArrivedAtGate: false,
                 finishTransition: false
             });
@@ -2225,6 +2227,23 @@ export class MainScene extends Phaser.Scene {
     private async abortBotSession(meta: { botRaidId?: string; botPlot?: { x: number; y: number } }): Promise<void> {
         if (!meta.botRaidId || !meta.botPlot) return;
         await Backend.botSettle(meta.botRaidId, meta.botPlot.x, meta.botPlot.y, 0, {});
+    }
+
+    /** Close a server reservation that never reached a playable battle frame.
+     * The keyed release prevents a stale transition from clearing NEXT's newer
+     * reservation if its abort response arrives late. */
+    private async abortUnpresentedAttack(meta: EnemyWorldMeta, reservationId: string): Promise<void> {
+        try {
+            if (meta.botRaidId && meta.botPlot) {
+                await this.abortBotSession(meta);
+            } else if (meta.attackId) {
+                await Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(error => {
+                    console.warn('Failed to close an unpresented attack:', error);
+                });
+            }
+        } finally {
+            gameManager.releaseAttackArmy(reservationId);
+        }
     }
 
     /**
@@ -2248,8 +2267,18 @@ export class MainScene extends Phaser.Scene {
         world: SerializedWorld,
         meta: EnemyWorldMeta,
         epoch: number,
-        options: { cameraArrivedAtGate?: boolean; finishTransition?: boolean } = {}
+        options: {
+            reservedArmy: Record<string, number>;
+            cameraArrivedAtGate?: boolean;
+            finishTransition?: boolean;
+        }
     ) {
+        const reservationId = meta.botRaidId ?? meta.attackId;
+        if (!reservationId) throw new Error('Authoritative attack is missing its reservation id');
+        // The start response is the only honest battle roster: the own village
+        // already advertises army={} because these troops are now reserved.
+        // Pin before getArmy(), sprite selection, or any slow focus await.
+        gameManager.pinAttackArmy(reservationId, options.reservedArmy);
         const cameraArrivedAtGate = options.cameraArrivedAtGate ?? true;
         const finishTransition = options.finishTransition ?? true;
         const finish = () => {
@@ -2265,22 +2294,31 @@ export class MainScene extends Phaser.Scene {
         const armyTypes = Object.entries(gameManager.getArmy())
             .filter(([, count]) => Number(count) > 0)
             .map(([type]) => type);
-        const [focusReady] = await Promise.all([
-            this.worldMap.waitForFocusReady(),
-            SpriteBank.ensureUnits(this, battleSpriteRequirements({
-                buildingTypes: (world.buildings ?? []).map(building => building.type),
-                obstacleTypes: (world.obstacles ?? []).map(obstacle => obstacle.type),
-                troopTypes: armyTypes
-            }))
-        ]);
+        let focusReady = false;
+        try {
+            [focusReady] = await Promise.all([
+                this.worldMap.waitForFocusReady(),
+                SpriteBank.ensureUnits(this, battleSpriteRequirements({
+                    buildingTypes: (world.buildings ?? []).map(building => building.type),
+                    obstacleTypes: (world.obstacles ?? []).map(obstacle => obstacle.type),
+                    troopTypes: armyTypes
+                }))
+            ]);
+        } catch (error) {
+            console.warn('Attack presentation preparation failed:', error);
+            await this.abortUnpresentedAttack(meta, reservationId);
+            this.worldMap.teardown();
+            this.dropGroundBake();
+            gameManager.showToast('The battlefield could not be prepared. Please try again.');
+            finish();
+            return;
+        }
         if (!this.isTransitionCurrent(epoch)) {
-            if (!meta.isBot && meta.attackId) await Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
-            if (meta.botRaidId) await this.abortBotSession(meta);
+            await this.abortUnpresentedAttack(meta, reservationId);
             return;
         }
         if (!focusReady) {
-            if (!meta.isBot && meta.attackId) void Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
-            if (meta.botRaidId) await this.abortBotSession(meta);
+            await this.abortUnpresentedAttack(meta, reservationId);
             this.worldMap.teardown();
             this.dropGroundBake();
             gameManager.showToast('The road ahead could not be loaded. Please try again.');
@@ -2293,8 +2331,7 @@ export class MainScene extends Phaser.Scene {
         // and could abort a fully registered raid for unrelated background
         // work. From this point the transition epoch is the only required gate.
         if (!this.isTransitionCurrent(epoch)) {
-            if (!meta.isBot && meta.attackId) void Backend.endAttack(meta.attackId, 'aborted', 0, 0).catch(() => undefined);
-            if (meta.botRaidId) await this.abortBotSession(meta);
+            await this.abortUnpresentedAttack(meta, reservationId);
             this.worldMap.teardown();
             this.dropGroundBake();
             finish();
@@ -2373,6 +2410,9 @@ export class MainScene extends Phaser.Scene {
             );
             if (!result) throw new Error('Bot raid settlement is still pending');
             this.botRaidSettled = true;
+            // botSettle adopts the authoritative remaining army before it
+            // resolves, so the React mirror can safely leave reservation mode.
+            gameManager.releaseAttackArmy(enemy.botRaidId);
             return Math.max(0, Math.floor(result.lootApplied ?? 0));
         })();
         this.pendingBotSettlement = task;
@@ -9386,6 +9426,8 @@ export class MainScene extends Phaser.Scene {
                 }
 
                 this.showCloudTransition(async epoch => {
+                    const skippedReservationId = this.currentEnemyWorld?.botRaidId
+                        ?? this.currentEnemyWorld?.attackId;
                     // A skipped PLAYER base joins the strict session exclusions
                     // (covers leaderboard/revenge entries too), so NEXT cycles
                     // onward through the remaining pool instead of bouncing.
@@ -9404,6 +9446,7 @@ export class MainScene extends Phaser.Scene {
                             return;
                         }
                     }
+                    if (skippedReservationId) gameManager.releaseAttackArmy(skippedReservationId);
                     if (!this.isTransitionCurrent(epoch)) return;
                     // Clear the skipped village, then run the exact same
                     // world-map matchmaking path as the initial FIND MATCH.
@@ -9575,6 +9618,10 @@ export class MainScene extends Phaser.Scene {
                 });
             }
         }
+        // Both settlement paths above have now had their chance to publish the
+        // authoritative remaining army into Backend's cache. Drop the battle
+        // pin only now; App's release callback adopts that cached home truth.
+        gameManager.releaseAttackArmy();
         this.currentEnemyWorld = null;
         // Every retreat rides the clouds home — no homecoming march. The war
         // camp is torn down by endFocus below; the drums stop with it (the
@@ -9951,6 +9998,7 @@ export class MainScene extends Phaser.Scene {
         this.worldMap.prepareFocus(plot, started.focusWindow ?? null);
         this.prepareGroundBake(meta.id);
         await this.arriveAndFight(plot, started.world, meta, epoch, {
+            reservedArmy: started.reservedArmy,
             cameraArrivedAtGate: false,
             finishTransition: false
         });
@@ -10044,6 +10092,7 @@ export class MainScene extends Phaser.Scene {
         this.worldMap.prepareFocus(plot, started.focusWindow ?? null);
         this.prepareGroundBake(meta.id);
         await this.arriveAndFight(plot, started.world, meta, epoch, {
+            reservedArmy: started.reservedArmy,
             // Matchmade travel is covered by the cloud, but the destination is
             // still the canonical map plot and uses the local attack swap.
             cameraArrivedAtGate: false,
@@ -10100,6 +10149,7 @@ export class MainScene extends Phaser.Scene {
             this.worldMap.prepareFocus(plot, startedAttack.focusWindow ?? null);
             this.prepareGroundBake(meta.id);
             await this.arriveAndFight(plot, userBase, meta, epoch, {
+                reservedArmy: startedAttack.reservedArmy,
                 cameraArrivedAtGate: false,
                 finishTransition: false
             });
@@ -10137,9 +10187,11 @@ export class MainScene extends Phaser.Scene {
         if (this.settledAttackIds.has(attackId)) return;
         this.settledAttackIds.add(attackId);
         this.currentEnemyWorld = this.currentEnemyWorld ? { ...this.currentEnemyWorld, attackId: undefined } : null;
-        await Backend.endAttack(attackId, 'aborted', 0, 0).catch(error => {
+        const result = await Backend.endAttack(attackId, 'aborted', 0, 0).catch(error => {
             console.warn('Failed to abort attack:', error);
+            return null;
         });
+        if (result) gameManager.releaseAttackArmy(attackId);
     }
 
     private getReplayTroopType(type: string): TroopType | null {
@@ -10318,7 +10370,20 @@ export class MainScene extends Phaser.Scene {
         this.settledAttackIds.add(state.attackId);
         Backend.pushAttackReplayFrame(state.attackId, finalFrame);
         // Settles loot + trophies and notifies the defender, exactly once.
-        const settlement = Backend.endAttack(state.attackId, status, finalFrame.destruction, finalFrame.goldLooted, finalFrame.oreLooted ?? 0, finalFrame.foodLooted ?? 0);
+        const settlement = Backend.endAttack(
+            state.attackId,
+            status,
+            finalFrame.destruction,
+            finalFrame.goldLooted,
+            finalFrame.oreLooted ?? 0,
+            finalFrame.foodLooted ?? 0
+        ).then(result => {
+            // Backend has already adopted result.army into its cache here.
+            // Release only this reservation so a late settlement can never
+            // clear a newer army pinned by NEXT.
+            if (result) gameManager.releaseAttackArmy(state.attackId);
+            return result;
+        });
         this.pendingAttackSettlement = settlement;
         void settlement.finally(() => {
             if (this.pendingAttackSettlement === settlement) this.pendingAttackSettlement = null;

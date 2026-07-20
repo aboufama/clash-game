@@ -196,6 +196,8 @@ test('player attacks reserve once, fence on first deploy, command exactly once, 
     targetId: 'defender', requestId: 'start-player-1'
   }, false, 'device-token')
   assert.deepEqual(retry, started)
+  assert.deepEqual(started.reservedArmy, { warrior: 2 },
+    'the start response carries the immutable reservation after the village army is cleared')
   assert.deepEqual((await villageOf(persistence, 'attacker')).army, {})
   assert.equal((await villageOf(persistence, 'attacker')).economyRevision, 1)
   assert.equal((await villageOf(persistence, 'defender')).economyRevision, 0)
@@ -315,6 +317,7 @@ test('matchmake finds the other player in a two-player world and soft exclusion 
 
   const first = await service.matchmake(principal, { requestId: 'two-player-first' }, 'device-token')
   assert.equal(first.world.ownerId, 'defender')
+  assert.deepEqual(first.reservedArmy, { warrior: 2 })
   await service.endAttack(principal, { attackId: first.attackId, status: 'aborted' })
 
   // Soft repeat-avoidance (excludeTargetId) reuses the sole candidate rather
@@ -487,6 +490,7 @@ test('bot raids use the same command aggregate, retry safely, and ignore client 
   })
   const principal = { playerId: 'attacker' }
   const started = await service.botStart(principal, { requestId: 'start-bot-1' }, 'device-token')
+  assert.deepEqual(started.reservedArmy, { warrior: 2, golem: 1 })
   assert.deepEqual(await service.botStart(principal, { requestId: 'start-bot-1' }, 'device-token'), started)
   now.value = new Date(START.getTime() + 1_000)
   const command = await service.pushCommands(principal, deploy(started.raidId))
