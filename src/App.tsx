@@ -86,6 +86,15 @@ const INFINITE_SPENDABLE_RESOURCES = Object.freeze({
   food: Number.MAX_SAFE_INTEGER
 });
 
+/** Expand a sparse server army into the one stable player-roster shape React
+ * uses. Unknown/generated-only units never leak into the trainable HUD. */
+function playerArmySnapshot(source: Record<string, number> | null | undefined): Record<PlayerTroopType, number> {
+  return Object.fromEntries(PLAYER_TROOP_TYPES.map(type => [
+    type,
+    Math.max(0, Math.floor(Number(source?.[type]) || 0))
+  ])) as Record<PlayerTroopType, number>;
+}
+
 
 function App() {
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -588,7 +597,10 @@ function App() {
       try {
         const userId = user.id || 'default_player';
         Backend.updateResources(userId, resources.gold);
-        Backend.updateArmy(userId, army);
+        // During an attack the cached own-world army is the server reservation
+        // (usually {}). The visible battle roster is deliberately pinned out
+        // of band and must never be written back over that authority snapshot.
+        if (!gameManager.hasPinnedAttackArmy()) Backend.updateArmy(userId, army);
       } catch (error) {
         console.error('Error saving game state:', error);
       }
@@ -666,20 +678,16 @@ function App() {
       });
       gameManager.syncPopulation(world.population.count);
     }
-    if (world.army) {
+    // Attack start atomically moves the home army into a reservation, so the
+    // next own-world heartbeat correctly advertises army={}. Keep adopting
+    // every other authority field, but do not let that HOME response erase
+    // the reserved roster while focus/assets are still loading (or in battle).
+    if (world.army && !gameManager.hasPinnedAttackArmy()) {
       const serverArmy = world.army;
-      setArmy(prev => {
-        const next: Record<string, number> = { ...prev };
-        for (const key of Object.keys(next)) next[key] = 0;
-        for (const [type, count] of Object.entries(serverArmy)) {
-          if (type in next) next[type] = Math.max(0, Math.floor(Number(count) || 0));
-        }
-        return next as typeof prev;
-      });
-      const totalSpace = Object.entries(serverArmy).reduce((sum, [type, count]) => {
-        const def = TROOP_DEFINITIONS[type as TroopType];
-        return sum + (def ? def.space * Math.max(0, Math.floor(Number(count) || 0)) : 0);
-      }, 0);
+      const nextArmy = playerArmySnapshot(serverArmy);
+      armyRef.current = nextArmy;
+      setArmy(nextArmy);
+      const totalSpace = armySpaceUsed(nextArmy);
       setCapacity(prev => ({ ...prev, current: totalSpace }));
     }
   }, []);
@@ -1069,7 +1077,7 @@ function App() {
 
           // Auto-select first available troop
           const availableTroops = PLAYER_TROOP_TYPES;
-          const currentArmy = armyRef.current;
+          const currentArmy = gameManager.getArmy();
           const firstAvailable = availableTroops.find(type => currentArmy[type] > 0);
           if (firstAvailable) {
             setSelectedTroopType(firstAvailable);
@@ -1177,18 +1185,46 @@ function App() {
           setCloudTransitionReward(reward);
         }
       },
+      onAttackArmyPinned: (reservedArmy: Record<string, number>) => {
+        // This callback runs in the same stack as the attack-start response,
+        // before MainScene awaits focus or sprite assets. Update the ref first:
+        // getArmy() and ATTACK-mode setup must never wait for a React commit.
+        const pinned = playerArmySnapshot(reservedArmy);
+        armyRef.current = pinned;
+        setArmy(pinned);
+        setCapacity(prev => ({ ...prev, current: armySpaceUsed(pinned) }));
+      },
+      onAttackArmyReleased: () => {
+        // Settlement updates Backend's cache while the pin intentionally
+        // shields React from army={}. Adopt that cached home truth now that
+        // the reservation is closed, before the ordinary home reload lands.
+        const authorityArmy = userId ? Backend.getCachedWorld(userId)?.army : null;
+        if (!authorityArmy) return;
+        const restored = playerArmySnapshot(authorityArmy);
+        armyRef.current = restored;
+        setArmy(restored);
+        setCapacity(prev => ({ ...prev, current: armySpaceUsed(restored) }));
+      },
       getArmy: () => armyRef.current,
       getResources: () => resourcesRef.current,
       getSelectedTroopType: () => selectedTroopTypeRef.current,
-      deployTroop: (type: string) => {
+      deployTroop: (type: string, pinnedArmy?: Record<string, number>) => {
         const def = TROOP_DEFINITIONS[type as TroopType];
         if (!def) return;
         setBattleStarted(true); // Battle has started!
         setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - def.space) }));
-        setArmy(prev => ({
-          ...prev,
-          [type]: Math.max(0, (prev[type as keyof typeof prev] ?? 0) - 1)
-        }));
+        if (pinnedArmy) {
+          // GameManager decremented its synchronous reservation first; mirror
+          // that exact snapshot instead of racing a functional state update.
+          const next = playerArmySnapshot(pinnedArmy);
+          armyRef.current = next;
+          setArmy(next);
+        } else {
+          setArmy(prev => ({
+            ...prev,
+            [type]: Math.max(0, (prev[type as keyof typeof prev] ?? 0) - 1)
+          }));
+        }
       },
       refreshCampCapacity: (campLevels: number[]) => {
         const totalCapacity = 30 + campLevels.reduce((sum, level) => sum + campHousingAtLevel(level), 0);
@@ -1533,6 +1569,7 @@ function App() {
         setScoutTarget(null);
       });
     } else {
+      gameManager.releaseAttackArmy();
       cloudTransitionRewardRef.current = null;
       setCloudTransitionReward(null);
       if (reward) setLootAnimating({ amount: reward });

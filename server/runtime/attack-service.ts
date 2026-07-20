@@ -111,6 +111,10 @@ export interface PersistenceAttackServiceOptions {
 type StartedPlayerAttack = {
   attackId: string
   world: SerializedWorld
+  /** Immutable army captured by this reservation. Village reads intentionally
+   * show an empty available army while the attack is live, so the client must
+   * render the battle bar from this start response instead. */
+  reservedArmy: Record<string, number>
   lootCap: number
   lootCapOre: number
   lootCapFood: number
@@ -123,6 +127,8 @@ type StartedBotAttack = {
   y: number
   seed: number
   world: SerializedWorld
+  /** Immutable army captured by this reservation; see StartedPlayerAttack. */
+  reservedArmy: Record<string, number>
   expiresAt: number
 }
 
@@ -671,6 +677,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     return {
       attackId,
       world,
+      reservedArmy: { ...attacker.reservedArmy },
       lootCap: lootCaps.gold,
       lootCapOre: lootCaps.ore,
       lootCapFood: lootCaps.food,
@@ -927,7 +934,15 @@ export class PersistenceAttackService implements RuntimeAttackService {
           topic: 'combat', aggregateType: 'attack', aggregateId: attackId,
           eventType: 'attack.prepared', payload: { targetKind: 'bot', x: camp.x, y: camp.y }, now
         }))
-        return jsonValue({ raidId: attackId, x: camp.x, y: camp.y, seed: bot.seed, world, expiresAt })
+        return jsonValue({
+          raidId: attackId,
+          x: camp.x,
+          y: camp.y,
+          seed: bot.seed,
+          world,
+          reservedArmy: { ...attacker.reservedArmy },
+          expiresAt
+        })
       })
       return result.response as unknown as StartedBotAttack
     })

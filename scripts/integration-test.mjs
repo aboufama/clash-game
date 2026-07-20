@@ -466,6 +466,8 @@ async function main() {
 
   const attack = (await api('POST', '/attacks/matchmake', { token: b.token, body: { requestId: 'initial-matchmake' } })).json
   ok(attack.attackId && attack.world?.ownerId === a.player.id, 'attack start returns a snapshot of the defender base')
+  ok(Object.values(attack.reservedArmy ?? {}).some(count => count > 0),
+    'attack start returns the immutable reserved army for the battle bar')
   ok(Number.isInteger(attack.target?.x) && Number.isInteger(attack.target?.y) && attack.target.plotVersion >= 1,
     'every selected opponent is anchored to a versioned world plot')
   const freshAccountFocus = await api('GET', `/map?x=${attack.target.x}&y=${attack.target.y}&r=1`, { token: b.token })
@@ -478,6 +480,8 @@ async function main() {
   const attackStartRetry = (await api('POST', '/attacks/matchmake', { token: b.token, body: { requestId: 'initial-matchmake' } })).json
   ok(attackStartRetry.attackId === attack.attackId && attackStartRetry.world.ownerId === attack.world.ownerId,
     'retrying matchmake with one requestId returns the same persisted attack')
+  ok(JSON.stringify(attackStartRetry.reservedArmy) === JSON.stringify(attack.reservedArmy),
+    'idempotent matchmaking retries retain the exact reserved army snapshot')
 
   const second = await api('POST', '/attacks/start', { token: b.token, body: { targetId: a.player.id } })
   ok(second.status === 409, 'a base cannot be attacked twice at once')
@@ -1812,9 +1816,13 @@ async function main() {
   ok(directBotSettle.status === 400, 'bot settlement is denied without a server-issued raid session')
   const botStart = (await api('POST', '/attacks/bot-start', { token: eco.token, body: { x: camp.x, y: camp.y, requestId: 'eco-bot-start-1' } })).json
   ok(botStart.raidId && botStart.x === camp.x && botStart.seed === camp.seed, 'a visible camp starts a server-issued bot raid')
+  ok(Object.values(botStart.reservedArmy ?? {}).some(count => count > 0),
+    'bot start returns the immutable reserved army for the battle bar')
   const botStartRetry = (await api('POST', '/attacks/bot-start', { token: eco.token, body: { x: camp.x, y: camp.y, requestId: 'eco-bot-start-1' } })).json
   ok(botStartRetry.raidId === botStart.raidId && JSON.stringify(botStartRetry.world) === JSON.stringify(botStart.world),
     'bot-start retry returns the same session and persisted village snapshot')
+  ok(JSON.stringify(botStartRetry.reservedArmy) === JSON.stringify(botStart.reservedArmy),
+    'idempotent bot-start retries retain the exact reserved army snapshot')
   const botFocus = await api('GET', `/map?x=${camp.x}&y=${camp.y}&r=1`, { token: eco.token })
   ok(botFocus.status === 200 && botFocus.json.plots.length === 9, 'a visible active bot raid authorizes its full battle focus ring')
   ok((await api('POST', '/attacks/start', { token: eco.token, body: { targetId: ecoVictim.player.id } })).status === 409,

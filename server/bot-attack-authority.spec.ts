@@ -17,6 +17,8 @@ try {
   game.trainTroop(player, { type: 'warrior', count: 2, requestId: 'train-two-warriors' })
 
   const started = game.botStart(player, { requestId: 'start-authoritative-bot' }, session.token)
+  assert.deepEqual(started.reservedArmy, { warrior: 2 },
+    'legacy bot starts expose the immutable reservation to the battle UI')
   const command = {
     type: 'DEPLOY' as const,
     commandId: 'deploy_root_one',
