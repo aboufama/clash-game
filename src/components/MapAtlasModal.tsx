@@ -119,8 +119,6 @@ const MAX_ROWS = 51;
 // clock per open, per-cell stagger from the cell hash — never Math.random.
 const REVEAL_STAGGER = 2;           // extra per-cell delay in rings, from the cell hash
 const REVEAL_COMPLETE_MS = 900;     // hold line -> fully charted once data lands
-const REVEAL_COLS = 21;             // placeholder grid, before the first chart arrives
-const REVEAL_ROWS = 15;
 const FOG_BASE = '#372718';
 const FOG_DOT = '#41301d';
 const FOG_EDGE = '#2b1e12';
@@ -200,7 +198,6 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
   const [revealDone, setRevealDone] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
-  const placeholderRef = useRef<HTMLCanvasElement>(null);
   const chartWrapRef = useRef<HTMLDivElement>(null);
   const revealRef = useRef<HTMLCanvasElement>(null);
   const overlayStart = useRef<{ at: number; from: number } | null>(null);
@@ -481,26 +478,12 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     centeredRef.current = true;
   }, [atlas, layout]);
 
-  // The charting reveal, act one: STATIC fog while the chart loads (the one
-  // reveal sweep runs in act two on the real map, centered on your keep).
-  useEffect(() => {
-    if (layout || fetchFailed || revealDone) return;
-    const canvas = placeholderRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    canvas.width = REVEAL_COLS * CELL;
-    canvas.height = REVEAL_ROWS * CELL;
-    // STATIC fog only (owner fix 2026-07-19): the old dataless melt ran on a
-    // placeholder grid sized nothing like the real chart, so the hand-off
-    // stuttered. Fog holds still here; the ONE reveal sweep runs in act two,
-    // on the real map, centered on your keep.
-    for (let cy = 0; cy < REVEAL_ROWS; cy++) {
-      for (let cx = 0; cx < REVEAL_COLS; cx++) paintFogCell(ctx, cx, cy);
-    }
-  }, [layout, fetchFailed, revealDone]);
+  // No loading placeholder (owner fix 2026-07-20): the old small fog canvas
+  // that painted before data arrived read as a vestigial double load. The
+  // title says "charting…", the wrap stays bare, and the ONLY window that
+  // ever mounts is the full-size chart — born fully fogged, then swept open.
 
-  // Act two: the real chart is underneath and the same sweep finishes across
+  // The reveal: the real chart is underneath and the fog sweep melts across
   // it, re-anchored on YOUR actual plot cell. Fog beyond the frontier hides
   // the atlas until the wave passes; the overlay then unmounts for good —
   // 5-second re-polls never restart the reveal.
@@ -629,13 +612,6 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
         <div className="atlas-chart-wrap" ref={chartWrapRef}>
           {!layout && fetchFailed && (
             <div className="theatre-empty">The atlas could not be charted. It will retry shortly.</div>
-          )}
-          {!layout && !fetchFailed && (
-            <canvas
-              ref={placeholderRef}
-              className="atlas-chart atlas-reveal-placeholder"
-              style={{ width: REVEAL_COLS * CELL * SCALE, height: REVEAL_ROWS * CELL * SCALE }}
-            />
           )}
           {layout && (
             <div className="atlas-stack" style={{ width: layout.w * SCALE, height: layout.h * SCALE }}>
