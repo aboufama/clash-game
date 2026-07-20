@@ -1,0 +1,4 @@
+clips/
+node_modules
+.trailer-device-token.json
+*.mp4

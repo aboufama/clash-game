@@ -429,11 +429,10 @@ try {
       }
       return components * 10_000 + walls.length * 20 + (plot.trophies ?? 0) / 100
     }
-    const target = camps.reduce((best, plot) => drama(plot) > drama(best) ? plot : best)
-    console.log('raiding', target.username, target.trophies, `@${target.x},${target.y}`,
-      'walls', (target.world.buildings ?? []).filter(b => b.type === 'wall').length)
-    await page.evaluate(plot => {
-      // Track mode changes at the manager so the wait is UI-independent.
+    // Recently-raided camps refuse re-entry (NEXT rotation), so walk the
+    // candidates in drama order until one accepts the war declaration.
+    const ranked = [...camps].sort((a, b) => drama(b) - drama(a))
+    await page.evaluate(() => {
       const manager = window.__clashGM
       if (!window.__modeWrapped) {
         const original = manager.setGameMode.bind(manager)
@@ -443,15 +442,26 @@ try {
         }
         window.__modeWrapped = true
       }
-      const scene = window.__clashGame.scene.keys.MainScene
-      scene.attackBotPlot(plot.seed, plot.username, plot.x, plot.y)
-    }, { seed: target.seed, username: target.username, x: target.x, y: target.y })
-    await page.waitForFunction(() => window.__gameMode === 'ATTACK', {
-      timeout: 40_000,
-      polling: 250
-    }).catch(() => {
-      throw new Error('attack mode never engaged (bot raid failed to start)')
     })
+    let engaged = false
+    for (const target of ranked) {
+      console.log('declaring war on', target.username, target.trophies, `@${target.x},${target.y}`,
+        'walls', (target.world.buildings ?? []).filter(b => b.type === 'wall').length)
+      await page.evaluate(plot => {
+        window.__gameMode = 'PENDING'
+        const scene = window.__clashGame.scene.keys.MainScene
+        scene.attackBotPlot(plot.seed, plot.username, plot.x, plot.y)
+      }, { seed: target.seed, username: target.username, x: target.x, y: target.y })
+      const ok = await page.waitForFunction(() => window.__gameMode === 'ATTACK', {
+        timeout: 20_000,
+        polling: 250
+      }).then(() => true).catch(() => false)
+      if (ok) {
+        engaged = true
+        break
+      }
+    }
+    if (!engaged) throw new Error('attack mode never engaged (all candidate camps refused)')
     await sleep(4_000)
     // The battlefield grid renders at canonical iso coordinates; postcards
     // offset AROUND it. Its centre is therefore cartToIso of the grid middle.
