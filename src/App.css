@@ -1474,7 +1474,10 @@ button:disabled {
 /* Loot Display - Top Left during raid */
 .loot-display {
     position: fixed;
-    top: 80px;
+    /* Clear of the destruction meter above: its panel bottom plus the
+       3px pixel drop-shadow reaches ~81px, so 94px keeps a real gutter
+       between the two chrome backgrounds (owner fix 2026-07-19). */
+    top: 94px;
     left: 16px;
     display: flex;
     flex-direction: column;
@@ -2124,7 +2127,7 @@ body.is-touch {
 }
 
 .hud.mobile .loot-display {
-    top: 56px;
+    top: 64px;
     left: 8px;
     gap: 4px;
 }
