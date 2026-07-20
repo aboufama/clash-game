@@ -197,17 +197,15 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value))
 }
 
-/** Apply storage rules, preserving existing overflow only in debug mode. */
+/** Apply storage rules without destroying an already-persisted overflow. */
 function storedResourceAfterDelta(
   current: number,
   delta: number,
   capacity: number,
-  allowOverflow = false,
-  preserveOverflow = false
+  allowOverflow = false
 ): number {
   const stored = clamp(toInteger(current, 0), 0, MAX_PLAYER_GOLD)
   if (allowOverflow) return clamp(stored + delta, 0, MAX_PLAYER_GOLD)
-  if (!preserveOverflow) return clamp(stored + delta, 0, capacity)
   if (delta <= 0) return Math.max(0, stored + delta)
   if (stored >= capacity) return stored
   return Math.min(capacity, stored + delta)
@@ -503,7 +501,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       ...(this.fixedUpgradeDurationMs !== undefined ? { fixedDurationMs: this.fixedUpgradeDurationMs } : {}),
       timeScale: this.upgradeTimeScale
     }
-    this.authority = new VillageAuthority(this.allowDebugGrants)
+    this.authority = new VillageAuthority()
     this.auth = new AuthSessionService(persistence, this.authority, {
       clock: this.clock,
       starterShieldMs: this.starterShieldMs,
@@ -807,7 +805,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       const expectedRevision = toInteger(world.revision, Number.NaN)
       if (!Number.isFinite(expectedRevision) || expectedRevision !== state.village.economyRevision) {
         const current = cloneJson(state.village)
-        materializeVillage(current, now, { preserveOverCapacity: this.allowDebugGrants })
+        materializeVillage(current, now)
         throw new ApiError(409, `Stale world revision (expected ${state.village.economyRevision})`, 'STALE_REVISION', {
           currentRevision: state.village.economyRevision,
           world: serializedWorldOf(state.account, current, now, { upgradePolicy: this.upgradePolicy })
@@ -859,10 +857,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         const capacity = resourceCapacity(pricing.buildings)
         if (!this.infiniteResources) {
           state.village.ore = storedResourceAfterDelta(
-            state.village.ore, -pricing.bill.ore, capacity.ore, false, this.allowDebugGrants
+            state.village.ore, -pricing.bill.ore, capacity.ore
           )
           state.village.food = storedResourceAfterDelta(
-            state.village.food, 0, capacity.food, false, this.allowDebugGrants
+            state.village.food, 0, capacity.food
           )
         }
         if (state.village.ore >= capacity.ore) state.village.productionRemainders.ore = 0
@@ -972,7 +970,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           else {
             const capacity = resourceCapacity(villageBuildings(state.village))
             state.village[resource] = storedResourceAfterDelta(
-              state.village[resource], delta, capacity[resource], isDebugGrant, this.allowDebugGrants
+              state.village[resource], delta, capacity[resource], isDebugGrant
             )
             if (state.village[resource] >= capacity[resource]) state.village.productionRemainders[resource] = 0
           }
@@ -1090,7 +1088,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         state.village.gold = clamp(state.village.gold + definition.cost * count, 0, MAX_PLAYER_GOLD)
         const capacity = resourceCapacity(villageBuildings(state.village))
         state.village.food = storedResourceAfterDelta(
-          state.village.food, troopFoodCostOf(type) * count, capacity.food, false, this.allowDebugGrants
+          state.village.food, troopFoodCostOf(type) * count, capacity.food
         )
         if (state.village.food >= capacity.food) state.village.productionRemainders.food = 0
       }
@@ -1198,9 +1196,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           state.village.food = storedResourceAfterDelta(
             state.village.food,
             troopFoodCostOf(operation.type) * operation.count,
-            storage.food,
-            false,
-            this.allowDebugGrants
+            storage.food
           )
           if (state.village.food >= storage.food) state.village.productionRemainders.food = 0
           audit.untrain.gold += state.village.gold - beforeGold
@@ -1280,7 +1276,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           const apply = (kind: 'gold' | 'ore' | 'food', delta: number) => {
             if (kind === 'gold') state.village.gold = clamp(state.village.gold + delta, 0, MAX_PLAYER_GOLD)
             else state.village[kind] = storedResourceAfterDelta(
-              state.village[kind], delta, capacity[kind], false, this.allowDebugGrants
+              state.village[kind], delta, capacity[kind]
             )
           }
           apply(offer.give.kind, -offer.give.amount)
@@ -1492,8 +1488,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           const account = accountForSummary(entry)
           const village = villageForPostcard(entry)
           materializeVillage(village, now, {
-            populationLocked: windowState.activeByDefender.has(account.id),
-            preserveOverCapacity: this.allowDebugGrants
+            populationLocked: windowState.activeByDefender.has(account.id)
           })
           const attackId = windowState.activeByDefender.get(account.id)
           const withinSight = chebyshev(x, y, viewer.plot.x, viewer.plot.y) <= sight
@@ -1800,8 +1795,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         || hasUnsupportedVillageArmy(previewVillage)
       )) {
         materializeVillage(previewVillage, now, {
-          populationLocked: await this.authority.hasActiveIncoming(tx, id),
-          preserveOverCapacity: this.allowDebugGrants
+          populationLocked: await this.authority.hasActiveIncoming(tx, id)
         })
       }
       return adminPlayerDetailOf(
@@ -1974,6 +1968,16 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         }
         const village = await tx.villages.get(id, { forUpdate: true })
         if (!village) throw new ApiError(409, 'Player village is missing', 'ADMIN_VILLAGE_MISSING')
+        // Establish the current authoritative balance while the account and
+        // village rows are locked. Applying the admin delta to a stale clock
+        // checkpoint would either erase pending production or let it accrue
+        // retroactively after a support debit.
+        await this.authority.materializeOwned(
+          tx,
+          village,
+          now,
+          await this.authority.hasActiveIncoming(tx, id)
+        )
         const before = { gold: village.gold, ore: village.ore, food: village.food }
         const after = {
           gold: clamp(before.gold + deltas.gold, 0, MAX_PLAYER_GOLD),

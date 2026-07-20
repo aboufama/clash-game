@@ -2,6 +2,10 @@ import { Component, StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 
+const isAdminRoute = window.location.pathname.startsWith('/admin')
+const favicon = document.querySelector<HTMLLinkElement>('#site-favicon')
+if (favicon) favicon.href = isAdminRoute ? '/admin-favicon.svg' : '/favicon.svg'
+
 // Last line of defence: nothing that slips every other guard may die silently.
 // Throttled so an error storm cannot itself become the problem.
 let lastGlobalErrorAt = 0
@@ -68,7 +72,7 @@ async function boot() {
 
   // Keep the privileged surface out of the game bootstrap entirely: visiting
   // /admin never imports App, Phaser, the player auth client, or pixel-kit.
-  const surface: ReactNode = window.location.pathname.startsWith('/admin')
+  const surface: ReactNode = isAdminRoute
     ? await import('./admin/AdminPortal.tsx').then(module => <module.AdminPortal />)
     : await Promise.all([import('./App.tsx'), import('./ui/pixelKit')]).then(([appModule, pixelKit]) => {
         // Game DOM chrome expects these variables before its first render.

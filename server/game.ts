@@ -522,17 +522,15 @@ function infiniteResourcesEnabled(): boolean {
   return process.env.CLASH_INFINITE_RESOURCES === '1'
 }
 
-/** Apply storage rules, preserving existing overflow only in debug mode. */
+/** Apply storage rules without destroying an already-persisted overflow. */
 function storedResourceAfterDelta(
   current: number,
   delta: number,
   capacity: number,
-  allowOverflow = false,
-  preserveOverflow = false
+  allowOverflow = false
 ): number {
   const stored = clamp(toInt(current, 0), 0, MAX_BALANCE)
   if (allowOverflow) return clamp(stored + delta, 0, MAX_BALANCE)
-  if (!preserveOverflow) return clamp(stored + delta, 0, capacity)
   if (delta <= 0) return Math.max(0, stored + delta)
   if (stored >= capacity) return stored
   return Math.min(capacity, stored + delta)
@@ -2296,8 +2294,7 @@ export class GameService implements AdminApiService {
       // Do not run expiry from inside simulation: expiry settles an attack and
       // settlement itself advances both villages. The tracked lease is the
       // exact lock signal needed here and avoids a recursive settlement loop.
-      populationLocked: (this.liveByVictim.get(player.id)?.size ?? 0) > 0,
-      preserveOverCapacity: debugGrantsEnabled()
+      populationLocked: (this.liveByVictim.get(player.id)?.size ?? 0) > 0
     })
     this.book('faucets', 'gold', result.produced.gold)
     this.book('faucets', 'ore', result.produced.ore)
@@ -2527,8 +2524,8 @@ export class GameService implements AdminApiService {
     // Ore settles against the NEW layout's storage (a save may add the storehouse it fills).
     const caps = resourceCapacity(player.buildings)
     if (!infiniteResources) {
-      player.ore = storedResourceAfterDelta(player.ore, -bill.ore, caps.ore, false, debugGrantsEnabled())
-      player.food = storedResourceAfterDelta(player.food, 0, caps.food, false, debugGrantsEnabled())
+      player.ore = storedResourceAfterDelta(player.ore, -bill.ore, caps.ore)
+      player.food = storedResourceAfterDelta(player.food, 0, caps.food)
     }
     this.discardCappedProduction(player, caps)
     player.wallLevel = proposal.wallLevel
@@ -2618,7 +2615,7 @@ export class GameService implements AdminApiService {
       } else {
         const caps = resourceCapacity(player.buildings)
         player[resource] = storedResourceAfterDelta(
-          player[resource], delta, caps[resource], isDebugGrant, debugGrantsEnabled()
+          player[resource], delta, caps[resource], isDebugGrant
         )
         this.discardCappedProduction(player, caps)
       }
@@ -2714,7 +2711,7 @@ export class GameService implements AdminApiService {
       player.balance = clamp(player.balance + def.cost * count, 0, MAX_BALANCE)
       const caps = resourceCapacity(player.buildings)
       player.food = storedResourceAfterDelta(
-        player.food, troopFoodCostOf(type) * count, caps.food, false, debugGrantsEnabled()
+        player.food, troopFoodCostOf(type) * count, caps.food
       )
       this.discardCappedProduction(player, caps)
       this.book('refunds', 'gold', def.cost * count)
@@ -2794,9 +2791,7 @@ export class GameService implements AdminApiService {
         food = storedResourceAfterDelta(
           food,
           troopFoodCostOf(operation.type) * operation.count,
-          storage.food,
-          false,
-          debugGrantsEnabled()
+          storage.food
         )
         refundGold += gold - beforeGold
         refundFood += food - beforeFood
@@ -2874,7 +2869,7 @@ export class GameService implements AdminApiService {
       const caps = resourceCapacity(player.buildings)
       const pay = (kind: 'gold' | 'ore' | 'food', delta: number) => {
         if (kind === 'gold') player.balance = clamp(player.balance + delta, 0, MAX_BALANCE)
-        else player[kind] = storedResourceAfterDelta(player[kind], delta, caps[kind], false, debugGrantsEnabled())
+        else player[kind] = storedResourceAfterDelta(player[kind], delta, caps[kind])
       }
       pay(offer.give.kind, -offer.give.amount)
       pay(offer.get.kind, offer.get.amount)
@@ -4898,10 +4893,10 @@ export class GameService implements AdminApiService {
       attacker.balance = clamp(attacker.balance + settlement.goldLooted, 0, MAX_BALANCE)
       const caps = resourceCapacity(attacker.buildings)
       attacker.ore = storedResourceAfterDelta(
-        attacker.ore, settlement.oreLooted, caps.ore, false, debugGrantsEnabled()
+        attacker.ore, settlement.oreLooted, caps.ore
       )
       attacker.food = storedResourceAfterDelta(
-        attacker.food, settlement.foodLooted, caps.food, false, debugGrantsEnabled()
+        attacker.food, settlement.foodLooted, caps.food
       )
       this.discardCappedProduction(attacker, caps)
       attacker.trophies = Math.max(0, attacker.trophies + settlement.trophyDelta)
@@ -5392,8 +5387,7 @@ export class GameService implements AdminApiService {
     const previewPlayer = structuredClone(player)
     const previewAdvance = advanceVillage(previewPlayer, now, {
       maxBalance: MAX_BALANCE,
-      populationLocked: (this.liveByVictim.get(id)?.size ?? 0) > 0,
-      preserveOverCapacity: debugGrantsEnabled()
+      populationLocked: (this.liveByVictim.get(id)?.size ?? 0) > 0
     })
     const previewRevisionDelta = appearanceRevisionDelta(previewAdvance)
     if (previewRevisionDelta > 0) {
@@ -5636,6 +5630,11 @@ export class GameService implements AdminApiService {
         ore: input.ore === undefined ? 0 : adminInteger(input.ore, 'ore delta', -MAX_BALANCE, MAX_BALANCE),
         food: input.food === undefined ? 0 : adminInteger(input.food, 'food delta', -MAX_BALANCE, MAX_BALANCE)
       }
+      // Admin corrections compose with the current economy state, never an
+      // old accrual checkpoint. Persist the materialized clock even when the
+      // requested delta itself is a no-op.
+      this.advancePlayer(player, now)
+      this.players.markDirty(id)
       const before = {
         gold: Math.max(0, Math.floor(Number(player.balance) || 0)),
         ore: Math.max(0, Math.floor(Number(player.ore) || 0)),

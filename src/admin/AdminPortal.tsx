@@ -159,8 +159,9 @@ function isObjectEmpty(value: unknown): boolean {
 function useAdminData(path: string, onUnauthorized: () => void) {
   const [nonce, setNonce] = useState(0)
   const requestKey = `${path}\u0000${nonce}`
-  const [result, setResult] = useState<{ key: string; state: LoadState }>({
+  const [result, setResult] = useState<{ key: string; path: string; state: LoadState }>({
     key: requestKey,
+    path,
     state: { kind: 'loading' },
   })
 
@@ -171,6 +172,7 @@ function useAdminData(path: string, onUnauthorized: () => void) {
       const data = unwrapData(payload)
       setResult({
         key: requestKey,
+        path,
         state: isObjectEmpty(data) ? { kind: 'empty', data } : { kind: 'ready', data },
       })
     }).catch((error: unknown) => {
@@ -180,11 +182,12 @@ function useAdminData(path: string, onUnauthorized: () => void) {
         return
       }
       if (error instanceof AdminApiError && error.unsupported) {
-        setResult({ key: requestKey, state: { kind: 'unsupported', message: error.message } })
+        setResult({ key: requestKey, path, state: { kind: 'unsupported', message: error.message } })
         return
       }
       setResult({
         key: requestKey,
+        path,
         state: {
           kind: 'error',
           message: error instanceof Error ? error.message : 'This admin view could not be loaded.',
@@ -200,8 +203,16 @@ function useAdminData(path: string, onUnauthorized: () => void) {
     return () => window.removeEventListener(ADMIN_DATA_REFRESH_EVENT, refresh)
   }, [])
 
-  const state: LoadState = result.key === requestKey ? result.state : { kind: 'loading' }
-  return { state, reload: () => setNonce(value => value + 1) }
+  const isCurrent = result.key === requestKey
+  // A nonce change is a revalidation of the SAME endpoint, not a navigation.
+  // Keep the last complete snapshot visible while Vercel performs the GET;
+  // otherwise player detail falls back to the resource-less directory row and
+  // briefly renders missing balances immediately after a successful mutation.
+  const canReuseSnapshot = result.path === path
+    && (result.state.kind === 'ready' || result.state.kind === 'empty')
+  const refreshing = !isCurrent && canReuseSnapshot
+  const state: LoadState = isCurrent || canReuseSnapshot ? result.state : { kind: 'loading' }
+  return { state, refreshing, reload: () => setNonce(value => value + 1) }
 }
 
 function refreshAdminData() {
@@ -669,7 +680,7 @@ function PlayerDetail({ playerId, fallback, onClose, onUnauthorized, onChanged }
   onChanged: () => void
 }) {
   const sheetStartRef = useRef<HTMLDivElement | null>(null)
-  const { state, reload } = useAdminData(`players/${encodeURIComponent(playerId)}`, onUnauthorized)
+  const { state, refreshing, reload } = useAdminData(`players/${encodeURIComponent(playerId)}`, onUnauthorized)
   const [action, setAction] = useState<PlayerAction | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const data = state.kind === 'ready' ? asRecord(state.data) : fallback
@@ -690,6 +701,7 @@ function PlayerDetail({ playerId, fallback, onClose, onUnauthorized, onChanged }
           <div className="space-y-5 p-5">
             {state.kind === 'error' ? <Alert variant="destructive"><AlertCircle /><AlertTitle>Detail request failed</AlertTitle><AlertDescription className="flex items-center justify-between gap-3"><span>Showing directory data instead.</span><Button variant="outline" size="sm" type="button" onClick={reload}>Retry</Button></AlertDescription></Alert> : null}
             {notice ? <Alert role="status" className="border-emerald-500/30 bg-emerald-500/5"><CheckCircle2 className="text-emerald-600" /><AlertTitle>Player updated</AlertTitle><AlertDescription>{notice}</AlertDescription></Alert> : null}
+            {refreshing ? <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-[0.6875rem] text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" /><span>Refreshing authoritative balances…</span></div> : null}
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {([
                 ['Trophies', formatMetric(data.trophies, false)],
