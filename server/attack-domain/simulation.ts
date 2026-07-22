@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto'
-import { BUILDING_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats } from '../../src/game/config/GameDefinitions'
-import type { BuildingType } from '../../src/game/config/GameDefinitions'
+import {
+  BUILDING_DEFINITIONS,
+  TROOP_DEFINITIONS,
+  getBuildingStats,
+  getTroopStats
+} from '../../src/game/config/GameDefinitions'
+import type { BuildingDef, BuildingType, TroopDef, TroopType } from '../../src/game/config/GameDefinitions'
 import { defenseDps } from '../../src/game/systems/DefenseBehaviorCatalog'
 import type {
   AbilityUsedEvent,
@@ -58,6 +63,102 @@ interface DamageAction {
   directTargetId?: string
 }
 
+/**
+ * Combat aggregates pin behavior, not just branch selection. The shared live
+ * catalog can keep evolving, but every stored v1-v8 aggregate must continue
+ * to see the exact troop bases and Lab formula that existed when v8 shipped.
+ */
+const LEGACY_V8_TROOP_BASE_OVERRIDES: Partial<Record<TroopType, Partial<TroopDef>>> = {
+  clockworkbeetle: { damage: 150 },
+  trebuchet: {
+    health: 1_200,
+    range: 11,
+    damage: 320,
+    firstAttackDelay: 1_500
+  },
+  warelephant: {
+    health: 4_200,
+    wallDamageMultiplier: 20
+  }
+}
+
+const LEGACY_V8_TROOP_LEVEL_MULTIPLIERS = [1, 1.3, 1.65] as const
+
+const LEGACY_V8_DEFENSE_STAT_OVERRIDES: Partial<Record<BuildingType, Record<number, Pick<BuildingDef, 'damage' | 'fireRate'>>>> = {
+  ballista: {
+    2: { damage: 230, fireRate: 1_700 },
+    3: { damage: 280, fireRate: 1_550 }
+  },
+  prism: {
+    1: { damage: 156, fireRate: 100 },
+    2: { damage: 204, fireRate: 90 },
+    3: { damage: 264, fireRate: 75 },
+    4: { damage: 330, fireRate: 65 }
+  },
+  dragons_breath: {
+    2: { damage: 45, fireRate: 2_400 }
+  }
+}
+
+const scaledLegacyFloat = (value: number, multiplier: number, digits = 2): number =>
+  Number((value * multiplier).toFixed(digits))
+
+/** The pre-v9 Lab formula scaled movement, reach, effect radii, and cadence. */
+function legacyV8TroopStats(type: TroopType, level: number): TroopDef {
+  const base = {
+    ...TROOP_DEFINITIONS[type],
+    ...LEGACY_V8_TROOP_BASE_OVERRIDES[type]
+  }
+  const normalizedLevel = Number.isFinite(level)
+    ? Math.min(3, Math.max(1, Math.floor(level)))
+    : 1
+  const multiplier = LEGACY_V8_TROOP_LEVEL_MULTIPLIERS[normalizedLevel - 1]
+  if (multiplier <= 1) return base
+
+  const utilityMultiplier = 1 + (multiplier - 1) * 0.45
+  const speedMultiplier = 1 + (multiplier - 1) * 0.25
+  const attackSpeedMultiplier = 1 + (multiplier - 1) * 0.2
+  return {
+    ...base,
+    health: Math.round(base.health * multiplier),
+    damage: scaledLegacyFloat(base.damage, multiplier),
+    speed: scaledLegacyFloat(base.speed, speedMultiplier, 6),
+    range: scaledLegacyFloat(base.range, utilityMultiplier),
+    healRadius: typeof base.healRadius === 'number'
+      ? scaledLegacyFloat(base.healRadius, utilityMultiplier)
+      : base.healRadius,
+    healAmount: typeof base.healAmount === 'number'
+      ? scaledLegacyFloat(base.healAmount, multiplier)
+      : base.healAmount,
+    chainRange: typeof base.chainRange === 'number'
+      ? scaledLegacyFloat(base.chainRange, utilityMultiplier)
+      : base.chainRange,
+    splashRadius: typeof base.splashRadius === 'number'
+      ? scaledLegacyFloat(base.splashRadius, utilityMultiplier)
+      : base.splashRadius,
+    attackDelay: typeof base.attackDelay === 'number'
+      ? Math.max(150, Math.round(base.attackDelay / attackSpeedMultiplier))
+      : base.attackDelay
+  }
+}
+
+function troopStatsForSimulation(simulationVersion: number, type: TroopType, level: number): TroopDef {
+  return simulationVersion <= 8
+    ? legacyV8TroopStats(type, level)
+    : getTroopStats(type, level)
+}
+
+function buildingStatsForSimulation(
+  simulationVersion: number,
+  type: BuildingType,
+  level: number
+): BuildingDef {
+  const current = getBuildingStats(type, level)
+  if (simulationVersion >= 9) return current
+  const legacy = LEGACY_V8_DEFENSE_STAT_OVERRIDES[type]?.[level]
+  return legacy ? { ...current, ...legacy } : current
+}
+
 function deterministicScore(seed: string, value: string): string {
   return stableHash(`${seed}:${value}`)
 }
@@ -92,7 +193,11 @@ function snapshotDefenseDps(attack: AttackAggregate): number {
   for (const building of attack.snapshot.buildings) {
     if (!Object.prototype.hasOwnProperty.call(BUILDING_DEFINITIONS, building.type)) continue
     if (BUILDING_DEFINITIONS[building.type].category !== 'defense') continue
-    const dps = defenseDps(building.type, getBuildingStats(building.type, building.level))
+    const dps = defenseDps(
+      building.type,
+      buildingStatsForSimulation(attack.rules.simulationVersion, building.type, building.level),
+      { includeSecondaryEffects: attack.rules.simulationVersion >= 9 }
+    )
     if (dps && dps > 0) total += dps
   }
   return total
@@ -118,7 +223,11 @@ function attritionLifetimeMs(
   // they earn zero credit (see troopDamage), so any lifetime is safe here.
   if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return attack.rules.maxDamageCreditMs
   if (attack.rules.simulationVersion < 3 || totalDefenseDps <= 0) return attack.rules.maxDamageCreditMs
-  const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
+  const stats = troopStatsForSimulation(
+    attack.rules.simulationVersion,
+    deploy.troopType,
+    attack.reservation.troopLevel
+  )
   const hitPoints = Math.max(1, Math.floor(stats.health))
   const perTroopDps = totalDefenseDps / Math.max(1, deployedCount)
   const jitterHex = deterministicScore(attack.simulationSeed, `attrition:${deploy.troopInstanceId}`).slice(0, 8)
@@ -313,7 +422,8 @@ function pointDistanceToBuilding(
 function firstWallOnSiegeTowerRay(
   snapshot: CombatVillageSnapshot,
   deploy: TroopDeployedEvent,
-  troopLevel: number
+  troopLevel: number,
+  simulationVersion: number
 ): string | null {
   const originX = deploy.gridXQ / 1_000
   const originY = deploy.gridYQ / 1_000
@@ -333,7 +443,7 @@ function firstWallOnSiegeTowerRay(
   if (segmentLength < 0.000_001) return null
 
   // Keep byte-for-byte parity with CombatNavigationSystem.agentRadius.
-  const towerStats = getTroopStats('siegetower', troopLevel)
+  const towerStats = troopStatsForSimulation(simulationVersion, 'siegetower', troopLevel)
   const radius = 0.12 + Math.min(0.12, Math.sqrt(Math.max(1, towerStats.space)) * 0.018)
   const range = Math.max(0.1, towerStats.range)
   const step = 0.05 / segmentLength
@@ -423,7 +533,11 @@ function supportExtendedLifetimeMs(
   for (const support of deploys) {
     if (support.troopInstanceId === deploy.troopInstanceId) continue
     if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, support.troopType)) continue
-    const supportStats = getTroopStats(support.troopType, attack.reservation.troopLevel)
+    const supportStats = troopStatsForSimulation(
+      attack.rules.simulationVersion,
+      support.troopType,
+      attack.reservation.troopLevel
+    )
     const window = baseWindows.get(support.troopInstanceId)
     if (!window) continue
     const overlapMs = Math.min(own.endMs, window.endMs) - Math.max(own.startMs, window.startMs)
@@ -452,7 +566,11 @@ function troopDamage(
   // credit instead of NaN-corrupting (level 1) or throwing (level 2+) in
   // getTroopStats. Surviving types are untouched.
   if (!Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, deploy.troopType)) return 0
-  const stats = getTroopStats(deploy.troopType, attack.reservation.troopLevel)
+  const stats = troopStatsForSimulation(
+    attack.rules.simulationVersion,
+    deploy.troopType,
+    attack.reservation.troopLevel
+  )
   const delay = Math.max(150, Math.floor(stats.attackDelay ?? 1_000))
   const detonationDelay = attack.rules.simulationVersion >= 6
     ? Math.max(0, Math.floor(stats.detonationDelayMs ?? 0))
@@ -462,10 +580,12 @@ function troopDamage(
   const firstDelay = Math.max(0, Math.floor(stats.firstAttackDelay ?? 0)) + detonationDelay
   const creditEnd = Math.min(durationMs, deploy.atMs + Math.min(attack.rules.maxDamageCreditMs, lifetimeMs))
   const activeMs = Math.max(0, creditEnd - deploy.atMs)
-  // v5+ delayed detonators are one-shot by definition. Older aggregates keep
-  // the historical cadence credit byte-for-byte; undelayed Wall Breakers do
-  // too, since these versions only change the beetle's explicit fuse.
-  const strikes = detonationDelay > 0
+  // V9 closes the old Wall Breaker loophole: detonateOnAttack is the shared
+  // client/server one-shot contract whether or not a unit has a contact fuse.
+  // Stored v1-v8 aggregates preserve their historical cadence credit.
+  const oneShot = detonationDelay > 0
+    || (attack.rules.simulationVersion >= 9 && stats.detonateOnAttack === true)
+  const strikes = oneShot
     ? (activeMs >= firstDelay ? 1 : 0)
     : attackCount(activeMs, firstDelay, delay)
   if (strikes <= 0) return 0
@@ -476,7 +596,10 @@ function troopDamage(
     if (ability.effect.kind !== 'DAMAGE_BOOST') continue
     const start = Math.max(deploy.atMs, ability.atMs)
     const end = Math.min(creditEnd, ability.atMs + ability.effect.durationMs)
-    const boostedStrikes = attackCountInWindow(deploy.atMs, firstDelay, delay, start, end)
+    const strikeAt = deploy.atMs + firstDelay
+    const boostedStrikes = oneShot
+      ? Number(strikes > 0 && strikeAt >= start && strikeAt <= end)
+      : attackCountInWindow(deploy.atMs, firstDelay, delay, start, end)
     damage += Math.floor(boostedStrikes * perStrike * ability.effect.bonusBasisPoints / 10_000)
   }
 
@@ -501,7 +624,11 @@ function troopDamage(
     && (stats.summonIntervalMs ?? 0) > 0
     && Object.prototype.hasOwnProperty.call(TROOP_DEFINITIONS, stats.summonType)
   ) {
-    const summonStats = getTroopStats(stats.summonType, attack.reservation.troopLevel)
+    const summonStats = troopStatsForSimulation(
+      attack.rules.simulationVersion,
+      stats.summonType,
+      attack.reservation.troopLevel
+    )
     const summonDelay = Math.max(150, Math.floor(summonStats.attackDelay ?? 1_000))
     const summonDps = Math.max(0, summonStats.damage) * 1_000 / summonDelay
     const waves = Math.min(
@@ -514,7 +641,7 @@ function troopDamage(
 }
 
 function targetPriority(type: BuildingType, troop: TroopDeployedEvent, simulationVersion: number): number {
-  const stats = getTroopStats(troop.troopType, 1)
+  const stats = troopStatsForSimulation(simulationVersion, troop.troopType, 1)
   if (stats.targetPriority === 'town_hall' && type === 'town_hall') return 0
   if (stats.targetPriority === 'wall' && type === 'wall') return 0
   if (stats.targetPriority === 'defense' && BUILDING_DEFINITIONS[type].category === 'defense') return 0
@@ -567,7 +694,11 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
   const states: MutableBuildingState[] = attack.snapshot.buildings
     .filter(building => Object.prototype.hasOwnProperty.call(BUILDING_DEFINITIONS, building.type))
     .map(building => {
-    const stats = getBuildingStats(building.type, building.level)
+    const stats = buildingStatsForSimulation(
+      attack.rules.simulationVersion,
+      building.type,
+      building.level
+    )
     const hp = Math.max(1, Math.floor(stats.maxHealth))
     return { id: building.id, type: building.type, maxHitPoints: hp, remainingHitPoints: hp }
     })
@@ -590,7 +721,12 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
     .filter(deploy => attack.rules.simulationVersion < 7
       || v7HasClosedLoop
       || (attack.rules.simulationVersion >= 8
-        && firstWallOnSiegeTowerRay(attack.snapshot, deploy, attack.reservation.troopLevel) !== null))
+        && firstWallOnSiegeTowerRay(
+          attack.snapshot,
+          deploy,
+          attack.reservation.troopLevel,
+          attack.rules.simulationVersion
+        ) !== null))
     .map(deploy => deploy.troopInstanceId))
   const baseWindows = versionAtLeast4
     ? baseCreditWindowsV4(attack, troopDeploys, durationMs, totalDefenseDps, deployedCount)
@@ -643,7 +779,11 @@ export function simulateCombat(attack: AttackAggregate, rawDurationMs: number): 
       continue
     }
 
-    const stats = getTroopStats(action.troop.troopType, attack.reservation.troopLevel)
+    const stats = troopStatsForSimulation(
+      attack.rules.simulationVersion,
+      action.troop.troopType,
+      attack.reservation.troopLevel
+    )
     // Rules v4: a resource raider converts the share of its budget spent on
     // resource-category buildings at resourceDamageMultiplier — the same
     // deterministic proportional model walls have always used.

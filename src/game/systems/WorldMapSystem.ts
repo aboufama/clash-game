@@ -4,6 +4,7 @@ import { sanitizeVillageBanner, type SerializedWorld } from '../data/Models';
 import {
     Backend,
     type KnownMapPlot,
+    type WorldMapAttackActivity,
     type WorldMapPlot,
     type WorldMapWindow,
     type WorldPostcard
@@ -65,6 +66,8 @@ import {
     isRevealPostcardReady,
     type ScreenRect
 } from './WorldPostcardResidency';
+import { WorldBattlePlayback } from '../replay/WorldBattlePlayback';
+import { LIVE_REPLAY_SPECTATOR_GRACE_MS } from '../replay/ReplayTypes';
 
 /**
  * THE GLOBAL MAP — every village in the game tiles onto one shared,
@@ -84,10 +87,10 @@ import {
  *   - Beyond the window: wilderness. Nothing is rendered.
  *
  * The map refreshes on a slow poll: bases redraw only when their owner's
- * revision changes, battle indicators pulse on plots that are under live
- * attack (tap to spectate through the existing replay stream), and empty
- * plots can be settled — relocation just swaps which neighbours surround
- * you, because everything renders relative to YOUR plot.
+ * revision changes, Watchtower-visible live attacks play directly over their
+ * resident postcards from the replay-v2 stream, and empty plots can be
+ * settled — relocation just swaps which neighbours surround you, because
+ * everything renders relative to YOUR plot.
  */
 
 const PLOT_TILES = 25;
@@ -122,6 +125,7 @@ const QUADRANT_FACES: Record<WildernessJunctionQuadrant, readonly [keyof Wildern
 // The compact /home/sync heartbeat carries fast-changing home authority.
 // Postcard snapshots only need a slower revision refresh while HOME is open.
 const REFRESH_MS = 60_000;
+const WORLD_BATTLE_DISCOVERY_MS = 2_750;
 const SNAPSHOT_SCALE = PLAYER_POSTCARD_SCALE; // player villages are never downsampled
 
 /**
@@ -182,6 +186,17 @@ interface NeighborView {
     rt: Phaser.GameObjects.RenderTexture | null;
     battle: Phaser.GameObjects.Graphics | null;
     battleTween: Phaser.Tweens.Tween | null;
+    /** In-place live replay for this resident postcard (never a scene swap). */
+    battlePlayback: WorldBattlePlayback | null;
+    battlePlaybackRetryAt: number;
+    /** Scene time when the compact feed first stopped reporting this attack. */
+    battleActivityMissingSince: number;
+    battlePlaybackEndPending: boolean;
+    battlePostcardRepaintPending: boolean;
+    /** Full postcard rebakes are expensive; destruction bursts coalesce into
+     * one immutable-ground correction at most every 100 ms. */
+    battlePostcardRepaintNotBefore: number;
+    battlePostcardMutated: boolean;
     renderedRevision: number | string | null;
     /** What the RenderTexture actually contains. Kept separate from API plot
      * kind so tests and transitions cannot mistake a stale village for wilds. */
@@ -406,6 +421,16 @@ export class WorldMapSystem {
     private homeAttackId: string | null = null;
     private dismissedSiegeId: string | null = null;
     private myShieldUntil = 0;
+    /** Compact Watchtower-authorized activity metadata. Snapshot refreshes
+     * remain slow; this tiny lane makes a new nearby battle appear promptly. */
+    private worldBattleActivities = new Map<string, WorldMapAttackActivity>();
+    /** Once the compact lane answers, its absence is authoritative too: stale
+     * `underAttack` bits from the slower postcard window can be cleared. */
+    private worldBattleActivitiesHydrated = false;
+    private nextWorldBattleDiscoveryAt = 0;
+    private worldBattleDiscoveryInFlight = false;
+    private worldBattleDiscoveryEpoch = 0;
+    private lastWorldBattleUpdateAt = 0;
     /**
      * Battle-in-place: when set, the LOCAL grid hosts this plot's village
      * (the battlefield) and the neighbourhood renders around IT — including
@@ -491,6 +516,13 @@ export class WorldMapSystem {
             rt: null,
             battle: null,
             battleTween: null,
+            battlePlayback: null,
+            battlePlaybackRetryAt: 0,
+            battleActivityMissingSince: 0,
+            battlePlaybackEndPending: false,
+            battlePostcardRepaintPending: false,
+            battlePostcardRepaintNotBefore: 0,
+            battlePostcardMutated: false,
             renderedRevision: null,
             contentKind: null,
             knownRevision: null,
@@ -529,6 +561,10 @@ export class WorldMapSystem {
 
     /** Poll cadence + visibility gating; call from the scene's update. */
     update(time: number) {
+        const worldBattleDelta = this.lastWorldBattleUpdateAt > 0
+            ? Math.max(0, Math.min(250, time - this.lastWorldBattleUpdateAt))
+            : 0;
+        this.lastWorldBattleUpdateAt = time;
         this.lastUpdateTime = time;
         const home = this.scene.mode === 'HOME';
         // Any frame away from the steady HOME scene may be (or precede) a
@@ -557,6 +593,10 @@ export class WorldMapSystem {
                 if (pending) void this.preparePendingFogReveal(pending.epoch);
                 else void this.refresh();
             }
+            if (time >= this.nextWorldBattleDiscoveryAt && !this.worldBattleDiscoveryInFlight) {
+                this.nextWorldBattleDiscoveryAt = time + WORLD_BATTLE_DISCOVERY_MS;
+                void this.refreshWorldBattleActivities();
+            }
         }
         this.checkDesignRepaint(time);
         // The deep bank is culled to the camera it was built for; a pan or
@@ -575,6 +615,7 @@ export class WorldMapSystem {
         this.reconcileVillageTextureResidency(time);
         this.updatePostcardLife(time);
         this.updateTravellers(time);
+        this.updateWorldBattlePlaybacks(time, worldBattleDelta);
     }
 
     private lastDesignFingerprint: string | null = null;
@@ -929,6 +970,10 @@ export class WorldMapSystem {
 
     /** Hide/show a retained view without discarding its GPU texture or source. */
     private setViewParked(view: NeighborView, parked: boolean) {
+        // A parked HOME ring is not ticked or polled. Collapse its transient
+        // battle layer now so returning home can never resume stale missiles,
+        // health, or sprite carriers from before the focused raid.
+        if (parked && view.battlePlayback) this.stopWorldBattlePlayback(view, true);
         if (parked && view.residentsRegistered) {
             this.scene.dayNight?.clearPostcardLights?.(view.key);
             this.neighborLifeSim?.removeVillage(view.key);
@@ -936,6 +981,7 @@ export class WorldMapSystem {
         }
         view.rt?.setVisible(!parked);
         view.battle?.setVisible(!parked);
+        view.battlePlayback?.setVisible(!parked);
         view.life?.setVisible(!parked);
         view.glow?.setVisible(!parked);
         if (parked) view.battleTween?.pause();
@@ -2154,6 +2200,13 @@ export class WorldMapSystem {
         options: { forceVillageTexture?: boolean } = {}
     ) {
         if (!this.sceneLive()) return;
+        const liveActivity = this.worldBattleActivities.get(key);
+        if (liveActivity) {
+            plot = { ...plot, underAttack: true, attackId: liveActivity.attackId };
+        } else if (this.worldBattleActivitiesHydrated && (plot.underAttack || plot.attackId)) {
+            // The activity lane is fresher than the 60 s postcard window.
+            plot = { ...plot, underAttack: false, attackId: undefined };
+        }
         let view = this.views.get(key);
         if (!view) {
             view = this.createView(key, plot, dx, dy);
@@ -2248,7 +2301,8 @@ export class WorldMapSystem {
             view.hearth = null;
         }
 
-        this.ensureBattle(view, dx, dy, Boolean(plot.underAttack) && view.rt !== null);
+        if (view.battlePlayback?.ready && view.rt) view.battlePostcardRepaintPending = true;
+        this.ensureBattle(view, dx, dy, Boolean(view.plot.underAttack) && view.rt !== null);
     }
 
     /**
@@ -2488,7 +2542,16 @@ export class WorldMapSystem {
         world: PostcardWorld,
         dx: number,
         dy: number,
-        opts?: { deferResidents?: boolean }
+        opts?: {
+            deferResidents?: boolean;
+            /** Battle collapses change the elevated building layer, never the
+             * baked ground network. MainScene freezes these lanes for the
+             * whole attack, so postcard playback must use the same source. */
+            staticGroundWorld?: PostcardWorld;
+            /** Live battle roofs are individual depth-sorted SpriteBank
+             * carriers. Keep only their ground/base pass in this RT. */
+            omitElevatedBuildings?: boolean;
+        }
     ) {
         const offX = dx * PLOT_PITCH;
         const offY = dy * PLOT_PITCH;
@@ -2519,7 +2582,8 @@ export class WorldMapSystem {
         // the same paving at the same age. Bots are old settlements: fully
         // paved. Baked into the postcard between lawn and buildings, exactly
         // where the live village draws its own.
-        const stoneBuildings = Array.isArray(world.buildings) ? world.buildings : [];
+        const stoneWorld = opts?.staticGroundWorld ?? world;
+        const stoneBuildings = Array.isArray(stoneWorld.buildings) ? stoneWorld.buildings : [];
         const stoneMaturity = view.plot.kind === 'bot'
             ? 1
             : Math.min(1, Math.max(0, Number(view.plot.stoneMaturity ?? 1)));
@@ -2539,7 +2603,9 @@ export class WorldMapSystem {
             drawStoneLane(g, route.points, stoneMaturity, { offX, offY, occluded: stoneOccluded });
         }
 
-        const elevatedLayers = this.drawWorldStatic(g, world, offX, offY);
+        const elevatedLayers = this.drawWorldStatic(g, world, offX, offY, {
+            includeElevatedBuildings: opts?.omitElevatedBuildings !== true
+        });
 
         // Capture bounds in world px: the plot diamond plus roof headroom.
         const top = IsoUtils.cartToIso(offX, offY);
@@ -2610,6 +2676,7 @@ export class WorldMapSystem {
      * over plots shared with the home ring can never silence the live one.
      */
     private registerVillageResidents(view: NeighborView, world?: PostcardWorld) {
+        if (view.battlePlayback?.ready) return;
         const source = world ?? view.sourceWorld;
         if (!source || view.contentKind !== 'village' || !view.rt) return;
         const offX = view.dx * PLOT_PITCH;
@@ -2636,7 +2703,8 @@ export class WorldMapSystem {
         ground: Phaser.GameObjects.Graphics,
         world: PostcardWorld,
         offX: number,
-        offY: number
+        offY: number,
+        opts: { includeElevatedBuildings?: boolean } = {}
     ): Array<Phaser.GameObjects.Graphics | Phaser.GameObjects.Image> {
         const buildings = Array.isArray(world.buildings) ? world.buildings : [];
         const wallAt = new Set(buildings.filter(b => b.type === 'wall').map(b => `${b.gridX},${b.gridY}`));
@@ -2683,14 +2751,22 @@ export class WorldMapSystem {
         };
 
         // Ground-plane contract: every base is painted before any raised item.
-        for (const b of buildings) drawBuilding(ground, b, false, true);
+        for (const b of buildings) {
+            // Walls are fully dynamic: their topology-specific SpriteBank
+            // carrier includes its own ground shadow. Baking that shadow too
+            // would double-darken it during a battle.
+            if (opts.includeElevatedBuildings === false && b.type === 'wall') continue;
+            drawBuilding(ground, b, false, true);
+        }
 
         const raised: Array<{ depth: number; g: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image }> = [];
-        for (const b of buildings) {
-            if (!BUILDING_DEFINITIONS[b.type as BuildingType]) continue;
-            const layer = this.scene.make.graphics({ x: 0, y: 0 }, false);
-            drawBuilding(layer, b, true, false);
-            raised.push({ depth: depthForBuilding(offX + b.gridX, offY + b.gridY, b.type as BuildingType), g: layer });
+        if (opts.includeElevatedBuildings !== false) {
+            for (const b of buildings) {
+                if (!BUILDING_DEFINITIONS[b.type as BuildingType]) continue;
+                const layer = this.scene.make.graphics({ x: 0, y: 0 }, false);
+                drawBuilding(layer, b, true, false);
+                raised.push({ depth: depthForBuilding(offX + b.gridX, offY + b.gridY, b.type as BuildingType), g: layer });
+            }
         }
         for (const obstacle of world.obstacles ?? []) {
             const info = OBSTACLE_DEFINITIONS[obstacle.type];
@@ -3452,9 +3528,253 @@ export class WorldMapSystem {
 
     // ================= battle indicators & the siege alarm =================
 
+    /** Refresh only compact battle identities; postcard snapshots remain on
+     * their deliberately slow revision cadence. A successful empty response
+     * is authoritative and tears down attacks that disappeared. */
+    private async refreshWorldBattleActivities(): Promise<void> {
+        if (this.worldBattleDiscoveryInFlight || !this.sceneLive()) return;
+        this.worldBattleDiscoveryInFlight = true;
+        const epoch = ++this.worldBattleDiscoveryEpoch;
+        try {
+            const response = await Backend.fetchVisibleActiveAttacks();
+            if (!response || epoch !== this.worldBattleDiscoveryEpoch || !this.sceneLive()) return;
+            if (Number.isFinite(response.serverNow)) {
+                DayNightSystem.serverOffsetMs = response.serverNow - Date.now();
+            }
+
+            const next = new Map<string, WorldMapAttackActivity>();
+            for (const activity of response.activities) {
+                next.set(`${activity.x},${activity.y}`, activity);
+            }
+            this.worldBattleActivities = next;
+            this.worldBattleActivitiesHydrated = true;
+
+            for (const view of this.views.values()) {
+                const activity = next.get(view.key);
+                const previousAttackId = view.plot.attackId;
+                if (activity) {
+                    view.battleActivityMissingSince = 0;
+                    view.plot = { ...view.plot, underAttack: true, attackId: activity.attackId };
+                    if (previousAttackId !== activity.attackId && view.battlePlayback) {
+                        this.stopWorldBattlePlayback(view, true);
+                    }
+                    if (previousAttackId !== activity.attackId) view.battlePlaybackEndPending = false;
+                } else if (view.battlePlayback?.ready) {
+                    // The server drops the activity lease at real-time attack
+                    // end, while this spectator intentionally trails behind.
+                    // Keep polling and drain the terminal correction during
+                    // the shared, sight-fenced spectator grace window.
+                    if (view.battleActivityMissingSince <= 0) {
+                        view.battleActivityMissingSince = this.lastUpdateTime || this.scene.time.now;
+                    }
+                } else {
+                    view.plot = { ...view.plot, underAttack: false, attackId: undefined };
+                    if (view.battlePlayback) this.stopWorldBattlePlayback(view, true);
+                }
+                this.ensureBattle(view, view.dx, view.dy,
+                    Boolean(view.plot.underAttack && view.rt && view.contentKind === 'village'));
+            }
+        } finally {
+            if (epoch === this.worldBattleDiscoveryEpoch) this.worldBattleDiscoveryInFlight = false;
+        }
+    }
+
+    private suspendPostcardResidents(view: NeighborView): void {
+        if (view.residentsRegistered) {
+            this.scene.dayNight?.clearPostcardLights?.(view.key);
+            this.neighborLifeSim?.removeVillage(view.key);
+            view.residentsRegistered = false;
+        }
+        view.life?.setVisible(false);
+        view.glow?.setVisible(false);
+    }
+
+    /** Ring-two textures may remain resident through the eviction grace after
+     * a pan. Do not turn that memory optimization into hidden replay traffic. */
+    private worldBattlePostcardVisible(view: NeighborView): boolean {
+        if (!view.rt) return false;
+        const bounds = view.rt.getBounds();
+        const camera = this.scene.cameras.main.worldView;
+        const margin = 160;
+        return bounds.right >= camera.left - margin
+            && bounds.left <= camera.right + margin
+            && bounds.bottom >= camera.top - margin
+            && bounds.top <= camera.bottom + margin;
+    }
+
+    /** Drive every currently resident, visible village battle in place. */
+    private updateWorldBattlePlaybacks(time: number, deltaMs: number): void {
+        if (!this.sceneLive()) {
+            for (const view of this.views.values()) {
+                if (view.battlePlayback) this.stopWorldBattlePlayback(view, true);
+            }
+            return;
+        }
+
+        for (const view of this.views.values()) {
+            const activity = this.worldBattleActivities.get(view.key);
+            const initialMapAttackId = !this.worldBattleActivitiesHydrated
+                && view.plot.underAttack
+                && typeof view.plot.attackId === 'string'
+                ? view.plot.attackId
+                : null;
+            const drainingAttackId = view.battlePlayback?.ready
+                && view.battleActivityMissingSince > 0
+                && time - view.battleActivityMissingSince <= LIVE_REPLAY_SPECTATOR_GRACE_MS
+                ? view.battlePlayback.attackId
+                : null;
+            const candidateAttackId = activity?.attackId ?? initialMapAttackId ?? drainingAttackId;
+            const visible = this.worldBattlePostcardVisible(view);
+            const attackId = candidateAttackId
+                && visible
+                && view.contentKind === 'village'
+                && view.rt
+                && view.sourceWorld
+                ? candidateAttackId
+                : null;
+
+            if (!activity && view.battleActivityMissingSince > 0
+                && time - view.battleActivityMissingSince > LIVE_REPLAY_SPECTATOR_GRACE_MS) {
+                view.plot = { ...view.plot, underAttack: false, attackId: undefined };
+                if (view.battlePlayback) this.stopWorldBattlePlayback(view, true);
+                this.ensureBattle(view, view.dx, view.dy, false);
+                continue;
+            }
+            if (view.battlePlayback && view.battlePlayback.attackId !== attackId) {
+                this.stopWorldBattlePlayback(view, true);
+            }
+            if (!attackId || !view.rt) continue;
+
+            this.ensureBattle(view, view.dx, view.dy, true);
+            if (!view.battlePlayback && time >= view.battlePlaybackRetryAt) {
+                const playback = new WorldBattlePlayback(this.scene, attackId, {
+                    gridOffsetX: view.dx * PLOT_PITCH,
+                    gridOffsetY: view.dy * PLOT_PITCH,
+                    baseDepth: view.rt.depth
+                }, {
+                    onWorldReady: active => {
+                        if (view.battlePlayback !== active) return;
+                        this.suspendPostcardResidents(view);
+                        view.battlePostcardRepaintPending = true;
+                        this.ensureBattle(view, view.dx, view.dy, true);
+                    },
+                    onDestroyedBuildingsChanged: active => {
+                        if (view.battlePlayback === active) view.battlePostcardRepaintPending = true;
+                    },
+                    // Keep the terminal battlefield visible until the compact
+                    // activity lane confirms the lease is gone. That avoids a
+                    // one-poll flash back to a pristine village.
+                    onEnded: active => {
+                        if (view.battlePlayback === active) view.battlePlaybackEndPending = true;
+                    }
+                });
+                view.battlePlayback = playback;
+                void playback.start().then(started => {
+                    if (view.battlePlayback !== playback) return;
+                    if (started) {
+                        view.battlePlaybackRetryAt = 0;
+                        return;
+                    }
+                    // Activity may precede its first persisted keyframe. Keep
+                    // the marker and calm postcard, then retry while discovery
+                    // still reports this exact attack.
+                    playback.destroy();
+                    view.battlePlayback = null;
+                    view.battlePlaybackRetryAt = (this.lastUpdateTime || time) + 1_500;
+                }).catch(error => {
+                    if (view.battlePlayback !== playback) return;
+                    console.warn(`World battle ${attackId} startup failed:`, error);
+                    playback.destroy();
+                    view.battlePlayback = null;
+                    view.battlePlaybackRetryAt = (this.lastUpdateTime || time) + 1_500;
+                });
+            }
+
+            const playback = view.battlePlayback;
+            if (!playback?.ready || !view.rt) continue;
+            playback.setPlacement({
+                gridOffsetX: view.dx * PLOT_PITCH,
+                gridOffsetY: view.dy * PLOT_PITCH,
+                baseDepth: view.rt.depth
+            });
+            playback.update(time, deltaMs);
+
+            if (view.battlePlaybackEndPending && !this.worldBattleActivities.has(view.key)) {
+                view.plot = { ...view.plot, underAttack: false, attackId: undefined };
+                this.stopWorldBattlePlayback(view, true);
+                this.ensureBattle(view, view.dx, view.dy, false);
+                continue;
+            }
+
+            if (!view.battlePostcardRepaintPending
+                || time < view.battlePostcardRepaintNotBefore) continue;
+            view.battlePostcardRepaintPending = false;
+            view.battlePostcardRepaintNotBefore = time + 100;
+            const source = playback.sourceWorld;
+            if (!source) continue;
+            try {
+                const destroyed = playback.destroyedBuildingIds;
+                const battlefield: SerializedWorld = {
+                    ...source,
+                    buildings: source.buildings.filter(building => !destroyed.has(building.id))
+                };
+                this.renderSnapshot(view, battlefield, view.dx, view.dy, {
+                    deferResidents: true,
+                    staticGroundWorld: source,
+                    omitElevatedBuildings: true
+                });
+                // This is a transient presentation of the same authoritative
+                // revision, not a new public-save revision.
+                view.renderedRevision = view.sourceRevision;
+                view.battlePostcardMutated = true;
+                playback.setPlacement({
+                    gridOffsetX: view.dx * PLOT_PITCH,
+                    gridOffsetY: view.dy * PLOT_PITCH,
+                    baseDepth: view.rt.depth
+                });
+            } catch (error) {
+                console.warn(`World battle postcard repaint failed for ${view.key}:`, error);
+            }
+        }
+    }
+
+    /** Destroy transient replay graphics and optionally restore the calm,
+     * authoritative postcard and its resident-life registries. */
+    private stopWorldBattlePlayback(view: NeighborView, restorePostcard: boolean): void {
+        const playback = view.battlePlayback;
+        if (!playback) return;
+        view.battlePlayback = null;
+        playback.destroy();
+        view.battlePlaybackRetryAt = 0;
+        view.battleActivityMissingSince = 0;
+        view.battlePlaybackEndPending = false;
+        view.battlePostcardRepaintPending = false;
+        view.battlePostcardRepaintNotBefore = 0;
+
+        if (restorePostcard && view.sourceWorld && view.rt && view.contentKind === 'village') {
+            try {
+                if (view.battlePostcardMutated) {
+                    this.renderSnapshot(view, view.sourceWorld, view.dx, view.dy);
+                    view.renderedRevision = view.sourceRevision;
+                } else if (!view.residentsRegistered) {
+                    this.registerVillageResidents(view);
+                }
+                view.life?.setVisible(true);
+                view.glow?.setVisible(true);
+            } catch (error) {
+                console.warn(`World battle postcard restore failed for ${view.key}:`, error);
+            }
+        }
+        view.battlePostcardMutated = false;
+        this.ensureBattle(view, view.dx, view.dy,
+            Boolean(view.plot.underAttack && view.rt && view.contentKind === 'village'));
+    }
+
     /** A pulsing battle marker over a plot that is under live attack. */
     private ensureBattle(view: NeighborView, dx: number, dy: number, underAttack: boolean) {
-        if (!underAttack) {
+        // The marker is a discovery/loading affordance. Once real troops and
+        // health bars are visible, its giant crossed blades only obscure them.
+        if (!underAttack || view.battlePlayback?.ready) {
             view.battleTween?.stop();
             view.battleTween = null;
             view.battle?.destroy();
@@ -3680,12 +4000,8 @@ export class WorldMapSystem {
         });
         const requests = gameManager as unknown as {
             requestScoutOnUser(ownerId: string, username: string): void;
-            requestWatchLiveAttack(attackId: string, username: string): void;
         };
         if (plot.kind === 'player') {
-            if (plot.underAttack && plot.attackId) {
-                actions.push({ label: 'Watch live battle', kind: 'watch', run: () => requests.requestWatchLiveAttack(plot.attackId as string, plot.username ?? 'Village') });
-            }
             if (plot.ownerId && plot.ownerId !== this.scene.userId) {
                 if ((plot as { shielded?: boolean }).shielded) {
                     actions.push({ label: 'Shielded (revenge only)', kind: 'info', run: () => gameManager.showToast('That village is protected — only a revenge right gets through.') });
@@ -3765,6 +4081,7 @@ export class WorldMapSystem {
             try {
                 this.renderSnapshot(view, view.sourceWorld, view.dx, view.dy);
                 view.renderedRevision = view.sourceRevision;
+                if (view.battlePlayback?.ready) view.battlePostcardRepaintPending = true;
                 this.ensureBattle(view, view.dx, view.dy, Boolean(view.plot.underAttack));
             } catch (error) {
                 console.warn(`postcard rematerialization failed for ${view.key}:`, error);
@@ -3873,6 +4190,14 @@ export class WorldMapSystem {
                 view.life = null;
                 view.glow?.destroy();
                 view.glow = null;
+                continue;
+            }
+            // Battle playback owns every moving thing on this postcard. Calm
+            // villagers, smoke, flags, and window glow would otherwise keep
+            // animating through the raid and visually fight its health bars.
+            if (view.battlePlayback?.ready) {
+                view.life?.setVisible(false);
+                view.glow?.setVisible(false);
                 continue;
             }
             if (view.contentKind === 'nature') {
@@ -3989,6 +4314,7 @@ export class WorldMapSystem {
 
     /** Drop only GPU/display resources; retained sourceWorld remains cheap and authoritative. */
     private releaseViewVisuals(view: NeighborView, countEviction: boolean) {
+        this.stopWorldBattlePlayback(view, false);
         const hadVillageTexture = view.contentKind === 'village' && view.rt !== null;
         // Per-key registries are shared between the live ring and hidden
         // pending-focus views under the same absolute keys: only the view
@@ -4025,6 +4351,12 @@ export class WorldMapSystem {
     }
 
     teardown(invalidateMapRequests = true) {
+        ++this.worldBattleDiscoveryEpoch;
+        this.worldBattleDiscoveryInFlight = false;
+        this.worldBattleActivities.clear();
+        this.worldBattleActivitiesHydrated = false;
+        this.nextWorldBattleDiscoveryAt = 0;
+        this.lastWorldBattleUpdateAt = 0;
         this.neighborLifeSim?.destroy();
         if (invalidateMapRequests) this.fenceMapRequests();
         ++this.focusEpoch;

@@ -9,6 +9,7 @@ import type {
   AdminPlayerQuery,
   AdminPlayerRecord,
   AdminRuntimeConfigRecord,
+  AttackActivityQuery,
   AttackAuthorityCommandWrite,
   AttackAuthorityWrite,
   AttackCandidateQuery,
@@ -61,6 +62,7 @@ import type {
 import { AdminBaseResetPreconditionError, PersistenceConflictError } from '../repositories'
 import {
   boundAttackCandidateQuery,
+  boundAttackActivityQuery,
   boundAdminAttackQuery,
   boundAdminPlayerQuery,
   boundAttackCommandQuery,
@@ -1592,6 +1594,38 @@ class PgAttacks implements AttackRepository {
       query.limit
     ])
     return result.rows.map(row => candidateFromRow(row, query.targetTrophies))
+  }
+
+  async listLeasedIncomingInWorldWindow(input: AttackActivityQuery): Promise<AttackRecord[]> {
+    const query = boundAttackActivityQuery(input)
+    const result = await this.sql.query<AttackRow>(String.raw`
+      SELECT attack.*
+      FROM attacks attack
+      JOIN world_plots plot
+        ON plot.player_id = attack.defender_id
+       AND plot.world_id = attack.world_id
+       AND plot.x = attack.target_x
+       AND plot.y = attack.target_y
+       AND plot.plot_version = attack.target_plot_version
+       AND (plot.lease_expires_at IS NULL OR plot.lease_expires_at > $6)
+      WHERE attack.target_kind = 'player'
+        AND attack.state IN ('engaged', 'active', 'finalizing')
+        AND attack.deadline_at > $6
+        AND attack.world_id = $1
+        AND attack.target_x BETWEEN $2 AND $3
+        AND attack.target_y BETWEEN $4 AND $5
+      ORDER BY attack.target_y, attack.target_x, attack.updated_at DESC, attack.id DESC
+      LIMIT $7
+    `, [
+      query.worldId,
+      query.minX,
+      query.maxX,
+      query.minY,
+      query.maxY,
+      query.now,
+      query.limit
+    ])
+    return result.rows.map(attackFromRow)
   }
 
   async listActiveIncoming(defenderId: string, requestedLimit: number): Promise<AttackRecord[]> {

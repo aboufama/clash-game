@@ -212,7 +212,8 @@ function incomingAttack(
   attackerId: string,
   defenderId: string,
   startedAt: number,
-  leased = false
+  leased = false,
+  targetPlot: { x: number; y: number } = { x: 1, y: 1 }
 ) {
   const snapshot: CombatVillageSnapshot = {
     schemaVersion: 1,
@@ -230,7 +231,7 @@ function incomingAttack(
       targetId: defenderId,
       playerId: defenderId,
       shieldBypass: 'NONE',
-      plot: { worldId: 'main', x: 1, y: 1, version: '1' },
+      plot: { worldId: 'main', x: targetPlot.x, y: targetPlot.y, version: '1' },
       villageVersion: snapshot.villageVersion,
       snapshotId: snapshot.snapshotId,
       snapshotHash: combatSnapshotHash(snapshot)
@@ -1337,6 +1338,76 @@ test('preparing attacks cannot crowd an engaged defender lease out of authority 
     )
   })
   await persistence.close()
+})
+
+test('the bounded map window advertises live replay stream timing only inside Watchtower sight', async () => {
+  const persistence = new MemoryPersistence()
+  const now = new Date('2026-07-11T12:05:00.000Z')
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(now),
+    starterShieldMs: 0,
+    allowGuestSessions: true
+  })
+  try {
+    const viewer = grantedSession(await service.ensureSession('', 'ambient-viewer'))
+    const defender = grantedSession(await service.ensureSession('', 'ambient-defender'))
+    await persistence.transaction(async tx => {
+      const village = await tx.villages.get(viewer.player.id)
+      assert(village)
+      const expectedRevision = village.economyRevision
+      village.buildings = [
+        ...(village.buildings as unknown as Array<Record<string, unknown>>),
+        { id: 'ambient-watchtower', type: 'watchtower', level: 1, gridX: 2, gridY: 2 }
+      ] as unknown as typeof village.buildings
+      village.economyRevision += 1
+      assert.equal(await tx.villages.update(village, expectedRevision), true)
+      await tx.accounts.insert(account('ambient-attacker', now))
+      await tx.attacks.insert(incomingAttack(
+        'ambient-live-attack',
+        'ambient-attacker',
+        defender.player.id,
+        now.getTime(),
+        true,
+        { x: defender.player.plotX, y: defender.player.plotY }
+      ))
+    })
+
+    const window = record(await service.map(
+      { playerId: viewer.player.id },
+      viewer.player.plotX,
+      viewer.player.plotY,
+      1
+    ))
+    const defenderPlot = (window.plots as unknown[])
+      .map(record)
+      .find(plot => plot.ownerId === defender.player.id)
+    assert(defenderPlot)
+    assert.equal(defenderPlot.underAttack, true)
+    assert.equal(defenderPlot.attackId, 'ambient-live-attack')
+    assert.deepEqual(defenderPlot.activeAttack, {
+      attackId: 'ambient-live-attack',
+      combatStartedAt: now.getTime() + 1,
+      updatedAt: now.getTime() + 1
+    })
+    assert.deepEqual(
+      await service.visibleAttackActivity({ playerId: viewer.player.id }),
+      {
+        activities: [{
+          attackId: 'ambient-live-attack',
+          targetKind: 'player',
+          targetId: defender.player.id,
+          defenderId: defender.player.id,
+          x: defender.player.plotX,
+          y: defender.player.plotY,
+          combatStartedAt: now.getTime() + 1,
+          updatedAt: now.getTime() + 1
+        }],
+        serverNow: now.getTime()
+      }
+    )
+  } finally {
+    await service.close()
+  }
 })
 
 test('global economy ledger is unavailable when debug tools are disabled', async () => {

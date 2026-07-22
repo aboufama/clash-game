@@ -112,7 +112,10 @@ interface TroopDef {
 - Each of the two faction barracks has one owner-directed canonical themed design for
   every L1-L9 level. This was an explicit single-design exception, not a
   Design Lab tournament; do not create `@A/B/C` slots for these designs.
-- `getTroopStats(type, level)` scales by `TROOP_LEVEL_MULTIPLIERS = {1, 1.3, 1.65}`, cached.
+- `getTroopStats(type, level)` scales HP, damage, and healing amount by
+  `TROOP_LEVEL_MULTIPLIERS = {1, 1.3, 1.65}`, cached. Range, movement speed,
+  attack cadence, and effect radii stay fixed so Lab upgrades never erase
+  defense counter windows or change learned combat timing.
 - The **server** (`server/attack-domain/simulation.ts`) recomputes combat from these same numbers — a stat-only troop needs no server code, but changing authoritative damage math means bumping `simulationVersion`.
 
 ## Recipes

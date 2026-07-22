@@ -95,6 +95,7 @@ training cards, owned-army queue, and battle selector.
 
 ## Replay boundary
 
-The live authoritative settlement version remains `ATTACK_SIMULATION_VERSION`
-**6**. This change alters catalog eligibility and progression, not the combat
-math of surviving troops, so no new settlement version is required.
+The live authoritative settlement version is `ATTACK_SIMULATION_VERSION`
+**9**. V9 adds bounded persistent-hazard defense credit and makes every
+declarative suicide troop settle as one detonation; stored v1-v8 attacks keep
+their pinned historical branches.

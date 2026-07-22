@@ -1446,7 +1446,7 @@ async function main() {
     const many = Array.from({ length: 240 }, (_, i) => ({ t: 2 + batch * 240 + i, destruction: 0, goldLooted: 0, buildings: [], troops: [] }))
     cappedFrameCount = (await api('POST', '/attacks/frames', { token: rotB.token, body: { attackId: flow.attackId, frames: many } })).json.frameCount
   }
-  ok(cappedFrameCount === 900, 'a replay is hard-capped at 900 frames')
+  ok(cappedFrameCount === 961, 'the replay budget retains 125 ms correction density before byte thinning')
   const oversizedBody = await api('POST', '/attacks/frames', { token: rotB.token, body: { attackId: flow.attackId, padding: 'x'.repeat(2 * 1024 * 1024), frames: [] } })
   ok(oversizedBody.status === 400, 'oversized replay request bodies are rejected before JSON processing')
 
@@ -1511,21 +1511,57 @@ async function main() {
     const spectatorRaider = (await api('POST', '/auth/session', { body: {} })).json
     await armWarriors(spectatorRaider.token, 1, 'arm-spectator-raid')
     const spectatorAttack = await matchmakeUntil(spectatorRaider.token, spectatorVictim.player.id, 'spectator-match')
+    const preparingActivity = (await api('GET', '/map/active-attacks', { token: spectator.token })).json
+    const preparingReplay = await api('GET', `/replays/${spectatorAttack.attackId}`, { token: spectator.token })
+    ok(!preparingActivity.activities.some(item => item.attackId === spectatorAttack.attackId)
+      && preparingReplay.status === 403,
+    'private attack preparation is neither advertised nor spectator-readable')
     await api('POST', '/attacks/frames', {
       token: spectatorRaider.token,
       body: { attackId: spectatorAttack.attackId, frames: [{
-        t: 10, destruction: 0, goldLooted: 0, buildings: [],
+        t: 10, destruction: 0, goldLooted: 321, oreLooted: 22, foodLooted: 11, buildings: [],
         troops: [{ id: 'spectator-root', type: 'warrior', level: 1, owner: 'PLAYER', gridX: 2, gridY: 2, health: 100, maxHealth: 100 }]
       }] }
     })
+    const activityFeed = (await api('GET', '/map/active-attacks', { token: spectator.token })).json
+    const activity = activityFeed.activities.find(item => item.attackId === spectatorAttack.attackId)
+    ok(activity?.targetKind === 'player'
+      && activity.targetId === spectatorVictim.player.id
+      && activity.defenderId === spectatorVictim.player.id
+      && activity.x === spectatorVictim.player.plotX
+      && activity.y === spectatorVictim.player.plotY
+      && Number.isFinite(activity.combatStartedAt)
+      && Number.isFinite(activity.updatedAt)
+      && Number.isFinite(activityFeed.serverNow),
+    'the compact Watchtower activity endpoint advertises live in-world stream timing')
     const spectatorReplayResponse = await api('GET', `/replays/${spectatorAttack.attackId}`, { token: spectator.token })
     const spectatorReplay = spectatorReplayResponse.json.replay
     ok(spectatorReplayResponse.status === 200 && !Object.hasOwn(spectatorReplay, 'lootCap')
       && !Object.hasOwn(spectatorReplay, 'lootCapOre') && !Object.hasOwn(spectatorReplay, 'lootCapFood')
       && spectatorReplay.enemyWorld.resources.gold === 0 && spectatorReplay.enemyWorld.resources.ore === 0
-      && spectatorReplay.enemyWorld.resources.food === 0,
+      && spectatorReplay.enemyWorld.resources.food === 0
+      && spectatorReplay.frames[0]?.goldLooted === 0
+      && spectatorReplay.frames[0]?.oreLooted === 0
+      && spectatorReplay.frames[0]?.foodLooted === 0,
     'live spectator replays redact defender loot caps and resource projections')
+    const spectatorIncremental = (await api(
+      'GET', `/replays/${spectatorAttack.attackId}?afterT=0`, { token: spectator.token }
+    )).json.replay
+    ok(!Object.hasOwn(spectatorIncremental, 'enemyWorld')
+      && spectatorIncremental.frames[0]?.goldLooted === 0
+      && spectatorIncremental.frames[0]?.oreLooted === 0
+      && spectatorIncremental.frames[0]?.foodLooted === 0,
+    'incremental neighbor polls stay compact and keep economy fields scrubbed')
     await api('POST', '/attacks/end', { token: spectatorRaider.token, body: { attackId: spectatorAttack.attackId, status: 'aborted' } })
+    const terminalGrace = await api('GET', `/replays/${spectatorAttack.attackId}`, { token: spectator.token })
+    ok(terminalGrace.status === 200
+      && terminalGrace.json.replay.status === 'aborted'
+      && !Object.hasOwn(terminalGrace.json.replay, 'finalResult')
+      && terminalGrace.json.replay.frames[0]?.goldLooted === 0,
+    'a short terminal drain grace preserves scrubbed final replay delivery')
+    const cooledActivity = (await api('GET', '/map/active-attacks', { token: spectator.token })).json
+    ok(!cooledActivity.activities.some(item => item.attackId === spectatorAttack.attackId),
+      'terminal battles disappear from compact Watchtower activity')
   }
 
   // 4. Shop limits bind server-side.

@@ -5,7 +5,7 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
         id: 'cannon',
         name: 'Cannon',
         cost: 220,
-        desc: 'Point defense against ground.',
+        desc: 'Reliable point defense against nearby attackers.',
         width: 1,
         height: 1,
         maxHealth: 820,
@@ -40,8 +40,8 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
         maxLevel: 3,
         levels: [
             { hp: 950, damage: 185, fireRate: 1900, cost: 360 },
-            { hp: 1150, damage: 230, fireRate: 1700, cost: 620 },
-            { hp: 1400, damage: 280, fireRate: 1550, cost: 950 }
+            { hp: 1150, damage: 250, fireRate: 1700, cost: 620 },
+            { hp: 1400, damage: 320, fireRate: 1550, cost: 950 }
         ]
     },
     xbow: {
@@ -60,9 +60,9 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
         damage: 20,
         maxLevel: 3,
         levels: [
-            { hp: 1550, damage: 20, fireRate: 220, cost: 900 },
-            { hp: 1850, damage: 26, fireRate: 190, cost: 1350 },
-            { hp: 2200, damage: 32, fireRate: 165, cost: 1900 }
+            { hp: 1550, damage: 20, fireRate: 220, cost: 900, range: 11.0 },
+            { hp: 1850, damage: 26, fireRate: 190, cost: 1350, range: 11.5 },
+            { hp: 2200, damage: 32, fireRate: 165, cost: 1900, range: 12.0 }
         ]
     },
     mortar: {
@@ -82,10 +82,10 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
         damage: 62,
         maxLevel: 4,
         levels: [
-            { hp: 760, damage: 62, fireRate: 3900, cost: 500 },
-            { hp: 930, damage: 78, fireRate: 3500, cost: 780 },
-            { hp: 1150, damage: 95, fireRate: 3150, cost: 1100 },
-            { hp: 1400, damage: 115, fireRate: 2850, cost: 1550 }
+            { hp: 760, damage: 62, fireRate: 3900, cost: 500, range: 10.0 },
+            { hp: 930, damage: 78, fireRate: 3500, cost: 780, range: 10.25 },
+            { hp: 1150, damage: 95, fireRate: 3150, cost: 1100, range: 10.5 },
+            { hp: 1400, damage: 115, fireRate: 2850, cost: 1550, range: 10.75 }
         ]
     },
     tesla: {
@@ -132,7 +132,7 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
         id: 'prism',
         name: 'Prism Tower',
         cost: 1050,
-        desc: 'Continuous beam that melts clustered enemies.',
+        desc: 'Continuous beam that steadily melts one locked target.',
         width: 1,
         height: 1,
         maxHealth: 1200,
@@ -141,13 +141,13 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
         maxCount: 1,
         color: 0xff00ff,
         fireRate: 100,
-        damage: 156,
+        damage: 145,
         maxLevel: 4,
         levels: [
-            { hp: 1200, damage: 156, fireRate: 100, cost: 1050, range: 8.5 },
-            { hp: 1450, damage: 204, fireRate: 90, cost: 1450, range: 9.0 },
-            { hp: 1750, damage: 264, fireRate: 75, cost: 2100, range: 9.5 },
-            { hp: 2100, damage: 330, fireRate: 65, cost: 3000, range: 10.0 }
+            { hp: 1200, damage: 145, fireRate: 100, cost: 1050, range: 8.5 },
+            { hp: 1450, damage: 190, fireRate: 90, cost: 1450, range: 9.0 },
+            { hp: 1750, damage: 245, fireRate: 75, cost: 2100, range: 9.5 },
+            { hp: 2100, damage: 300, fireRate: 65, cost: 3000, range: 10.0 }
         ]
     },
     dragons_breath: {
@@ -167,7 +167,7 @@ export const DEFENSE_BUILDING_DEFINITIONS: BuildingDefinitionMap<DefenseBuilding
         maxLevel: 2,
         levels: [
             { hp: 2800, damage: 34, fireRate: 2800, cost: 2200, range: 13.5 },
-            { hp: 3500, damage: 45, fireRate: 2400, cost: 3200, range: 14.0 }
+            { hp: 3500, damage: 42, fireRate: 2500, cost: 3200, range: 14.0 }
         ]
     },
     spike_launcher: {

@@ -20,7 +20,7 @@ const TROOP_FLAVOR: Record<string, string> = {
     golem: 'Massive stone titan. Nearly indestructible, targets defenses.',
     icegolem: 'Frozen colossus. Lighter than stone but slams faster.',
     necromancer: 'Raises skeletons from the battlefield while blasting from range.',
-    trebuchet: 'Counterweight artillery that outranges every defense but one.',
+    trebuchet: "Long-range counterweight artillery. X-Bows and Dragon's Breath can answer it.",
     davincitank: "Armored war machine that fires cannons in all directions.",
     warelephant: 'Armored titan that tramples straight through walls.',
     ornithopter: "Da Vinci's flying machine. Soars over walls and bombs defenses.",

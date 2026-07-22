@@ -625,6 +625,14 @@ class SpriteBankImpl {
             img = scene.add.image(0, 0, atlasKey);
             rec[slot] = img;
         }
+        // A carrier may live inside an isolated Phaser Layer (the live
+        // world-postcard battle is the first such surface). Keep its shadow
+        // sprite in the SAME display list so the Layer's child depths remain
+        // a self-contained painter order. Root-scene carriers are unchanged:
+        // their display list already matches the image created above.
+        if (carrier.displayList && img.displayList !== carrier.displayList) {
+            carrier.displayList.add(img);
+        }
         return img;
     }
 

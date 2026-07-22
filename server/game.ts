@@ -15,6 +15,10 @@ import {
   worldDayIndex
 } from '../src/game/config/Economy'
 import { clearWorldHydrologyCache } from '../src/game/config/WorldHydrology'
+import {
+  LIVE_REPLAY_SPECTATOR_GRACE_MS,
+  REPLAY_CORRECTION_FRAME_BUDGET
+} from '../src/game/replay/ReplayTypes'
 import { sanitizeVillageBanner, villageBannersEqual, type SerializedBuilding, type SerializedObstacle, type SerializedWorld, type VillageBanner } from '../src/game/data/Models'
 import type {
   AttackNotificationItem,
@@ -196,7 +200,7 @@ const FIXED_UPGRADE_DURATION_MS = (() => {
 type ResourceKind = 'gold' | 'ore' | 'food'
 const MAX_REQUEST_KEYS = 400
 const MAX_RELOCATION_RECEIPTS = 64
-const MAX_REPLAY_FRAMES = 900
+const MAX_REPLAY_FRAMES = REPLAY_CORRECTION_FRAME_BUDGET
 const MAX_REPLAY_BYTES = 2 * 1024 * 1024
 const MAX_REPLAY_V2_BYTES = 64 * 1024 * 1024
 const MAX_TOTAL_REPLAY_BYTES = 512 * 1024 * 1024
@@ -735,10 +739,14 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
     ? frame.buildings.slice(0, MAX_FRAME_BUILDINGS).flatMap(entry => {
         const id = sanitizeId((entry as { id?: unknown })?.id)
         if (!id) return []
+        const ballistaAngle = Number((entry as { ballistaAngle?: unknown }).ballistaAngle)
         return [{
           id,
           health: Math.max(0, toInt((entry as { health?: unknown }).health, 0)),
-          isDestroyed: Boolean((entry as { isDestroyed?: unknown }).isDestroyed)
+          isDestroyed: Boolean((entry as { isDestroyed?: unknown }).isDestroyed),
+          ...(Number.isFinite(ballistaAngle)
+            ? { ballistaAngle: clamp(ballistaAngle, -100, 100) }
+            : {})
         }]
       })
     : []
@@ -762,7 +770,22 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
           health: Math.max(0, Number(troop.health) || 0),
           maxHealth: Math.max(1, Number(troop.maxHealth) || 1),
           ...(Number.isFinite(facing) ? { facingAngle: facing } : {}),
-          hasTakenDamage: Boolean(troop.hasTakenDamage)
+          hasTakenDamage: Boolean(troop.hasTakenDamage),
+          ...(Number.isFinite(Number(troop.slamOffset))
+            ? { slamOffset: clamp(Number(troop.slamOffset), -100, 100) }
+            : {}),
+          ...(Number.isFinite(Number(troop.mortarRecoil))
+            ? { mortarRecoil: clamp(Number(troop.mortarRecoil), -100, 100) }
+            : {}),
+          ...(Number.isFinite(Number(troop.parked01))
+            ? { parked01: clamp(Number(troop.parked01), 0, 1) }
+            : {}),
+          ...(Number.isFinite(Number(troop.phalanxSpearOffset))
+            ? { phalanxSpearOffset: clamp(Number(troop.phalanxSpearOffset), 0, 1) }
+            : {}),
+          ...(Number.isFinite(Number(troop.tankSpin01))
+            ? { tankSpin01: clamp(Number(troop.tankSpin01), 0, 1) }
+            : {})
         }]
       })
     : []
@@ -776,6 +799,21 @@ function sanitizeFrame(raw: unknown): ReplayFrame | null {
     buildings,
     troops
   }
+}
+
+function scrubSpectatorFrame(frame: ReplayFrame): ReplayFrame {
+  return {
+    ...frame,
+    goldLooted: 0,
+    oreLooted: 0,
+    foodLooted: 0
+  }
+}
+
+function scrubSpectatorV2Chunk(chunk: ReplayV2Chunk): ReplayV2Chunk {
+  return chunk.kind === 'keyframe'
+    ? { ...chunk, frame: scrubSpectatorFrame(chunk.frame) }
+    : chunk
 }
 
 function serializedBytes(value: unknown): number {
@@ -1936,11 +1974,23 @@ export class GameService implements AdminApiService {
             this.advancePlayer(owner)
             this.expireStaleAttacks(owner.id)
             const live = this.liveByVictim.get(owner.id)
-            let attackId: string | undefined
+            let activeAttack: {
+              attackId: string
+              combatStartedAt: number
+              updatedAt: number
+            } | undefined
             if (live) {
               for (const id of live) {
                 const rec = this.replays.get(id)
-                if (rec && rec.status === 'live') { attackId = id; break }
+                if (rec && rec.status === 'live'
+                  && rec.authority?.timestamps.engagedAt !== undefined) {
+                  activeAttack = {
+                    attackId: id,
+                    combatStartedAt: rec.authority?.timestamps.combatStartedAt ?? rec.startedAt,
+                    updatedAt: rec.updatedAt
+                  }
+                  break
+                }
               }
             }
             const withinDirectSight = chebyshevDistance(x, y, homeX, homeY) <= sight
@@ -1952,8 +2002,11 @@ export class GameService implements AdminApiService {
               username: owner.username,
               trophies: owner.trophies,
               revision: appearanceRevision,
-              underAttack: Boolean(attackId),
-              ...(withinDirectSight && attackId ? { attackId } : {}),
+              underAttack: Boolean(activeAttack),
+              ...(withinDirectSight && activeAttack ? {
+                attackId: activeAttack.attackId,
+                activeAttack
+              } : {}),
               shielded: (owner.shieldUntil ?? 0) > Date.now(),
               stoneMaturity: this.stoneMaturityOf(owner)
             }
@@ -2000,6 +2053,68 @@ export class GameService implements AdminApiService {
       serverNow: Date.now(),
       seedVersion: this.allocationState.presentationSeedVersion
     }
+  }
+
+  /**
+   * Lightweight companion to /map for ambient postcard combat. The square is
+   * fixed to the viewer's earned Watchtower horizon (at most 5x5 plots), so a
+   * frequent poll never serializes village layouts or provisions bot camps.
+   */
+  visibleAttackActivity(player: PlayerRecord): {
+    activities: Array<{
+      attackId: string
+      targetKind: 'player'
+      targetId: string
+      defenderId: string
+      x: number
+      y: number
+      combatStartedAt: number
+      updatedAt: number
+    }>
+    serverNow: number
+  } {
+    const serverNow = Date.now()
+    const homeX = player.plotX ?? 0
+    const homeY = player.plotY ?? 0
+    const sight = watchtowerSightOf(player.buildings, serverNow)
+    const activities: Array<{
+      attackId: string
+      targetKind: 'player'
+      targetId: string
+      defenderId: string
+      x: number
+      y: number
+      combatStartedAt: number
+      updatedAt: number
+    }> = []
+    for (let y = homeY - sight; y <= homeY + sight; y += 1) {
+      for (let x = homeX - sight; x <= homeX + sight; x += 1) {
+        const defenderId = this.plotIndex.get(plotKey(x, y))
+        if (!defenderId) continue
+        this.expireStaleAttacks(defenderId)
+        const live = this.liveByVictim.get(defenderId)
+        if (!live) continue
+        for (const attackId of live) {
+          const replay = this.replays.get(attackId)
+          const defender = this.players.get(defenderId)
+          if (!replay || replay.status !== 'live'
+            || replay.authority?.timestamps.engagedAt === undefined
+            || ((defender?.plotLeaseExpiresAt ?? Number.POSITIVE_INFINITY) <= serverNow)) continue
+          activities.push({
+            attackId,
+            targetKind: 'player',
+            targetId: defenderId,
+            defenderId,
+            x,
+            y,
+            combatStartedAt: replay.authority?.timestamps.combatStartedAt ?? replay.startedAt,
+            updatedAt: replay.updatedAt
+          })
+          break
+        }
+      }
+    }
+    return { activities: activities.slice(0, 25), serverNow }
   }
 
   /** Presentation enrichment is deliberately best-effort: attack authority
@@ -3216,7 +3331,8 @@ export class GameService implements AdminApiService {
       if (rawX === undefined || rawY === undefined) throw new ApiError(400, 'Both camp coordinates are required')
       const x = worldCoord(rawX, Number.NaN)
       const y = worldCoord(rawY, Number.NaN)
-      const sight = watchtowerSightOf(player.buildings)
+      const now = Date.now()
+      const sight = watchtowerSightOf(player.buildings, now)
       const distance = chebyshevDistance(x, y, player.plotX ?? 0, player.plotY ?? 0)
       if (distance === 0 || distance > sight) throw new ApiError(403, 'That camp is beyond your watchtower sight')
       const camp = eligible(x, y)
@@ -4573,10 +4689,28 @@ export class GameService implements AdminApiService {
       if (!replay) throw new ApiError(404, 'Replay not found')
     }
     if (replay.attackerId !== player.id && replay.victimId !== player.id) {
+      const now = Date.now()
       const victim = this.players.get(replay.victimId)
-      const sight = watchtowerSightOf(player.buildings)
-      const visible = victim && chebyshevDistance(player.plotX ?? 0, player.plotY ?? 0, victim.plotX ?? 0, victim.plotY ?? 0) <= sight
-      if (!allowLiveSpectator || replay.status !== 'live' || !visible) {
+      const sight = watchtowerSightOf(player.buildings, now)
+      const targetCurrent = victim
+        && (victim.plotX ?? 0) === (replay.victimPlotX ?? 0)
+        && (victim.plotY ?? 0) === (replay.victimPlotY ?? 0)
+        && (victim.plotVersion ?? 1) === (replay.victimPlotVersion ?? 1)
+        && (victim.plotLeaseExpiresAt ?? Number.POSITIVE_INFINITY) > now
+      const visible = targetCurrent
+        && chebyshevDistance(
+          player.plotX ?? 0,
+          player.plotY ?? 0,
+          replay.victimPlotX ?? 0,
+          replay.victimPlotY ?? 0
+        ) <= sight
+      const terminalGrace = replay.status !== 'live'
+        && replay.authority?.timestamps.engagedAt !== undefined
+        && Number.isFinite(replay.endedAt)
+        && now <= (replay.endedAt ?? 0) + LIVE_REPLAY_SPECTATOR_GRACE_MS
+      const liveEngaged = replay.status === 'live'
+        && replay.authority?.timestamps.engagedAt !== undefined
+      if (!allowLiveSpectator || (!liveEngaged && !terminalGrace) || !visible) {
         throw new ApiError(403, 'Not authorized to watch this attack')
       }
     }
@@ -5482,14 +5616,20 @@ export class GameService implements AdminApiService {
         lootCap: _lootCap,
         lootCapOre: _lootCapOre,
         lootCapFood: _lootCapFood,
+        finalResult: _finalResult,
+        frames,
+        v2Chunks,
         enemyWorld,
         ...spectatorReplay
       } = publicReplay
       void _lootCap
       void _lootCapOre
       void _lootCapFood
+      void _finalResult
       visibleReplay = {
         ...spectatorReplay,
+        frames: frames.map(scrubSpectatorFrame),
+        ...(v2Chunks ? { v2Chunks: v2Chunks.map(scrubSpectatorV2Chunk) } : {}),
         ...(enemyWorld ? { enemyWorld: { ...enemyWorld, resources: { gold: 0, ore: 0, food: 0 } } } : {})
       } as typeof publicReplay
     }
@@ -5509,14 +5649,14 @@ export class GameService implements AdminApiService {
     // older frame) up to 3x a second was pure bandwidth rot.
     const { enemyWorld: _fullWorld, ...slim } = versionedReplay
     void _fullWorld
-    const v2Chunks = (replay.v2Chunks ?? []).filter(chunk => (
+    const v2Chunks = (versionedReplay.v2Chunks ?? []).filter(chunk => (
       incrementalV2
         ? chunk.sequence > Math.max(0, Math.floor(afterV2))
         : (!incrementalV1 || chunk.t > after)
     ))
     return {
       ...slim,
-      frames: incrementalV1 ? replay.frames.filter(frame => frame.t > after) : [],
+      frames: incrementalV1 ? versionedReplay.frames.filter(frame => frame.t > after) : [],
       v2Chunks,
       lastV2Sequence: v2Chunks.at(-1)?.sequence
         ?? (incrementalV2 ? Math.max(0, Math.floor(afterV2)) : 0)

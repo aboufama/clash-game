@@ -200,11 +200,15 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   The removed A/B/C and Rift design rounds, candidate deaths, icons, visual
   routes, and packed assets are gone; exact portraits remain for all 20
   live/generated troop manifests. Authoritative settlement is now
-  `ATTACK_SIMULATION_VERSION` **8**: each Siege Tower's recorded deploy point
+  `ATTACK_SIMULATION_VERSION` **9**: v8's Siege Tower deploy ray remains, and
+  v9 credits a bounded share of persistent Spike Launcher damage while making
+  every declarative suicide troop settle as exactly one detonation. Each
+  Siege Tower's recorded deploy point
   rays directly to the nearest Town Hall and receives pathing credit only when
   that ray meets a wall (stored v7 keeps its closed-loop gate; v4-v6 keep the
-  old unconditional credit), while the Clockwork Beetle keeps its 125 ms live
-  fuse (stored v5 keeps 1,000 ms). See
+  old unconditional credit; stored v8 also keeps direct-shot-only Spike
+  attrition and the historical Wall Breaker cadence), while the Clockwork
+  Beetle keeps its 125 ms live fuse (stored v5 keeps 1,000 ms). See
   `src/game/config/TROOP_FACTION_ARCHITECTURE.md`.
 - **DONE — persistent procedural bot villages (2026-07-19):** bot layouts are
   never synthesized by a client or reconstructed at attack start. The

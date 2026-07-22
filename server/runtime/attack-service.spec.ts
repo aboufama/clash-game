@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ApiError } from '../errors'
+import { LIVE_REPLAY_SPECTATOR_GRACE_MS } from '../../src/game/replay/ReplayTypes'
 import {
   MemoryPersistence,
   type AccountRecord,
@@ -298,6 +299,7 @@ test('player attacks reserve once, fence on first deploy, command exactly once, 
   const replay = await service.getReplay(principal, started.attackId)
   assert.ok(replay.enemyWorld)
   assert.equal(Array.isArray(replay.frames), true)
+  now.value = new Date(now.value.getTime() + LIVE_REPLAY_SPECTATOR_GRACE_MS + 1)
   await assert.rejects(service.getReplay({ playerId: 'outsider' }, started.attackId), error => {
     assert.ok(error instanceof ApiError)
     assert.equal(error.status, 403)
@@ -307,6 +309,138 @@ test('player attacks reserve once, fence on first deploy, command exactly once, 
     'test-worker', now.value, new Date(now.value.getTime() + 60_000), 100
   ))
   assert.ok(outbox.some(event => event.eventType === 'attack.settled'))
+})
+
+test('Watchtower-visible neighbors can stream only live scrubbed replay data', async () => {
+  const { persistence, now, service } = await fixture([
+    'spectator',
+    'sight-filler',
+    'defender',
+    'attacker',
+    'outsider'
+  ])
+  const attacker = { playerId: 'attacker' }
+  const spectator = { playerId: 'spectator' }
+  const defender = { playerId: 'defender' }
+  await patchVillage(persistence, 'spectator', record => {
+    const tower = (record.buildings as unknown as Array<Record<string, unknown>>)
+      .find(building => building.type === 'watchtower')
+    assert(tower)
+    tower.upgradingTo = 2
+    tower.upgradeStartedAt = START.getTime()
+    tower.upgradeEndsAt = START.getTime() + 500
+  })
+  const started = await service.startAttack(attacker, {
+    targetId: 'defender', requestId: 'start-neighbor-stream'
+  }, false, 'device-token')
+
+  await assert.rejects(service.getReplay(spectator, started.attackId), error => (
+    error instanceof ApiError && error.status === 403
+  ), 'a prepared selection is not yet a visible live battle')
+
+  now.value = new Date(START.getTime() + 1_000)
+  await service.pushCommands(attacker, deploy(started.attackId))
+  const frame = {
+    t: 1_000,
+    destruction: 10,
+    goldLooted: 321,
+    oreLooted: 22,
+    foodLooted: 11,
+    buildings: [{ id: 'town-hall-defender', health: 900, isDestroyed: false }],
+    troops: [{
+      id: 'troop_1', type: 'warrior', level: 1, owner: 'PLAYER' as const,
+      gridX: 2, gridY: 2, health: 75, maxHealth: 100
+    }]
+  }
+  await service.pushFrames(attacker, {
+    attackId: started.attackId,
+    frames: [frame],
+    replayV2: {
+      chunks: [{ kind: 'keyframe', sequence: 1, t: 1_000, frame }]
+    }
+  })
+
+  const participantReplay = await service.getReplay(defender, started.attackId) as {
+    enemyWorld: { resources: { gold: number; ore: number; food: number } }
+    frames: Array<{ goldLooted: number; oreLooted: number; foodLooted: number }>
+  }
+  assert.ok(participantReplay.enemyWorld.resources.gold > 0)
+  assert.ok((participantReplay.frames[0]?.goldLooted ?? 0) > 0)
+
+  const spectatorReplay = await service.getReplay(spectator, started.attackId) as {
+    enemyWorld: { resources: { gold: number; ore: number; food: number } }
+    frames: Array<{ goldLooted: number; oreLooted: number; foodLooted: number }>
+    v2Chunks: Array<{
+      kind: string
+      frame?: { goldLooted: number; oreLooted: number; foodLooted: number }
+    }>
+    finalResult?: unknown
+  }
+  const unmaterializedSpectator = await persistence.transaction(tx => tx.villages.get('spectator'))
+  assert.equal(
+    (unmaterializedSpectator?.buildings as unknown as Array<Record<string, unknown>> | undefined)
+      ?.some(building => building.type === 'watchtower'
+        && building.level === 1 && building.upgradingTo === 2),
+    true,
+    'read-only replay authorization observes a completed upgrade without materializing it'
+  )
+  assert.deepEqual(spectatorReplay.enemyWorld.resources, { gold: 0, ore: 0, food: 0 })
+  assert.deepEqual(
+    spectatorReplay.frames.map(item => [item.goldLooted, item.oreLooted, item.foodLooted]),
+    [[0, 0, 0]]
+  )
+  assert.deepEqual(
+    spectatorReplay.v2Chunks.map(item => item.frame
+      ? [item.frame.goldLooted, item.frame.oreLooted, item.frame.foodLooted]
+      : null),
+    [[0, 0, 0]]
+  )
+  assert.equal(spectatorReplay.finalResult, undefined)
+
+  const incremental = await service.getReplay(spectator, started.attackId, undefined, 0) as {
+    enemyWorld?: unknown
+    frames: Array<{ goldLooted: number; oreLooted: number; foodLooted: number }>
+    v2Chunks: Array<{ kind: string; frame?: { goldLooted: number } }>
+  }
+  assert.equal(incremental.enemyWorld, undefined)
+  assert.deepEqual(incremental.frames, [])
+  assert.equal(incremental.v2Chunks[0]?.frame?.goldLooted, 0)
+
+  await assert.rejects(service.getReplay({ playerId: 'outsider' }, started.attackId), error => (
+    error instanceof ApiError && error.status === 403
+  ), 'a village outside the current Watchtower horizon cannot guess a stream id')
+
+  await patchVillage(persistence, 'spectator', record => {
+    record.buildings = record.buildings.filter(building => (
+      !building || typeof building !== 'object' || Array.isArray(building)
+        || building.type !== 'watchtower'
+    ))
+  })
+  await assert.rejects(service.getReplay(spectator, started.attackId), error => (
+    error instanceof ApiError && error.status === 403
+  ), 'authorization is re-evaluated from the viewer current village on every poll')
+
+  await patchVillage(persistence, 'spectator', record => {
+    record.buildings.push({
+      id: 'watchtower-spectator-restored', type: 'watchtower', level: 2, gridX: 2, gridY: 2
+    })
+  })
+  now.value = new Date(START.getTime() + 2_000)
+  await service.endAttack(attacker, { attackId: started.attackId, status: 'aborted' })
+  const terminalGraceReplay = await service.getReplay(spectator, started.attackId) as {
+    status: string
+    finalResult?: unknown
+    frames: Array<{ goldLooted: number }>
+  }
+  assert.notEqual(terminalGraceReplay.status, 'live')
+  assert.equal(terminalGraceReplay.finalResult, undefined)
+  assert.equal(terminalGraceReplay.frames[0]?.goldLooted, 0,
+    'terminal drain grace keeps the same spectator economy scrubbing')
+
+  now.value = new Date(START.getTime() + 2_000 + LIVE_REPLAY_SPECTATOR_GRACE_MS + 1)
+  await assert.rejects(service.getReplay(spectator, started.attackId), error => (
+    error instanceof ApiError && error.status === 403
+  ), 'neighbor capability ends immediately after the bounded terminal drain grace')
 })
 
 test('expired revenge rights cannot pierce a shield at selection or first engagement', async () => {
@@ -694,16 +828,16 @@ test('replay-v2 is contiguous, ordered, retry-safe, and same-bucket v1 correctio
   now.value = new Date(START.getTime() + 1_000)
   await service.pushCommands(attacker, deploy(started.attackId))
 
-  const frame = (t: number, health: number) => ({
+  const frame = (t: number, health: number, ballistaAngle: number) => ({
     t,
     destruction: health <= 0 ? 100 : 0,
     goldLooted: 0,
-    buildings: [{ id: 'town-hall-defender', health, isDestroyed: health <= 0 }],
+    buildings: [{ id: 'town-hall-defender', health, isDestroyed: health <= 0, ballistaAngle }],
     troops: []
   })
   const receipt = await service.pushFrames(attacker, {
     attackId: started.attackId,
-    frames: [frame(100, 1_000), frame(1_000, 700)],
+    frames: [frame(100, 1_000, 0.25), frame(105, 700, 1.25)],
     replayV2: {
       chunks: [{
         kind: 'event', sequence: 1, t: 400,
@@ -718,7 +852,7 @@ test('replay-v2 is contiguous, ordered, retry-safe, and same-bucket v1 correctio
           payload: { sourceId: 'troop_1', targetId: 'town-hall-defender', amount: 300, healthAfter: 700 }
         }
       }, {
-        kind: 'keyframe', sequence: 3, t: 1_000, frame: frame(1_000, 700)
+        kind: 'keyframe', sequence: 3, t: 1_000, frame: frame(1_000, 700, 1.25)
       }]
     }
   })
@@ -736,13 +870,14 @@ test('replay-v2 is contiguous, ordered, retry-safe, and same-bucket v1 correctio
   })
 
   const full = await service.getReplay(defender, started.attackId) as {
-    frames: Array<{ t: number; buildings: Array<{ health: number }> }>
+    frames: Array<{ t: number; buildings: Array<{ health: number; ballistaAngle?: number }> }>
     v2Chunks: Array<{ sequence: number; kind: string }>
     lastV2Sequence: number
   }
   assert.equal(full.frames.length, 1)
-  assert.equal(full.frames[0]?.t, 1_000)
+  assert.equal(full.frames[0]?.t, 105)
   assert.equal(full.frames[0]?.buildings[0]?.health, 700)
+  assert.equal(full.frames[0]?.buildings[0]?.ballistaAngle, 1.25)
   assert.deepEqual(full.v2Chunks.map(chunk => chunk.sequence), [1, 2, 3])
   assert.equal(full.lastV2Sequence, 3)
 
@@ -756,7 +891,7 @@ test('replay-v2 is contiguous, ordered, retry-safe, and same-bucket v1 correctio
           payload: { sourceId: 'troop_1', targetId: 'town-hall-defender', amount: 300, healthAfter: 700 }
         }
       }, {
-        kind: 'keyframe', sequence: 3, t: 1_000, frame: frame(1_000, 700)
+        kind: 'keyframe', sequence: 3, t: 1_000, frame: frame(1_000, 700, 1.25)
       }]
     }
   })

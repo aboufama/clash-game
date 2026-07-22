@@ -57,7 +57,11 @@ import type {
 // v8 (2026-07): each siege tower grants pathing credit only when the straight
 // ray from its recorded deploy point to the nearest Town Hall meets a wall.
 // Stored v7 attacks retain their closed-loop gate byte-for-byte.
-export const ATTACK_SIMULATION_VERSION = 8
+// v9 (2026-07): persistent Spike Launcher damage receives bounded expected
+// hazard credit (landing + two typical ticks), and every declarative suicide
+// troop is credited for exactly one detonation. Stored v1-v8 attacks keep the
+// historical direct-shot-only defense DPS and Wall Breaker cadence math.
+export const ATTACK_SIMULATION_VERSION = 9
 
 export const DEFAULT_ATTACK_RULES: Readonly<AttackRulesSnapshot> = Object.freeze({
   simulationVersion: ATTACK_SIMULATION_VERSION,

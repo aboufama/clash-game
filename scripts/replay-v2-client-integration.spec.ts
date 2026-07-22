@@ -11,6 +11,12 @@ import {
     replayPresentationEvent
 } from '../src/game/replay/ReplayPresentationStream.ts';
 import { ReplayTimeline } from '../src/game/replay/ReplayTimeline.ts';
+import {
+    REPLAY_CORRECTION_FRAME_BUDGET,
+    REPLAY_CORRECTION_INTERVAL_MS,
+    REPLAY_DEFAULT_MAX_DURATION_MS,
+    replayCorrectionFrameCount
+} from '../src/game/replay/ReplayTypes.ts';
 
 interface ClientReplayFrame {
     t: number;
@@ -47,6 +53,14 @@ const buildingPoint: ReplayPresentationPoint = {
     worldX: 0,
     worldY: 320
 };
+
+test('125 ms correction sampling is 24 Hz aligned and fits the bounded replay stores', () => {
+    assert.equal(REPLAY_CORRECTION_INTERVAL_MS, 125);
+    assert.equal(REPLAY_CORRECTION_INTERVAL_MS / (1000 / 24), 3);
+    assert.equal(replayCorrectionFrameCount(REPLAY_DEFAULT_MAX_DURATION_MS), 7_201);
+    assert.ok(replayCorrectionFrameCount(REPLAY_DEFAULT_MAX_DURATION_MS) <= REPLAY_CORRECTION_FRAME_BUDGET);
+    assert.ok(REPLAY_CORRECTION_FRAME_BUDGET < 16_384, 'server count budget remains below the client recorder ceiling');
+});
 
 test('canonical replay-v2 recorder, timeline, and dispatcher remain one ordered live pipeline', () => {
     const recorder = new ReplayPresentationRecorder<ClientReplayFrame>({

@@ -26,15 +26,14 @@ test('legacy replay damage ceiling credits every declarative chain and splash ki
       resources: { gold: 0, ore: 0, food: 0 },
       lastSaveTime: 0
     }
-    const activeAtFirstStrike: Partial<Record<TroopType, number>> = {
-      stormmage: 0,
-      mobilemortar: 1_000,
-      trebuchet: 1_500
-    }
+    const areaTroops = ['stormmage', 'mobilemortar', 'trebuchet'] as const satisfies readonly TroopType[]
 
-    for (const [rawType, activeMs] of Object.entries(activeAtFirstStrike)) {
-      const type = rawType as TroopType
-      const ceiling = game.rootDamageCeiling(world, type, 1, activeMs ?? 0)
+    for (const type of areaTroops) {
+      // Exercise the exact first authored strike even when balancing changes a
+      // unit's setup window; the fixture is about area-credit semantics, not
+      // pinning a second copy of troop cadence data.
+      const activeMs = TROOP_DEFINITIONS[type].firstAttackDelay ?? 0
+      const ceiling = game.rootDamageCeiling(world, type, 1, activeMs)
       assert(
         ceiling > TROOP_DEFINITIONS[type].damage,
         `${type} must receive clustered-target credit from its declarative area kit`

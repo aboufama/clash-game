@@ -899,6 +899,28 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
       }]
     }) as { phase: string }
     assert.equal(command.phase, 'ACTIVE')
+    const activeWindow = await service.visibleAttackActivity(attacker) as {
+      activities: Array<{
+        attackId: string
+        targetKind: string
+        targetId: string
+        defenderId: string
+        x: number
+        y: number
+        combatStartedAt: number
+        updatedAt: number
+      }>
+    }
+    assert.deepEqual(activeWindow.activities, [{
+      attackId: started.attackId,
+      targetKind: 'player',
+      targetId: third.player.id,
+      defenderId: third.player.id,
+      x: third.player.plotX,
+      y: third.player.plotY,
+      combatStartedAt: NOW.getTime(),
+      updatedAt: NOW.getTime()
+    }])
     assert.deepEqual(await service.pushFrames(attacker, {
       attackId: started.attackId,
       frames: [{

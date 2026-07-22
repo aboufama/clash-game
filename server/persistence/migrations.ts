@@ -706,6 +706,16 @@ CREATE INDEX replay_chunks_presentation_retention_idx
   WHERE format LIKE 'presentation-%';
 `
 
+const LIVE_ATTACK_WORLD_WINDOW_SQL = String.raw`
+-- Frequent in-world playback discovery is bounded to a 5x5 Watchtower
+-- window and follows this exact y/x order. Player target fencing is verified
+-- by the query's world_plots join before an attack id is disclosed.
+CREATE INDEX attacks_live_player_world_window_idx
+  ON attacks(world_id, target_y, target_x, updated_at DESC, id DESC)
+  WHERE target_kind = 'player'
+    AND state IN ('engaged', 'active', 'finalizing');
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -730,7 +740,8 @@ export const MIGRATIONS: readonly Migration[] = [
     sql: ACCOUNT_ONBOARDING_AND_TEST_MODE_ANNOUNCEMENTS_SQL
   },
   { version: 19, name: 'watchtower_placement_onboarding', sql: WATCHTOWER_PLACEMENT_ONBOARDING_SQL },
-  { version: 20, name: 'replay_v2_presentation_index', sql: REPLAY_V2_PRESENTATION_INDEX_SQL }
+  { version: 20, name: 'replay_v2_presentation_index', sql: REPLAY_V2_PRESENTATION_INDEX_SQL },
+  { version: 21, name: 'live_attack_world_window', sql: LIVE_ATTACK_WORLD_WINDOW_SQL }
 ]
 
 function checksum(sql: string): string {

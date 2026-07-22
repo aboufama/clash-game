@@ -122,6 +122,14 @@ always paints over it.
 - **Shared particle emitters**: `ParticleManager` banding — one emitter per
   64-depth band (`depthBandOf`). Never `setDepth` a shared emitter per burst;
   it retro-depths every particle still alive on it.
+- **Live world-postcard battles**: the cached lawn/lane/base RenderTexture
+  keeps its plot-level world-map depth. Dynamic battle bodies live in one
+  Phaser `Layer` immediately above that texture; children call
+  `depthForBuilding` / `depthForTroop` with PLOT-LOCAL coordinates so the
+  unscaled 0.1/0.5 occluder sub-bands remain exact without crossing into a
+  neighboring postcard's plot band. `SpriteBank` shadow sprites must inherit
+  their carrier's display list. Wreck scars stay in that Layer's absolute
+  `depthForGroundDecal` band, below every body.
 
 ## Silhouette Dead Zone (behavioural, NOT a depth rule)
 

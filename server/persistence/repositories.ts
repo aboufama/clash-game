@@ -8,6 +8,7 @@ import type {
   AdminPlayerQuery,
   AdminPlayerRecord,
   AdminRuntimeConfigRecord,
+  AttackActivityQuery,
   AttackCandidateQuery,
   AttackCandidateRecord,
   AttackAuthorityCommandWrite,
@@ -177,6 +178,8 @@ export interface WorldRepository {
 export interface AttackRepository {
   get(id: string, options?: { forUpdate?: boolean }): Promise<AttackRecord | null>
   findCandidates(query: AttackCandidateQuery): Promise<AttackCandidateRecord[]>
+  /** Current, plot-fenced player engagements inside one bounded world window. */
+  listLeasedIncomingInWorldWindow(query: AttackActivityQuery): Promise<AttackRecord[]>
   /** Selection/audit history including PREPARING; never use this to decide defender locking. */
   listActiveIncoming(defenderId: string, limit: number): Promise<AttackRecord[]>
   /** Defender leases only: ENGAGED/ACTIVE/FINALIZING; PREPARING cannot crowd these rows out. */

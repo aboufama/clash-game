@@ -156,4 +156,26 @@ const fallbackSource = worldMapSource.slice(
 assert.match(fallbackSource, /ensureInitialWildernessFallback\(visibleFogRadius[\s\S]*?this\.ensureFog\(visibleFogRadius\)/,
     'network fallback art must remain beneath the held cloud boundary');
 
+const snapshotSource = worldMapSource.slice(
+    worldMapSource.indexOf('private renderSnapshot('),
+    worldMapSource.indexOf('private registerVillageResidents', worldMapSource.indexOf('private renderSnapshot(')));
+assert.match(snapshotSource,
+    /const stoneWorld = opts\?\.staticGroundWorld \?\? world;[\s\S]*?computeStoneRoutes\(stoneBuildings\)/,
+    'battle postcard repaints must be able to preserve the authoritative static lane network');
+assert.match(snapshotSource,
+    /includeElevatedBuildings: opts\?\.omitElevatedBuildings !== true/,
+    'battle postcard RTs must be able to retain bases while yielding roofs to live depth carriers');
+const battleRepaintSource = worldMapSource.slice(
+    worldMapSource.indexOf('private updateWorldBattlePlaybacks('),
+    worldMapSource.indexOf('private stopWorldBattlePlayback', worldMapSource.indexOf('private updateWorldBattlePlaybacks(')));
+assert.match(battleRepaintSource,
+    /staticGroundWorld: source/,
+    'destroyed buildings may leave the battle render layer without rerouting its frozen ground lanes');
+assert.match(battleRepaintSource,
+    /omitElevatedBuildings: true/,
+    'live battle repaint must not flatten surviving roofs into the ground postcard');
+assert.match(battleRepaintSource,
+    /time < view\.battlePostcardRepaintNotBefore[\s\S]*?battlePostcardRepaintNotBefore = time \+ 100/,
+    'destruction bursts must coalesce expensive full-postcard corrections off the render-critical frame');
+
 console.log('world postcard regression passed: authoritative-snapshot residency');

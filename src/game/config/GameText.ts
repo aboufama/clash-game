@@ -1,9 +1,9 @@
 export const BUILDING_TEXTS: Record<string, { flavor: string; details: string }> = {
     town_hall: { flavor: "The heart of the village.", details: "Protects resources. Losing this grants the enemy a victory star." },
-    cannon: { flavor: "Keep the fuse dry.", details: "A basic point defense. Fires heavy cast iron balls at ground targets." },
+    cannon: { flavor: "Keep the fuse dry.", details: "A reliable point defense. Fires heavy cast iron balls at nearby attackers." },
     barracks: { flavor: "Gears before glory.", details: "The Mechanica Barracks advances the Steampunk troop tree, one unit per level." },
     mystic_barracks: { flavor: "Power answers preparation.", details: "The Mystic Barracks advances the Magic troop tree, one new discipline per level." },
-    lab: { flavor: "Knowledge is power.", details: "Researches troop upgrades. Boosts HP, damage, speed, and range for all troops." },
+    lab: { flavor: "Knowledge is power.", details: "Researches troop upgrades. Boosts HP, damage, and healing without changing combat reach or timing." },
     army_camp: { flavor: "Rest and recover.", details: "Provides housing and unlocks Barbarian, Archer, Healer, and Phalanx from levels 1 through 4." },
     wall: { flavor: "Good fences.", details: "A simple barrier to slow down ground troops. Directs enemy flow." },
     mortar: { flavor: "Incoming!", details: "Lobs explosive shells with splash damage. Ineffective at close range, deadly at long range." },

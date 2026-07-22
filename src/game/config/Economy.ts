@@ -255,10 +255,17 @@ export function isUpgrading(building: Pick<SerializedBuilding, 'upgradingTo' | '
  * the tower's two levels open a 3x3 and then a 5x5 window (capped there so
  * the neighbourhood never gets heavy).
  */
-export function watchtowerSightOf(buildings: SerializedBuilding[]): number {
+export function watchtowerSightOf(buildings: SerializedBuilding[], now = Date.now()): number {
     let level = 0;
     for (const b of buildings) {
-        if (b.type === 'watchtower') level = Math.max(level, Math.floor(Number(b.level) || 1));
+        if (b.type !== 'watchtower') continue;
+        // Read-only request paths must see an upgrade at the same instant as
+        // materialized /map authority, without turning a frequent visibility
+        // poll into an economy write. The next ordinary mutation persists it.
+        const completedUpgrade = b.upgradingTo && (b.upgradeEndsAt ?? 0) <= now
+            ? b.upgradingTo
+            : undefined;
+        level = Math.max(level, Math.floor(Number(completedUpgrade ?? b.level) || 1));
     }
     return Math.min(2, level);
 }

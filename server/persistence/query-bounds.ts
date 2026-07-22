@@ -1,6 +1,7 @@
 import type {
   AdminAttackQuery,
   AdminPlayerQuery,
+  AttackActivityQuery,
   AttackCandidateQuery,
   AttackCommandQuery,
   NotificationQuery,
@@ -20,6 +21,8 @@ export const QUERY_LIMITS = Object.freeze({
   botVillageProvisionBatch: 128,
   activeAttacks: 100,
   activeAttackBatch: 1_024,
+  attackActivity: 25,
+  attackActivitySpan: 5,
   attackPlayerIds: 1_024,
   attackCommands: 512,
   replayChunks: 1_024,
@@ -111,6 +114,37 @@ export function boundAttackCandidateQuery(query: AttackCandidateQuery): AttackCa
     trophyRadius,
     now: validDate(query.now, 'now'),
     limit: boundedLimit(query.limit, QUERY_LIMITS.attackCandidates)
+  }
+}
+
+export function boundAttackActivityQuery(query: AttackActivityQuery): AttackActivityQuery {
+  const minX = safeInteger(query.minX, 'minX')
+  const maxX = safeInteger(query.maxX, 'maxX')
+  const minY = safeInteger(query.minY, 'minY')
+  const maxY = safeInteger(query.maxY, 'maxY')
+  if (!query.worldId || query.worldId.length > 160) {
+    throw new RangeError('worldId must contain 1-160 characters')
+  }
+  for (const [name, value] of [['minX', minX], ['maxX', maxX], ['minY', minY], ['maxY', maxY]] as const) {
+    if (value < -2_147_483_648 || value > 2_147_483_647) {
+      throw new RangeError(`${name} must fit a PostgreSQL integer`)
+    }
+  }
+  if (minX > maxX || minY > maxY) throw new RangeError('Attack activity bounds are inverted')
+  if (maxX - minX + 1 > QUERY_LIMITS.attackActivitySpan
+    || maxY - minY + 1 > QUERY_LIMITS.attackActivitySpan) {
+    throw new RangeError(
+      `Attack activity spans may not exceed ${QUERY_LIMITS.attackActivitySpan} plots per axis`
+    )
+  }
+  return {
+    ...query,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    now: validDate(query.now, 'now'),
+    limit: boundedLimit(query.limit, QUERY_LIMITS.attackActivity)
   }
 }
 

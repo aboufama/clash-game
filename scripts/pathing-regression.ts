@@ -767,9 +767,10 @@ const rampedSecondTower = CombatNavigationSystem.selectTargetAndPlan(
 assert.equal(rampedSecondTower.plan?.blockerId, undefined,
     'a second Siege Tower tried to deploy onto an already-open ramp wall');
 
-// WAR ELEPHANT: plans into the wall on its route, one trample strike fells
-// up to an L4 wall (data invariant), and the very next plan after the wall
-// falls continues to the objective with no residual blocker.
+// WAR ELEPHANT: plans into the wall on its route, needs exactly two trample
+// strikes for an L4 wall (the balance window that replaced its old one-shot),
+// and the very next plan after the wall falls continues to the objective with
+// no residual blocker.
 const elephant = troop('elephant-trample', 'warelephant', 4.5, 11.5);
 const elephantSelection = CombatNavigationSystem.selectTargetAndPlan(elephant, closed, [elephant], 1, 0);
 assert.equal(elephantSelection.strategicTarget?.id, inside.id, 'elephant lost its objective to a wall');
@@ -777,8 +778,9 @@ assert(elephantSelection.plan?.blockerId, 'elephant must fight the wall on its r
 const elephantStats = getTroopStats('warelephant', 1);
 const l4Wall = getBuildingStats('wall', 4);
 assert(
-    elephantStats.damage * (elephantStats.wallDamageMultiplier ?? 1) >= (l4Wall.maxHealth || 0),
-    `one trample strike must fell an L4 wall (${elephantStats.damage} x ${elephantStats.wallDamageMultiplier} < ${l4Wall.maxHealth})`
+    elephantStats.damage * (elephantStats.wallDamageMultiplier ?? 1) < (l4Wall.maxHealth || 0)
+        && elephantStats.damage * (elephantStats.wallDamageMultiplier ?? 1) * 2 >= (l4Wall.maxHealth || 0),
+    `War Elephant must need exactly two L4-wall strikes (${elephantStats.damage} x ${elephantStats.wallDamageMultiplier} vs ${l4Wall.maxHealth})`
 );
 const trampled = closed.filter(item => item.id !== elephantSelection.plan?.blockerId);
 const elephantContinue = CombatNavigationSystem.selectTargetAndPlan(

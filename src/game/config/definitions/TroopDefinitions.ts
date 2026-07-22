@@ -198,15 +198,18 @@ export const TROOP_DEFINITIONS: Record<TroopType, TroopDef> = {
     romanwarrior: { id: 'romanwarrior', name: 'Bound Spirit', cost: 0, space: 1, desc: 'An individual spirit released from a fallen Phalanx.', health: 300, range: 0.5, damage: 15, speed: 0.0015, color: 0xcc3333, attackDelay: 900 },
     wallbreaker: { id: 'wallbreaker', name: 'Emberling', cost: 100, space: 4, desc: 'Volatile summoned creature that races to walls and erupts.', health: 200, range: 0.5, damage: 800, speed: 0.004, color: 0xff6633, targetPriority: 'wall', wallDamageMultiplier: 3, splashRadius: 2.5, attackDelay: 500, detonateOnAttack: true },
     goblinplunderer: { id: 'goblinplunderer', name: 'Goblin Plunderer', cost: 30, space: 1, desc: 'Manic thief. Beelines for resources and hits them 3x harder.', health: 80, range: 0.5, damage: 6, speed: 0.0038, color: 0x7ec850, targetPriority: 'resource', resourceDamageMultiplier: 3, attackDelay: 700 },
-    clockworkbeetle: { id: 'clockworkbeetle', name: 'Clockwork Beetle', cost: 60, space: 1, desc: 'Leaps onto a building, clamps on, and detonates almost instantly.', health: 60, range: 0.5, damage: 150, speed: 0.0035, color: 0x7a5c20, splashRadius: 1.8, attackDelay: 500, detonateOnAttack: true, detonationDelayMs: 125 },
+    clockworkbeetle: { id: 'clockworkbeetle', name: 'Clockwork Beetle', cost: 75, space: 2, desc: 'Leaps onto a building, clamps on, and detonates almost instantly.', health: 60, range: 0.5, damage: 140, speed: 0.0035, color: 0x7a5c20, splashRadius: 1.8, attackDelay: 500, detonateOnAttack: true, detonationDelayMs: 125 },
     physicianscart: { id: 'physicianscart', name: 'Healer', cost: 120, space: 5, desc: 'Army Camp L3 support cart that restores nearby allied troops.', health: 600, range: 0.5, damage: 0, speed: 0.0012, color: 0x8fd98f, healRadius: 5.5, healAmount: 120, attackDelay: 6000 },
     // A wall-ramp unit is not a Ram: it does no normal structure damage. It
     // rolls directly toward the Town Hall, parks at the first wall on that
     // line, and never deploys when the line is wall-free.
     siegetower: { id: 'siegetower', name: 'Siege Tower', cost: 300, space: 14, desc: 'Rolling belfry. Drives straight at the Town Hall and turns the first wall in its path into an allied ramp.', health: 3500, range: 0.2, damage: 0, speed: 0.001, color: 0x9a7b4f, targetPriority: 'town_hall', wallRamp: true },
     necromancer: { id: 'necromancer', name: 'Necromancer', cost: 320, space: 12, desc: 'Raises skeletons from the battlefield while blasting from range.', health: 900, range: 4.0, damage: 25, speed: 0.0014, color: 0x6a4c93, summonType: 'skeleton', summonCount: 2, summonIntervalMs: 5000, summonCap: 8, attackDelay: 1600 },
-    trebuchet: { id: 'trebuchet', name: 'Trebuchet Crew', cost: 450, space: 16, desc: 'Counterweight artillery. Outranges every defense but one.', health: 1200, range: 11.0, damage: 320, speed: 0.0006, color: 0x8a6d4a, splashRadius: 2.0, attackDelay: 4000, firstAttackDelay: 1500 },
-    warelephant: { id: 'warelephant', name: 'War Elephant', cost: 420, space: 12, desc: 'Armored titan. Tramples straight through walls.', health: 4200, range: 0.6, damage: 85, speed: 0.0011, color: 0x8d8d99, wallDamageMultiplier: 20, attackDelay: 2000 },
+    // Artillery pays for safety with setup time and housing. Range 9.25 keeps
+    // it outside most point defenses while leaving a real answer window for
+    // X-Bows and Dragon's Breath even after footprint-edge range math.
+    trebuchet: { id: 'trebuchet', name: 'Trebuchet Crew', cost: 500, space: 18, desc: 'Long-range counterweight artillery. X-Bows and Dragon\'s Breath can answer it.', health: 1050, range: 9.25, damage: 300, speed: 0.0006, color: 0x8a6d4a, splashRadius: 2.0, attackDelay: 4000, firstAttackDelay: 2000 },
+    warelephant: { id: 'warelephant', name: 'War Elephant', cost: 480, space: 16, desc: 'Armored titan. Tramples straight through walls.', health: 4000, range: 0.6, damage: 85, speed: 0.0011, color: 0x8d8d99, wallDamageMultiplier: 10, attackDelay: 2000 },
     ornithopter: { id: 'ornithopter', name: 'Ornithopter', cost: 550, space: 15, desc: "Da Vinci's flying machine. Soars over walls and bombs defenses.", health: 1500, range: 1.5, damage: 90, speed: 0.0022, color: 0xa88d5e, splashRadius: 1.2, movementType: 'air', targetPriority: 'defense', attackDelay: 1600 },
     skeleton: { id: 'skeleton', name: 'Skeleton', cost: 0, space: 1, desc: 'A rattling servant raised by a Necromancer.', health: 180, range: 0.5, damage: 14, speed: 0.0025, color: 0xd8d8c8, attackDelay: 900 }
 };
@@ -323,21 +326,16 @@ export function getTroopStats(type: TroopType, level: number = 1): TroopDef {
     if (multiplier <= 1) {
         stats = { ...base };
     } else {
-        const utilityMultiplier = 1 + (multiplier - 1) * 0.45;
-        const speedMultiplier = 1 + (multiplier - 1) * 0.25;
-        const attackSpeedMultiplier = 1 + (multiplier - 1) * 0.2;
-
+        // Lab levels improve power, not encounter geometry. Scaling range,
+        // movement, splash radii and cadence silently erased carefully-built
+        // defense counter windows (most visibly, an L3 Trebuchet grew from
+        // 11 to 14.22 range and outranged Dragon's Breath). Stable geometry
+        // also lets players learn one readable reach and cadence per unit.
         stats = {
             ...base,
             health: Math.round(base.health * multiplier),
             damage: toScaledFloat(base.damage, multiplier),
-            speed: toScaledFloat(base.speed, speedMultiplier, 6),
-            range: toScaledFloat(base.range, utilityMultiplier),
-            healRadius: typeof base.healRadius === 'number' ? toScaledFloat(base.healRadius, utilityMultiplier) : base.healRadius,
-            healAmount: typeof base.healAmount === 'number' ? toScaledFloat(base.healAmount, multiplier) : base.healAmount,
-            chainRange: typeof base.chainRange === 'number' ? toScaledFloat(base.chainRange, utilityMultiplier) : base.chainRange,
-            splashRadius: typeof base.splashRadius === 'number' ? toScaledFloat(base.splashRadius, utilityMultiplier) : base.splashRadius,
-            attackDelay: typeof base.attackDelay === 'number' ? Math.max(150, Math.round(base.attackDelay / attackSpeedMultiplier)) : base.attackDelay
+            healAmount: typeof base.healAmount === 'number' ? toScaledFloat(base.healAmount, multiplier) : base.healAmount
         };
     }
 

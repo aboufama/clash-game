@@ -80,8 +80,10 @@ partial structural damage. Version 7 only grants Siege Tower pathing credit
 when the frozen base has a cardinally-connected closed wall loop; versions
 4–6 retain the prior unconditional credit. Version 8 checks each tower's
 recorded deploy-to-nearest-Town-Hall ray and grants credit only when that ray
-meets a wall. New behavior must get a new version rather than silently changing
-old replays.
+meets a wall. Version 9 adds bounded persistent Spike Launcher hazard credit
+and makes declarative suicide troops one-shot in settlement; stored v1-v8
+attacks keep their prior branches. New behavior must get a new version rather
+than silently changing old replays.
 
 `compactReplay` contains immutable snapshot identity plus sequenced deploy,
 ability, and lifecycle events. Any process with the matching simulation

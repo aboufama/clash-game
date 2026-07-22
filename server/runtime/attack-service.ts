@@ -8,6 +8,10 @@ import {
   watchtowerSightOf
 } from '../../src/game/config/Economy'
 import type { SerializedWorld } from '../../src/game/data/Models'
+import {
+  LIVE_REPLAY_SPECTATOR_GRACE_MS,
+  REPLAY_CORRECTION_FRAME_BUDGET
+} from '../../src/game/replay/ReplayTypes'
 import { GENERATED_ONLY } from '../../src/game/config/GameDefinitions'
 import {
   applyAttackCommand,
@@ -96,7 +100,7 @@ const BOT_PROBE_LIMIT = 64
 const ACTIVE_LIMIT = 16
 const REPLAY_PAGE_SIZE = 1_024
 const REPLAY_PAGE_LIMIT = 1_024
-const MAX_REPLAY_FRAMES = 512
+const MAX_REPLAY_FRAMES = REPLAY_CORRECTION_FRAME_BUDGET
 const MAX_PRESENTATION_REPLAY_CHUNKS = MAX_REPLAY_FRAMES + MAX_REPLAY_V2_SEQUENCE
 export const MAX_PRESENTATION_REPLAY_BYTES = 2 * 1024 * 1024
 export const MAX_PRESENTATION_REPLAY_V2_BYTES = 64 * 1024 * 1024
@@ -168,7 +172,7 @@ type ReplayFrame = {
   goldLooted: number
   oreLooted: number
   foodLooted: number
-  buildings: Array<{ id: string; health: number; isDestroyed: boolean }>
+  buildings: Array<{ id: string; health: number; isDestroyed: boolean; ballistaAngle?: number }>
   troops: Array<{
     id: string
     type: string
@@ -181,6 +185,11 @@ type ReplayFrame = {
     maxHealth: number
     facingAngle?: number
     hasTakenDamage?: boolean
+    slamOffset?: number
+    mortarRecoil?: number
+    parked01?: number
+    phalanxSpearOffset?: number
+    tankSpin01?: number
   }>
 }
 
@@ -404,7 +413,10 @@ function sanitizeFrame(raw: unknown, maxT: number): ReplayFrame | null {
         return [{
           id: state.id,
           health: nonNegativeInt(state.health, 0, 100_000_000),
-          isDestroyed: Boolean(state.isDestroyed) && nonNegativeInt(state.health) === 0
+          isDestroyed: Boolean(state.isDestroyed) && nonNegativeInt(state.health) === 0,
+          ...(state.ballistaAngle === undefined
+            ? {}
+            : { ballistaAngle: finiteNumber(state.ballistaAngle, 0, -100, 100) })
         }]
       })
     : []
@@ -426,7 +438,12 @@ function sanitizeFrame(raw: unknown, maxT: number): ReplayFrame | null {
           health: nonNegativeInt(state.health, 0, 100_000_000),
           maxHealth: Math.max(1, nonNegativeInt(state.maxHealth, 1, 100_000_000)),
           ...(state.facingAngle === undefined ? {} : { facingAngle: finiteNumber(state.facingAngle, 0, -100, 100) }),
-          ...(state.hasTakenDamage === undefined ? {} : { hasTakenDamage: Boolean(state.hasTakenDamage) })
+          ...(state.hasTakenDamage === undefined ? {} : { hasTakenDamage: Boolean(state.hasTakenDamage) }),
+          ...(state.slamOffset === undefined ? {} : { slamOffset: finiteNumber(state.slamOffset, 0, -100, 100) }),
+          ...(state.mortarRecoil === undefined ? {} : { mortarRecoil: finiteNumber(state.mortarRecoil, 0, -100, 100) }),
+          ...(state.parked01 === undefined ? {} : { parked01: finiteNumber(state.parked01, 0, 0, 1) }),
+          ...(state.phalanxSpearOffset === undefined ? {} : { phalanxSpearOffset: finiteNumber(state.phalanxSpearOffset, 0, 0, 1) }),
+          ...(state.tankSpin01 === undefined ? {} : { tankSpin01: finiteNumber(state.tankSpin01, 0, 0, 1) })
         }]
       })
     : []
@@ -466,6 +483,36 @@ function replayV2Payload(chunk: ReplayChunkRecord): ReplayV2Chunk | null {
 function replayV2TerminalOnlyPayload(chunk: ReplayChunkRecord | undefined): boolean {
   const payload = chunk ? replayPayload(chunk) : null
   return chunk?.format === 'presentation-stream-v2-state' && payload?.terminalOnly === true
+}
+
+function scrubSpectatorFrame(frame: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...frame,
+    goldLooted: 0,
+    oreLooted: 0,
+    foodLooted: 0
+  }
+}
+
+function scrubSpectatorV2Chunk(chunk: ReplayV2Chunk): ReplayV2Chunk {
+  if (chunk.kind !== 'keyframe') return chunk
+  return {
+    ...chunk,
+    frame: {
+      ...chunk.frame,
+      goldLooted: 0,
+      oreLooted: 0,
+      foodLooted: 0
+    }
+  }
+}
+
+function scrubSpectatorWorld(world: unknown): unknown {
+  if (!world || typeof world !== 'object' || Array.isArray(world)) return world
+  return {
+    ...(world as Record<string, unknown>),
+    resources: { gold: 0, ore: 0, food: 0 }
+  }
 }
 
 /** Normalized persistence authority for every player and bot combat route. */
@@ -1814,6 +1861,58 @@ export class PersistenceAttackService implements RuntimeAttackService {
     return chunks
   }
 
+  /**
+   * Participants may read retained replays. A non-participant receives a
+   * short-lived capability only while the defender lease is live and that
+   * exact target plot is inside the viewer's current Watchtower horizon.
+   * The repository remains participant-scoped, so an authorized spectator
+   * reads through the defender identity only after this check succeeds.
+   */
+  private async replayReadAuthority(
+    tx: UnitOfWork,
+    record: AttackRecord,
+    principal: RuntimePrincipal
+  ): Promise<{ participantId: string; spectator: boolean }> {
+    if (record.attackerId === principal.playerId || record.defenderId === principal.playerId) {
+      return { participantId: principal.playerId, spectator: false }
+    }
+    const now = this.now()
+    const liveSpectatorState = record.state === 'engaged'
+      || record.state === 'active'
+      || record.state === 'finalizing'
+    const terminalSpectatorGrace = record.engagedAt !== null
+      && record.endedAt !== null
+      && now.getTime() <= record.endedAt.getTime() + LIVE_REPLAY_SPECTATOR_GRACE_MS
+    if (!(liveSpectatorState && record.deadlineAt > now) && !terminalSpectatorGrace) {
+      throw new ApiError(403, 'Not authorized to watch this attack')
+    }
+    if (record.targetKind !== 'player' || !record.defenderId) {
+      throw new ApiError(403, 'Not authorized to watch this attack')
+    }
+    const [viewerVillage, viewerPlot, defenderPlot] = await Promise.all([
+      tx.villages.get(principal.playerId),
+      tx.world.getPlayerPlot(principal.playerId),
+      tx.world.getPlayerPlot(record.defenderId)
+    ])
+    if (!viewerVillage || !viewerPlot || !defenderPlot
+      || viewerPlot.worldId !== record.worldId
+      || defenderPlot.worldId !== record.worldId
+      || defenderPlot.x !== record.targetX
+      || defenderPlot.y !== record.targetY
+      || defenderPlot.plotVersion !== record.targetPlotVersion
+      || (defenderPlot.leaseExpiresAt !== null && defenderPlot.leaseExpiresAt <= now)) {
+      throw new ApiError(403, 'Not authorized to watch this attack')
+    }
+    const distance = Math.max(
+      Math.abs(viewerPlot.x - defenderPlot.x),
+      Math.abs(viewerPlot.y - defenderPlot.y)
+    )
+    if (distance > watchtowerSightOf(villageBuildings(viewerVillage), now.getTime())) {
+      throw new ApiError(403, 'Not authorized to watch this attack')
+    }
+    return { participantId: record.defenderId, spectator: true }
+  }
+
   async getReplay(
     principal: RuntimePrincipal,
     rawAttackId: unknown,
@@ -1824,9 +1923,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     return this.persistence.transaction(async tx => {
       const record = await tx.attacks.get(attackId)
       if (!record?.authority) throw new ApiError(404, 'Replay not found')
-      if (record.attackerId !== principal.playerId && record.defenderId !== principal.playerId) {
-        throw new ApiError(403, 'Not authorized to watch this attack')
-      }
+      const readAuthority = await this.replayReadAuthority(tx, record, principal)
       const incrementalV1 = afterT !== undefined && Number.isFinite(Number(afterT))
       const incrementalV2 = afterV2Sequence !== undefined && Number.isFinite(Number(afterV2Sequence))
       const incremental = incrementalV1 || incrementalV2
@@ -1836,7 +1933,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
       const v1Chunks = await this.loadReplayChunks(
         tx,
         attackId,
-        principal.playerId,
+        readAuthority.participantId,
         afterSequence,
         MAX_REPLAY_FRAMES
       )
@@ -1846,7 +1943,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
       const v2Chunks = await this.loadReplayChunks(
         tx,
         attackId,
-        principal.playerId,
+        readAuthority.participantId,
         replayV2StorageSequence(afterV2),
         REPLAY_V2_STORAGE_MAX
       )
@@ -1854,15 +1951,17 @@ export class PersistenceAttackService implements RuntimeAttackService {
         .filter(chunk => chunk.format === 'presentation-frame-v1')
         .map(replayPayload)
         .filter((frame): frame is Record<string, unknown> => Boolean(frame))
+        .map(frame => readAuthority.spectator ? scrubSpectatorFrame(frame) : frame)
       const orderedV2 = v2Chunks
         .filter(chunk => chunk.format === 'presentation-stream-v2')
         .map(replayV2Payload)
         .filter((chunk): chunk is ReplayV2Chunk => Boolean(chunk))
         .filter(chunk => incrementalV2 || !incrementalV1 || chunk.t > nonNegativeInt(afterT))
         .sort((left, right) => left.sequence - right.sequence)
+        .map(chunk => readAuthority.spectator ? scrubSpectatorV2Chunk(chunk) : chunk)
       const stateChunk = (await tx.replays.listForParticipant({
         attackId,
-        participantId: principal.playerId,
+        participantId: readAuthority.participantId,
         afterSequence: REPLAY_V2_STATE_SEQUENCE - 1,
         maxSequence: REPLAY_V2_STATE_SEQUENCE,
         limit: 1
@@ -1870,9 +1969,10 @@ export class PersistenceAttackService implements RuntimeAttackService {
       const terminalOnlyV2 = replayV2TerminalOnlyPayload(stateChunk)
       const startChunks = incremental
         ? []
-        : await this.loadReplayChunks(tx, attackId, principal.playerId, -1, 0)
+        : await this.loadReplayChunks(tx, attackId, readAuthority.participantId, -1, 0)
       const start = startChunks.find(chunk => chunk.format === 'attack-start-v1')
-      const world = start ? replayPayload(start)?.world : undefined
+      const storedWorld = start ? replayPayload(start)?.world : undefined
+      const world = readAuthority.spectator ? scrubSpectatorWorld(storedWorld) : storedWorld
       const result = record.authority.finalization
       const applied = result?.receipt?.applied
       return {
@@ -1886,7 +1986,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
         updatedAt: record.updatedAt.getTime(),
         ...(record.endedAt ? { endedAt: record.endedAt.getTime() } : {}),
         ...(!incremental && world ? { enemyWorld: world } : {}),
-        ...(result ? {
+        ...(!readAuthority.spectator && result ? {
           finalResult: {
             destruction: result.result.destruction,
             goldLooted: applied?.loot.gold ?? 0,

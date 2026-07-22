@@ -1,6 +1,7 @@
 import type {
   AccountRecord,
   AccountModerationRecord,
+  AttackActivityQuery,
   AdminBaseResetRecord,
   AdminAttackQuery,
   AdminAuditRecord,
@@ -61,6 +62,7 @@ import type {
 import { AdminBaseResetPreconditionError, PersistenceConflictError } from './repositories'
 import {
   boundAttackCommandQuery,
+  boundAttackActivityQuery,
   boundAdminAttackQuery,
   boundAdminPlayerQuery,
   boundAttackPlayerBatch,
@@ -931,6 +933,31 @@ class MemoryAttacks implements AttackRepository {
       || b.player.trophies - a.player.trophies
       || a.player.playerId.localeCompare(b.player.playerId))
     return copy(candidates.slice(0, query.limit))
+  }
+
+  async listLeasedIncomingInWorldWindow(input: AttackActivityQuery): Promise<AttackRecord[]> {
+    const query = boundAttackActivityQuery(input)
+    return copy([...this.state.attacks.values()]
+      .filter(attack => {
+        if (attack.targetKind !== 'player' || !attack.defenderId
+          || !DEFENDER_LEASE_STATES.has(attack.state)
+          || attack.deadlineAt <= query.now
+          || attack.worldId !== query.worldId
+          || attack.targetX < query.minX || attack.targetX > query.maxX
+          || attack.targetY < query.minY || attack.targetY > query.maxY) return false
+        const plot = this.state.plotsByPlayer.get(attack.defenderId)
+        return Boolean(plot
+          && plot.worldId === attack.worldId
+          && plot.x === attack.targetX
+          && plot.y === attack.targetY
+          && plot.plotVersion === attack.targetPlotVersion
+          && (plot.leaseExpiresAt === null || plot.leaseExpiresAt > query.now))
+      })
+      .sort((left, right) => left.targetY - right.targetY
+        || left.targetX - right.targetX
+        || right.updatedAt.getTime() - left.updatedAt.getTime()
+        || right.id.localeCompare(left.id))
+      .slice(0, query.limit))
   }
 
   async listActiveIncoming(defenderId: string, requestedLimit: number): Promise<AttackRecord[]> {

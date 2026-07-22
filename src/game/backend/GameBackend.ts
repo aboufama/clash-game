@@ -57,6 +57,24 @@ export interface WorldMapWindow {
   seedVersion?: number;
 }
 
+/** Compact, Watchtower-authorized live activity for postcards already in view. */
+export interface WorldMapAttackActivity {
+  attackId: string;
+  /** Player defender id on PvP attacks; bot raids have no player defender. */
+  defenderId?: string;
+  targetKind?: 'player' | 'bot';
+  targetId?: string;
+  x: number;
+  y: number;
+  combatStartedAt: number;
+  updatedAt: number;
+}
+
+export interface WorldMapAttackActivityResponse {
+  activities: WorldMapAttackActivity[];
+  serverNow: number;
+}
+
 export interface RelocateResult {
   me: { x: number; y: number; plotVersion?: number };
   serverNow: number;
@@ -134,6 +152,8 @@ export type ReplayBuildingSnapshot = {
   id: string;
   health: number;
   isDestroyed: boolean;
+  /** Committed aim of rotating defenses, in radians. */
+  ballistaAngle?: number;
 };
 
 export type ReplayTroopSnapshot = {
@@ -148,6 +168,12 @@ export type ReplayTroopSnapshot = {
   maxHealth: number;
   facingAngle?: number;
   hasTakenDamage?: boolean;
+  /** Authored animation drivers needed to correct late joins exactly. */
+  slamOffset?: number;
+  mortarRecoil?: number;
+  parked01?: number;
+  phalanxSpearOffset?: number;
+  tankSpin01?: number;
 };
 
 export type ReplayFrameSnapshot = {
@@ -1670,6 +1696,49 @@ export class Backend {
       return await Backend.apiGet<WorldMapWindow>(`/api/map?${query.toString()}`);
     } catch (error) {
       console.warn('Map fetch failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fast metadata-only poll for battles inside the caller's earned
+   * Watchtower horizon. Village snapshots stay on their slow revision poll;
+   * this endpoint only discovers which resident postcards should consume a
+   * live replay stream.
+   */
+  static async fetchVisibleActiveAttacks(): Promise<WorldMapAttackActivityResponse | null> {
+    if (!Auth.isOnlineMode()) return null;
+    try {
+      const raw = await Backend.apiGet<{
+        activities?: Array<Record<string, unknown>>;
+        serverNow?: unknown;
+      }>('/api/map/active-attacks');
+      const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+      const activities = (Array.isArray(raw.activities) ? raw.activities : [])
+        .filter(activity => activity && typeof activity.attackId === 'string' && activity.attackId.length > 0
+          && finite(activity.x) && finite(activity.y))
+        .map((activity): WorldMapAttackActivity => ({
+          attackId: activity.attackId as string,
+          ...(typeof activity.defenderId === 'string' && activity.defenderId.length > 0
+            ? { defenderId: activity.defenderId }
+            : {}),
+          ...(activity.targetKind === 'player' || activity.targetKind === 'bot'
+            ? { targetKind: activity.targetKind as 'player' | 'bot' }
+            : {}),
+          ...(typeof activity.targetId === 'string' && activity.targetId.length > 0
+            ? { targetId: activity.targetId }
+            : {}),
+          x: Math.floor(activity.x as number),
+          y: Math.floor(activity.y as number),
+          combatStartedAt: finite(activity.combatStartedAt) ? activity.combatStartedAt : 0,
+          updatedAt: finite(activity.updatedAt) ? activity.updatedAt : 0
+        }));
+      return {
+        activities,
+        serverNow: finite(raw.serverNow) ? raw.serverNow : Date.now()
+      };
+    } catch (error) {
+      console.warn('Visible world battle poll failed:', error);
       return null;
     }
   }

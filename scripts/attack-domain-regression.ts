@@ -129,7 +129,7 @@ function deployGolem(engaged: AttackAggregate, now = T0 + 200): AttackAggregate 
 function run(): void {
   const prepared = prepareAttack(playerInput(), { reserveArmy })
   check(prepared.phase === 'PREPARING' && prepared.version === 1, 'preparation starts at PREPARING v1')
-  check(prepared.rules.simulationVersion === 8, 'new attacks pin the current combat simulation version')
+  check(prepared.rules.simulationVersion === 9, 'new attacks pin the current combat simulation version')
   check(prepared.reservation.state === 'HELD' && prepared.reservation.reserved.golem === 1, 'preparation holds an exact army reservation')
   check(prepared.target.kind === 'PLAYER' && prepared.target.plot.x === 7, 'matchmade PLAYER target retains its real world plot')
 
@@ -277,10 +277,27 @@ function run(): void {
   check(longFightV7.simulationVersion === 7 && longFightV7.damageDealt === longFightV6.damageDealt
     && longFightV7.destruction === longFightV6.destruction,
     'v7 preserves v6 combat for armies without a siege tower')
-  const longFightV8 = simulateCombat(partialActive, 75_000)
+  const longFightV8 = simulateCombat(atVersion(partialActive, 8), 75_000)
   check(longFightV8.simulationVersion === 8 && longFightV8.damageDealt === longFightV7.damageDealt
     && longFightV8.destruction === longFightV7.destruction,
     'v8 preserves v7 combat for armies without a siege tower')
+  const longFightV9 = simulateCombat(partialActive, 75_000)
+  check(longFightV9.simulationVersion === 9 && longFightV9.damageDealt === longFightV8.damageDealt
+    && longFightV9.destruction === longFightV8.destruction,
+    'v9 preserves v8 attrition when no persistent hazard defense is present')
+  const spikeDefenseAttack: AttackAggregate = {
+    ...partialActive,
+    snapshot: {
+      ...partialActive.snapshot,
+      buildings: partialActive.snapshot.buildings.map(building => building.type === 'cannon'
+        ? { ...building, type: 'spike_launcher', level: 1 }
+        : building)
+    }
+  }
+  const spikeDefenseV8 = simulateCombat(atVersion(spikeDefenseAttack, 8), 75_000)
+  const spikeDefenseV9 = simulateCombat(atVersion(spikeDefenseAttack, 9), 75_000)
+  check(spikeDefenseV9.damageDealt < spikeDefenseV8.damageDealt,
+    'v9 credits bounded Spike Launcher hazard damage while v8 keeps direct-shot-only attrition')
   const staleBuildingAttack: AttackAggregate = {
     ...partialActive,
     snapshot: {
@@ -293,7 +310,7 @@ function run(): void {
   }
   const staleBuildingResult = simulateCombat(staleBuildingAttack, 75_000)
   check(!staleBuildingResult.buildings.some(building => building.id === 'retired_defense')
-    && staleBuildingResult.totalHitPoints === longFightV8.totalHitPoints,
+    && staleBuildingResult.totalHitPoints === longFightV9.totalHitPoints,
     'stored snapshots self-clean a retired building type instead of crashing settlement')
   check(finalizedA.finalization?.settlement.resourceMode === 'TRANSFER' && Boolean(finalizedA.finalization.settlement.defender), 'PLAYER outcome creates one self-contained transfer plan')
   check(finalizedA.finalization?.settlement.consumeArmy.golem === 1 && finalizedA.finalization.settlement.releaseArmy.warrior === 2, 'settlement consumes deployed troops and releases unused reservation')
@@ -415,6 +432,10 @@ function run(): void {
 
   function atVersion(attack: AttackAggregate, version: number): AttackAggregate {
     return { ...attack, rules: { ...attack.rules, simulationVersion: version } }
+  }
+
+  function atTroopLevel(attack: AttackAggregate, troopLevel: number): AttackAggregate {
+    return { ...attack, reservation: { ...attack.reservation, troopLevel } }
   }
 
   // Defenseless economy base: with zero defense DPS every troop keeps the full
@@ -609,18 +630,158 @@ function run(): void {
   const beetleBeforeFuse = simulateCombat(beetleAttack, 124)
   const beetleAtFuse = simulateCombat(beetleAttack, 125)
   const beetleLater = simulateCombat(beetleAttack, 10_000)
-  const oneBeetleSplash = Math.floor(Math.max(0, beetleStats.damage) * 12_500 / 10_000)
+  const oneCurrentBeetleSplash = Math.floor(Math.max(0, beetleStats.damage) * 12_500 / 10_000)
   check(beetleBeforeFuse.damageDealt === 0,
-    'v8 preserves the v6 clockwork beetle rule: no damage before its exact 125 ms snap-fuse')
-  check(beetleAtFuse.damageDealt === oneBeetleSplash && beetleLater.damageDealt === oneBeetleSplash,
-    'v8 preserves the v6 clockwork beetle rule: exactly one detonation at 125 ms and never repeats')
+    'current rules preserve the v6 clockwork beetle rule: no damage before its exact 125 ms snap-fuse')
+  check(beetleAtFuse.damageDealt === oneCurrentBeetleSplash && beetleLater.damageDealt === oneCurrentBeetleSplash,
+    'current rules preserve the v6 clockwork beetle rule: exactly one detonation at 125 ms and never repeats')
   const beetlePinnedV5Before = simulateCombat(atVersion(beetleAttack, 5), 999)
   const beetlePinnedV5AtFuse = simulateCombat(atVersion(beetleAttack, 5), 1_000)
-  check(beetlePinnedV5Before.damageDealt === 0 && beetlePinnedV5AtFuse.damageDealt === oneBeetleSplash,
-    'stored v5 beetle attacks retain their historical exact one-second fuse')
+  const oneLegacyBeetleSplash = Math.floor(150 * 12_500 / 10_000)
+  check(beetlePinnedV5Before.damageDealt === 0 && beetlePinnedV5AtFuse.damageDealt === oneLegacyBeetleSplash,
+    'stored v5 beetle attacks retain their historical 150-damage base and exact one-second fuse')
   const beetlePinnedV4 = simulateCombat(atVersion(beetleAttack, 4), 1_000)
   check(beetlePinnedV4.damageDealt > beetlePinnedV5AtFuse.damageDealt,
     'stored v4 beetle attacks preserve their historical cadence credit')
+
+  const wallBreakerStats = getTroopStats('wallbreaker', 1)
+  const wallBreakerAttack = kitAttack('attack_kit_wallbreaker', econSnapshot, { wallbreaker: 1 }, [
+    { id: 'wb1', type: 'wallbreaker' }
+  ])
+  const oneWallBreakerSplash = Math.floor(Math.max(0, wallBreakerStats.damage) * 12_500 / 10_000)
+  const wallBreakerV9 = simulateCombat(wallBreakerAttack, 10_000)
+  const wallBreakerV8 = simulateCombat(atVersion(wallBreakerAttack, 8), 10_000)
+  check(wallBreakerV9.damageDealt === oneWallBreakerSplash,
+    'v9 credits an undelayed Wall Breaker for exactly one declarative detonation')
+  check(wallBreakerV8.damageDealt > wallBreakerV9.damageDealt,
+    'stored v8 Wall Breakers preserve their historical repeated-cadence settlement')
+
+  // --- v9 balance boundary: old aggregates own a frozen combat catalog ----
+  // L3 is deliberate: it catches both the changed base values and the old
+  // Lab cadence formula. At 9 seconds, the historical Trebuchet has landed
+  // three 528-damage splashes (1.5s setup, 3.54s cadence); v9 has landed two
+  // 495-damage splashes (2s setup, fixed 4s cadence).
+  const trebuchetL3Attack = atTroopLevel(kitAttack(
+    'attack_v9_boundary_trebuchet',
+    econSnapshot,
+    { trebuchet: 1 },
+    [{ id: 'treb_l3', type: 'trebuchet' }]
+  ), 3)
+  const trebuchetL3V8 = simulateCombat(atVersion(trebuchetL3Attack, 8), 9_000)
+  const trebuchetL3V9 = simulateCombat(atVersion(trebuchetL3Attack, 9), 9_000)
+  check(trebuchetL3V8.damageDealt === 1_980 && trebuchetL3V9.damageDealt === 1_237,
+    'v8 L3 Trebuchet preserves its 320 base damage, 1.5s setup, splash and scaled cadence while v9 uses the rebalance')
+  const trebuchetAttritionSnapshot = kitSnapshot('snap_v9_boundary_trebuchet_attrition', [
+    { id: 'treb_attrition_hall', type: 'town_hall', level: 1, gridX: 11, gridY: 11 },
+    { id: 'treb_attrition_cannon', type: 'cannon', level: 4, gridX: 4, gridY: 4 },
+    { id: 'treb_attrition_storage_1', type: 'storage', level: 3, gridX: 1, gridY: 1 },
+    { id: 'treb_attrition_storage_2', type: 'storage', level: 3, gridX: 1, gridY: 5 },
+    { id: 'treb_attrition_storage_3', type: 'storage', level: 3, gridX: 17, gridY: 1 },
+    { id: 'treb_attrition_storage_4', type: 'storage', level: 3, gridX: 17, gridY: 5 }
+  ])
+  const trebuchetAttritionL3Attack = atTroopLevel(kitAttack(
+    'attack_v9_boundary_trebuchet_attrition',
+    trebuchetAttritionSnapshot,
+    { trebuchet: 1 },
+    [{ id: 'treb_attrition_l3', type: 'trebuchet' }]
+  ), 3)
+  const trebuchetAttritionV8 = simulateCombat(atVersion(trebuchetAttritionL3Attack, 8), 75_000)
+  const trebuchetAttritionV9 = simulateCombat(atVersion(trebuchetAttritionL3Attack, 9), 75_000)
+  check(trebuchetAttritionV8.damageDealt === 7_920 && trebuchetAttritionV9.damageDealt === 5_568,
+    'v8 L3 Trebuchet attrition pins historical 1200 base health as well as legacy cadence and damage')
+
+  const beetleL3Attack = atTroopLevel(kitAttack(
+    'attack_v9_boundary_beetle',
+    econSnapshot,
+    { clockworkbeetle: 1 },
+    [{ id: 'beetle_l3', type: 'clockworkbeetle' }]
+  ), 3)
+  check(
+    simulateCombat(atVersion(beetleL3Attack, 8), 125).damageDealt === 308
+      && simulateCombat(atVersion(beetleL3Attack, 9), 125).damageDealt === 288,
+    'v8 L3 Clockwork Beetle keeps the historical 150 base damage while v9 uses 140'
+  )
+
+  const elephantWallSnapshot = kitSnapshot('snap_v9_boundary_elephant_walls', [
+    { id: 'elephant_wall_1', type: 'wall', level: 4, gridX: 4, gridY: 4 },
+    { id: 'elephant_wall_2', type: 'wall', level: 4, gridX: 5, gridY: 4 },
+    { id: 'elephant_wall_3', type: 'wall', level: 4, gridX: 6, gridY: 4 }
+  ])
+  const elephantL3Attack = atTroopLevel(kitAttack(
+    'attack_v9_boundary_elephant',
+    elephantWallSnapshot,
+    { warelephant: 1 },
+    [{ id: 'elephant_l3', type: 'warelephant' }]
+  ), 3)
+  check(
+    simulateCombat(atVersion(elephantL3Attack, 8), 0).damageDealt === 2_800
+      && simulateCombat(atVersion(elephantL3Attack, 9), 0).damageDealt === 1_400,
+    'v8 L3 War Elephant keeps the historical 20x wall multiplier while v9 uses 10x'
+  )
+
+  // At L3 the historical Siege Tower stops 0.26 tiles from the Hall; v9's
+  // stable-geometry Tower stops at 0.20. This wall lies in that narrow band,
+  // so only v9 turns it into a ramp. Compare against the same aggregate with
+  // the wall removed to isolate geometry from cadence and seed jitter.
+  const geometrySnapshot = kitSnapshot('snap_v9_boundary_geometry', [
+    { id: 'geometry_hall', type: 'town_hall', level: 1, gridX: 11, gridY: 11 },
+    { id: 'geometry_cannon', type: 'cannon', level: 4, gridX: 4, gridY: 4 },
+    { id: 'geometry_farm', type: 'farm', level: 1, gridX: 16, gridY: 15 },
+    { id: 'geometry_boundary_wall', type: 'wall', level: 1, gridX: 10, gridY: 11 }
+  ])
+  const geometryAttack = atTroopLevel(kitAttack(
+    'attack_v9_boundary_geometry',
+    geometrySnapshot,
+    { siegetower: 1, warrior: 1 },
+    [
+      { id: 'tower_l3', type: 'siegetower', gridX: -1.75, gridY: -2 },
+      { id: 'warrior_l3', type: 'warrior', gridX: -1.75, gridY: -2 }
+    ]
+  ), 3)
+  const geometryWithoutWall: AttackAggregate = {
+    ...geometryAttack,
+    snapshot: {
+      ...geometryAttack.snapshot,
+      buildings: geometryAttack.snapshot.buildings.filter(building => building.id !== 'geometry_boundary_wall')
+    }
+  }
+  const geometryV8 = simulateCombat(atVersion(geometryAttack, 8), 75_000)
+  const geometryV8WithoutWall = simulateCombat(atVersion(geometryWithoutWall, 8), 75_000)
+  const geometryV9 = simulateCombat(atVersion(geometryAttack, 9), 75_000)
+  const geometryV9WithoutWall = simulateCombat(atVersion(geometryWithoutWall, 9), 75_000)
+  check(geometryV8.damageDealt === geometryV8WithoutWall.damageDealt
+    && geometryV9.damageDealt > geometryV9WithoutWall.damageDealt,
+    'the v8 L3 Siege Tower keeps legacy Lab range geometry while v9 alone uses the fixed base range')
+
+  const defenseCatalogCases = [
+    { type: 'ballista', level: 2, v8Damage: 4_620, v9Damage: 3_640 },
+    { type: 'ballista', level: 3, v8Damage: 2_520, v9Damage: 1_960 },
+    { type: 'prism', level: 1, v8Damage: 3_360, v9Damage: 3_080 },
+    { type: 'prism', level: 2, v8Damage: 3_360, v9Damage: 2_940 },
+    { type: 'prism', level: 3, v8Damage: 2_240, v9Damage: 1_960 },
+    { type: 'prism', level: 4, v8Damage: 1_820, v9Damage: 1_680 },
+    { type: 'dragons_breath', level: 2, v8Damage: 1_540, v9Damage: 1_400 }
+  ] as const
+  for (const defense of defenseCatalogCases) {
+    const defenseSnapshot = kitSnapshot(`snap_v9_boundary_${defense.type}_${defense.level}`, [
+      { id: 'boundary_hall', type: 'town_hall', level: 1, gridX: 11, gridY: 11 },
+      { id: 'boundary_defense', type: defense.type, level: defense.level, gridX: 4, gridY: 4 },
+      { id: 'boundary_storage_1', type: 'storage', level: 3, gridX: 1, gridY: 1 },
+      { id: 'boundary_storage_2', type: 'storage', level: 3, gridX: 1, gridY: 5 },
+      { id: 'boundary_storage_3', type: 'storage', level: 3, gridX: 17, gridY: 1 },
+      { id: 'boundary_storage_4', type: 'storage', level: 3, gridX: 17, gridY: 5 }
+    ])
+    const defenseAttack = atTroopLevel(kitAttack(
+      `attack_v9_boundary_${defense.type}_${defense.level}`,
+      defenseSnapshot,
+      { warelephant: 1 },
+      [{ id: 'elephant_l3', type: 'warelephant' }]
+    ), 3)
+    const v8 = simulateCombat(atVersion(defenseAttack, 8), 75_000)
+    const v9 = simulateCombat(atVersion(defenseAttack, 9), 75_000)
+    check(v8.damageDealt === defense.v8Damage && v9.damageDealt === defense.v9Damage,
+      `v8 pins historical ${defense.type} L${defense.level} DPS and L3 Lab attrition while v9 uses current balance`)
+  }
 
   // --- v3-pinned aggregate with a v4-kit troop: rules stay pinned ----------
   const pinnedV3Attack = kitAttack('attack_kit_pinned3', econSnapshot, { goblinplunderer: 1 }, [
@@ -632,7 +793,7 @@ function run(): void {
   check(pinnedV3Result.simulationVersion === 3 && pinnedV3Result.damageDealt === goblinBudget,
     'a stored v3 attack with a v4-kit troop still takes the v3 branches (no multiplier, no tiering)')
   check(simulateCombat(pinnedV3Attack, 10_000).resultHash === pinnedV3Result.resultHash,
-    'pinned v3 results regenerate hash-identically under the v8 code')
+    'pinned v3 results regenerate hash-identically under the current code')
 
   console.log(`attack-domain regression: ${checks} checks passed`)
 }

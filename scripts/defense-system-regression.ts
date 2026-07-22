@@ -158,32 +158,33 @@ assert.deepEqual(
     assert.deepEqual(prismCleanups, [idlePrism.id, prism.id], 'idle Prism beam was not cleaned up');
 }
 
-// Tesla waits for its normal cooldown, charges for exactly 800ms, and keeps
-// its charged renderer state through 400ms (clearing only after that point).
+// Tesla begins its 800ms wind-up before the shot is due, so fireRate remains
+// impact-to-impact cadence, then keeps its charged renderer state through
+// 400ms (clearing only after that point).
 {
     const { system, fires } = harness();
     const tesla = defense('tesla');
     const target = troop('tesla-target', 2, 0.5);
 
     system.update(1_000, [tesla], [target]);
-    system.update(3_399, [tesla], [target]);
+    system.update(2_599, [tesla], [target]);
     assert.equal(tesla.teslaCharging, undefined);
 
-    system.update(3_400, [tesla], [target]);
+    system.update(2_600, [tesla], [target]);
     assert.equal(tesla.teslaCharging, true);
-    assert.equal(tesla.teslaChargeStart, 3_400);
+    assert.equal(tesla.teslaChargeStart, 2_600);
 
-    system.update(4_199, [tesla], [target]);
+    system.update(3_399, [tesla], [target]);
     assert.equal(fires.length, 0, 'Tesla fired before its 800ms charge completed');
-    system.update(4_200, [tesla], [target]);
+    system.update(3_400, [tesla], [target]);
     assert.equal(lastFire(fires).targetId, target.id);
-    assert.equal(lastFire(fires).time, 4_200);
+    assert.equal(lastFire(fires).time, 3_400);
     assert.equal(tesla.teslaCharging, false);
     assert.equal(tesla.teslaCharged, true);
 
-    system.update(4_600, [tesla], [target]);
+    system.update(3_800, [tesla], [target]);
     assert.equal(tesla.teslaCharged, true, 'Tesla charged state cleared at the inclusive boundary');
-    system.update(4_601, [tesla], [target]);
+    system.update(3_801, [tesla], [target]);
     assert.equal(tesla.teslaCharged, false);
 }
 
@@ -196,18 +197,18 @@ assert.deepEqual(
     const replacement = troop('replacement', 4, 0.5);
 
     system.update(1_000, [tesla], [abandoned, replacement]);
-    system.update(3_400, [tesla], [abandoned, replacement]);
+    system.update(2_600, [tesla], [abandoned, replacement]);
     abandoned.gridX = 20;
-    system.update(3_600, [tesla], [abandoned, replacement]);
+    system.update(2_800, [tesla], [abandoned, replacement]);
     assert.equal(tesla.teslaCharging, false);
     assert.equal(tesla.teslaChargeTarget, undefined);
     assert.equal(tesla.lockedTargetId, undefined);
     assert.equal(fires.length, 0);
 
-    system.update(3_601, [tesla], [abandoned, replacement]);
+    system.update(2_801, [tesla], [abandoned, replacement]);
     assert.equal(tesla.teslaCharging, true);
     assert.equal(tesla.teslaChargeTarget?.id, replacement.id);
-    system.update(4_401, [tesla], [abandoned, replacement]);
+    system.update(3_601, [tesla], [abandoned, replacement]);
     assert.equal(lastFire(fires).targetId, replacement.id);
 }
 

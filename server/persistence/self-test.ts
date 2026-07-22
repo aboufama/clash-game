@@ -576,6 +576,14 @@ test('attack aggregate authority has an additive checked migration', () => {
   assert.match(migration?.sql ?? '', /attacks_active_participant_defender_idx/)
 })
 
+test('live attack world-window discovery has a purpose-built partial index', () => {
+  const migration = MIGRATIONS.find(item => item.name === 'live_attack_world_window')
+  assert.equal(migration?.version, 21)
+  assert.match(migration?.sql ?? '', /attacks_live_player_world_window_idx/)
+  assert.match(migration?.sql ?? '', /target_kind = 'player'/)
+  assert.match(migration?.sql ?? '', /'engaged', 'active', 'finalizing'/)
+})
+
 test('presentation replay storage has durable byte accounting and retention indexes', () => {
   const migration = MIGRATIONS.find(item => item.name === 'bounded_presentation_replays')
   assert.equal(migration?.version, 8)
@@ -1075,6 +1083,15 @@ test('leaderboard, matchmaking, and atlas reads are bounded and eligibility-awar
       trophyRadius: 10_001, now: NOW, limit: 1
     }), /trophyRadius/i)
 
+    assert.deepEqual((await tx.attacks.listLeasedIncomingInWorldWindow({
+      worldId: 'main', minX: 3, maxX: 5, minY: -1, maxY: 1,
+      now: new Date(NOW.getTime() + 2_000), limit: 25
+    })).map(attack => attack.id), ['leased-defense'])
+    await assert.rejects(tx.attacks.listLeasedIncomingInWorldWindow({
+      worldId: 'main', minX: 0, maxX: 5, minY: 0, maxY: 0,
+      now: NOW, limit: 25
+    }), /spans may not exceed/i)
+
     const atlas = await tx.world.listAtlas({
       worldId: 'main', minX: 1, maxX: 2, minY: 0, maxY: 0, now: NOW, limit: 10
     })
@@ -1100,6 +1117,75 @@ test('leaderboard, matchmaking, and atlas reads are bounded and eligibility-awar
     await assert.rejects(tx.world.listAtlas({
       worldId: 'main', minX: 0, maxX: 256, minY: 0, maxY: 0, now: NOW, limit: 1
     }), /may not exceed/i)
+  })
+})
+
+test('live world-window attack activity is capped, ordered, current, and unexpired', async () => {
+  const persistence = new MemoryPersistence()
+  await persistence.transaction(async tx => {
+    const region = {
+      worldId: 'main',
+      regionId: 'main|g1|r0,0|s32',
+      regionX: 0,
+      regionY: 0,
+      size: 32,
+      generationVersion: 1,
+      createdAt: NOW
+    }
+    await tx.world.ensureRegion(region)
+    const expectedIds: string[] = []
+    for (let y = 0; y < 5; y += 1) {
+      for (let x = 0; x < 5; x += 1) {
+        const suffix = `${y}-${x}`
+        const attackerId = `activity-attacker-${suffix}`
+        const defenderId = `activity-defender-${suffix}`
+        const attackId = `activity-${suffix}`
+        await tx.accounts.insert(account(attackerId))
+        await tx.accounts.insert(account(defenderId))
+        await tx.world.assign({
+          worldId: 'main', x, y, regionId: region.regionId, playerId: defenderId,
+          plotVersion: 1, assignedAt: NOW,
+          leaseId: null, leaseIssuedAt: null, leaseRenewedAt: null, leaseExpiresAt: null
+        })
+        const prepared = preparedAuthority(attackId, attackerId, defenderId, x, y)
+        await tx.attacks.insert(prepared.record)
+        assert.equal(await tx.attacks.compareAndSwapAuthority({
+          attackId,
+          expectedState: 'preparing',
+          expectedVersion: prepared.authority.version,
+          authority: engagedAuthority(prepared.authority),
+          updatedAt: new Date(NOW.getTime() + 1_000)
+        }), true)
+        expectedIds.push(attackId)
+      }
+    }
+
+    const query = {
+      worldId: 'main', minX: 0, maxX: 4, minY: 0, maxY: 4,
+      now: new Date(NOW.getTime() + 2_000), limit: 10_000
+    }
+    assert.deepEqual(
+      (await tx.attacks.listLeasedIncomingInWorldWindow(query)).map(attack => attack.id),
+      expectedIds,
+      'the repository hard-caps at 25 and preserves deterministic y/x order'
+    )
+
+    assert.equal(await tx.world.release('activity-defender-0-0'), true)
+    await tx.world.assign({
+      worldId: 'main', x: 0, y: 0, regionId: region.regionId,
+      playerId: 'activity-defender-0-0', plotVersion: 2, assignedAt: new Date(NOW.getTime() + 3_000),
+      leaseId: null, leaseIssuedAt: null, leaseRenewedAt: null, leaseExpiresAt: null
+    })
+    assert.deepEqual(
+      (await tx.attacks.listLeasedIncomingInWorldWindow(query)).map(attack => attack.id),
+      expectedIds.slice(1),
+      'a changed target plot version is removed before its attack id is disclosed'
+    )
+
+    assert.deepEqual(await tx.attacks.listLeasedIncomingInWorldWindow({
+      ...query,
+      now: new Date(NOW.getTime() + 121_001)
+    }), [], 'expired leases are filtered even before maintenance changes their state')
   })
 })
 

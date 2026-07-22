@@ -1529,6 +1529,41 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     })
   }
 
+  /**
+   * Bounded live-combat activity for ambient world postcards. Unlike /map it
+   * returns no layouts and never provisions procedural camps, so clients can
+   * poll it frequently without turning a 5x5 presentation refresh into a hot
+   * persistence/generation path.
+   */
+  async visibleAttackActivity(principal: RuntimePrincipal) {
+    const now = this.clock()
+    return this.persistence.transaction(async tx => {
+      const viewer = await this.authority.owned(tx, principal.playerId)
+      const sight = watchtowerSightOf(villageBuildings(viewer.village), now.getTime())
+      const activities = (await tx.attacks.listLeasedIncomingInWorldWindow({
+        worldId: viewer.plot.worldId,
+        minX: Math.max(-MAX_WORLD_COORDINATE, viewer.plot.x - sight),
+        maxX: Math.min(MAX_WORLD_COORDINATE, viewer.plot.x + sight),
+        minY: Math.max(-MAX_WORLD_COORDINATE, viewer.plot.y - sight),
+        maxY: Math.min(MAX_WORLD_COORDINATE, viewer.plot.y + sight),
+        now,
+        limit: 25
+      })).map(attack => ({
+        attackId: attack.id,
+        targetKind: attack.targetKind,
+        targetId: attack.targetId,
+        ...(attack.defenderId ? { defenderId: attack.defenderId } : {}),
+        x: attack.targetX,
+        y: attack.targetY,
+        combatStartedAt: attack.authority?.timestamps.combatStartedAt
+          ?? attack.engagedAt?.getTime()
+          ?? attack.createdAt.getTime(),
+        updatedAt: attack.updatedAt.getTime()
+      }))
+      return { activities, serverNow: now.getTime() }
+    }, { isolation: 'read committed' })
+  }
+
   async map(
     principal: RuntimePrincipal,
     rawX?: unknown,
@@ -1592,11 +1627,22 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         (await tx.world.listOccupantsAt(viewer.plot.worldId, missingCoordinates))
           .map(plot => `${plot.x},${plot.y}`)
       )
-      const activeByDefender = new Map<string, string>()
+      const activeByDefender = new Map<string, {
+        attackId: string
+        combatStartedAt: number
+        updatedAt: number
+      }>()
       const playerIds = entries.map(entry => entry.player.playerId)
       for (const attack of await this.authority.leasedIncomingForPlayers(tx, playerIds)) {
-        if (attack.defenderId && ACTIVE_INCOMING_STATES.has(attack.state)) {
-          activeByDefender.set(attack.defenderId, attack.id)
+        if (attack.defenderId && ACTIVE_INCOMING_STATES.has(attack.state)
+          && attack.deadlineAt > now) {
+          activeByDefender.set(attack.defenderId, {
+            attackId: attack.id,
+            combatStartedAt: attack.authority?.timestamps.combatStartedAt
+              ?? attack.engagedAt?.getTime()
+              ?? attack.createdAt.getTime(),
+            updatedAt: attack.updatedAt.getTime()
+          })
         }
       }
       const bots = await tx.world.listBotVillages({
@@ -1686,13 +1732,16 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           materializeVillage(village, now, {
             populationLocked: windowState.activeByDefender.has(account.id)
           })
-          const attackId = windowState.activeByDefender.get(account.id)
+          const activeAttack = windowState.activeByDefender.get(account.id)
           const withinSight = chebyshev(x, y, viewer.plot.x, viewer.plot.y) <= sight
           const plot: Record<string, unknown> = {
             x, y, kind: 'player', ownerId: account.id, username: account.username,
             trophies: account.trophies, revision: village.appearanceRevision,
-            underAttack: Boolean(attackId),
-            ...(withinSight && attackId ? { attackId } : {}),
+            underAttack: Boolean(activeAttack),
+            ...(withinSight && activeAttack ? {
+              attackId: activeAttack.attackId,
+              activeAttack
+            } : {}),
             shielded: (account.shieldUntil?.getTime() ?? 0) > now.getTime(),
             stoneMaturity: stoneMaturityOf(account, now)
           }

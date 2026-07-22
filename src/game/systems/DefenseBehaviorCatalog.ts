@@ -21,7 +21,15 @@ export type DefenseScheduler =
  *    (see MainScene.shootPrismContinuousLaser).
  */
 export type DefenseFireModel =
-    | { kind: 'perShot'; salvoSize?: number }
+    | {
+        kind: 'perShot';
+        salvoSize?: number;
+        /** Expected total damage from one launch after bounded secondary
+         * effects. Spike Launcher uses impact + two typical zone ticks; the
+         * live hazard can punish a stationary tank longer, but settlement
+         * must not pretend the persistent zone does no damage at all. */
+        secondaryDamageMultiplier?: number;
+    }
     | { kind: 'dps' };
 
 export interface DefenseBehavior {
@@ -78,7 +86,13 @@ export const DEFENSE_BEHAVIOR_CATALOG = {
         // matching grid, and MainScene fires exactly this many per volley.
         fireModel: { kind: 'perShot', salvoSize: 16 }
     },
-    spike_launcher: { ...NEAREST_STANDARD, fireEffect: 'spike_launcher', start: 'cooldown' }
+    spike_launcher: {
+        ...NEAREST_STANDARD,
+        fireEffect: 'spike_launcher',
+        start: 'cooldown',
+        // 1.45x impact plus two representative 0.5x zone ticks.
+        fireModel: { kind: 'perShot', secondaryDamageMultiplier: 2.45 }
+    }
 } as const satisfies Record<ActiveDefenseType, DefenseBehavior>;
 
 export function getDefenseBehavior(type: string): DefenseBehavior | undefined {
@@ -93,10 +107,17 @@ export function getDefenseBehavior(type: string): DefenseBehavior | undefined {
  * (dragons_breath) land every pod per volley. Returns null when the type
  * isn't an active defense or the stats can't support the derivation.
  */
-export function defenseDps(type: string, stats: { damage?: number; fireRate?: number }): number | null {
+export function defenseDps(
+    type: string,
+    stats: { damage?: number; fireRate?: number },
+    options: { includeSecondaryEffects?: boolean } = {}
+): number | null {
     const behavior = getDefenseBehavior(type);
     if (!behavior || !stats.damage) return null;
     if (behavior.fireModel.kind === 'dps') return stats.damage;
     if (!stats.fireRate) return null;
-    return stats.damage * (behavior.fireModel.salvoSize ?? 1) * (1000 / stats.fireRate);
+    const secondary = options.includeSecondaryEffects === false
+        ? 1
+        : (behavior.fireModel.secondaryDamageMultiplier ?? 1);
+    return stats.damage * (behavior.fireModel.salvoSize ?? 1) * secondary * (1000 / stats.fireRate);
 }

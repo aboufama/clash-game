@@ -385,6 +385,9 @@ export function createApiHandler<Principal>(
       if (method === 'GET' && path === '/map/atlas') {
         return { status: 200, body: await game.atlas(player) }
       }
+      if (method === 'GET' && path === '/map/active-attacks') {
+        return { status: 200, body: await game.visibleAttackActivity(player) }
+      }
       if (method === 'GET' && path === '/map') {
         return { status: 200, body: await game.map(player, query.get('x') ?? undefined, query.get('y') ?? undefined, query.get('r') ?? undefined, query.get('known') ?? undefined) }
       }

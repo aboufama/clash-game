@@ -288,6 +288,22 @@ export interface AttackCandidateQuery {
   limit: number
 }
 
+/**
+ * Small world-window lookup for ambient, in-map combat playback. This is
+ * intentionally narrower than the general attack history APIs: only current
+ * player-defender leases are discoverable, and callers may request at most a
+ * Watchtower-sized square.
+ */
+export interface AttackActivityQuery {
+  worldId: string
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+  now: Date
+  limit: number
+}
+
 export interface AttackCandidateRecord {
   player: PlayerSummaryRecord
   plot: WorldPlotRecord

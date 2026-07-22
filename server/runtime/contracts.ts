@@ -172,6 +172,8 @@ export interface ApiService<Principal> {
   merchantTrade(player: Principal, body: MerchantTradeRequest): Awaitable<unknown>
 
   atlas(player: Principal): Awaitable<unknown>
+  /** Compact live-combat feed for in-world postcards inside current Watchtower sight. */
+  visibleAttackActivity(player: Principal): Awaitable<unknown>
   map(
     player: Principal,
     x?: unknown,

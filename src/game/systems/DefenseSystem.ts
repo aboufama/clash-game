@@ -246,7 +246,10 @@ export class DefenseSystem {
             defense.teslaCharged = false;
         }
 
-        if (time < (defense.lastFireTime || 0) + interval) return;
+        // `fireRate` is impact-to-impact cadence. Begin the wind-up early so
+        // Tesla's advertised/server DPS is not secretly reduced by an extra
+        // chargeMs on every cycle.
+        if (time < (defense.lastFireTime || 0) + Math.max(0, interval - chargeMs)) return;
 
         const target = lockedTarget ?? findNearestTarget();
         if (target) {

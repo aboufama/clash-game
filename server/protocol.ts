@@ -65,6 +65,8 @@ export interface ReplayBuildingState {
   id: string
   health: number
   isDestroyed: boolean
+  /** Committed aim of rotating defenses, in radians. */
+  ballistaAngle?: number
 }
 
 export interface ReplayTroopState {
@@ -79,6 +81,11 @@ export interface ReplayTroopState {
   maxHealth: number
   facingAngle?: number
   hasTakenDamage?: boolean
+  slamOffset?: number
+  mortarRecoil?: number
+  parked01?: number
+  phalanxSpearOffset?: number
+  tankSpin01?: number
 }
 
 export interface ReplayFrame {
@@ -237,6 +244,25 @@ export interface IncomingAttack {
   victimId: string
   startedAt: number
   updatedAt: number
+}
+
+/** Compact Watchtower-authorized feed used by in-world postcard battles. */
+export interface VisibleAttackActivity {
+  attackId: string
+  targetKind: 'player' | 'bot'
+  targetId: string
+  /** Present for player targets; bot targets are reserved for future capture support. */
+  defenderId?: string
+  x: number
+  y: number
+  /** Server epoch corresponding to replay t=0. */
+  combatStartedAt: number
+  updatedAt: number
+}
+
+export interface VisibleAttackActivityResponse {
+  activities: VisibleAttackActivity[]
+  serverNow: number
 }
 
 // ---- Request/response bodies ----
