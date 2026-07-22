@@ -41,6 +41,7 @@ function startServer(extraEnv = {}) {
       CLASH_TRUST_PROXY: '1',
       CLASH_AUTH_MUTATIONS_PER_10S: '10000',
       CLASH_AUTH_FRAME_PUSHES_PER_10S: '10000',
+      CLASH_PUBLIC_SCOUTS_PER_10S: '10000',
       CLASH_GUEST_LIMIT_PER_HOUR: '10000',
       // Most of this suite exercises guest auto-play (like `npm run dev`).
       // The registration-wall section restarts with this OFF to prove the
@@ -734,7 +735,10 @@ async function main() {
   const scout = outOfRangeTarget
     ? (await api('GET', `/players/${outOfRangeTarget.id}/world`, { token: b.token })).json
     : {}
-  ok(scout.error && /watchtower sight/.test(scout.error), 'a level-one Watchtower cannot scout an arbitrary distant player id')
+  ok(scout.world?.ownerId === outOfRangeTarget?.id
+    && scout.world?.resources === undefined
+    && scout.world?.army === undefined,
+  'any atlas-listed chief can be opened as a public village without exposing private state')
   const selfScout = (await api('GET', `/players/${b.player.id}/world`, { token: b.token })).json
   ok(selfScout.world?.ownerId === b.player.id && selfScout.world.resources === undefined && selfScout.world.army === undefined,
     'public scout snapshots omit private resources and army')
@@ -970,6 +974,9 @@ async function main() {
 
   const atlas = await api('GET', '/map/atlas', { token: m1.json.token })
   ok(atlas.status === 200 && atlas.json.players.some(p => p.me) && atlas.json.players.length >= 2, 'the atlas charts every settled chief, self included')
+  ok(Number.isInteger(atlas.json.seedVersion)
+    && atlas.json.players.every(player => typeof player.id === 'string' && player.id.length > 0),
+  'atlas rows expose stable player ids and the active presentation seed version')
   ok(atlas.json.players.length <= 1000
     && atlas.json.worldPlotLimit === 24
     && atlas.json.players.every(player => player.x >= atlas.json.window.minX
@@ -980,9 +987,31 @@ async function main() {
   const edgeGuest = (await api('POST', '/auth/session')).json
   const edgeMove = await api('POST', '/map/relocate', { token: edgeGuest.token, body: { x: 1000001, y: 1000001 } })
   ok(edgeMove.status === 400, 'out-of-world relocation coordinates are rejected instead of clamped to another plot')
-  const clippedHorizonMove = await api('POST', '/map/relocate', { token: edgeGuest.token, body: { x: 63, y: 63 } })
-  ok(clippedHorizonMove.status === 403,
-    'valid distant region coordinates remain gated by earned watchtower sight')
+  const distantRelocation = { x: 63, y: 63, requestId: 'distant-relocation-receipt' }
+  const clippedHorizonMove = await api('POST', '/map/relocate', {
+    token: edgeGuest.token,
+    body: distantRelocation
+  })
+  ok(clippedHorizonMove.status === 200
+    && clippedHorizonMove.json.me?.x === 63
+    && clippedHorizonMove.json.me?.y === 63,
+  'a chief can settle an unclaimed plot outside earned watchtower sight')
+  const clippedHorizonRetry = await api('POST', '/map/relocate', {
+    token: edgeGuest.token,
+    body: distantRelocation
+  })
+  ok(clippedHorizonRetry.status === 200
+    && JSON.stringify(clippedHorizonRetry.json) === JSON.stringify(clippedHorizonMove.json),
+  'a relocation request id returns the exact committed response on retry')
+  await stopServer()
+  await startServer()
+  const clippedHorizonRestartRetry = await api('POST', '/map/relocate', {
+    token: edgeGuest.token,
+    body: distantRelocation
+  })
+  ok(clippedHorizonRestartRetry.status === 200
+    && JSON.stringify(clippedHorizonRestartRetry.json) === JSON.stringify(clippedHorizonMove.json),
+  'a durable relocation receipt replays the exact committed response after restart')
 
   const mod3 = value => ((value % 3) + 3) % 3
   let everyAllocatableWindowHasPreserve = true
@@ -1090,7 +1119,8 @@ async function main() {
   ok(replacedPlot?.kind === 'player' && replacedPlot.ownerId === p1.id,
     'the claimed coordinate presents the player village — the bot camp is gone')
   const taken = await api('POST', '/map/relocate', { token: m2.json.token, body: claimed })
-  ok([403, 409].includes(taken.status), 'relocating onto an unauthorized/taken plot is refused')
+  ok(taken.status === 409 && taken.json.code === 'PLOT_TAKEN',
+    'relocating onto a taken plot returns the stable plot-conflict error')
   const movedAtlas = (await api('GET', '/map/atlas', { token: m1.json.token })).json
   ok(!movedAtlas.players.some(player => player.me && player.x === p1.plotX && player.y === p1.plotY), 'the old plot is freed on the atlas')
   const beforeFrontier = (await api('POST', '/auth/session', { body: { token: m2.json.token } })).json.player

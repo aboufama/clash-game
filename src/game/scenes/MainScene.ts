@@ -9235,6 +9235,9 @@ export class MainScene extends Phaser.Scene {
             syncHomeStatus: (serverNow: number, shieldUntil: number) => {
                 this.worldMap?.applyHomeStatus(serverNow, shieldUntil);
             },
+            settlePlot: async (x: number, y: number) => {
+                return await this.worldMap.settlePlot(x, y);
+            },
             startAttack: () => {
                 const homeReady = this.flushPendingSaveForTransition();
                 this.showCloudTransition(async epoch => {

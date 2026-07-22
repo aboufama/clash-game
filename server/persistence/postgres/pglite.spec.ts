@@ -16,6 +16,7 @@ import { createPersistenceAttackService } from '../../runtime/attack-service'
 import { outboxEvent } from '../repositories'
 import { createApiMiddleware } from '../../node-adapter'
 import { grantedSession } from '../../domain/auth'
+import { ApiError } from '../../errors'
 import { allocationOrdinalOf, nextPlotVersion, persistentBotVillageIdAt } from '../../domain/world'
 import type { AccountRecord, BotVillageRecord, VillageRecord } from '../model'
 import { buildLegacyImportPlan, importLegacyPlan, verifyLegacyImport } from '../legacy-import'
@@ -1098,7 +1099,7 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
       allowGuestSessions: true,
       now: () => new Date(NOW)
     })
-    const middleware = createApiMiddleware(service)
+    const middleware = createApiMiddleware(service, undefined, { publicScoutLimit: 2 })
     server = createServer((request, response) => {
       void middleware(request, response).then(handled => {
         if (handled) return
@@ -1121,6 +1122,20 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
       player: { id: string; plotX: number; plotY: number }
     }>(origin, '/auth/session', { method: 'POST', body: {} })
     assert.notEqual(attacker.player.id, defender.player.id)
+
+    const publicScoutPath = `/players/${defender.player.id}/world`
+    await requestJson(origin, publicScoutPath, { token: attacker.token })
+    await requestJson(origin, publicScoutPath, { token: attacker.token })
+    const scoutRateLimited = await fetch(`${origin}/api${publicScoutPath}`, {
+      headers: { Authorization: `Bearer ${attacker.token}` }
+    })
+    assert.equal(scoutRateLimited.status, 429)
+    assert.equal(scoutRateLimited.headers.get('retry-after'), '10')
+    assert.deepEqual(await scoutRateLimited.json(), {
+      error: 'Too many public village views; retry shortly',
+      code: 'PUBLIC_SCOUT_RATE_LIMITED'
+    })
+    await requestJson(origin, '/map/atlas', { token: attacker.token })
 
     const world = await requestJson<{ world: SerializedWorld }>(origin, '/world', {
       token: attacker.token
@@ -1350,6 +1365,39 @@ test('embedded PostgreSQL keeps release, frontier, and guest-reaper fencing cons
       WHERE world_id = $1 AND ordinal = $2
     `, ['main', ordinal])
     assert.equal(remaining.rows[0]?.count, 0)
+
+    const firstClaimant = grantedSession(await service.ensureSession('', 'pglite-relocation-race-first'))
+    const secondClaimant = grantedSession(await service.ensureSession('', 'pglite-relocation-race-second'))
+    const claimantHomes = new Map([
+      [firstClaimant.player.id, { x: firstClaimant.player.plotX, y: firstClaimant.player.plotY }],
+      [secondClaimant.player.id, { x: secondClaimant.player.plotX, y: secondClaimant.player.plotY }]
+    ])
+    const contested = { x: 40, y: 42 }
+    const claims = await Promise.allSettled([
+      service.relocate(
+        { playerId: firstClaimant.player.id }, contested.x, contested.y, 'pglite-relocation-race-first'
+      ),
+      service.relocate(
+        { playerId: secondClaimant.player.id }, contested.x, contested.y, 'pglite-relocation-race-second'
+      )
+    ])
+    const winnerIndex = claims.findIndex(result => result.status === 'fulfilled')
+    const loserIndex = claims.findIndex(result => result.status === 'rejected')
+    assert.notEqual(winnerIndex, -1)
+    assert.notEqual(loserIndex, -1)
+    const losingClaim = claims[loserIndex]
+    assert(losingClaim.status === 'rejected')
+    assert(losingClaim.reason instanceof ApiError)
+    assert.equal(losingClaim.reason.status, 409)
+    assert.equal(losingClaim.reason.code, 'PLOT_TAKEN')
+    const claimants = [firstClaimant, secondClaimant]
+    const winnerPlot = await persistence.transaction(tx => tx.world.getPlayerPlot(claimants[winnerIndex].player.id))
+    const loserPlot = await persistence.transaction(tx => tx.world.getPlayerPlot(claimants[loserIndex].player.id))
+    assert.deepEqual(winnerPlot && { x: winnerPlot.x, y: winnerPlot.y }, contested)
+    assert.deepEqual(
+      loserPlot && { x: loserPlot.x, y: loserPlot.y },
+      claimantHomes.get(claimants[loserIndex].player.id)
+    )
   } finally {
     await service.close()
   }

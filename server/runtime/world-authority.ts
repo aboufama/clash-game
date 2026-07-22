@@ -309,7 +309,7 @@ export async function claimSpecificPlayerPlot(
   // The assign repository consumes this exact ordinal after its unique insert.
   const released = await tx.world.getReleasedSlot(allocation.worldId, ordinal, { forUpdate: true })
   if (await tx.world.getOccupant(allocation.worldId, input.coordinate.x, input.coordinate.y, { forUpdate: true })) {
-    throw new ApiError(409, 'That plot is taken')
+    throw new ApiError(409, 'That plot is taken', 'PLOT_TAKEN')
   }
   const region = await ensureRegion(tx, allocationIndex(allocation), input.coordinate, input.now)
   const plot: WorldPlotRecord = {

@@ -389,7 +389,7 @@ export function createApiHandler<Principal>(
         return { status: 200, body: await game.map(player, query.get('x') ?? undefined, query.get('y') ?? undefined, query.get('r') ?? undefined, query.get('known') ?? undefined) }
       }
       if (method === 'POST' && path === '/map/relocate') {
-        return { status: 200, body: await game.relocate(player, body.x, body.y) }
+        return { status: 200, body: await game.relocate(player, body.x, body.y, body.requestId) }
       }
       if (method === 'GET' && path === '/leaderboard') {
         return { status: 200, body: { players: await game.leaderboard(player) } }

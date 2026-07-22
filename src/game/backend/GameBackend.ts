@@ -56,6 +56,11 @@ export interface WorldMapWindow {
   seedVersion?: number;
 }
 
+export interface RelocateResult {
+  me: { x: number; y: number; plotVersion?: number };
+  serverNow: number;
+}
+
 const SAVE_DEBOUNCE_MS = 400;
 const SAVE_RETRY_BASE_MS = 800;
 const SAVE_RETRY_MAX_MS = 12_000;
@@ -1667,7 +1672,8 @@ export class Backend {
     sight: number;
     /** The world's coordinate bound: plots span ±worldPlotLimit on both axes. */
     worldPlotLimit: number;
-    players: Array<{ x: number; y: number; username: string; trophies: number; shielded: boolean; underAttack: boolean; me: boolean; online: boolean }>;
+    seedVersion: number;
+    players: Array<{ id: string; x: number; y: number; username: string; trophies: number; shielded: boolean; underAttack: boolean; me: boolean; online: boolean }>;
     battles: Array<{ ax: number; ay: number; vx: number; vy: number }>;
     window: { minX: number; maxX: number; minY: number; maxY: number };
     truncated: boolean;
@@ -1678,6 +1684,7 @@ export class Backend {
         me?: { x?: unknown; y?: unknown };
         sight?: unknown;
         worldPlotLimit?: unknown;
+        seedVersion?: unknown;
         players?: unknown;
         battles?: unknown;
         window?: { minX?: unknown; maxX?: unknown; minY?: unknown; maxY?: unknown };
@@ -1698,6 +1705,7 @@ export class Backend {
       const players = (raw.players as Array<Record<string, unknown> | null>)
         .filter((p): p is Record<string, unknown> => Boolean(p) && finite((p as Record<string, unknown>).x) && finite((p as Record<string, unknown>).y))
         .map(p => ({
+          id: typeof p.id === 'string' ? p.id : '',
           x: p.x as number,
           y: p.y as number,
           username: typeof p.username === 'string' ? p.username : 'Unknown chief',
@@ -1721,7 +1729,10 @@ export class Backend {
       const worldPlotLimit = finite(raw.worldPlotLimit) && raw.worldPlotLimit > 0
         ? Math.floor(raw.worldPlotLimit)
         : 24;
-      return { me: { x: me.x, y: me.y }, sight, worldPlotLimit, players, battles, window, truncated: raw.truncated === true };
+      const seedVersion = finite(raw.seedVersion) && raw.seedVersion >= 0
+        ? Math.floor(raw.seedVersion)
+        : 0;
+      return { me: { x: me.x, y: me.y }, sight, worldPlotLimit, seedVersion, players, battles, window, truncated: raw.truncated === true };
     } catch (error) {
       console.warn('Atlas fetch failed:', error);
       return null;
@@ -1729,10 +1740,14 @@ export class Backend {
   }
 
   /** Pack the wagons: settle a chosen plot (or the next frontier plot if omitted). */
-  static async relocate(x?: number, y?: number): Promise<{ me: { x: number; y: number } } | null> {
+  static async relocate(x?: number, y?: number): Promise<RelocateResult | null> {
     if (!Auth.isOnlineMode()) return null;
+    const requestId = makeRequestId('relocate');
     try {
-      return await Backend.apiPost<{ me: { x: number; y: number } }>('/api/map/relocate', x === undefined ? {} : { x, y });
+      return await Backend.postWithRetry<RelocateResult>(
+        '/api/map/relocate',
+        x === undefined ? { requestId } : { x, y, requestId }
+      );
     } catch (error) {
       console.warn('Relocation failed:', error);
       return null;

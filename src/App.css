@@ -6262,6 +6262,24 @@ body {
 .atlas-chart {
     image-rendering: pixelated;
     display: block;
+    cursor: pointer;
+}
+
+.atlas-chart:focus-visible {
+    outline: calc(var(--px) * 2) solid var(--ui-gold);
+    outline-offset: calc(var(--px) * -2);
+}
+
+.atlas-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .atlas-footer {
@@ -6269,6 +6287,87 @@ body {
     min-height: 18px;
     display: flex;
     align-items: center;
+}
+
+.atlas-plot-selection {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.atlas-cluster-selection {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+}
+
+.atlas-cluster-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    overflow-x: auto;
+    max-width: min(64%, 560px);
+    padding-bottom: 2px;
+}
+
+.atlas-cluster-btn {
+    flex: 0 0 auto;
+    font-family: var(--ui-font);
+    font-size: 7px;
+    color: var(--text-primary);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 3);
+    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 3) stretch;
+    cursor: pointer;
+    padding: calc(var(--px) * 1) calc(var(--px) * 2);
+}
+
+.atlas-cluster-btn:hover:not(:disabled),
+.atlas-cluster-btn:focus-visible {
+    filter: brightness(1.15);
+}
+
+.atlas-cluster-btn:focus-visible,
+.atlas-settle-btn:focus-visible {
+    outline: calc(var(--px) * 2) solid var(--ui-gold);
+    outline-offset: var(--px);
+}
+
+.atlas-cluster-btn:disabled {
+    cursor: not-allowed;
+    filter: grayscale(0.65) brightness(0.72);
+}
+
+.atlas-settle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    font-family: var(--ui-font);
+    font-size: 8px;
+    color: var(--ui-gold);
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    cursor: pointer;
+    padding: calc(var(--px) * 1) calc(var(--px) * 2);
+}
+
+.atlas-settle-btn:hover:not(:disabled) {
+    filter: brightness(1.15);
+}
+
+.atlas-settle-btn:disabled {
+    cursor: not-allowed;
+    filter: grayscale(0.65) brightness(0.72);
 }
 
 .atlas-hover {
@@ -6330,6 +6429,15 @@ body {
 /* The charting reveal: fog tiles over the live chart while the sweep runs,
    and the pre-data placeholder grid. Hover must pass through to the chart. */
 .atlas-stack .atlas-reveal {
+    pointer-events: none;
+}
+
+.atlas-keyboard-cursor {
+    position: absolute;
+    z-index: 3;
+    box-sizing: border-box;
+    border: calc(var(--px) * 2) solid var(--ui-gold);
+    box-shadow: inset 0 0 0 var(--px) #2b1e12;
     pointer-events: none;
 }
 

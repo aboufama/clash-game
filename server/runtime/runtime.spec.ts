@@ -9,6 +9,7 @@ import type { CombatVillageSnapshot } from '../attack-domain/types'
 import { createApiHandler, type ApiResult } from '../http'
 import { ApiError } from '../errors'
 import { grantedSession, isRegistrationRequired } from '../domain/auth'
+import { botVillageSeedAt, isSpiralSettleable } from '../domain/world'
 import {
   attackRecordFromAuthority,
   MemoryPersistence,
@@ -892,14 +893,44 @@ test('MemoryPersistence serves the async core routes without global scans or che
   const loginSession = loggedIn.body as SessionResponse
 
   assert.equal((await call('GET', '/leaderboard', { token: loginSession.token })).status, 200)
+  const distantSession = grantedSession(await service.ensureSession('', 'runtime-atlas-distant'))
+  const distantMove = await service.relocate(
+    { playerId: distantSession.player.id },
+    40,
+    40,
+    'runtime-atlas-distant-move'
+  )
+  assert.deepEqual(record(distantMove).me, { x: 40, y: 40, plotVersion: 1 })
   const atlas = await call('GET', '/map/atlas', { token: loginSession.token })
   assert.equal(atlas.status, 200)
-  assert.equal(Array.isArray(record(atlas.body).players), true)
-  const atlasSelf = (record(atlas.body).players as unknown[])
+  const atlasBody = record(atlas.body)
+  assert.equal(Array.isArray(atlasBody.players), true)
+  assert.equal(atlasBody.seedVersion, 0)
+  assert.equal((atlasBody.players as unknown[]).every(player => typeof record(player).id === 'string'), true)
+  const atlasSelf = (atlasBody.players as unknown[])
     .map(record)
     .find(player => player.me === true)
   assert(atlasSelf)
+  assert.equal(atlasSelf.id, session.player.id)
   assert.deepEqual(atlasSelf.banner, chosenBanner)
+  const distantAtlasPlayer = (atlasBody.players as unknown[])
+    .map(record)
+    .find(player => player.id === distantSession.player.id)
+  assert(distantAtlasPlayer)
+  assert.ok(Math.max(
+    Math.abs(Number(distantAtlasPlayer.x) - session.player.plotX),
+    Math.abs(Number(distantAtlasPlayer.y) - session.player.plotY)
+  ) > Number(atlasBody.sight))
+  const distantScout = await call(
+    'GET',
+    `/players/${distantSession.player.id}/world`,
+    { token: loginSession.token }
+  )
+  assert.equal(distantScout.status, 200)
+  const distantPublicWorld = record(record(distantScout.body).world)
+  assert.equal(distantPublicWorld.ownerId, distantSession.player.id)
+  assert.equal(distantPublicWorld.resources, undefined)
+  assert.equal(distantPublicWorld.army, undefined)
   const selfScout = await call('GET', `/players/${session.player.id}/world`, { token: loginSession.token })
   assert.equal(selfScout.status, 200)
   assert.equal(record(record(selfScout.body).world).ownerId, session.player.id)
@@ -907,13 +938,19 @@ test('MemoryPersistence serves the async core routes without global scans or che
   assert.equal((await call('GET', '/notifications', { token: loginSession.token })).status, 200)
   assert.equal((await call('POST', '/notifications/read', { token: loginSession.token })).status, 200)
 
-  const relocated = await call('POST', '/map/relocate', { token: loginSession.token, body: {} })
-  assert.equal(relocated.status, 200)
-  assert.notDeepEqual(record(record(relocated.body).me), {
-    x: session.player.plotX,
-    y: session.player.plotY,
-    plotVersion: 1
+  const relocationBody = { x: 40, y: 42, requestId: 'runtime-far-relocation' }
+  const relocated = await call('POST', '/map/relocate', {
+    token: loginSession.token,
+    body: relocationBody
   })
+  assert.equal(relocated.status, 200)
+  assert.deepEqual(record(record(relocated.body).me), { x: 40, y: 42, plotVersion: 1 })
+  const relocationReplay = await call('POST', '/map/relocate', {
+    token: loginSession.token,
+    body: relocationBody
+  })
+  assert.equal(relocationReplay.status, 200)
+  assert.deepEqual(relocationReplay.body, relocated.body)
 
   const expiringGuest = grantedSession(await service.ensureSession('', 'lease-atomicity'))
   const authExpiredGuest = grantedSession(await service.ensureSession('', 'auth-expired-lease'))
@@ -979,6 +1016,103 @@ test('MemoryPersistence serves the async core routes without global scans or che
   assert.equal(await service.pruneExpiredIdempotency(20), 20, 'the next bounded batch drains the remainder')
 
   await service.close()
+})
+
+test('MemoryPersistence arbitrates concurrent exact-coordinate claims without moving the loser', async () => {
+  const persistence = new MemoryPersistence()
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date('2026-07-11T12:30:00.000Z'),
+    starterShieldMs: 0,
+    allowGuestSessions: true
+  })
+  try {
+    const first = grantedSession(await service.ensureSession('', 'relocation-race-first'))
+    const second = grantedSession(await service.ensureSession('', 'relocation-race-second'))
+    const homes = new Map([
+      [first.player.id, { x: first.player.plotX, y: first.player.plotY }],
+      [second.player.id, { x: second.player.plotX, y: second.player.plotY }]
+    ])
+    const target = { x: 40, y: 42 }
+    assert.equal(isSpiralSettleable(target), true)
+
+    const attempts = await Promise.allSettled([
+      service.relocate({ playerId: first.player.id }, target.x, target.y, 'relocation-race-first'),
+      service.relocate({ playerId: second.player.id }, target.x, target.y, 'relocation-race-second')
+    ])
+    const winnerIndex = attempts.findIndex(result => result.status === 'fulfilled')
+    const loserIndex = attempts.findIndex(result => result.status === 'rejected')
+    assert.notEqual(winnerIndex, -1, 'one claimant wins the coordinate')
+    assert.notEqual(loserIndex, -1, 'one claimant loses the coordinate')
+    const loser = attempts[loserIndex]
+    assert(loser.status === 'rejected')
+    assert(loser.reason instanceof ApiError)
+    assert.equal(loser.reason.status, 409)
+    assert.equal(loser.reason.code, 'PLOT_TAKEN')
+
+    const actors = [first, second]
+    const winnerActor = actors[winnerIndex]
+    const loserActor = actors[loserIndex]
+    await persistence.transaction(async tx => {
+      const winnerPlot = await tx.world.getPlayerPlot(winnerActor.player.id)
+      const loserPlot = await tx.world.getPlayerPlot(loserActor.player.id)
+      assert.deepEqual(winnerPlot && { x: winnerPlot.x, y: winnerPlot.y }, target)
+      assert.deepEqual(
+        loserPlot && { x: loserPlot.x, y: loserPlot.y },
+        homes.get(loserActor.player.id),
+        'the failed transaction rolls the losing chief back onto the original home plot'
+      )
+    })
+  } finally {
+    await service.close()
+  }
+})
+
+test('claiming a persisted bot hides it and vacating the plot restores the same bot authority', async () => {
+  const persistence = new MemoryPersistence()
+  const authorized = new Set<string>()
+  const service = new PersistenceGameService(persistence, {
+    attacks: attackStub(authorized),
+    now: () => new Date('2026-07-11T12:45:00.000Z'),
+    starterShieldMs: 0,
+    allowGuestSessions: true
+  })
+  try {
+    const session = grantedSession(await service.ensureSession('', 'bot-restoration'))
+    const principal = { playerId: session.player.id }
+    let botCoordinate: { x: number; y: number } | null = null
+    for (let y = 8; y <= 24 && !botCoordinate; y += 1) {
+      for (let x = 8; x <= 24; x += 1) {
+        if (botVillageSeedAt({ x, y }) !== null) {
+          botCoordinate = { x, y }
+          break
+        }
+      }
+    }
+    assert(botCoordinate, 'the deterministic world exposes a structural bot fixture')
+    authorized.add(`${botCoordinate.x},${botCoordinate.y}`)
+    const beforeWindow = record(await service.map(principal, botCoordinate.x, botCoordinate.y, 0))
+    const before = record((beforeWindow.plots as unknown[])[0])
+    assert.equal(before.kind, 'bot')
+    assert.equal(typeof before.ownerId, 'string')
+    assert.equal(typeof before.revision, 'number')
+
+    await service.relocate(principal, botCoordinate.x, botCoordinate.y, 'bot-restoration-claim')
+    const claimedWindow = record(await service.map(principal, botCoordinate.x, botCoordinate.y, 0))
+    const claimed = record((claimedWindow.plots as unknown[])[0])
+    assert.equal(claimed.kind, 'player')
+    assert.equal(claimed.ownerId, session.player.id)
+
+    let away = { x: botCoordinate.x + 1, y: botCoordinate.y }
+    while (!isSpiralSettleable(away)) away = { x: away.x + 1, y: away.y }
+    await service.relocate(principal, away.x, away.y, 'bot-restoration-vacate')
+    const restoredWindow = record(await service.map(principal, botCoordinate.x, botCoordinate.y, 0))
+    const restored = record((restoredWindow.plots as unknown[])[0])
+    assert.equal(restored.kind, 'bot')
+    assert.equal(restored.ownerId, before.ownerId)
+    assert.equal(restored.revision, before.revision)
+  } finally {
+    await service.close()
+  }
 })
 
 test('explicit infinite resources waive every player spend without weakening game rules', async () => {

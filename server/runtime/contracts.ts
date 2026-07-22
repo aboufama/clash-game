@@ -178,7 +178,7 @@ export interface ApiService<Principal> {
     radius?: unknown,
     known?: unknown
   ): Awaitable<unknown>
-  relocate(player: Principal, x: unknown, y: unknown): Awaitable<unknown>
+  relocate(player: Principal, x: unknown, y: unknown, requestId?: unknown): Awaitable<unknown>
   leaderboard(player: Principal): Awaitable<unknown>
   scout(player: Principal, targetId: unknown): Awaitable<unknown>
 

@@ -360,6 +360,8 @@ export class WorldMapSystem {
     private nextRefreshAt = 0;
     private refreshing = false;
     private refreshInFlight: Promise<void> | null = null;
+    /** One relocation at a time: a double click can never issue two claims. */
+    private settlementInFlight: Promise<boolean> | null = null;
     private homePlotKnown = false;
     /**
      * Map GETs and relocation POSTs can cross on the wire. Epoch fencing
@@ -3539,6 +3541,36 @@ export class WorldMapSystem {
     }
 
     /**
+     * Claim a chosen bot/open coordinate through server authority, then move
+     * the already-live village's world anchor and eagerly paint its new ring.
+     * The local layout stays at the scene origin; relocation changes only
+     * which absolute plot and neighbours surround it.
+     */
+    async settlePlot(x: number, y: number): Promise<boolean> {
+        if (this.settlementInFlight) return await this.settlementInFlight;
+        const task = (async () => {
+            if (this.scene.mode !== 'HOME' || this.focusPlot) return false;
+            const result = await Backend.relocate(x, y);
+            if (!result) {
+                gameManager.showToast('That plot cannot be settled right now.');
+                return false;
+            }
+            this.fenceMapRequests(result.serverNow);
+            this.applyHomePlot(result.me);
+            this.nextRefreshAt = 0;
+            await this.refresh();
+            gameManager.showToast(`The village packed up and moved to (${result.me.x}, ${result.me.y})!`);
+            return true;
+        })();
+        this.settlementInFlight = task;
+        try {
+            return await task;
+        } finally {
+            if (this.settlementInFlight === task) this.settlementInFlight = null;
+        }
+    }
+
+    /**
      * The neighbour action sheet is DOM (React), not world-space canvas, so it
      * stays fixed-size, accessible and readable at map zoom. This just assembles
      * the actions; the App renders and army-gates them.
@@ -3574,6 +3606,11 @@ export class WorldMapSystem {
             ? `${plot.settleable === false ? 'Protected wilderness' : 'Unclaimed wilderness'} · ${hydrologyFeature?.label ?? nature?.label ?? 'Wild country'}`
             : (plot.username ?? '???');
         const actions: PlotPanelAction[] = [];
+        const settleHere = (): PlotPanelAction => ({
+            label: 'Settle here',
+            kind: 'settle',
+            run: () => { void this.settlePlot(plot.x, plot.y); }
+        });
         const requests = gameManager as unknown as {
             requestScoutOnUser(ownerId: string, username: string): void;
             requestWatchLiveAttack(attackId: string, username: string): void;
@@ -3592,23 +3629,9 @@ export class WorldMapSystem {
             }
         } else if (plot.kind === 'bot') {
             actions.push({ label: 'Attack', kind: 'attack', run: () => this.scene.attackBotPlot(plot.seed ?? 1, plot.username ?? 'Bot clan', plot.x, plot.y) });
+            actions.push(settleHere());
         } else if (plot.settleable !== false) {
-            actions.push({
-                label: 'Settle here', kind: 'settle', run: () => {
-                    void Backend.relocate(plot.x, plot.y).then(res => {
-                        if (res) {
-                            const relocationServerNow = Number((res as typeof res & { serverNow?: number }).serverNow);
-                            this.fenceMapRequests(relocationServerNow);
-                            gameManager.showToast(`The village packed up and moved to (${res.me.x}, ${res.me.y})!`);
-                            const reanchored = this.applyHomePlot(res.me);
-                            if (!reanchored) this.teardown();
-                            this.nextRefreshAt = 0;
-                        } else {
-                            gameManager.showToast('That plot cannot be settled right now.');
-                        }
-                    });
-                }
-            });
+            actions.push(settleHere());
         } else {
             actions.push({
                 label: hydrologyFeature

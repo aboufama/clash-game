@@ -10,8 +10,10 @@ import { buildVariableWidthRibbon } from '../game/renderers/WorldHydrologyRender
 import { WildernessRenderer } from '../game/renderers/WildernessRenderer';
 import { weatherAt } from '../game/systems/WeatherSystem';
 import { DayNightSystem } from '../game/systems/DayNightSystem';
+import { isWildernessPreserveAt } from '../game/config/Economy';
 
 interface AtlasPlayer {
+  id: string;
   x: number;
   y: number;
   username: string;
@@ -28,6 +30,8 @@ interface AtlasData {
   sight: number;
   /** The world's coordinate bound: plots span ±worldPlotLimit on both axes. */
   worldPlotLimit: number;
+  /** Server-owned generated-land epoch used to label protected coordinates. */
+  seedVersion: number;
   players: AtlasPlayer[];
   /** Live raids: attacker plot -> victim plot. */
   battles?: Array<{ ax: number; ay: number; vx: number; vy: number }>;
@@ -188,18 +192,48 @@ function currentWeatherLabel(): string {
 
 type HoverInfo =
   | { kind: 'village'; player: AtlasPlayer }
+  | { kind: 'cluster'; players: AtlasPlayer[] }
   | { kind: 'plot'; x: number; y: number; label: string };
 
-export function MapAtlasModal({ onClose }: { onClose: () => void }) {
+type AtlasPlotSelection = {
+  x: number;
+  y: number;
+  label: string;
+  settleable: boolean;
+};
+
+type AtlasPlayerCluster = {
+  cx: number;
+  cy: number;
+  players: AtlasPlayer[];
+};
+
+interface MapAtlasModalProps {
+  onClose: () => void;
+  onViewPlayer: (player: AtlasPlayer, canAttack: boolean) => void;
+  onSettlePlot: (x: number, y: number) => Promise<boolean>;
+}
+
+export function MapAtlasModal({ onClose, onViewPlayer, onSettlePlot }: MapAtlasModalProps) {
   const [atlas, setAtlas] = useState<AtlasData | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const [selectedPlot, setSelectedPlot] = useState<AtlasPlotSelection | null>(null);
+  const [selectedCluster, setSelectedCluster] = useState<AtlasPlayerCluster | null>(null);
+  const [settlingPlot, setSettlingPlot] = useState(false);
+  const [settlementFailed, setSettlementFailed] = useState(false);
+  const [keyboardCell, setKeyboardCell] = useState<{ cx: number; cy: number } | null>(null);
+  const [keyboardFocused, setKeyboardFocused] = useState(false);
+  const [keyboardAnnouncement, setKeyboardAnnouncement] = useState('');
   const [revealDone, setRevealDone] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const chartWrapRef = useRef<HTMLDivElement>(null);
   const revealRef = useRef<HTMLCanvasElement>(null);
+  const settleButtonRef = useRef<HTMLButtonElement>(null);
+  const clusterFirstButtonRef = useRef<HTMLButtonElement>(null);
+  const focusSelectionAfterRender = useRef<'plot' | 'cluster' | null>(null);
   const overlayStart = useRef<{ at: number; from: number } | null>(null);
 
   // The chart is LIVE: re-fetched every few seconds while open, so battles
@@ -259,7 +293,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
       cx: Math.max(1, Math.min(cols - 2, Math.floor((Math.trunc(x) - minX) / bucket) + 1)),
       cy: Math.max(1, Math.min(rows - 2, Math.floor((Math.trunc(y) - minY) / bucket) + 1))
     });
-    return { minX, minY, bucket, cols, rows, w: cols * CELL, h: rows * CELL, project };
+    return { minX, maxX, minY, maxY, bucket, cols, rows, w: cols * CELL, h: rows * CELL, project };
   }, [atlas]);
 
   useEffect(() => {
@@ -312,7 +346,7 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
             minPlotY: qy,
             maxPlotX: Math.min(plotMaxX, qx + CHUNK - 1),
             maxPlotY: Math.min(plotMaxY, qy + CHUNK - 1)
-          })) features.set(feature.id, feature);
+          }, atlas.seedVersion)) features.set(feature.id, feature);
         }
       }
     } catch { /* hostile coordinates: the atlas still charts the villages */ }
@@ -362,10 +396,16 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
       for (let cx = 0; cx < layout.cols; cx++) {
         if (settledCells.has(`${cx},${cy}`)) continue;
         const centerOffset = layout.bucket > 1 ? Math.floor(layout.bucket / 2) : 0;
-        const plotX = layout.minX + (cx - 1) * layout.bucket + centerOffset;
-        const plotY = layout.minY + (cy - 1) * layout.bucket + centerOffset;
+        const plotX = Math.max(layout.minX, Math.min(
+          layout.maxX,
+          layout.minX + (cx - 1) * layout.bucket + centerOffset
+        ));
+        const plotY = Math.max(layout.minY, Math.min(
+          layout.maxY,
+          layout.minY + (cy - 1) * layout.bucket + centerOffset
+        ));
         if (hydrologyPlots.has(`${plotX},${plotY}`)) continue;
-        const nature = WildernessRenderer.natureAt(plotX, plotY);
+        const nature = WildernessRenderer.natureAt(plotX, plotY, atlas.seedVersion);
         const h = ((plotX * 73856093) ^ (plotY * 19349663)) >>> 0;
         drawNatureGlyph(ctx, nature.key, cx * CELL + 3 + (h % 3), cy * CELL + 3 + ((h >> 3) % 3), h);
       }
@@ -534,6 +574,124 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     return () => cancelAnimationFrame(raf);
   }, [atlas, layout, revealDone]);
 
+  const cellIsInsideChart = (cx: number, cy: number) => Boolean(layout)
+    && cx > 0 && cy > 0 && cx < layout!.cols - 1 && cy < layout!.rows - 1;
+
+  const playersAtCell = (cx: number, cy: number): AtlasPlayer[] => {
+    if (!atlas || !layout) return [];
+    return atlas.players
+      .filter(player => {
+        if (!Number.isFinite(player.x) || !Number.isFinite(player.y)) return false;
+        const projected = layout.project(player.x, player.y);
+        return projected.cx === cx && projected.cy === cy;
+      })
+      .sort((left, right) => (
+        left.y - right.y
+        || left.x - right.x
+        || left.username.localeCompare(right.username)
+        || left.id.localeCompare(right.id)
+      ));
+  };
+
+  /** Resolve a bucket to a real coordinate inside its (possibly partial) edge. */
+  const plotAtCell = (cx: number, cy: number): AtlasPlotSelection | null => {
+    if (!atlas || !layout || !cellIsInsideChart(cx, cy)) return null;
+    const bucketMinX = Math.max(layout.minX, layout.minX + (cx - 1) * layout.bucket);
+    const bucketMaxX = Math.min(layout.maxX, bucketMinX + layout.bucket - 1);
+    const bucketMinY = Math.max(layout.minY, layout.minY + (cy - 1) * layout.bucket);
+    const bucketMaxY = Math.min(layout.maxY, bucketMinY + layout.bucket - 1);
+    const x = Math.floor((bucketMinX + bucketMaxX) / 2);
+    const y = Math.floor((bucketMinY + bucketMaxY) / 2);
+    const nature = WildernessRenderer.natureAt(x, y, atlas.seedVersion);
+    return {
+      x,
+      y,
+      label: nature.label,
+      settleable: !isWildernessPreserveAt(x, y, atlas.seedVersion)
+    };
+  };
+
+  const describeCell = (cx: number, cy: number): string => {
+    const players = playersAtCell(cx, cy);
+    if (players.length === 1) {
+      const player = players[0];
+      return `${player.me ? 'Your village' : player.username}, plot ${player.x}, ${player.y}. Press Enter to ${player.me ? 'close the Atlas' : 'view'}.`;
+    }
+    if (players.length > 1) {
+      return `${players.length} villages share this chart square. Press Enter to choose a chief.`;
+    }
+    const plot = plotAtCell(cx, cy);
+    if (!plot) return 'Chart margin.';
+    return `${plot.label}, plot ${plot.x}, ${plot.y}. Press Enter to select this land.`;
+  };
+
+  const viewPlayer = (selected: AtlasPlayer) => {
+    if (!atlas) return;
+    const village = atlas.players.find(player => player.id && player.id === selected.id) ?? selected;
+    setSelectedPlot(null);
+    setSelectedCluster(null);
+    setSettlementFailed(false);
+    if (village.me) {
+      soundSystem.play('uiClose');
+      onClose();
+      return;
+    }
+    if (!village.id) return; // old/server-drift payload: keep the row read-only
+    const withinSight = Math.max(
+      Math.abs(village.x - atlas.me.x),
+      Math.abs(village.y - atlas.me.y)
+    ) <= atlas.sight;
+    soundSystem.play('confirm');
+    onClose();
+    onViewPlayer(village, withinSight && !village.shielded && !village.underAttack);
+  };
+
+  const activateCell = (cx: number, cy: number, source: 'pointer' | 'keyboard') => {
+    if (!atlas || !layout || settlingPlot || !cellIsInsideChart(cx, cy)) {
+      setHover(null);
+      return;
+    }
+    const players = playersAtCell(cx, cy);
+    if (players.length === 1) {
+      viewPlayer(players[0]);
+      return;
+    }
+    if (players.length > 1) {
+      setSelectedPlot(null);
+      setSelectedCluster({ cx, cy, players });
+      setSettlementFailed(false);
+      setKeyboardAnnouncement(`${players.length} villages available. Tab through the chief buttons to choose one.`);
+      if (source === 'keyboard') focusSelectionAfterRender.current = 'cluster';
+      return;
+    }
+    const plot = plotAtCell(cx, cy);
+    if (!plot) return;
+    setSelectedCluster(null);
+    setSelectedPlot(plot);
+    setSettlementFailed(false);
+    setKeyboardAnnouncement(`${plot.label}, plot ${plot.x}, ${plot.y}, selected. ${plot.settleable ? 'The Settle Here button is ready.' : 'This plot is protected.'}`);
+    if (source === 'keyboard') focusSelectionAfterRender.current = 'plot';
+  };
+
+  useEffect(() => {
+    if (!atlas || !layout) return;
+    const me = layout.project(atlas.me.x, atlas.me.y);
+    setKeyboardCell(current => ({
+      cx: Math.max(1, Math.min(layout.cols - 2, current?.cx ?? me.cx)),
+      cy: Math.max(1, Math.min(layout.rows - 2, current?.cy ?? me.cy))
+    }));
+  }, [atlas, layout]);
+
+  useEffect(() => {
+    if (focusSelectionAfterRender.current === 'plot' && selectedPlot) {
+      settleButtonRef.current?.focus();
+      focusSelectionAfterRender.current = null;
+    } else if (focusSelectionAfterRender.current === 'cluster' && selectedCluster) {
+      clusterFirstButtonRef.current?.focus();
+      focusSelectionAfterRender.current = null;
+    }
+  }, [selectedCluster, selectedPlot]);
+
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!atlas || !layout) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -544,44 +702,77 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
     setHoverPos({ x: e.clientX, y: e.clientY });
     // The outer ring is a reserved margin — layout.project never places a
     // village or resolves a plot there.
-    if (cx <= 0 || cy <= 0 || cx >= layout.cols - 1 || cy >= layout.rows - 1) {
+    if (!cellIsInsideChart(cx, cy)) {
       setHover(null);
       return;
     }
-    const player = atlas.players.find(p => {
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
-      const projected = layout.project(p.x, p.y);
-      return projected.cx === cx && projected.cy === cy;
-    });
-    if (player) {
-      setHover({ kind: 'village', player });
+    const players = playersAtCell(cx, cy);
+    if (players.length === 1) {
+      setHover({ kind: 'village', player: players[0] });
+      return;
+    }
+    if (players.length > 1) {
+      setHover({ kind: 'cluster', players });
       return;
     }
     // Hover speaks only for populated villages (owner rule 2026-07-19);
-    // open land identifies its archetype on CLICK via onChartClick.
+    // open land identifies its archetype on CLICK via activateCell.
     if (hover?.kind !== 'plot') setHover(null);
   };
 
   const onChartClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!atlas || !layout) return;
+    if (!atlas || !layout || settlingPlot) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const lx = (e.clientX - rect.left) / (rect.width / layout.w);
     const ly = (e.clientY - rect.top) / (rect.height / layout.h);
     const cx = Math.floor(lx / CELL);
     const cy = Math.floor(ly / CELL);
-    if (cx <= 0 || cy <= 0 || cx >= layout.cols - 1 || cy >= layout.rows - 1) { setHover(null); return; }
-    const village = atlas.players.some(p => {
-      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
-      const projected = layout.project(p.x, p.y);
-      return projected.cx === cx && projected.cy === cy;
-    });
-    if (village) return; // villages already speak on hover
-    const centerOffset = layout.bucket > 1 ? Math.floor(layout.bucket / 2) : 0;
-    const px = layout.minX + (cx - 1) * layout.bucket + centerOffset;
-    const py = layout.minY + (cy - 1) * layout.bucket + centerOffset;
-    const nature = WildernessRenderer.natureAt(px, py);
     setHoverPos({ x: e.clientX, y: e.clientY });
-    setHover({ kind: 'plot', x: px, y: py, label: nature.label });
+    activateCell(cx, cy, 'pointer');
+    const players = playersAtCell(cx, cy);
+    if (players.length > 1) setHover({ kind: 'cluster', players });
+    else if (players.length === 0) {
+      const plot = plotAtCell(cx, cy);
+      if (plot) setHover({ kind: 'plot', x: plot.x, y: plot.y, label: plot.label });
+    }
+  };
+
+  const onChartKeyDown = (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+    if (!atlas || !layout || settlingPlot) return;
+    const me = layout.project(atlas.me.x, atlas.me.y);
+    const current = keyboardCell ?? me;
+    let next = current;
+    if (e.key === 'ArrowLeft') next = { ...current, cx: Math.max(1, current.cx - 1) };
+    else if (e.key === 'ArrowRight') next = { ...current, cx: Math.min(layout.cols - 2, current.cx + 1) };
+    else if (e.key === 'ArrowUp') next = { ...current, cy: Math.max(1, current.cy - 1) };
+    else if (e.key === 'ArrowDown') next = { ...current, cy: Math.min(layout.rows - 2, current.cy + 1) };
+    else if (e.key === 'Home') next = me;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      activateCell(current.cx, current.cy, 'keyboard');
+      return;
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      soundSystem.play('uiClose');
+      onClose();
+      return;
+    } else return;
+    e.preventDefault();
+    setKeyboardCell(next);
+    setKeyboardAnnouncement(describeCell(next.cx, next.cy));
+  };
+
+  const settleSelectedPlot = async () => {
+    if (!selectedPlot?.settleable || settlingPlot) return;
+    setSettlingPlot(true);
+    setSettlementFailed(false);
+    try {
+      const settled = await onSettlePlot(selectedPlot.x, selectedPlot.y);
+      if (settled) onClose();
+      else setSettlementFailed(true);
+    } finally {
+      setSettlingPlot(false);
+    }
   };
 
   // The WHOLE world's plot count: the main server spans ±worldPlotLimit on
@@ -589,11 +780,22 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
   const totalPlots = atlas ? (2 * atlas.worldPlotLimit + 1) ** 2 : 0;
 
   return (
-    <div className="modal-overlay" onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
-      <div className="atlas-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={() => {
+      if (settlingPlot) return;
+      soundSystem.play('uiClose');
+      onClose();
+    }}>
+      <div
+        className="atlas-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="atlas-title-label"
+        aria-busy={settlingPlot}
+        onClick={e => e.stopPropagation()}
+      >
         <div className="atlas-title">
           <span className="sym sym-castle small" />
-          <span>WORLD ATLAS</span>
+          <span id="atlas-title-label">WORLD ATLAS</span>
           <span className="atlas-stats">
             {atlas ? (
               <>
@@ -605,10 +807,20 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
               <span className="atlas-stat">{fetchFailed ? 'chart lost — retrying…' : 'charting…'}</span>
             )}
           </span>
-          <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close">
+          <button
+            type="button"
+            className="pxf-close"
+            disabled={settlingPlot}
+            onClick={() => { soundSystem.play('uiClose'); onClose(); }}
+            aria-label="Close"
+          >
             <span className="sym sym-close small" />
           </button>
         </div>
+        <span id="atlas-keyboard-help" className="atlas-sr-only">
+          Use the arrow keys to move one chart square, Home to return to your village, Enter or Space to choose, and Escape to close.
+        </span>
+        <span className="atlas-sr-only" aria-live="polite" aria-atomic="true">{keyboardAnnouncement}</span>
         <div className="atlas-chart-wrap" ref={chartWrapRef}>
           {!layout && fetchFailed && (
             <div className="theatre-empty">The atlas could not be charted. It will retry shortly.</div>
@@ -619,27 +831,97 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
                 ref={canvasRef}
                 className="atlas-chart"
                 style={{ width: layout.w * SCALE, height: layout.h * SCALE }}
+                tabIndex={0}
+                role="application"
+                aria-label="Interactive world Atlas"
+                aria-describedby="atlas-keyboard-help"
+                aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home Enter Space Escape"
                 onMouseMove={onMove}
                 onClick={onChartClick}
+                onKeyDown={onChartKeyDown}
+                onFocus={() => {
+                  setKeyboardFocused(true);
+                  const cell = keyboardCell ?? layout.project(atlas!.me.x, atlas!.me.y);
+                  setKeyboardCell(cell);
+                  setKeyboardAnnouncement(describeCell(cell.cx, cell.cy));
+                }}
+                onBlur={() => setKeyboardFocused(false)}
                 onMouseLeave={() => { setHover(null); setHoverPos(null); }}
-              />
+              >
+                Interactive world Atlas. Use the keyboard instructions above or click a chart square.
+              </canvas>
               <canvas
                 ref={liveRef}
                 className="atlas-chart atlas-live"
                 style={{ width: layout.w * SCALE, height: layout.h * SCALE }}
+                aria-hidden="true"
               />
               {!revealDone && (
                 <canvas
                   ref={revealRef}
                   className="atlas-chart atlas-reveal"
                   style={{ width: layout.w * SCALE, height: layout.h * SCALE }}
+                  aria-hidden="true"
+                />
+              )}
+              {keyboardFocused && keyboardCell && (
+                <div
+                  className="atlas-keyboard-cursor"
+                  aria-hidden="true"
+                  style={{
+                    left: keyboardCell.cx * CELL * SCALE,
+                    top: keyboardCell.cy * CELL * SCALE,
+                    width: CELL * SCALE,
+                    height: CELL * SCALE
+                  }}
                 />
               )}
             </div>
           )}
         </div>
         <div className="atlas-footer">
-          {(atlas?.battles?.length ?? 0) > 0 ? (
+          {selectedCluster ? (
+            <div
+              className="atlas-cluster-selection"
+              role="group"
+              aria-label={`${selectedCluster.players.length} villages in this chart square`}
+              data-chart-cell={`${selectedCluster.cx},${selectedCluster.cy}`}
+            >
+              <span className="atlas-hover">{selectedCluster.players.length} villages here · choose a chief</span>
+              <div className="atlas-cluster-actions">
+                {selectedCluster.players.map((player, index) => (
+                  <button
+                    key={player.id || `${player.x},${player.y},${player.username}`}
+                    ref={index === 0 ? clusterFirstButtonRef : undefined}
+                    type="button"
+                    className="atlas-cluster-btn"
+                    disabled={!player.id && !player.me}
+                    onClick={() => viewPlayer(player)}
+                    aria-label={`${player.me ? 'Your village' : `View ${player.username}`} at plot ${player.x}, ${player.y}`}
+                  >
+                    {player.me ? 'YOU' : player.username} · {player.x},{player.y}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : selectedPlot ? (
+            <div className="atlas-plot-selection" data-plot-x={selectedPlot.x} data-plot-y={selectedPlot.y}>
+              <span className="atlas-hover">
+                {selectedPlot.label} · plot {selectedPlot.x}, {selectedPlot.y}
+                {settlementFailed ? ' · claim failed—the land may have changed' : ''}
+              </span>
+              <button
+                ref={settleButtonRef}
+                type="button"
+                className="atlas-settle-btn"
+                disabled={!selectedPlot.settleable || settlingPlot}
+                onClick={() => { soundSystem.play('confirm'); void settleSelectedPlot(); }}
+              >
+                <span className="sym sym-home small" />
+                {!selectedPlot.settleable ? 'PROTECTED' : settlingPlot ? 'SETTLING…' : 'SETTLE HERE'}
+              </button>
+            </div>
+          ) : (atlas?.battles?.length ?? 0) > 0 ? (
             <span className="atlas-hover">{atlas!.battles!.length} battle{atlas!.battles!.length === 1 ? '' : 's'} raging right now</span>
           ) : (
             <span className="atlas-legend">
@@ -665,9 +947,12 @@ export function MapAtlasModal({ onClose }: { onClose: () => void }) {
               <span className="sym sym-trophy small" /> {hover.player.trophies}
               {hover.player.shielded ? ' · shielded' : ''}
               {hover.player.underAttack ? ' · UNDER ATTACK' : ''}
+              {!hover.player.me ? ' · click to view' : ''}
             </>
+          ) : hover.kind === 'cluster' ? (
+            <>{hover.players.length} villages · click to choose a chief</>
           ) : (
-            <>{hover.label} · plot {hover.x}, {hover.y}</>
+            <>{hover.label} · plot {hover.x}, {hover.y} · click to settle</>
           )}
         </div>
       )}

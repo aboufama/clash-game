@@ -192,6 +192,7 @@ const FIXED_UPGRADE_DURATION_MS = (() => {
 // by storehouse capacity.
 type ResourceKind = 'gold' | 'ore' | 'food'
 const MAX_REQUEST_KEYS = 400
+const MAX_RELOCATION_RECEIPTS = 64
 const MAX_REPLAY_FRAMES = 900
 const MAX_REPLAY_BYTES = 2 * 1024 * 1024
 const MAX_TOTAL_REPLAY_BYTES = 64 * 1024 * 1024
@@ -267,6 +268,16 @@ const DEPLOYMENT_RECEIPT_ALLOWANCE_MS = 1_000
 const MAX_COMBAT_CREDIT_MS = 75_000
 
 /** Persistent per-player record. Balance is a float internally; clients always see floor(balance). */
+interface RelocationResponse {
+  me: { x: number; y: number; plotVersion: number }
+  serverNow: number
+}
+
+interface RelocationReceipt {
+  response: RelocationResponse
+  recordedAt: number
+}
+
 interface PlayerRecord {
   id: string
   /** Active session tokens (hashed). Guests have exactly one; registered accounts one per device. */
@@ -314,6 +325,8 @@ interface PlayerRecord {
   army: Record<string, number>
   wallLevel: number
   requestKeys: string[]
+  /** Exact committed relocation replies, keyed by a digest of the client request id. */
+  relocationReceipts?: Record<string, RelocationReceipt>
   /** Village inhabitants; grows toward the layout's housing capacity over time. */
   population: { count: number; lastGrowthAt: number; bornAt?: number[] }
   /** Raw ore stock — mine output, spent on upgrades. Integer. */
@@ -1998,7 +2011,10 @@ export class GameService implements AdminApiService {
   }
 
   /** Pack the wagons: free the current plot and settle an unowned one. */
-  relocate(player: PlayerRecord, rawX: unknown, rawY: unknown) {
+  relocate(player: PlayerRecord, rawX: unknown, rawY: unknown, rawRequestId?: unknown): RelocationResponse {
+    const requestKey = this.normalizeKey(rawRequestId)
+    const replay = this.relocationReplay(player, requestKey)
+    if (replay) return replay
     if (this.activeAttackFor(player.id)) throw new ApiError(409, 'Cannot relocate during an active PvP attack')
     if (this.activeBotRaidFor(player.id)) throw new ApiError(409, 'Cannot relocate during an active bot raid')
     this.expireStaleAttacks(player.id)
@@ -2024,11 +2040,7 @@ export class GameService implements AdminApiService {
       }
       const key = plotKey(x, y)
       if (key === oldKey) throw new ApiError(400, 'You already live there')
-      const sight = watchtowerSightOf(player.buildings)
-      if (chebyshevDistance(x, y, player.plotX ?? 0, player.plotY ?? 0) > sight) {
-        throw new ApiError(403, 'That relocation plot is beyond your watchtower sight')
-      }
-      if (this.plotIndex.has(key)) throw new ApiError(409, 'That plot is taken')
+      if (this.plotIndex.has(key)) throw new ApiError(409, 'That plot is taken', 'PLOT_TAKEN')
       // Spiral settlement: an unclaimed bot camp is claimable land — settling
       // there replaces the camp. Only preserves/water refuse a village.
       const eligibility = classifyPlot(
@@ -2053,10 +2065,16 @@ export class GameService implements AdminApiService {
     // raid cooldown for that coordinate is now meaningless. Everyone else's
     // entries are inert (occupancy is checked before any cooldown) and expire.
     if (player.botRaids) delete player.botRaids[plotKey(target.x, target.y)]
+    const now = Date.now()
     player.revision += 1
-    player.lastMutationAt = Date.now()
+    player.lastMutationAt = now
+    const response = {
+      me: { x: target.x, y: target.y, plotVersion: target.plotVersion },
+      serverNow: now
+    }
+    this.recordRelocationReceipt(player, requestKey, response, now)
     this.players.markDirty(player.id)
-    return { me: { x: target.x, y: target.y, plotVersion: target.plotVersion }, serverNow: Date.now() }
+    return response
   }
 
   /**
@@ -2137,6 +2155,7 @@ export class GameService implements AdminApiService {
       army: starter.army,
       wallLevel: starter.wallLevel,
       requestKeys: [],
+      relocationReceipts: {},
       population: { count: STARTING_POPULATION, lastGrowthAt: now },
       ore: starter.resources.ore,
       food: starter.resources.food,
@@ -2571,18 +2590,51 @@ export class GameService implements AdminApiService {
     return { ok: true as const, introBattleRequired: false as const }
   }
 
-  scout(viewer: PlayerRecord, targetId: unknown): PublicWorldSnapshot {
+  scout(_viewer: PlayerRecord, targetId: unknown): PublicWorldSnapshot {
     const target = this.players.get(sanitizeId(targetId))
     if (!target) throw new ApiError(404, 'Player not found')
-    const sight = watchtowerSightOf(viewer.buildings)
-    const distance = chebyshevDistance(viewer.plotX ?? 0, viewer.plotY ?? 0, target.plotX ?? 0, target.plotY ?? 0)
-    if (target.id !== viewer.id && distance > sight) throw new ApiError(403, 'That village is beyond your watchtower sight')
     this.advancePlayer(target)
     return publicWorldOf(target)
   }
 
   private normalizeKey(requestId: unknown): string {
     return typeof requestId === 'string' ? requestId.trim().slice(0, 160) : ''
+  }
+
+  private relocationReceiptKey(requestKey: string): string {
+    return createHash('sha256').update(requestKey).digest('hex')
+  }
+
+  private relocationReplay(player: PlayerRecord, requestKey: string): RelocationResponse | undefined {
+    if (!requestKey) return undefined
+    const receipt = player.relocationReceipts?.[this.relocationReceiptKey(requestKey)]
+    const response = receipt?.response
+    if (!response
+      || !Number.isSafeInteger(response.me?.x)
+      || !Number.isSafeInteger(response.me?.y)
+      || !Number.isSafeInteger(response.me?.plotVersion)
+      || !Number.isFinite(response.serverNow)) return undefined
+    return structuredClone(response)
+  }
+
+  private recordRelocationReceipt(
+    player: PlayerRecord,
+    requestKey: string,
+    response: RelocationResponse,
+    recordedAt: number
+  ): void {
+    if (!requestKey) return
+    const receipts = player.relocationReceipts ?? (player.relocationReceipts = {})
+    receipts[this.relocationReceiptKey(requestKey)] = {
+      response: structuredClone(response),
+      recordedAt
+    }
+    const stale = Object.entries(receipts)
+      .sort(([leftKey, left], [rightKey, right]) => (
+        left.recordedAt - right.recordedAt || leftKey.localeCompare(rightKey)
+      ))
+      .slice(0, Math.max(0, Object.keys(receipts).length - MAX_RELOCATION_RECEIPTS))
+    for (const [key] of stale) delete receipts[key]
   }
 
   private hasRequestKey(player: PlayerRecord, key: string): boolean {
@@ -3534,11 +3586,11 @@ export class GameService implements AdminApiService {
   /**
    * The world atlas: EVERY settled player plot in the world — the map-menu's
    * data. Coarse public facts only (name, plot, trophies, shield, battle),
-   * no layouts; sight gates what you can SEE up close, not who exists.
+   * no layouts; every listed chief can be opened as a public village snapshot.
    * One main server for now: the chart frame is the ±WORLD_PLOT_RADIUS
    * square, grown to include any legacy outlier plot beyond it.
    */
-  atlas(viewer: PlayerRecord): { me: { x: number; y: number }; sight: number; worldPlotLimit: number; players: Array<{ x: number; y: number; username: string; trophies: number; shielded: boolean; underAttack: boolean; me: boolean; online: boolean }>; battles: Array<{ ax: number; ay: number; vx: number; vy: number }>; window: { minX: number; maxX: number; minY: number; maxY: number }; truncated: boolean } {
+  atlas(viewer: PlayerRecord): { me: { x: number; y: number }; sight: number; worldPlotLimit: number; seedVersion: number; players: Array<{ id: string; x: number; y: number; username: string; trophies: number; shielded: boolean; underAttack: boolean; me: boolean; online: boolean }>; battles: Array<{ ax: number; ay: number; vx: number; vy: number }>; window: { minX: number; maxX: number; minY: number; maxY: number }; truncated: boolean } {
     const now = Date.now()
     const meX = viewer.plotX ?? 0
     const meY = viewer.plotY ?? 0
@@ -3561,6 +3613,7 @@ export class GameService implements AdminApiService {
     for (const player of visible) {
       this.expireStaleAttacks(player.id)
       players.push({
+        id: player.id,
         x: player.plotX ?? 0,
         y: player.plotY ?? 0,
         username: player.username,
@@ -3599,6 +3652,7 @@ export class GameService implements AdminApiService {
       me: { x: meX, y: meY },
       sight,
       worldPlotLimit: WORLD_PLOT_RADIUS,
+      seedVersion: this.allocationState.presentationSeedVersion,
       players,
       battles,
       window: { minX, maxX, minY, maxY },
@@ -5383,6 +5437,7 @@ export class GameService implements AdminApiService {
         playerPlotsPreserved += 1
       }
       auxiliaryRecordsPurged += player.requestKeys.length
+      auxiliaryRecordsPurged += Object.keys(player.relocationReceipts ?? {}).length
       for (const markers of [
         player.merchantRedemptions,
         player.botSettlements,
@@ -5438,6 +5493,7 @@ export class GameService implements AdminApiService {
     player.army = starter.army
     player.wallLevel = starter.wallLevel
     player.requestKeys = []
+    player.relocationReceipts = {}
     player.population = {
       count: STARTING_POPULATION,
       lastGrowthAt: journal.startedAt,

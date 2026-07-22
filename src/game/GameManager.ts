@@ -102,6 +102,8 @@ type SceneCommands = {
     summonDragon: () => void;
     /** Toggle between the live village and its rendered world-map neighbourhood. */
     showNeighborhood: () => void;
+    /** Atomically claim a chosen Atlas/world-map coordinate and re-anchor home. */
+    settlePlot: (x: number, y: number) => Promise<boolean>;
     /** Server population changed: births arrive as children at the town hall. */
     syncPopulation: (count: number) => void;
     /** Compact home heartbeat: align the shared clock and shield display. */
@@ -325,6 +327,10 @@ class GameManager {
 
     showNeighborhood() {
         this.sceneCommands.showNeighborhood?.();
+    }
+
+    async settlePlot(x: number, y: number): Promise<boolean> {
+        return await this.sceneCommands.settlePlot?.(x, y) ?? false;
     }
 
     syncPopulation(count: number) {

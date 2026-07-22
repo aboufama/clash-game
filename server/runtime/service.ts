@@ -50,6 +50,7 @@ import {
 } from '../domain/test-mode'
 import {
   CURRENT_WORLD_GENERATION_VERSION,
+  INITIAL_WORLD_PRESENTATION_SEED_VERSION,
   MAX_WORLD_COORDINATE,
   WORLD_PLOT_RADIUS,
   botFrontierRadiusForCursor,
@@ -89,6 +90,7 @@ import {
   AdminBaseResetPreconditionError,
   PersistenceConflictError,
   outboxEvent,
+  postgresErrorCode,
   QUERY_LIMITS
 } from '../persistence'
 import { AuthSessionService, createStarterVillageRecord } from './auth-service'
@@ -234,6 +236,16 @@ function sanitizeId(value: unknown): string {
 
 function requestId(value: unknown): string {
   return typeof value === 'string' ? value.trim().slice(0, 160) : ''
+}
+
+function isWorldPlotCoordinateRace(error: unknown): boolean {
+  if (postgresErrorCode(error) !== '23505' || !error || typeof error !== 'object') return false
+  const constraint = 'constraint' in error && typeof error.constraint === 'string'
+    ? error.constraint
+    : ''
+  const message = error instanceof Error ? error.message : ''
+  return constraint === 'world_plots_pkey'
+    || (!constraint && /world_plots.*(?:world_id|x|y)/i.test(message))
 }
 
 type ArmyBatchOperation = {
@@ -1501,18 +1513,12 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     }
   }
 
-  async scout(principal: RuntimePrincipal, rawTargetId: unknown) {
+  async scout(_principal: RuntimePrincipal, rawTargetId: unknown) {
     const targetId = sanitizeId(rawTargetId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
       await assertGameplayMutationAllowed(tx)
-      const viewer = await this.authority.owned(tx, principal.playerId)
       const target = await this.authority.owned(tx, targetId, true)
-      const sight = watchtowerSightOf(villageBuildings(viewer.village))
-      if (targetId !== principal.playerId
-        && chebyshev(viewer.plot.x, viewer.plot.y, target.plot.x, target.plot.y) > sight) {
-        throw new ApiError(403, 'That village is beyond your watchtower sight')
-      }
       await this.authority.materializeOwned(
         tx,
         target.village,
@@ -1776,7 +1782,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         me: { x: viewer.plot.x, y: viewer.plot.y },
         sight,
         worldPlotLimit: WORLD_PLOT_RADIUS,
+        seedVersion: INITIAL_WORLD_PRESENTATION_SEED_VERSION,
         players: entries.map(entry => ({
+          id: entry.player.playerId,
           x: entry.plot.x,
           y: entry.plot.y,
           username: entry.player.username,
@@ -1816,49 +1824,61 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     })
   }
 
-  async relocate(principal: RuntimePrincipal, rawX: unknown, rawY: unknown) {
+  async relocate(principal: RuntimePrincipal, rawX: unknown, rawY: unknown, rawRequestId?: unknown) {
     const now = this.clock()
-    return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
-      const state = await this.authority.owned(tx, principal.playerId, true)
-      if (await this.authority.hasActiveOutgoing(tx, principal.playerId)) throw new ApiError(409, 'Cannot relocate during an active attack')
-      if (await this.authority.hasActiveIncoming(tx, principal.playerId)) throw new ApiError(409, 'Cannot relocate while your village is under attack')
-      let coordinate: { x: number; y: number } | null = null
-      if (rawX !== undefined || rawY !== undefined) {
-        const x = worldCoordinate(rawX, Number.NaN)
-        const y = worldCoordinate(rawY, Number.NaN)
-        if (!Number.isFinite(x) || !Number.isFinite(y)) throw new ApiError(400, 'Bad plot coordinates')
-        if (Math.abs(x) > HOME_COORD_LIMIT || Math.abs(y) > HOME_COORD_LIMIT) {
-          throw new ApiError(400, 'Village plots must leave room for the full watchtower horizon')
+    const id = requestId(rawRequestId)
+    try {
+      return await this.persistence.transaction(async tx => {
+        await assertGameplayMutationAllowed(tx)
+        const claim = await this.claimRequest(tx, principal, 'world.relocate', id, now)
+        if (claim.replayed) return claim.response
+        const state = await this.authority.owned(tx, principal.playerId, true)
+        if (await this.authority.hasActiveOutgoing(tx, principal.playerId)) throw new ApiError(409, 'Cannot relocate during an active attack')
+        if (await this.authority.hasActiveIncoming(tx, principal.playerId)) throw new ApiError(409, 'Cannot relocate while your village is under attack')
+        let coordinate: { x: number; y: number } | null = null
+        if (rawX !== undefined || rawY !== undefined) {
+          const x = worldCoordinate(rawX, Number.NaN)
+          const y = worldCoordinate(rawY, Number.NaN)
+          if (!Number.isFinite(x) || !Number.isFinite(y)) throw new ApiError(400, 'Bad plot coordinates')
+          if (Math.abs(x) > HOME_COORD_LIMIT || Math.abs(y) > HOME_COORD_LIMIT) {
+            throw new ApiError(400, 'Village plots must leave room for the full watchtower horizon')
+          }
+          if (x === state.plot.x && y === state.plot.y) throw new ApiError(400, 'You already live there')
+          // Spiral settlement: an unclaimed bot camp is claimable land — the
+          // claim replaces the camp. Only preserves/water refuse a village.
+          const eligibility = classifyPlot({ x, y }, CURRENT_WORLD_GENERATION_VERSION)
+          if (eligibility.kind === 'PRESERVE') throw new ApiError(409, 'That wilderness is permanently protected')
+          coordinate = { x, y }
         }
-        if (x === state.plot.x && y === state.plot.y) throw new ApiError(400, 'You already live there')
-        if (chebyshev(x, y, state.plot.x, state.plot.y) > watchtowerSightOf(villageBuildings(state.village))) {
-          throw new ApiError(403, 'That relocation plot is beyond your watchtower sight')
+        const old = state.plot
+        await releasePlayerPlotClaim(tx, old, now)
+        const plot = coordinate
+          ? await claimSpecificPlayerPlot(tx, {
+              playerId: state.account.id,
+              registered: state.account.registered,
+              coordinate,
+              now
+            })
+          : await allocatePlayerPlot(tx, {
+              playerId: state.account.id,
+              registered: state.account.registered,
+              now,
+              exclude: [{ x: old.x, y: old.y }]
+            })
+        await this.authority.touchPresence(tx, state.account, now)
+        const response = {
+          me: { x: plot.x, y: plot.y, plotVersion: plot.plotVersion },
+          serverNow: now.getTime()
         }
-        // Spiral settlement: an unclaimed bot camp is claimable land — the
-        // claim replaces the camp. Only preserves/water refuse a village.
-        const eligibility = classifyPlot({ x, y }, CURRENT_WORLD_GENERATION_VERSION)
-        if (eligibility.kind === 'PRESERVE') throw new ApiError(409, 'That wilderness is permanently protected')
-        coordinate = { x, y }
+        await this.completeRequest(tx, principal, 'world.relocate', id, response)
+        return response
+      })
+    } catch (error) {
+      if (isWorldPlotCoordinateRace(error)) {
+        throw new ApiError(409, 'That plot is taken', 'PLOT_TAKEN')
       }
-      const old = state.plot
-      await releasePlayerPlotClaim(tx, old, now)
-      const plot = coordinate
-        ? await claimSpecificPlayerPlot(tx, {
-            playerId: state.account.id,
-            registered: state.account.registered,
-            coordinate,
-            now
-          })
-        : await allocatePlayerPlot(tx, {
-            playerId: state.account.id,
-            registered: state.account.registered,
-            now,
-            exclude: [{ x: old.x, y: old.y }]
-          })
-      await this.authority.touchPresence(tx, state.account, now)
-      return { me: { x: plot.x, y: plot.y, plotVersion: plot.plotVersion }, serverNow: now.getTime() }
-    })
+      throw error
+    }
   }
 
   async listNotifications(principal: RuntimePrincipal) {

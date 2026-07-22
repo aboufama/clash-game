@@ -817,7 +817,12 @@ function App() {
   // for the duration, so the UI must show that (with an upgrading hint).
   const [troopLevelUpgrading, setTroopLevelUpgrading] = useState(false);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
-  const [scoutTarget, setScoutTarget] = useState<{ userId: string; username: string } | null>(null);
+  const [scoutTarget, setScoutTarget] = useState<{
+    userId: string;
+    username: string;
+    canAttack?: boolean;
+    attackUnavailableReason?: string;
+  } | null>(null);
   const [incomingAttack, setIncomingAttack] = useState<IncomingAttackSession | null>(null);
   const [dismissedIncomingAttackId, setDismissedIncomingAttackId] = useState<string | null>(null);
   const [activeReplay, setActiveReplay] = useState<{ attackId: string; attackerName: string; live: boolean } | null>(null);
@@ -2280,10 +2285,17 @@ function App() {
 
       {view === 'ATTACK' && scoutTarget && (
         <div className="scout-action-panel">
-          <div className="scout-label">SCOUTING {scoutTarget.username.toUpperCase()}</div>
-          <button className="action-btn scout-attack" onClick={handleAttackScouted}>
-            ATTACK
-          </button>
+          <div className="scout-label">
+            VIEWING {scoutTarget.username.toUpperCase()}
+            {scoutTarget.canAttack === false
+              ? ` · ${scoutTarget.attackUnavailableReason ?? 'ATTACK UNAVAILABLE'}`
+              : ''}
+          </div>
+          {scoutTarget.canAttack !== false && (
+            <button className="action-btn scout-attack" onClick={handleAttackScouted}>
+              ATTACK
+            </button>
+          )}
         </div>
       )}
 
@@ -2312,7 +2324,29 @@ function App() {
         </div>
       )}
 
-      {showAtlas && <MapAtlasModal onClose={() => setShowAtlas(false)} />}
+      {showAtlas && (
+        <MapAtlasModal
+          onClose={() => setShowAtlas(false)}
+          onViewPlayer={(player, canAttack) => {
+            setPendingTargetAttack(null);
+            setIsTrainingOpen(false);
+            setScoutTarget({
+              userId: player.id,
+              username: player.username,
+              canAttack,
+              attackUnavailableReason: canAttack
+                ? undefined
+                : player.underAttack
+                  ? 'ALREADY UNDER ATTACK'
+                  : player.shielded
+                    ? 'SHIELDED'
+                    : 'OUTSIDE ATTACK RANGE'
+            });
+            gameManager.startScoutOnUser(player.id, player.username);
+          }}
+          onSettlePlot={(x, y) => gameManager.settlePlot(x, y)}
+        />
+      )}
 
       {/* ONE EVENT, ONE SURFACE; history goes to the bell. This card is THE
           incoming-attack surface: while it shows, nothing else pops — the

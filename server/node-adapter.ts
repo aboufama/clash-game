@@ -152,15 +152,21 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 /** Bind either synchronous compatibility authority or an async database service to node:http. */
 export function createApiMiddleware<Principal>(
   game: ApiService<Principal>,
-  flushDurably: () => Awaitable<boolean> = () => true
+  flushDurably: () => Awaitable<boolean> = () => true,
+  options: { publicScoutLimit?: number } = {}
 ) {
   const handle = createApiHandler(game)
   const durableMutationWindows = new Map<string, { startedAt: number; count: number }>()
   const frameWindows = new Map<string, { startedAt: number; count: number }>()
+  const publicScoutWindows = new Map<string, { startedAt: number; count: number }>()
   const configuredMutationLimit = Number(process.env.CLASH_AUTH_MUTATIONS_PER_10S ?? 40)
   const configuredFrameLimit = Number(process.env.CLASH_AUTH_FRAME_PUSHES_PER_10S ?? 100)
+  const configuredPublicScoutLimit = Number(process.env.CLASH_PUBLIC_SCOUTS_PER_10S ?? 30)
   const mutationLimit = Number.isFinite(configuredMutationLimit) ? Math.max(5, configuredMutationLimit) : 40
   const frameLimit = Number.isFinite(configuredFrameLimit) ? Math.max(20, configuredFrameLimit) : 100
+  const publicScoutLimit = options.publicScoutLimit === undefined
+    ? (Number.isFinite(configuredPublicScoutLimit) ? Math.max(5, Math.min(10_000, configuredPublicScoutLimit)) : 30)
+    : Math.max(1, Math.min(10_000, Math.floor(options.publicScoutLimit)))
   const takeBudget = (windows: Map<string, { startedAt: number; count: number }>, key: string, limit: number) => {
     const now = Date.now()
     let window = windows.get(key)
@@ -193,6 +199,24 @@ export function createApiMiddleware<Principal>(
     const stateChanging = req.method === 'POST' || req.method === 'PUT'
       || req.method === 'PATCH' || req.method === 'DELETE'
     const adminPath = url.pathname.startsWith('/api/admin/')
+    const publicScoutPath = req.method === 'GET' && /^\/api\/players\/[^/]+\/world$/.test(url.pathname)
+    if (publicScoutPath && rawToken) {
+      const tokenKey = createHash('sha256').update(rawToken).digest('hex')
+      const allowed = takeBudget(publicScoutWindows, `token:${tokenKey}`, publicScoutLimit)
+        && takeBudget(publicScoutWindows, `address:${address}`, publicScoutLimit * 4)
+      if (!allowed) {
+        res.statusCode = 429
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store')
+        res.setHeader('Retry-After', '10')
+        setServerTiming()
+        res.end(JSON.stringify({
+          error: 'Too many public village views; retry shortly',
+          code: 'PUBLIC_SCOUT_RATE_LIMITED'
+        }))
+        return true
+      }
+    }
     if (stateChanging && (rawToken || adminPath)) {
       const adminCookie = Array.isArray(req.headers.cookie) ? req.headers.cookie[0] : req.headers.cookie
       const identity = rawToken || (adminCookie ? `admin-cookie:${adminCookie}` : `admin-address:${address}`)
