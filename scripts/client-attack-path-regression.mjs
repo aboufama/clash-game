@@ -3,10 +3,12 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 const battleResultsModalUrl = new URL('../src/components/BattleResultsModal.tsx', import.meta.url)
-const [app, appCss, notifications, backend, gameManager, scene, inputController, worldMap, villageLife, villageBubbles, pixelFx] = await Promise.all([
+const replayTheatreModalUrl = new URL('../src/components/ReplayTheatreModal.tsx', import.meta.url)
+const [app, appCss, notifications, trainingModal, backend, gameManager, scene, inputController, worldMap, villageLife, villageBubbles, pixelFx] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/NotificationsPanel.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/TrainingModal.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/backend/GameBackend.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/GameManager.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/scenes/MainScene.ts', import.meta.url), 'utf8'),
@@ -41,6 +43,33 @@ assert.match(app, /onRevenge=\{handleDirectUserAttack\}/,
   'Revenge must route through the shared direct-user army gate')
 assert.doesNotMatch(notifications, /gameManager\.startAttackOnUser/,
   'Notification UI must not bypass App attack gating')
+assert.equal(existsSync(replayTheatreModalUrl), false,
+  'Replay history must have one reachable surface instead of an orphan theatre component')
+assert.doesNotMatch(app, /ReplayTheatreModal|showTheatre/,
+  'The removed standalone Replay Theatre must not retain an App entry point')
+assert.match(notifications, /NOTIFICATIONS &amp; REPLAYS/,
+  'The bell must identify itself as the unified notification and replay surface')
+assert.match(notifications, /panelRefreshSequence[\s\S]*?sequence !== panelRefreshSequence\.current/,
+  'Overlapping notification refreshes must ignore stale responses')
+assert.match(notifications, /Notifications and replays could not be loaded\.[\s\S]*?RETRY/,
+  'The unified history surface must expose an explicit load-error retry')
+
+const selectedPlotAttackGate = app.slice(
+  app.indexOf('const handlePlotAction ='),
+  app.indexOf('const handleDirectUserAttack =')
+)
+assert.match(selectedPlotAttackGate, /capacity\.current === 0[\s\S]*?setPendingTargetAttack\(\{ launch: action\.run \}\)[\s\S]*?setIsTrainingOpen\(true\)/,
+  'An empty-army plot attack must preserve its exact launch action before opening training')
+const selectedUserAttackGate = app.slice(
+  app.indexOf('const handleDirectUserAttack ='),
+  app.indexOf('const handleAttackScouted =')
+)
+assert.match(selectedUserAttackGate, /capacity\.current === 0[\s\S]*?setPendingTargetAttack\([\s\S]*?gameManager\.startAttackOnUser\(targetUserId, username\)[\s\S]*?setIsTrainingOpen\(true\)/,
+  'An empty-army direct attack or revenge must preserve its selected chief before training')
+assert.match(trainingModal, /onAttackSelectedTarget \?[\s\S]*?<span className="btn-label">ATTACK<\/span>/,
+  'Targeted training must replace generic practice and matchmaking actions with ATTACK')
+assert.match(app, /onAttackSelectedTarget=\{pendingTargetAttack \? handleAttackSelectedTarget : undefined\}/,
+  'App must expose the targeted ATTACK action only while a selected raid is pending')
 
 for (const field of ['x', 'y', 'seed']) {
   assert.match(backend, new RegExp(`Number\\.isInteger\\(result\\.${field}\\)`),

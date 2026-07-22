@@ -3472,6 +3472,18 @@ body.is-touch {
     font-size: 8px;
 }
 
+.notification-load-error {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px;
+    color: #e6b06b;
+    font-size: 8px;
+    line-height: 1.5;
+    text-align: center;
+}
+
 .notifications-backdrop {
     position: fixed;
     top: 0;
@@ -5248,7 +5260,6 @@ body.is-touch {
 .modal-body,
 .account-modal,
 .leaderboard-list,
-.theatre-list,
 .atlas-chart-wrap,
 .bshop-body {
     scrollbar-width: thin;
@@ -5267,7 +5278,6 @@ body {
 .modal-body::-webkit-scrollbar,
 .account-modal::-webkit-scrollbar,
 .leaderboard-list::-webkit-scrollbar,
-.theatre-list::-webkit-scrollbar,
 .atlas-chart-wrap::-webkit-scrollbar,
 .bshop-body::-webkit-scrollbar {
     width: 12px;
@@ -5277,7 +5287,6 @@ body {
 .modal-body::-webkit-scrollbar-track,
 .account-modal::-webkit-scrollbar-track,
 .leaderboard-list::-webkit-scrollbar-track,
-.theatre-list::-webkit-scrollbar-track,
 .atlas-chart-wrap::-webkit-scrollbar-track,
 .bshop-body::-webkit-scrollbar-track {
     background: #14100c;
@@ -5287,7 +5296,6 @@ body {
 .modal-body::-webkit-scrollbar-thumb,
 .account-modal::-webkit-scrollbar-thumb,
 .leaderboard-list::-webkit-scrollbar-thumb,
-.theatre-list::-webkit-scrollbar-thumb,
 .atlas-chart-wrap::-webkit-scrollbar-thumb,
 .bshop-body::-webkit-scrollbar-thumb {
     background: #4a3524;
@@ -5299,7 +5307,6 @@ body {
 .modal-body::-webkit-scrollbar-thumb:hover,
 .account-modal::-webkit-scrollbar-thumb:hover,
 .leaderboard-list::-webkit-scrollbar-thumb:hover,
-.theatre-list::-webkit-scrollbar-thumb:hover,
 .atlas-chart-wrap::-webkit-scrollbar-thumb:hover,
 .bshop-body::-webkit-scrollbar-thumb:hover {
     background: #8b6f47;
@@ -5308,7 +5315,6 @@ body {
 .modal-body::-webkit-scrollbar-corner,
 .account-modal::-webkit-scrollbar-corner,
 .leaderboard-list::-webkit-scrollbar-corner,
-.theatre-list::-webkit-scrollbar-corner,
 .atlas-chart-wrap::-webkit-scrollbar-corner,
 .bshop-body::-webkit-scrollbar-corner {
     background: #14100c;
@@ -6302,56 +6308,6 @@ body {
     color: var(--text-secondary);
     padding: 16px 4px;
     text-align: center;
-}
-
-.theatre-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 9px;
-    border-style: solid;
-    border-width: calc(var(--px) * 4);
-    border-image: var(--pxf-btn) 5 fill / calc(var(--px) * 4) stretch;
-    padding: calc(var(--px) * 2) calc(var(--px) * 3);
-}
-
-.theatre-who {
-    flex: 1 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.theatre-outcome.lost {
-    color: #ff8a7a;
-}
-
-.theatre-outcome.held {
-    color: #9fe3b0;
-}
-
-.theatre-when {
-    color: var(--text-secondary);
-    font-size: 8px;
-}
-
-.theatre-watch {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--ui-font);
-    font-size: 8px;
-    color: var(--ui-gold);
-    background: none;
-    border-style: solid;
-    border-width: calc(var(--px) * 4);
-    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
-    cursor: pointer;
-    padding: calc(var(--px) * 1) calc(var(--px) * 2);
-}
-
-.theatre-watch:hover {
-    filter: brightness(1.15);
 }
 
 .dev-world-tools {

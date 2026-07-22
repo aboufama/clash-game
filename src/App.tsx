@@ -13,7 +13,6 @@ import { AuthGate } from './components/AuthGate';
 import { gameManager, type PlotPanelInfo, type PlotPanelAction } from './game/GameManager';
 import { PlotPanel } from './components/PlotPanel';
 import { MapAtlasModal } from './components/MapAtlasModal';
-import { ReplayTheatreModal } from './components/ReplayTheatreModal';
 import { MobileUtils } from './game/utils/MobileUtils';
 import { CloudOverlay, CLOUD_OPEN_TOTAL_MS } from './components/CloudOverlay';
 import { TrainingModal } from './components/TrainingModal';
@@ -90,6 +89,10 @@ const INFINITE_SPENDABLE_RESOURCES = Object.freeze({
   ore: Number.MAX_SAFE_INTEGER,
   food: Number.MAX_SAFE_INTEGER
 });
+
+type PendingTargetAttack = {
+  launch: () => void;
+};
 
 /** Expand a sparse server army into the one stable player-roster shape React
  * uses. Unknown/generated-only units never leak into the trainable HUD. */
@@ -791,12 +794,12 @@ function App() {
   const [selectedTroopType, setSelectedTroopType] = useState<PlayerTroopType>('warrior');
   const [visibleTroops, setVisibleTroops] = useState<string[]>([]);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
+  const [pendingTargetAttack, setPendingTargetAttack] = useState<PendingTargetAttack | null>(null);
   const [isBuildingOpen, setIsBuildingOpen] = useState(false);
   const [view, setView] = useState<GameMode>('HOME');
   const [selectedInMap, setSelectedInMap] = useState<string | null>(null);
   const [selectedBuildingInfo, setSelectedBuildingInfo] = useState<{ id: string; type: BuildingType; level: number; gridX?: number; gridY?: number; upgradeEndsAt?: number } | null>(null);
   const [showAtlas, setShowAtlas] = useState(false);
-  const [showTheatre, setShowTheatre] = useState(false);
   const [battleStats, setBattleStats] = useState({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
   const [battleStarted, setBattleStarted] = useState(false); // Track if first troop deployed
   const [isExiting, setIsExiting] = useState(false);
@@ -834,7 +837,6 @@ function App() {
     setIsJukeboxOpen(false);
     setIsBannerPickerOpen(false);
     setShowAtlas(false);
-    setShowTheatre(false);
     setMerchantOffers(null);
     setPlotPanel(null);
     setSelectedInMap(null);
@@ -959,7 +961,6 @@ function App() {
       // EVERY modal closes: an open surface would sit above (or keep polling
       // under) the lockout — the atlas alone re-hits the dead session every 5s.
       setShowAtlas(false);
-      setShowTheatre(false);
       setIsAccountOpen(false);
       setIsJukeboxOpen(false);
       setIsBannerPickerOpen(false);
@@ -1986,8 +1987,18 @@ function App() {
     setIsTrainingOpen(false);
   };
 
+  const handleAttackSelectedTarget = () => {
+    if (capacity.current === 0 || !pendingTargetAttack) return;
+    const { launch } = pendingTargetAttack;
+    setPendingTargetAttack(null);
+    setIsTrainingOpen(false);
+    soundSystem.play('confirm');
+    launch();
+  };
+
   const handleScoutUser = (userId: string, username: string) => {
     // Close any open modals
+    setPendingTargetAttack(null);
     setIsTrainingOpen(false);
     setScoutTarget({ userId, username });
     gameManager.startScoutOnUser(userId, username);
@@ -1998,8 +2009,9 @@ function App() {
   const handlePlotAction = (action: PlotPanelAction) => {
     setPlotPanel(null);
     if (action.kind === 'attack' && capacity.current === 0) {
-      // Refusal path: the toast's notify chime carries the feedback.
+      // Keep the chosen village so training can resume this exact raid.
       showToast('Train some troops first!');
+      setPendingTargetAttack({ launch: action.run });
       setIsTrainingOpen(true);
       return;
     }
@@ -2010,6 +2022,12 @@ function App() {
   const handleDirectUserAttack = (targetUserId: string, username: string) => {
     if (capacity.current === 0) {
       showToast('Train some troops first!');
+      setPendingTargetAttack({
+        launch: () => {
+          setScoutTarget(null);
+          gameManager.startAttackOnUser(targetUserId, username);
+        }
+      });
       setIsTrainingOpen(true);
       return false;
     }
@@ -2028,7 +2046,7 @@ function App() {
 
   const handleWatchLiveAttack = useCallback((attackId: string, attackerName: string) => {
     if (!attackId) return;
-    // One confirm for every React watch entry point (popup, bell, theatre).
+    // One confirm for every React watch entry point (popup and bell).
     soundSystem.play('confirm');
     setDismissedIncomingAttackId(attackId);
     setIncomingAttack(null);
@@ -2239,7 +2257,11 @@ function App() {
           if (watchtowerTutorialActive) setWatchtowerStage('shop');
           setIsBuildingOpen(true);
         }}
-        onOpenTrain={() => { if (!watchtowerTutorialActive) setIsTrainingOpen(true); }}
+        onOpenTrain={() => {
+          if (watchtowerTutorialActive) return;
+          setPendingTargetAttack(null);
+          setIsTrainingOpen(true);
+        }}
         onSelectTroop={(type) => setSelectedTroopType(type as typeof selectedTroopType)}
         onNextMap={handleNextMap}
         onGoHome={handleGoHome}
@@ -2274,9 +2296,6 @@ function App() {
           style={view === 'HOME' && !watchtowerTutorialActive ? undefined : { display: 'none' }}
           aria-hidden={view !== 'HOME' || watchtowerTutorialActive}
         >
-          <button className="atlas-btn" title="Replay theatre" onClick={() => { soundSystem.play('uiOpen'); setShowTheatre(true); }}>
-            <span className="sym sym-watch" />
-          </button>
           <LeaderboardPanel
             currentUserId={user.id}
             isOnline={isOnline}
@@ -2294,13 +2313,6 @@ function App() {
       )}
 
       {showAtlas && <MapAtlasModal onClose={() => setShowAtlas(false)} />}
-      {showTheatre && user && (
-        <ReplayTheatreModal
-          userId={user.id}
-          onWatch={handleWatchReplay}
-          onClose={() => setShowTheatre(false)}
-        />
-      )}
 
       {/* ONE EVENT, ONE SURFACE; history goes to the bell. This card is THE
           incoming-attack surface: while it shows, nothing else pops — the
@@ -2432,9 +2444,13 @@ function App() {
         armyCampUpgrading={armyCampProgress.upgrading}
         armyCampUpgradingToLevel={armyCampProgress.upgradingToLevel}
         testMode={testMode}
-        onClose={() => setIsTrainingOpen(false)}
+        onClose={() => {
+          setPendingTargetAttack(null);
+          setIsTrainingOpen(false);
+        }}
         onStartPractice={handleStartPractice}
         onFindMatch={handleFindMatch}
+        onAttackSelectedTarget={pendingTargetAttack ? handleAttackSelectedTarget : undefined}
         onTrainTroop={handleTrainTroop}
         onUntrainTroop={handleUntrainTroop}
       />

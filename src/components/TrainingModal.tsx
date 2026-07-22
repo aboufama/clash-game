@@ -55,6 +55,8 @@ interface TrainingModalProps {
   onClose: () => void;
   onStartPractice: () => void;
   onFindMatch: () => void;
+  /** Present when training was opened from an already-selected raid target. */
+  onAttackSelectedTarget?: () => void;
   onTrainTroop: (type: string) => void | Promise<void>;
   onUntrainTroop: (type: string) => void | Promise<void>;
 }
@@ -83,6 +85,7 @@ export function TrainingModal({
   onClose,
   onStartPractice,
   onFindMatch,
+  onAttackSelectedTarget,
   onTrainTroop,
   onUntrainTroop
 }: TrainingModalProps) {
@@ -230,22 +233,35 @@ export function TrainingModal({
         <div className="modal-header">
           <h2>Train Army</h2>
           <div className="header-actions">
-            <button
-              className={`header-btn practice ${capacity.current === 0 ? 'disabled' : ''}`}
-              onClick={() => { soundSystem.play('confirm'); onStartPractice(); }}
-              disabled={capacity.current === 0}
-            >
-              <div className="btn-icon icon practice-icon"></div>
-              <span className="btn-label">PRACTICE</span>
-            </button>
-            <button
-              className={`header-btn find-match ${capacity.current === 0 ? 'disabled' : ''}`}
-              onClick={() => { soundSystem.play('confirm'); onFindMatch(); }}
-              disabled={capacity.current === 0}
-            >
-              <div className="btn-icon icon findmatch-icon"></div>
-              <span className="btn-label">FIND MATCH</span>
-            </button>
+            {onAttackSelectedTarget ? (
+              <button
+                className={`header-btn find-match target-attack ${capacity.current === 0 ? 'disabled' : ''}`}
+                onClick={onAttackSelectedTarget}
+                disabled={capacity.current === 0}
+              >
+                <span className="btn-icon sym sym-swords" aria-hidden="true" />
+                <span className="btn-label">ATTACK</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  className={`header-btn practice ${capacity.current === 0 ? 'disabled' : ''}`}
+                  onClick={() => { soundSystem.play('confirm'); onStartPractice(); }}
+                  disabled={capacity.current === 0}
+                >
+                  <div className="btn-icon icon practice-icon"></div>
+                  <span className="btn-label">PRACTICE</span>
+                </button>
+                <button
+                  className={`header-btn find-match ${capacity.current === 0 ? 'disabled' : ''}`}
+                  onClick={() => { soundSystem.play('confirm'); onFindMatch(); }}
+                  disabled={capacity.current === 0}
+                >
+                  <div className="btn-icon icon findmatch-icon"></div>
+                  <span className="btn-label">FIND MATCH</span>
+                </button>
+              </>
+            )}
             <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close"><span className="sym sym-close small" /></button>
           </div>
         </div>

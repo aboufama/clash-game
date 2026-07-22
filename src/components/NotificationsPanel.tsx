@@ -1,25 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Backend } from '../game/backend/GameBackend';
+import { useState, useEffect, useRef } from 'react';
+import { Backend, type AttackNotification } from '../game/backend/GameBackend';
 import { formatGold } from '../game/economy/Currency';
 import { soundSystem } from '../game/systems/SoundSystem';
-
-interface Notification {
-  id: string;
-  kind?: 'attack' | 'admin_notice';
-  attackId?: string;
-  attackerId?: string;
-  attackerName: string;
-  title?: string;
-  message?: string;
-  severity?: 'info' | 'warning' | 'critical';
-  goldLost?: number;
-  oreLost?: number;
-  foodLost?: number;
-  destruction: number;
-  timestamp: number;
-  read: boolean;
-  replayAvailable?: boolean;
-}
 
 interface NotificationsPanelProps {
   userId: string;
@@ -31,19 +13,22 @@ interface NotificationsPanelProps {
 }
 
 export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLive, onWatchReplay, onRevenge }: NotificationsPanelProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<AttackNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const panelRefreshSequence = useRef(0);
 
   useEffect(() => {
-    if (!isOnline) return;
+    if (!isOnline || isOpen) return;
+    let cancelled = false;
 
     const loadNotifications = async () => {
       if (document.hidden) return;
       try {
         const count = await Backend.getUnreadNotificationCount(userId);
-        setUnreadCount(count);
+        if (!cancelled) setUnreadCount(count);
       } catch {
         // Keep the last good badge through an outage.
       }
@@ -52,33 +37,44 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
     loadNotifications();
     // Poll for new notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [userId, isOnline, isOpen]);
+
+  useEffect(() => () => {
+    panelRefreshSequence.current += 1;
   }, [userId, isOnline]);
 
   // Open FIRST, fetch and mark-read together: waiting on a slow network before
   // showing the dropdown makes the bell feel dead. If the read write fails,
   // the freshly fetched list restores the honest unread badge and keeps the
   // manual retry available.
-  const handleOpen = () => {
-    if (!isOnline) return;
-    soundSystem.play('uiOpen');
-    setIsOpen(true);
+  const refreshPanel = (markRead: boolean) => {
+    const sequence = ++panelRefreshSequence.current;
     setIsLoading(true);
+    setLoadError(false);
     void (async () => {
       const [listResult, readResult] = await Promise.allSettled([
         Backend.getNotifications(userId),
-        Backend.markNotificationsRead(userId),
+        markRead ? Backend.markNotificationsRead(userId) : Promise.resolve(),
       ]);
+      if (sequence !== panelRefreshSequence.current) return;
+      const markedRead = markRead && readResult.status === 'fulfilled';
 
       if (listResult.status === 'fulfilled') {
         const notifs = listResult.value;
-        setNotifications(readResult.status === 'fulfilled'
+        setNotifications(markedRead
           ? notifs.map(n => ({ ...n, read: true }))
           : notifs);
-        setUnreadCount(readResult.status === 'fulfilled'
+        setUnreadCount(markedRead
           ? 0
           : notifs.filter(n => !n.read).length);
-      } else if (readResult.status === 'fulfilled') {
+      } else {
+        setLoadError(true);
+      }
+      if (listResult.status === 'rejected' && markedRead) {
         // The server accepted the read even if the list refresh failed.
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         setUnreadCount(0);
@@ -87,7 +83,16 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
     })();
   };
 
+  const handleOpen = () => {
+    if (!isOnline) return;
+    soundSystem.play('uiOpen');
+    setIsOpen(true);
+    refreshPanel(true);
+  };
+
   const handleClose = () => {
+    panelRefreshSequence.current += 1;
+    setIsLoading(false);
     setIsOpen(false);
   };
 
@@ -113,7 +118,13 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
 
   return (
     <div className="notifications-container">
-      <button className="notifications-btn" onClick={handleOpen}>
+      <button
+        className="notifications-btn"
+        onClick={handleOpen}
+        title="Notifications"
+        aria-label="Notifications"
+        aria-expanded={isOpen}
+      >
         <div className="btn-icon icon bell-icon"></div>
         {unreadCount > 0 && (
           <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
@@ -125,7 +136,7 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
           <div className="notifications-backdrop" onClick={() => { soundSystem.play('uiClose'); handleClose(); }}></div>
           <div className="notifications-dropdown">
             <div className="notifications-header">
-              <h3>MESSAGES &amp; DEFENSE</h3>
+              <h3>NOTIFICATIONS &amp; REPLAYS</h3>
               {notifications.some(n => !n.read) && (
                 <button className="mark-read-btn" onClick={() => { soundSystem.play('uiTap'); void handleMarkAllRead(); }}>
                   Mark all read
@@ -153,7 +164,21 @@ export function NotificationsPanel({ userId, isOnline, incomingAttack, onWatchLi
               </div>
             )}
 
-            {notifications.length === 0 && !incomingAttack ? (
+            {loadError && (
+              <div className="notification-load-error" role="alert">
+                <span>Notifications and replays could not be loaded.</span>
+                <button
+                  type="button"
+                  className="watch-live-btn"
+                  disabled={isLoading}
+                  onClick={() => { soundSystem.play('uiTap'); refreshPanel(false); }}
+                >
+                  {isLoading ? 'RETRYING…' : 'RETRY'}
+                </button>
+              </div>
+            )}
+
+            {notifications.length === 0 && !incomingAttack && !loadError ? (
               <div className="no-notifications">
                 {isLoading ? 'Consulting the watch…' : 'No attacks yet. Your base is safe!'}
               </div>
