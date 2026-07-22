@@ -83,8 +83,22 @@ assert.match(appSource, /gameManager\.setWatchtowerPlacementTutorial\(watchtower
   'React must still arm the Watchtower placement lock after intro completion returns HOME');
 assert.doesNotMatch(scrollSource, /\bsym\b|<svg|<img|<i\b|◆/,
   'the summons scroll must remain a text-only letter with no logos or icons');
+assert.doesNotMatch(scrollSource, /Royal Summons|intro-scroll-kicker/,
+  'the letter must not restore the Royal Summons kicker above its title');
 assert.match(scrollSource, /Sign here to answer the call[\s\S]*?<strong>ATTACK<\/strong>/,
   'the letter must end with an explicit signature-style attack action');
+assert.match(scrollSource, /intro-scroll-paper-clip[\s\S]*?intro-scroll-paper[\s\S]*?intro-scroll-ink/,
+  'the unfurl must reveal a full-size ink layer through a dedicated paper aperture');
+assert.match(scrollSource, /intro-scroll-roll-top[\s\S]*?intro-scroll-roll-bottom/,
+  'the unfurl needs independently animated top and bottom rollers');
+assert.match(appStyles, /@keyframes intro-paper-reveal[\s\S]*?76%, 100% \{ clip-path:\s*inset\(0\); \}/,
+  'the paper aperture must open from its closed state to the full letter');
+assert.match(appStyles, /@keyframes intro-roll-bottom[\s\S]*?100% \{[\s\S]*?top:\s*calc\(100% - 18px\)/,
+  'the lower roller must physically travel down the unrolling parchment');
+assert.doesNotMatch(appStyles, /@keyframes intro-scroll-unfurl/,
+  'the old scale-up reveal must not return');
+assert.doesNotMatch(appStyles, /#75451f 0 8px/,
+  'the dotted rules above and below the letter copy must stay removed');
 assert.match(appStyles, /--title-font:\s*'Jacquard 24'/,
   'authored title portions must share the Jacquard 24 font token');
 assert.match(appSource, /@fontsource\/jacquard-24\/latin\.css/,
