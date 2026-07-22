@@ -1832,7 +1832,7 @@ function LoginScreen({ onAuthenticated }: { onAuthenticated: (identity: AdminIde
     <Card className="grid w-full max-w-4xl gap-0 overflow-hidden py-0 shadow-xl md:grid-cols-[0.9fr_1.1fr]" aria-labelledby="admin-login-title">
       <div className="relative hidden min-h-[34rem] flex-col justify-between overflow-hidden bg-zinc-950 p-8 text-zinc-50 md:flex">
         <div className="absolute inset-0 opacity-30 admin-dot-grid" aria-hidden="true" />
-        <div className="relative flex items-center gap-3"><div className="flex size-9 items-center justify-center rounded-lg bg-white text-zinc-950"><Command className="size-4" /></div><div><strong className="block text-sm">Realm Operations</strong><span className="text-xs text-zinc-400">Clash control plane</span></div></div>
+        <div className="relative flex items-center gap-3"><div className="flex size-9 items-center justify-center rounded-lg bg-white text-zinc-950"><Command className="size-4" /></div><div><strong className="block text-sm">Realm Operations</strong><span className="text-xs text-zinc-400">Serfs control plane</span></div></div>
         <div className="relative space-y-5">
           <Badge className="border-white/15 bg-white/10 text-zinc-100" variant="outline">Restricted access</Badge>
           <div><h2 className="text-3xl font-semibold tracking-tight">Operate the realm with confidence.</h2><p className="mt-3 max-w-sm text-sm leading-6 text-zinc-400">One secure surface for player support, economy health, combat authority, persistent villages, and live operations.</p></div>
@@ -1869,7 +1869,7 @@ function PortalNavigation({ identity, view, loggingOut, onNavigate, onLogout }: 
     <div className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-14 items-center gap-3 border-b border-sidebar-border px-4 pr-12">
         <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"><Command className="size-4" /></div>
-        <div><strong className="block text-sm font-semibold">Realm Ops</strong><span className="block text-[0.6875rem] text-muted-foreground">Clash control plane</span></div>
+        <div><strong className="block text-sm font-semibold">Realm Ops</strong><span className="block text-[0.6875rem] text-muted-foreground">Serfs control plane</span></div>
       </div>
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2" aria-label="Admin sections">
         {NAV_ITEMS.map(item => {
@@ -1968,7 +1968,7 @@ export function AdminPortal() {
 
   useEffect(() => {
     const previousTitle = document.title
-    document.title = 'Realm Operations · Clash'
+    document.title = 'Realm Operations · Serfs'
     document.documentElement.classList.add('admin-surface')
     document.body.classList.add('admin-surface')
     return () => {
