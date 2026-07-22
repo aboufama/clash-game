@@ -48,6 +48,37 @@ export interface PostcardResidencyDecision {
     evict: boolean;
 }
 
+/** Minimal render state required before a fog reveal may uncover a plot. */
+export interface RevealPostcardState {
+    kind: 'player' | 'bot' | 'empty';
+    hasTexture: boolean;
+    contentKind: 'nature' | 'village' | null;
+    renderedRevision: number | string | null;
+    sourceRevision: number | string | null;
+    hasSourceWorld: boolean;
+    expectedNatureRevision?: number | string | null;
+}
+
+/**
+ * Metadata is not presentation readiness. A village whose authoritative
+ * source is cached but whose GPU texture is deferred would expose the flat
+ * meadow beneath it; stale/fallback art is equally unsafe. Fog may move only
+ * when the postcard currently displays the exact kind and revision expected.
+ */
+export function isRevealPostcardReady(state: RevealPostcardState): boolean {
+    if (!state.hasTexture) return false;
+    if (state.kind === 'empty') {
+        return state.contentKind === 'nature'
+            && state.expectedNatureRevision !== undefined
+            && state.expectedNatureRevision !== null
+            && state.renderedRevision === state.expectedNatureRevision;
+    }
+    return state.hasSourceWorld
+        && state.sourceRevision !== null
+        && state.contentKind === 'village'
+        && state.renderedRevision === state.sourceRevision;
+}
+
 /** Exact full-resolution capture rectangle used by WorldMapSystem. */
 export function playerPostcardBounds(dx: number, dy: number): ScreenRect {
     const plotOffsetX = dx * 27;

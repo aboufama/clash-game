@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     ALWAYS_RESIDENT_RING,
     PLAYER_POSTCARD_RGBA_BYTES,
@@ -6,6 +7,7 @@ import {
     POSTCARD_EVICTION_GRACE_MS,
     decidePostcardResidency,
     estimateVillageTextureBytes,
+    isRevealPostcardReady,
     playerPostcardBounds
 } from '../src/game/systems/WorldPostcardResidency';
 
@@ -75,5 +77,83 @@ const expired = decidePostcardResidency({
     resident: true
 });
 assert.equal(expired.evict, true);
+
+const currentVillage = {
+    kind: 'bot' as const,
+    hasTexture: true,
+    contentKind: 'village' as const,
+    renderedRevision: 'bot_owner_7',
+    sourceRevision: 'bot_owner_7',
+    hasSourceWorld: true
+};
+assert.equal(isRevealPostcardReady(currentVillage), true,
+    'a current rendered village may be uncovered');
+assert.equal(isRevealPostcardReady({ ...currentVillage, hasTexture: false }), false,
+    'source-only ring-two villages must stay behind fog');
+assert.equal(isRevealPostcardReady({ ...currentVillage, contentKind: 'nature' }), false,
+    'fallback nature must not stand in for a known village during reveal');
+assert.equal(isRevealPostcardReady({ ...currentVillage, renderedRevision: 'bot_owner_6' }), false,
+    'a stale village revision must stay behind fog');
+assert.equal(isRevealPostcardReady({ ...currentVillage, hasSourceWorld: false }), false,
+    'village metadata without its authoritative snapshot is not ready');
+
+const currentNature = {
+    kind: 'empty' as const,
+    hasTexture: true,
+    contentKind: 'nature' as const,
+    renderedRevision: 'wild_9',
+    sourceRevision: null,
+    hasSourceWorld: false,
+    expectedNatureRevision: 'wild_9'
+};
+assert.equal(isRevealPostcardReady(currentNature), true,
+    'current deterministic wilderness may be uncovered');
+assert.equal(isRevealPostcardReady({ ...currentNature, hasTexture: false }), false,
+    'unmaterialized wilderness must stay behind fog');
+assert.equal(isRevealPostcardReady({ ...currentNature, contentKind: 'village' }), false,
+    'the wrong postcard kind must stay behind fog');
+assert.equal(isRevealPostcardReady({ ...currentNature, renderedRevision: 'wild_8' }), false,
+    'stale wilderness must stay behind fog');
+
+// This source-level contract complements the pure readiness matrix above: the
+// predicate is only useful if every reveal path actually waits on it.
+const worldMapSource = readFileSync('src/game/systems/WorldMapSystem.ts', 'utf8');
+const sightDiff = worldMapSource.slice(
+    worldMapSource.indexOf('private computeViewRadius('),
+    worldMapSource.indexOf('/** Re-anchor all plot-relative state', worldMapSource.indexOf('private computeViewRadius(')));
+assert.match(sightDiff, /next > prev && this\.sightHydrated\) this\.queueFogReveal\(prev, next\)/,
+    'a trusted Watchtower gain must queue preparation instead of opening clouds immediately');
+assert.doesNotMatch(sightDiff, /next > prev[\s\S]*?beginFogReveal\(prev, next\)/,
+    'the sight-diff path must not begin an unprepared reveal');
+
+const updateSource = worldMapSource.slice(
+    worldMapSource.indexOf('update(time: number)'),
+    worldMapSource.indexOf('private lastDesignFingerprint'));
+assert.match(updateSource, /this\.startPreparedFogReveal\(\);[\s\S]*?this\.ensureFog\(this\.pendingFogReveal\?\.fromRadius \?\? radius\)/,
+    'steady updates must hold the old cloud boundary until preparation is ready');
+assert.ok((updateSource.match(/this\.pendingFogReveal\?\.fromRadius/g) ?? []).length >= 2,
+    'camera-cover repaints must also retain the old cloud boundary');
+
+const refreshSource = worldMapSource.slice(
+    worldMapSource.indexOf('private refresh(options:'),
+    worldMapSource.indexOf('private cameraWorldRect'));
+assert.match(refreshSource, /coversRadius[\s\S]*?coversTextures[\s\S]*?this\.refreshInFlight\.then\(\(\) => this\.refresh\(options\)\)/,
+    'an older or non-forced in-flight poll must not satisfy a larger reveal preload');
+assert.match(refreshSource, /revealCriticalOnly = !forceVillageTextures[\s\S]*?forceVillageTexture: forceVillageTextures/,
+    'reveal preparation must disable deferred far painting and force village textures resident');
+
+const preparationSource = worldMapSource.slice(
+    worldMapSource.indexOf('private async preparePendingFogReveal('),
+    worldMapSource.indexOf('private cancelPendingFogReveal'));
+assert.match(preparationSource, /requiredRadius: pending\.toRadius,[\s\S]*?forceVillageTextures: true/,
+    'reveal preparation must fetch the exact expanded radius with forced textures');
+assert.match(preparationSource, /if \(!pending\?\.ready\) return;[\s\S]*?this\.beginFogReveal\(pending\.fromRadius, pending\.toRadius\)/,
+    'only a fully prepared pending reveal may begin');
+
+const fallbackSource = worldMapSource.slice(
+    worldMapSource.indexOf('private ensureInitialWildernessFallback('),
+    worldMapSource.indexOf('/** Load + render the whole neighbourhood'));
+assert.match(fallbackSource, /ensureInitialWildernessFallback\(visibleFogRadius[\s\S]*?this\.ensureFog\(visibleFogRadius\)/,
+    'network fallback art must remain beneath the held cloud boundary');
 
 console.log('world postcard regression passed: authoritative-snapshot residency');

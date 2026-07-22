@@ -62,6 +62,7 @@ import {
     PLAYER_POSTCARD_SCALE,
     decidePostcardResidency,
     estimateVillageTextureBytes,
+    isRevealPostcardReady,
     type ScreenRect
 } from './WorldPostcardResidency';
 
@@ -242,6 +243,18 @@ interface MapRequestTicket {
     authorityEpoch: number;
 }
 
+interface MapRefreshOptions {
+    /** Explicit sight radius this request must cover. */
+    requiredRadius?: number;
+    /** Reveal preparation bypasses normal ring-two texture residency. */
+    forceVillageTextures?: boolean;
+}
+
+interface MapRefreshResult {
+    requestedRadius: number;
+    accepted: boolean;
+}
+
 interface MapHost extends Phaser.Scene {
     mode: string;
     mapSize: number;
@@ -329,6 +342,15 @@ export class WorldMapSystem {
         startTime: number;
         durationMs: number;
     } | null = null;
+    /** A sight gain waits here, at the old cloud boundary, until the expanded
+     *  authoritative window has a current RenderTexture for every plot. */
+    private pendingFogReveal: {
+        fromRadius: number;
+        toRadius: number;
+        epoch: number;
+        ready: boolean;
+    } | null = null;
+    private fogRevealPreparationEpoch = 0;
     /** Animated inner square while a reveal runs; drawFogEdge mirrors it. */
     private fogRevealBoundary: { min: number; max: number } | null = null;
     private nextFogRevealRebuildAt = 0;
@@ -359,7 +381,9 @@ export class WorldMapSystem {
     private serverHomeRosterIds: Set<string> | null = null;
     private nextRefreshAt = 0;
     private refreshing = false;
-    private refreshInFlight: Promise<void> | null = null;
+    private refreshInFlight: Promise<MapRefreshResult> | null = null;
+    private refreshRadiusInFlight = -1;
+    private refreshForcesTexturesInFlight = false;
     /** One relocation at a time: a double click can never issue two claims. */
     private settlementInFlight: Promise<boolean> | null = null;
     private homePlotKnown = false;
@@ -524,11 +548,14 @@ export class WorldMapSystem {
             // instead of the cached path (so ensureFog can never cancel a
             // reveal this same expression just began).
             const radius = this.computeViewRadius(true);
+            this.startPreparedFogReveal();
             if (this.fogReveal) this.updateFogReveal(time);
-            else this.ensureFog(radius);
+            else this.ensureFog(this.pendingFogReveal?.fromRadius ?? radius);
             if (time >= this.nextRefreshAt && !this.refreshing) {
-                this.nextRefreshAt = time + REFRESH_MS;
-                void this.refresh();
+                const pending = this.pendingFogReveal;
+                this.nextRefreshAt = time + (pending ? 750 : REFRESH_MS);
+                if (pending) void this.preparePendingFogReveal(pending.epoch);
+                else void this.refresh();
             }
         }
         this.checkDesignRepaint(time);
@@ -540,7 +567,7 @@ export class WorldMapSystem {
             const c = this.fogStaticCover;
             if (wv.x < c.x || wv.y < c.y || wv.right > c.right || wv.bottom > c.bottom) {
                 this.fogRadius = -1;
-                this.ensureFog(this.computeViewRadius());
+                this.ensureFog(this.pendingFogReveal?.fromRadius ?? this.computeViewRadius());
             }
         }
         this.drawFogEdge(time);
@@ -1742,6 +1769,7 @@ export class WorldMapSystem {
                 if (next !== this.viewRadiusValue) {
                     this.viewRadiusValue = next;
                     this.nextRefreshAt = 0;
+                    this.cancelPendingFogReveal();
                     this.cancelFogReveal();
                 }
             } else {
@@ -1763,8 +1791,11 @@ export class WorldMapSystem {
                     // evaluation saw my hydrated (non-empty) set, though: the
                     // gain that IS boot/load hydration snaps instantly,
                     // however slow the load. Shrinks snap.
-                    if (next > prev && this.sightHydrated) this.beginFogReveal(prev, next);
-                    else this.cancelFogReveal();
+                    if (next > prev && this.sightHydrated) this.queueFogReveal(prev, next);
+                    else {
+                        this.cancelPendingFogReveal();
+                        this.cancelFogReveal();
+                    }
                 } else if (next !== this.viewRadiusValue) {
                     // Foreign frames clobbered the sizing value while the true
                     // sight never changed: restore quietly — no gain, no
@@ -1886,6 +1917,8 @@ export class WorldMapSystem {
         if (Number.isFinite(serverNow)) this.latestHomeServerNow = Math.max(this.latestHomeServerNow, Number(serverNow));
         this.refreshInFlight = null;
         this.refreshing = false;
+        this.refreshRadiusInFlight = -1;
+        this.refreshForcesTexturesInFlight = false;
     }
 
     private clearFallbackViews() {
@@ -1900,11 +1933,13 @@ export class WorldMapSystem {
      * deterministic, non-interactive nature instead of exposing blank roads.
      * A later authoritative response replaces the whole fallback atomically.
      */
-    private ensureInitialWildernessFallback() {
+    private ensureInitialWildernessFallback(visibleFogRadius = this.computeViewRadius()) {
         if (!this.sceneLive() || this.views.size > 0) return;
         const radius = this.computeViewRadius();
         this.ensureWilderness();
-        this.ensureFog(radius);
+        // A failed reveal preload may paint deterministic placeholders beneath
+        // the cloud bank, but it must never open that bank around placeholders.
+        this.ensureFog(visibleFogRadius);
         if (radius <= 0) return;
 
         // Kind hints first, postcards second: the fallback ring is all wilds,
@@ -1962,25 +1997,45 @@ export class WorldMapSystem {
         }
     }
 
-    private refresh(): Promise<void> {
-        if (this.refreshInFlight) return this.refreshInFlight;
-        if (!this.sceneLive()) return Promise.resolve();
+    private refresh(options: MapRefreshOptions = {}): Promise<MapRefreshResult> {
+        const requiredRadius = Math.max(0, Math.floor(
+            options.requiredRadius ?? this.computeViewRadius()));
+        const forceVillageTextures = options.forceVillageTextures === true;
+        if (this.refreshInFlight) {
+            const coversRadius = this.refreshRadiusInFlight >= requiredRadius;
+            const coversTextures = !forceVillageTextures || this.refreshForcesTexturesInFlight;
+            if (coversRadius && coversTextures) return this.refreshInFlight;
+            // A Watchtower can finish while an old-radius poll is on the wire.
+            // Await it, then issue the expanded/forced request; coalescing the
+            // smaller promise must never arm a larger reveal.
+            return this.refreshInFlight.then(() => this.refresh(options));
+        }
+        if (!this.sceneLive()) return Promise.resolve({ requestedRadius: requiredRadius, accepted: false });
         this.refreshing = true;
+        this.refreshRadiusInFlight = requiredRadius;
+        this.refreshForcesTexturesInFlight = forceVillageTextures;
         const ticket = this.beginMapRequest();
-        const run = this.performRefresh(ticket);
+        const run = this.performRefresh(ticket, requiredRadius, forceVillageTextures)
+            .then(accepted => ({ requestedRadius: requiredRadius, accepted }));
         const task = run.finally(() => {
             if (this.refreshInFlight === task) {
                 this.refreshInFlight = null;
                 this.refreshing = false;
+                this.refreshRadiusInFlight = -1;
+                this.refreshForcesTexturesInFlight = false;
             }
         });
         this.refreshInFlight = task;
         return task;
     }
 
-    private async performRefresh(ticket: MapRequestTicket): Promise<void> {
-        const radius = this.computeViewRadius();
-        const revealCriticalOnly = this.views.size === 0 || this.fallbackViewsActive;
+    private async performRefresh(
+        ticket: MapRequestTicket,
+        radius: number,
+        forceVillageTextures: boolean
+    ): Promise<boolean> {
+        const revealCriticalOnly = !forceVillageTextures
+            && (this.views.size === 0 || this.fallbackViewsActive);
         const knownPlots: Record<string, KnownMapPlot> = {};
         for (const view of this.views.values()) {
             if ((view.plot.kind === 'player' || view.plot.kind === 'bot')
@@ -1995,10 +2050,13 @@ export class WorldMapSystem {
         // it client-side painted first-load neighbourhoods at wrong offsets.
         const window = await Backend.fetchMap(null, null, radius, knownPlots);
         if (!window || !this.sceneLive()) {
-            if (!window) this.ensureInitialWildernessFallback();
-            return;
+            if (!window) this.ensureInitialWildernessFallback(
+                forceVillageTextures
+                    ? this.pendingFogReveal?.fromRadius ?? radius
+                    : radius);
+            return false;
         }
-        if (!this.acceptMapHome(window, ticket)) return;
+        if (!this.acceptMapHome(window, ticket)) return false;
         this.adoptServerHomeRoster(window);
         DayNightSystem.serverOffsetMs = window.serverNow - Date.now();
         this.clearFallbackViews();
@@ -2022,7 +2080,7 @@ export class WorldMapSystem {
             const dy = plot.y - this.myPlot.y;
             if (dx === 0 && dy === 0) return; // that's us, live on the local grid
             try {
-                await this.ensureView(`${plot.x},${plot.y}`, plot, dx, dy);
+                await this.ensureView(`${plot.x},${plot.y}`, plot, dx, dy, { forceVillageTexture: forceVillageTextures });
             } catch (error) {
                 // A single corrupt/temporarily unavailable neighbour must
                 // not blank the rest of the ring or reject the poll task.
@@ -2041,7 +2099,7 @@ export class WorldMapSystem {
 
         for (const plot of near) {
             await paintPlot(plot);
-            if (!this.sceneLive()) return;
+            if (!this.sceneLive()) return false;
         }
 
         if (revealCriticalOnly && far.length > 0) {
@@ -2060,13 +2118,14 @@ export class WorldMapSystem {
                 }
                 if (this.sceneLive()) this.rebuildWildernessLinks(this.myPlot);
             })().catch(error => console.warn('Deferred map postcard paint failed:', error));
-            return;
+            return true;
         }
         for (const plot of far) {
             await paintPlot(plot);
-            if (!this.sceneLive()) return;
+            if (!this.sceneLive()) return false;
         }
         this.rebuildWildernessLinks(this.myPlot);
+        return true;
     }
 
     private cameraWorldRect(): ScreenRect {
@@ -2087,7 +2146,13 @@ export class WorldMapSystem {
         return decision.interested;
     }
 
-    private async ensureView(key: string, plot: WorldMapPlot, dx: number, dy: number) {
+    private async ensureView(
+        key: string,
+        plot: WorldMapPlot,
+        dx: number,
+        dy: number,
+        options: { forceVillageTexture?: boolean } = {}
+    ) {
         if (!this.sceneLive()) return;
         let view = this.views.get(key);
         if (!view) {
@@ -2160,7 +2225,9 @@ export class WorldMapSystem {
             view.knownRevision = (plot as MapPlotWithSnapshot).revision ?? world.revision ?? null;
         }
 
-        const interested = this.villageTextureInterested(view, this.scene.time.now);
+        const interested = options.forceVillageTexture === true
+            || this.villageTextureInterested(view, this.scene.time.now);
+        if (options.forceVillageTexture) view.lastTextureInterestAt = this.scene.time.now;
         const staleTexture = view.contentKind === 'village' && view.renderedRevision !== view.sourceRevision;
         if (staleTexture && !interested) this.releaseViewVisuals(view, false);
         if (interested && view.sourceWorld &&
@@ -4005,6 +4072,7 @@ export class WorldMapSystem {
         this.fogRadius = -1;
         // A reveal caught mid-animation dies with the fog it was driving;
         // the next mode-appropriate ensureFog rebuilds the final state.
+        this.cancelPendingFogReveal();
         this.fogReveal = null;
         this.fogRevealBoundary = null;
     }
@@ -4327,6 +4395,94 @@ export class WorldMapSystem {
         paint(back, 0xc0cddb, 0xd8e2ec, 0xe9eff5);
     }
 
+    /** Hold a sight gain at its old boundary while the expanded postcards paint. */
+    private queueFogReveal(fromRadius: number, toRadius: number) {
+        const epoch = ++this.fogRevealPreparationEpoch;
+        this.pendingFogReveal = {
+            // Two rapid gains collapse into one covered preload/reveal. If a
+            // prior target is still preparing, keep its original cloud wall.
+            fromRadius: this.pendingFogReveal?.fromRadius ?? fromRadius,
+            toRadius,
+            epoch,
+            ready: false
+        };
+        this.nextRefreshAt = 0;
+        void this.preparePendingFogReveal(epoch);
+    }
+
+    /** Fetch the exact target window and force every normally-deferred village
+     *  postcard resident. Completion only arms the NEXT update frame. */
+    private async preparePendingFogReveal(epoch: number): Promise<void> {
+        const pending = this.pendingFogReveal;
+        if (!pending || pending.epoch !== epoch || pending.ready) return;
+        try {
+            const result = await this.refresh({
+                requiredRadius: pending.toRadius,
+                forceVillageTextures: true
+            });
+            const current = this.pendingFogReveal;
+            if (!current || current.epoch !== epoch || current.ready) return;
+            if (result.accepted
+                && result.requestedRadius >= current.toRadius
+                && this.revealWindowReady(current.toRadius)) {
+                current.ready = true;
+                this.nextRefreshAt = this.lastUpdateTime + REFRESH_MS;
+                return;
+            }
+        } catch (error) {
+            console.warn('Watchtower reveal preparation failed; keeping clouds closed:', error);
+        }
+        const current = this.pendingFogReveal;
+        if (current?.epoch === epoch) this.nextRefreshAt = this.lastUpdateTime + 750;
+    }
+
+    /** Every coordinate must own its final/current visual, not just metadata. */
+    private revealWindowReady(radius: number): boolean {
+        const now = this.scene.time?.now ?? this.lastUpdateTime;
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const x = this.myPlot.x + dx;
+                const y = this.myPlot.y + dy;
+                if (x < -WORLD_COORD_LIMIT || x > WORLD_COORD_LIMIT
+                    || y < -WORLD_COORD_LIMIT || y > WORLD_COORD_LIMIT) continue;
+                const view = this.views.get(`${x},${y}`);
+                if (!view || view.dx !== dx || view.dy !== dy) return false;
+                const expectedNatureRevision = view.plot.kind === 'empty'
+                    ? this.wildernessRevisionAt(x, y)
+                    : undefined;
+                const ready = isRevealPostcardReady({
+                    kind: view.plot.kind,
+                    hasTexture: Boolean(view.rt?.active),
+                    contentKind: view.contentKind,
+                    renderedRevision: view.renderedRevision,
+                    sourceRevision: view.sourceRevision,
+                    hasSourceWorld: view.sourceWorld !== null,
+                    expectedNatureRevision
+                });
+                if (!ready) return false;
+                // Forced ring-two textures survive the complete 3 s pull-back;
+                // normal camera-driven residency takes over afterward.
+                if (view.plot.kind !== 'empty') view.lastTextureInterestAt = now;
+            }
+        }
+        return true;
+    }
+
+    /** Called only from update(): the prepared textures therefore receive one
+     *  fully covered render frame at t=0 before the boundary can move. */
+    private startPreparedFogReveal() {
+        const pending = this.pendingFogReveal;
+        if (!pending?.ready) return;
+        this.pendingFogReveal = null;
+        this.beginFogReveal(pending.fromRadius, pending.toRadius);
+    }
+
+    private cancelPendingFogReveal() {
+        this.fogRevealPreparationEpoch += 1;
+        this.pendingFogReveal = null;
+    }
+
     /**
      * An in-session watchtower sight gain: instead of swapping the cloud
      * bank in one frame, pull it back over ~3 s with the musical flourish
@@ -4395,7 +4551,7 @@ export class WorldMapSystem {
             // the new radius, fogRadius set, setSightBound final.
             this.fogReveal = null;
             this.fogRevealBoundary = null;
-            this.ensureFog(this.computeViewRadius());
+            this.ensureFog(this.pendingFogReveal?.fromRadius ?? this.computeViewRadius());
             return;
         }
         // The living edge redraws at 15 Hz; the marching bank matches it —
