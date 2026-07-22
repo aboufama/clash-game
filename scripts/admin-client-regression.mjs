@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-const [portal, api] = await Promise.all([
+const [portal, api, app, auth, backend] = await Promise.all([
   readFile(new URL('../src/admin/AdminPortal.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/admin/api.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/backend/Auth.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/backend/GameBackend.ts', import.meta.url), 'utf8'),
 ])
 
 const resourceAction = portal.slice(
@@ -61,4 +64,31 @@ assert.match(portal, /data-testid="global-test-mode-card"/,
 assert.match(portal, /function TestModePill\([\s\S]*?data-test-mode-effective[\s\S]*?data-test-mode-source/,
   'Player surfaces must distinguish effective test mode from its inheritance source')
 
-console.log('admin client regression: resource, refresh, and test-mode wiring checks passed')
+assert.match(auth, /private static adoptSessionFeatures\([\s\S]*?testModeAnnouncementPending:[\s\S]*?features\?\.testModeAnnouncementPending === true/,
+  'Only authenticated session adoption may arm a Test Mode announcement')
+assert.match(auth, /const pendingStillCurrent = Auth\.features\.testModeAnnouncementPending[\s\S]*?normalized\.testModeActivationId === Auth\.features\.testModeActivationId/,
+  'Home-sync feature adoption must never arm a new activation')
+assert.match(auth, /static pendingTestModeAnnouncement\(\): string \| null/,
+  'App must read the session-latched activation through Auth')
+assert.match(backend, /apiPost<TestModeAnnouncementClaimResult>\([\s\S]*?'\/api\/test-mode\/announcement\/claim'[\s\S]*?\{ activationId \}/,
+  'Test Mode UI must use the authenticated atomic claim endpoint')
+assert.match(backend, /apiError\.status === 409 && apiError\.code === 'TEST_MODE_ACTIVATION_STALE'[\s\S]*?show: false/,
+  'A stale activation race must settle as a silent claim loss')
+
+const announcementEffect = app.slice(
+  app.indexOf('const activationId = Auth.pendingTestModeAnnouncement()'),
+  app.indexOf('const [resources, setResources]'),
+)
+assert.match(announcementEffect, /!worldReady[\s\S]*?showCloudOverlay[\s\S]*?isBannerRequired[\s\S]*?isBannerPickerOpen/,
+  'The announcement claim must wait for all existing presentation gates')
+assert.match(announcementEffect, /Backend\.claimTestModeAnnouncement\(activationId\)[\s\S]*?result\.show[\s\S]*?setIsTestModePopupOpen\(true\)/,
+  'The popup must open only after this client atomically wins the claim')
+assert.match(announcementEffect, /Auth\.resolveTestModeAnnouncement\(activationId\)/,
+  'Every terminal claim result must disarm the session latch')
+
+assert.match(auth, /introBattleRequired: features\?\.introBattleRequired === true/,
+  'Auth must expose the server-owned intro battle gate')
+assert.match(backend, /static async completeIntroBattle\(\)[\s\S]*?'\/api\/intro-battle\/complete'[\s\S]*?Auth\.resolveIntroBattle\(\)/,
+  'Intro completion must use the authenticated endpoint and clear the local latch')
+
+console.log('admin client regression: resource, refresh, test-mode claim, and intro wiring checks passed')

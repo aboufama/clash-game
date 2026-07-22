@@ -13,6 +13,12 @@ export interface SessionFeatures {
   infiniteResources: boolean;
   /** Operator-controlled entitlement for instant upgrades and unrestricted troop access. */
   testMode: boolean;
+  /** Stable identity of the currently effective Test Mode enablement. */
+  testModeActivationId: string | null;
+  /** True until one device atomically claims the activation announcement. */
+  testModeAnnouncementPending: boolean;
+  /** Server-owned new-account onboarding gate; presentation is handled elsewhere. */
+  introBattleRequired: boolean;
 }
 
 interface SessionResponse {
@@ -137,7 +143,13 @@ export class Auth {
   private static current: AuthUser | null = null;
   private static online = false;
   private static token: string | null = null;
-  private static features: SessionFeatures = { infiniteResources: false, testMode: false };
+  private static features: SessionFeatures = {
+    infiniteResources: false,
+    testMode: false,
+    testModeActivationId: null,
+    testModeAnnouncementPending: false,
+    introBattleRequired: false
+  };
   private static ensureInFlight: Promise<EnsuredSession> | null = null;
 
   static getCurrentUser() {
@@ -152,19 +164,68 @@ export class Auth {
     return Auth.features;
   }
 
-  /**
-   * Adopt the server's effective entitlements. Home-sync calls use this to
-   * apply live operator changes without minting any authority in the client.
-   */
-  static adoptFeatures(features?: Partial<SessionFeatures> | null): Readonly<SessionFeatures> {
+  private static normalizedFeatures(features?: Partial<SessionFeatures> | null) {
     const testMode = features?.testMode === true;
-    Auth.features = {
+    const activationId = typeof features?.testModeActivationId === 'string'
+      && features.testModeActivationId.length > 0
+      ? features.testModeActivationId
+      : null;
+    return {
       // Test mode always includes the infinite wallet. Keeping the standalone
       // flag also preserves the legacy development-only entitlement.
       infiniteResources: testMode || features?.infiniteResources === true,
-      testMode
+      testMode,
+      testModeActivationId: testMode ? activationId : null,
+      introBattleRequired: features?.introBattleRequired === true
+    };
+  }
+
+  /** A fresh authenticated session is the only response allowed to arm UI. */
+  private static adoptSessionFeatures(features?: Partial<SessionFeatures> | null): Readonly<SessionFeatures> {
+    const normalized = Auth.normalizedFeatures(features);
+    Auth.features = {
+      ...normalized,
+      testModeAnnouncementPending: normalized.testMode
+        && normalized.testModeActivationId !== null
+        && features?.testModeAnnouncementPending === true
     };
     return Auth.features;
+  }
+
+  /**
+   * Adopt live server entitlements without arming announcement UI. Home-sync
+   * may disarm a session-latched claim after another tab wins, but it can
+   * never turn a non-pending client into an announcement contender.
+   */
+  static adoptFeatures(features?: Partial<SessionFeatures> | null): Readonly<SessionFeatures> {
+    const normalized = Auth.normalizedFeatures(features);
+    const pendingStillCurrent = Auth.features.testModeAnnouncementPending
+      && normalized.testMode
+      && normalized.testModeActivationId !== null
+      && normalized.testModeActivationId === Auth.features.testModeActivationId
+      && features?.testModeAnnouncementPending === true;
+    Auth.features = {
+      ...normalized,
+      testModeAnnouncementPending: pendingStillCurrent
+    };
+    return Auth.features;
+  }
+
+  static pendingTestModeAnnouncement(): string | null {
+    return Auth.features.testModeAnnouncementPending
+      ? Auth.features.testModeActivationId
+      : null;
+  }
+
+  /** Settle one terminal claim without disturbing a newer activation. */
+  static resolveTestModeAnnouncement(activationId: string): void {
+    if (Auth.features.testModeActivationId !== activationId) return;
+    Auth.features = { ...Auth.features, testModeAnnouncementPending: false };
+  }
+
+  static resolveIntroBattle(): void {
+    if (!Auth.features.introBattleRequired) return;
+    Auth.features = { ...Auth.features, introBattleRequired: false };
   }
 
   static getToken(): string | null {
@@ -177,7 +238,7 @@ export class Auth {
     Auth.token = session.token;
     Auth.current = session.player;
     Auth.online = true;
-    Auth.adoptFeatures(session.features);
+    Auth.adoptSessionFeatures(session.features);
     writeStorage(TOKEN_KEY, session.token);
     writeStorage(USER_KEY, JSON.stringify(session.player));
   }

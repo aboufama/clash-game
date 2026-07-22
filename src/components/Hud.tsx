@@ -36,6 +36,8 @@ interface HudProps {
   wallUpgradeCostOverride?: number;
   isMobile: boolean;
   isScouting: boolean;
+  /** Tutorial sieges have one authored fortress and cannot cycle targets. */
+  allowNextMap?: boolean;
   pendingLoot: number | null;
   lootAnimating: { amount: number } | null;
   onLootAnimationDone: () => void;
@@ -72,6 +74,7 @@ export function Hud({
   wallUpgradeCostOverride,
   isMobile,
   isScouting,
+  allowNextMap = true,
   pendingLoot,
   lootAnimating,
   onLootAnimationDone,
@@ -402,7 +405,7 @@ export function Hud({
           >
             <div className="icon home-icon"></div>
           </button>
-          {!battleStarted && (
+          {!battleStarted && allowNextMap && (
             <button className="mobile-action-btn next-btn" onClick={() => { soundSystem.play('uiTap'); onNextMap(); }}>
               <div className="icon findmatch-icon"></div>
             </button>
@@ -411,7 +414,7 @@ export function Hud({
       )}
 
       {/* Desktop scout/home panels */}
-      {view === 'ATTACK' && !battleStarted && !isMobile && (
+      {view === 'ATTACK' && !battleStarted && !isMobile && allowNextMap && (
         <div className="scout-panel">
           <button className="action-btn next-map" onClick={() => { soundSystem.play('uiTap'); onNextMap(); }}>
             <div className="btn-icon icon findmatch-icon"></div>

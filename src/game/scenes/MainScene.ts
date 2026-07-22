@@ -35,6 +35,7 @@ import { windAtScreen } from '../systems/Wind';
 import { WorldMapSystem } from '../systems/WorldMapSystem';
 import { hashString, mulberry32, watchtowerSightOf } from '../config/Economy';
 import { serverUpgradeDurationMs } from '../config/UpgradePolicy';
+import { createSirAndreIntroWorld, INTRO_BATTLE_WORLD_ID } from '../config/IntroBattle';
 import { drawGrassTile, grassPaletteFor, type GrassCornerCut } from '../renderers/GrassRenderer';
 import { PLOT_PITCH } from '../systems/WorldMapSystem';
 import type { BattleOverlayScene } from './BattleOverlayScene';
@@ -87,6 +88,8 @@ interface EnemyWorldMeta {
     botPlot?: { x: number; y: number };
     /** The server already applied raid shares/protection to world.resources. */
     lootPreCapped?: boolean;
+    /** First-session sandbox: never settles loot or consumes the home army. */
+    tutorial?: boolean;
 }
 
 type ReplayWatchMode = 'live' | 'replay';
@@ -487,8 +490,16 @@ export class MainScene extends Phaser.Scene {
     }
 
     /** Shared preamble for every attack-mode transition. */
-    private async beginAttackSession(scouting: boolean, epoch?: number): Promise<boolean> {
-        if (!await this.flushPendingSaveForTransition()) return false;
+    private async beginAttackSession(
+        scouting: boolean,
+        epoch?: number,
+        options: { skipHomeFlush?: boolean } = {}
+    ): Promise<boolean> {
+        // The first-session siege is a local, supplied-army scenario and is
+        // intentionally available BEFORE banner onboarding. A new village's
+        // harmless background layout save is rejected until that banner is
+        // chosen; waiting on it here would deadlock the mandatory tutorial.
+        if (!options.skipHomeFlush && !await this.flushPendingSaveForTransition()) return false;
         if (epoch !== undefined && !this.isTransitionCurrent(epoch)) return false;
         // A scout scene contains only ENEMY buildings. Preserve the home lab
         // snapshot when converting that scout directly into an attack.
@@ -534,6 +545,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     private getTroopLevelForOwner(owner: 'PLAYER' | 'ENEMY'): number {
+        if (owner === 'PLAYER' && this.currentEnemyWorld?.tutorial) return 3;
         const labLevel = this.getLabLevelForOwner(owner);
         return Math.max(1, Math.min(labLevel, 3));
     }
@@ -9215,6 +9227,47 @@ export class MainScene extends Phaser.Scene {
                     }
                 });
             },
+            startIntroBattle: () => {
+                this.showCloudTransition(async epoch => {
+                    if (!await this.beginAttackSession(false, epoch, { skipHomeFlush: true })) {
+                        // App has already pinned the supplied tutorial army.
+                        // Return it to the summons state when a pending home
+                        // save prevents launch instead of leaving onboarding
+                        // latched behind an invisible battle.
+                        gameManager.releaseAttackArmy(INTRO_BATTLE_WORLD_ID);
+                        gameManager.setGameMode('HOME');
+                        return;
+                    }
+                    const tutorialWorld = createSirAndreIntroWorld();
+                    const armyTypes = Object.entries(gameManager.getArmy())
+                        .filter(([, count]) => Number(count) > 0)
+                        .map(([type]) => type);
+                    try {
+                        await SpriteBank.ensureUnits(this, battleSpriteRequirements({
+                            buildingTypes: tutorialWorld.buildings.map(building => building.type),
+                            obstacleTypes: [],
+                            troopTypes: armyTypes
+                        }));
+                    } catch (error) {
+                        console.warn('Sir Andre tutorial assets could not be prepared:', error);
+                    }
+                    if (!this.isTransitionCurrent(epoch)) return;
+                    const summary = this.instantiateEnemyWorld(tutorialWorld, {
+                        id: INTRO_BATTLE_WORLD_ID,
+                        username: tutorialWorld.username || 'Iron Crown Citadel',
+                        isBot: true,
+                        tutorial: true
+                    });
+                    if (summary.playablePlaced === 0) {
+                        gameManager.showToast('The Iron Crown battlefield could not be prepared.');
+                        await this.goHome();
+                        return;
+                    }
+                    this.updateVillageName();
+                    this.centerCamera();
+                    this.resetBattleStats();
+                });
+            },
             startPracticeAttack: () => {
                 this.showCloudTransition(async epoch => {
                     if (!await this.beginAttackSession(false, epoch)) return;
@@ -9376,6 +9429,10 @@ export class MainScene extends Phaser.Scene {
                 });
             },
             findNewMap: () => {
+                // The authored Sir Andre siege has no alternate target. This
+                // defensive gate also protects callers outside React/Hud from
+                // clearing the scenario and leaking its supplied-army pin.
+                if (this.currentEnemyWorld?.tutorial) return;
                 // Only allow before the first deployment. Gate on hasDeployed (not the
                 // live troop count) so a raid whose troops all died can't slip through
                 // and leave its replay capture leaking.
@@ -9531,6 +9588,7 @@ export class MainScene extends Phaser.Scene {
         // silent. Snapshot the report inputs before the flags reset.
         const retreatReport = this.mode === 'ATTACK' && !this.isScouting && this.hasDeployed
             && !this.raidEndScheduled && this.currentEnemyWorld?.id !== 'practice'
+            && !this.currentEnemyWorld?.tutorial
             ? { destruction: this.currentDestructionPct() }
             : null;
         this.hasDeployed = false;

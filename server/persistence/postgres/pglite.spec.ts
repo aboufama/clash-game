@@ -299,7 +299,9 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
       lastSeenAt: NOW,
       revision: 1,
       revengeRights: {},
-      botRaidCooldowns: {}
+      botRaidCooldowns: {},
+      testModeAcknowledgedActivationId: null,
+      introBattleCompleted: false
     }
     const village: VillageRecord = {
       playerId: account.id,
@@ -371,6 +373,16 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
     assert.equal(resourceAdjustment.affected, 3)
     now = new Date(NOW.getTime() + 60_000)
     const principal = { playerId: account.id }
+    assert.equal((await service.homeSync(principal)).features.introBattleRequired, true)
+    assert.deepEqual(await service.completeIntroBattle(principal), {
+      ok: true,
+      introBattleRequired: false
+    })
+    assert.deepEqual(await service.completeIntroBattle(principal), {
+      ok: true,
+      introBattleRequired: false
+    })
+    assert.equal((await service.homeSync(principal)).features.introBattleRequired, false)
     const loaded = await service.getWorld(principal)
     assert.deepEqual(
       { ore: loaded.resources.ore, food: loaded.resources.food },
@@ -396,6 +408,14 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
     await service.adminOperation({
       type: 'set_test_mode', enabled: true, reason: 'PostgreSQL global test mode parity'
     })
+    const activation = (await service.homeSync(principal)).features.testModeActivationId
+    assert.ok(activation)
+    const pgClaims = await Promise.all([
+      service.claimTestModeAnnouncement(principal, { activationId: activation }),
+      service.claimTestModeAnnouncement(principal, { activationId: activation })
+    ])
+    assert.deepEqual(pgClaims.map(claim => claim.show).sort(), [false, true])
+    assert.equal((await service.homeSync(principal)).features.testModeAnnouncementPending, false)
     await service.adminPlayerAction(account.id, {
       type: 'set_test_mode', override: false, reason: 'PostgreSQL test mode override parity'
     })

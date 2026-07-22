@@ -197,7 +197,9 @@ function account(id: string, now: Date): AccountRecord {
     lastSeenAt: now,
     revision: 1,
     revengeRights: {},
-    botRaidCooldowns: {}
+    botRaidCooldowns: {},
+    testModeAcknowledgedActivationId: null,
+    introBattleCompleted: true
   }
 }
 
@@ -299,6 +301,8 @@ test('normalized banner authority rejects incomplete choices and propagates the 
       ))
     }
 
+    await service.completeIntroBattle(principal)
+
     const before = await persistence.transaction(async tx => tx.villages.get(principal.playerId))
     assert(before)
     const banner = { palette: 6, emblem: 3, pattern: 4 }
@@ -399,7 +403,7 @@ test('normalized HTTP authority blocks gameplay mutations until banner onboardin
       assert.equal(readable.status, 200, `${path} stays readable during banner onboarding`)
     }
 
-    for (const [path, body] of [
+    const gatedMutations = [
       ['/world/save', { world: session.world, requestId: 'blocked-save' }],
       ['/resources/apply', { delta: 1, reason: 'debug_grant', requestId: 'blocked-grant' }],
       ['/army/batch', { operations: [{ kind: 'train', type: 'warrior', count: 1 }], requestId: 'blocked-army-batch' }],
@@ -407,13 +411,28 @@ test('normalized HTTP authority blocks gameplay mutations until banner onboardin
       ['/player/rename', { name: 'BlockedChief' }],
       ['/attacks/matchmake', { requestId: 'blocked-match' }],
       ['/map/relocate', { x: 3, y: 3 }]
-    ] as const) {
+    ] as const;
+
+    for (const [path, body] of gatedMutations) {
       const blocked = await call('POST', path, session.token, body)
       assert.equal(blocked.status, 409, `${path} is gated`)
-      assert.equal(record(blocked.body).code, 'BANNER_REQUIRED')
+      assert.equal(record(blocked.body).code, 'INTRO_BATTLE_REQUIRED')
     }
 
     const chosen = { palette: 2, emblem: 1, pattern: 4 }
+    const earlyBanner = await call('POST', '/player/banner', session.token, { banner: chosen })
+    assert.equal(earlyBanner.status, 409)
+    assert.equal(record(earlyBanner.body).code, 'INTRO_BATTLE_REQUIRED')
+
+    const completed = await call('POST', '/intro-battle/complete', session.token)
+    assert.equal(completed.status, 200)
+
+    for (const [path, body] of gatedMutations) {
+      const blocked = await call('POST', path, session.token, body)
+      assert.equal(blocked.status, 409, `${path} stays gated until heraldry is chosen`)
+      assert.equal(record(blocked.body).code, 'BANNER_REQUIRED')
+    }
+
     const banner = await call('POST', '/player/banner', session.token, { banner: chosen })
     assert.equal(banner.status, 200)
     assert.deepEqual(record(banner.body).banner, chosen)
@@ -467,6 +486,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
   assert.equal(session.created, true)
   assert.deepEqual(session.world.resources, { gold: 100_000, ore: 100_000, food: 100_000 })
   assert.deepEqual(starterBuildingPlacements(session.world), EXPECTED_STARTER_BUILDINGS)
+  await service.completeIntroBattle(principal)
   const chosenBanner = { palette: 1, emblem: 4, pattern: 3 }
   assert.equal((await call('POST', '/player/banner', {
     token,

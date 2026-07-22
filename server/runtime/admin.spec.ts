@@ -22,7 +22,9 @@ function account(): AccountRecord {
     lastSeenAt: NOW,
     revision: 1,
     revengeRights: {},
-    botRaidCooldowns: {}
+    botRaidCooldowns: {},
+    testModeAcknowledgedActivationId: null,
+    introBattleCompleted: true
   }
 }
 
@@ -801,6 +803,84 @@ test('normalized admin test mode supports global state and tri-state player over
   await service.close()
 })
 
+test('normalized Test Mode claim is atomic and intro completion is idempotent', async () => {
+  const service = new PersistenceGameService(new MemoryPersistence(), {
+    now: () => new Date(NOW),
+    starterShieldMs: 0
+  })
+  const created = await service.register(
+    null,
+    'ClaimRuntimeChief',
+    'strong-password-runtime',
+    'claim-runtime'
+  )
+  assert.ok('token' in created)
+  if (!('token' in created)) return
+  const principal = { playerId: created.player.id }
+  assert.equal(created.features.introBattleRequired, true)
+  assert.deepEqual(await service.completeIntroBattle(principal), {
+    ok: true,
+    introBattleRequired: false
+  })
+  assert.deepEqual(await service.completeIntroBattle(principal), {
+    ok: true,
+    introBattleRequired: false
+  })
+
+  await service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'First runtime activation' })
+  const first = (await service.homeSync(principal)).features
+  assert.ok(first.testModeActivationId)
+  assert.equal(first.testModeAnnouncementPending, true)
+  const claims = await Promise.all([
+    service.claimTestModeAnnouncement(principal, { activationId: first.testModeActivationId }),
+    service.claimTestModeAnnouncement(principal, { activationId: first.testModeActivationId })
+  ])
+  assert.deepEqual(claims.map(claim => claim.show).sort(), [false, true])
+  assert.equal((await service.homeSync(principal)).features.testModeAnnouncementPending, false)
+
+  await service.adminPlayerAction(principal.playerId, {
+    type: 'set_test_mode', override: true, reason: 'Keep this account continuously enabled'
+  })
+  await service.adminOperation({ type: 'set_test_mode', enabled: false, reason: 'Disable inherited runtime mode' })
+  await service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'Re-enable inherited runtime mode' })
+  const continuous = (await service.homeSync(principal)).features
+  assert.equal(continuous.testModeActivationId, first.testModeActivationId)
+  assert.equal(continuous.testModeAnnouncementPending, false)
+
+  await service.adminPlayerAction(principal.playerId, {
+    type: 'set_test_mode', override: false, reason: 'Turn this runtime account off'
+  })
+  await service.adminPlayerAction(principal.playerId, {
+    type: 'set_test_mode', override: null, reason: 'Activate this runtime account again'
+  })
+  const second = (await service.homeSync(principal)).features
+  assert.ok(second.testModeActivationId)
+  assert.notEqual(second.testModeActivationId, first.testModeActivationId)
+  assert.equal(second.testModeAnnouncementPending, true)
+  await assert.rejects(
+    service.claimTestModeAnnouncement(principal, { activationId: first.testModeActivationId }),
+    (error: unknown) => error instanceof Error && 'code' in error
+      && error.code === 'TEST_MODE_ACTIVATION_STALE'
+  )
+  assert.equal((await service.claimTestModeAnnouncement(principal, {
+    activationId: second.testModeActivationId
+  })).show, true)
+  await service.adminOperation({ type: 'set_test_mode', enabled: false, reason: 'End the second runtime activation' })
+  await service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'Begin the third runtime activation' })
+  const third = (await service.homeSync(principal)).features
+  assert.ok(third.testModeActivationId)
+  assert.notEqual(third.testModeActivationId, second.testModeActivationId)
+  assert.equal(third.testModeAnnouncementPending, true)
+  const resumed = await service.ensureSession(created.token)
+  assert.ok('token' in resumed)
+  if ('token' in resumed) {
+    assert.equal(resumed.features.introBattleRequired, false)
+    assert.equal(resumed.features.testModeActivationId, third.testModeActivationId)
+    assert.equal(resumed.features.testModeAnnouncementPending, true)
+  }
+  await service.close()
+})
+
 test('normalized test mode is authoritative for sessions, spending, upgrades, and troop unlocks', async () => {
   const service = new PersistenceGameService(new MemoryPersistence(), {
     now: () => new Date(NOW),
@@ -826,12 +906,16 @@ test('normalized test mode is authoritative for sessions, spending, upgrades, an
     type: 'set_test_mode', enabled: true, reason: 'Exercise every test-mode entitlement'
   })
   const heartbeat = await service.homeSync(principal)
-  assert.deepEqual(heartbeat.features, { infiniteResources: true, testMode: true })
+  assert.equal(heartbeat.features.infiniteResources, true)
+  assert.equal(heartbeat.features.testMode, true)
+  assert.equal(heartbeat.features.testModeAnnouncementPending, true)
+  assert.ok(heartbeat.features.testModeActivationId)
+  assert.equal(heartbeat.features.introBattleRequired, true)
   assert.deepEqual(heartbeat.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
   const enabled = await service.ensureSession(session.token)
   assert.ok('token' in enabled)
   if (!('token' in enabled)) return
-  assert.deepEqual(enabled.features, { infiniteResources: true, testMode: true })
+  assert.deepEqual(enabled.features, heartbeat.features)
   assert.deepEqual(enabled.world.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
 
   const before = await service.getWorld(principal)
@@ -872,7 +956,13 @@ test('normalized test mode is authoritative for sessions, spending, upgrades, an
   const disabled = await service.ensureSession(session.token)
   assert.ok('token' in disabled)
   if ('token' in disabled) {
-    assert.deepEqual(disabled.features, { infiniteResources: false, testMode: false })
+    assert.deepEqual(disabled.features, {
+      infiniteResources: false,
+      testMode: false,
+      testModeActivationId: null,
+      testModeAnnouncementPending: false,
+      introBattleRequired: true
+    })
   }
   await service.close()
 })

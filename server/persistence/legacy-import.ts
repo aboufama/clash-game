@@ -626,6 +626,7 @@ function playerAccount(record: LegacySourceRecord) {
   const source = record.value
   const usernameKey = string(source.usernameKey).trim() || null
   const passwordHash = string(source.passwordHash) || null
+  const testModeAcknowledgedActivationId = string(source.testModeAcknowledgedActivationId).trim() || null
   return {
     id: string(source.id),
     username: string(source.username),
@@ -638,7 +639,9 @@ function playerAccount(record: LegacySourceRecord) {
     lastSeenAt: millis(source.lastSeen, new Date(0)),
     revision: Math.max(0, integer(source.revision)),
     revengeRights: object(source.revengeRights),
-    botRaidCooldowns: object(source.botRaids)
+    botRaidCooldowns: object(source.botRaids),
+    testModeAcknowledgedActivationId,
+    introBattleCompleted: source.introBattleCompleted !== false
   }
 }
 

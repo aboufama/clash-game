@@ -41,6 +41,8 @@ function account(id: string, patch: Partial<AccountRecord> = {}): AccountRecord 
     revision: 0,
     revengeRights: {},
     botRaidCooldowns: {},
+    testModeAcknowledgedActivationId: null,
+    introBattleCompleted: true,
     ...patch
   }
 }
@@ -355,6 +357,14 @@ test('persistent bot villages are idempotent, bounded, CAS-safe, and survive pla
   const starterMigration = MIGRATIONS.find(item => item.name === 'admin_starter_village')
   assert.equal(starterMigration?.version, 16)
   assert.match(starterMigration?.sql ?? '', /ADD COLUMN starter_village jsonb/)
+  const onboardingMigration = MIGRATIONS.find(
+    item => item.name === 'account_onboarding_and_test_mode_announcements'
+  )
+  assert.equal(onboardingMigration?.version, 18)
+  assert.match(onboardingMigration?.sql ?? '', /test_mode_global_activation_id text/)
+  assert.match(onboardingMigration?.sql ?? '', /test_mode_player_activation_ids jsonb/)
+  assert.match(onboardingMigration?.sql ?? '', /intro_battle_completed boolean NOT NULL DEFAULT true/)
+  assert.match(onboardingMigration?.sql ?? '', /tm\.g\.legacy/)
 
   const persistence = new MemoryPersistence()
   const stored = botVillage()
@@ -644,6 +654,22 @@ test('auxiliary storage has finite notification, idempotency, outbox, and marker
     ), 1)
     assert.equal(await tx.operationMarkers.has('retention-player', 'merchant', 'old'), false)
     assert.equal(await tx.operationMarkers.has('retention-player', 'merchant', 'current'), true)
+  })
+})
+
+test('account Test Mode claims and intro completion are atomic idempotent metadata', async () => {
+  const persistence = new MemoryPersistence()
+  await persistence.transaction(async tx => tx.accounts.insert(account('onboarding', {
+    introBattleCompleted: false
+  })))
+  await persistence.transaction(async tx => {
+    assert.equal(await tx.accounts.claimTestModeAnnouncement('onboarding', 'tm_claim_1'), true)
+    assert.equal(await tx.accounts.claimTestModeAnnouncement('onboarding', 'tm_claim_1'), false)
+    assert.equal(await tx.accounts.completeIntroBattle('onboarding'), true)
+    assert.equal(await tx.accounts.completeIntroBattle('onboarding'), false)
+    const stored = await tx.accounts.getById('onboarding')
+    assert.equal(stored?.testModeAcknowledgedActivationId, 'tm_claim_1')
+    assert.equal(stored?.introBattleCompleted, true)
   })
 })
 

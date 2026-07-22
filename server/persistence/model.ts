@@ -25,6 +25,10 @@ export interface AccountRecord {
   revision: number
   revengeRights: JsonObject
   botRaidCooldowns: JsonObject
+  /** Last Test Mode activation atomically claimed by any session for this account. */
+  testModeAcknowledgedActivationId: string | null
+  /** False only for accounts created after mandatory intro-battle onboarding shipped. */
+  introBattleCompleted: boolean
 }
 
 /** Public account fields used by bounded discovery queries. */
@@ -513,6 +517,10 @@ export interface AdminRuntimeConfigRecord {
   testModeEnabled: boolean
   /** Player id -> explicit enabled/disabled; absence inherits the global flag. */
   testModeOverrides: Record<string, boolean>
+  /** Shared activation for inherited players; null while global mode is off. */
+  testModeGlobalActivationId: string | null
+  /** Sparse continuity/activation ids for player-specific policy transitions. */
+  testModePlayerActivationIds: Record<string, string>
   /** Null means use the shipped STARTER_VILLAGE template. */
   starterVillage: StarterVillageConfig | null
   updatedAt: Date

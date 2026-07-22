@@ -26,6 +26,10 @@ const TROOP_FLAVOR: Record<string, string> = {
     ornithopter: "Da Vinci's flying machine. Soars over walls and bombs defenses.",
 };
 
+/** Troop sheets are useful, but opening one on a drive-by pointer pass makes
+ * the training menu feel noisy. A deliberate hover/focus earns the detail. */
+const TROOP_TOOLTIP_DELAY_MS = 1_500;
+
 interface TrainingModalProps {
   isOpen: boolean;
   showCloudOverlay: boolean;
@@ -83,27 +87,59 @@ export function TrainingModal({
   onUntrainTroop
 }: TrainingModalProps) {
   const [tooltip, setTooltip] = useState<TooltipInfo | null>(null);
+  const [tooltipOpenState, setTooltipOpenState] = useState(isOpen);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipTimer = useRef<number | null>(null);
+  const tooltipCandidate = useRef<string | null>(null);
   const [lockPopup, setLockPopup] = useState<{ key: number; text: string; x: number; y: number } | null>(null);
   const lockPopupTimer = useRef<number | null>(null);
   const lockPopupKey = useRef(0);
 
-  useEffect(() => () => {
-    if (lockPopupTimer.current) window.clearTimeout(lockPopupTimer.current);
-  }, []);
+  // Reset render-owned state as the modal changes sessions. React handles
+  // this guarded update before committing, so a stale sheet cannot flash on
+  // reopen and the effect below can stay focused on external timer cleanup.
+  if (tooltipOpenState !== isOpen) {
+    setTooltipOpenState(isOpen);
+    setTooltip(null);
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      if (tooltipTimer.current) window.clearTimeout(tooltipTimer.current);
+      tooltipTimer.current = null;
+      tooltipCandidate.current = null;
+    }
+    return () => {
+      if (tooltipTimer.current) window.clearTimeout(tooltipTimer.current);
+      if (lockPopupTimer.current) window.clearTimeout(lockPopupTimer.current);
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleMouseEnter = (troopId: string, e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setTooltip({
+  const queueTooltip = (troopId: string, target: HTMLElement) => {
+    if (tooltipTimer.current) window.clearTimeout(tooltipTimer.current);
+    const rect = target.getBoundingClientRect();
+    const pending = {
       id: troopId,
       x: rect.left + rect.width / 2,
       y: rect.top
-    });
+    };
+    tooltipCandidate.current = troopId;
+    setTooltip(null);
+    tooltipTimer.current = window.setTimeout(() => {
+      tooltipTimer.current = null;
+      if (tooltipCandidate.current !== troopId) return;
+      setTooltip(pending);
+    }, TROOP_TOOLTIP_DELAY_MS);
   };
 
-  const handleMouseLeave = () => setTooltip(null);
+  const cancelTooltip = () => {
+    if (tooltipTimer.current) window.clearTimeout(tooltipTimer.current);
+    tooltipTimer.current = null;
+    tooltipCandidate.current = null;
+    setTooltip(null);
+  };
 
   const showLockPopup = (text: string, e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -147,6 +183,7 @@ export function TrainingModal({
         key={troop.id}
         className={`faction-troop-card ${isCore ? 'core-troop-card' : ''} ${isLocked ? 'locked' : ''} ${!isAvailable && !isLocked ? 'disabled' : ''} ${isFlagship ? 'flagship' : ''}`}
         aria-disabled={!isAvailable}
+        aria-describedby={tooltip?.id === troop.id ? 'training-troop-tooltip' : undefined}
         onClick={(event) => {
           if (isAvailable) {
             soundSystem.play('click');
@@ -156,8 +193,10 @@ export function TrainingModal({
             showLockPopup(lockText, event);
           }
         }}
-        onMouseEnter={(event) => !isLocked && handleMouseEnter(troop.id, event)}
-        onMouseLeave={handleMouseLeave}
+        onMouseEnter={(event) => !isLocked && queueTooltip(troop.id, event.currentTarget)}
+        onMouseLeave={cancelTooltip}
+        onFocus={(event) => !isLocked && queueTooltip(troop.id, event.currentTarget)}
+        onBlur={cancelTooltip}
       >
         <TroopIcon type={troop.id} className="faction-troop-icon" />
         <span className="faction-troop-copy">
@@ -175,7 +214,7 @@ export function TrainingModal({
             </span>
             <b
               className="faction-troop-level-badge"
-              title={troopLevelUpgrading ? 'Troops fight at level 1 while the lab is upgrading' : undefined}
+              aria-label={troopLevelUpgrading ? 'Level 1 while the laboratory is upgrading' : undefined}
             >
               LV {troopLevel}{troopLevelUpgrading ? ' · LAB' : ''}
             </b>
@@ -320,11 +359,16 @@ export function TrainingModal({
         // Chrome comes from the ONE shared pxf tooltip class (frame, ink,
         // tail, above-the-anchor offset) — .troop-tooltip adds layout only.
         <div
+          id="training-troop-tooltip"
+          role="tooltip"
           ref={tooltipRef}
           className="pxf-tooltip troop-tooltip"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           <div className="tooltip-flavor">{tooltipFlavor}</div>
+          {troopLevelUpgrading && (
+            <div className="tooltip-lab-note">Troops fight at level 1 while the laboratory is upgrading.</div>
+          )}
           <div className="tooltip-stats">
             {/* Lab-scaled damage is a deliberate float for the sim (14 × 1.3
                 = 18.2) — the sheet shows whole numbers like health does. */}

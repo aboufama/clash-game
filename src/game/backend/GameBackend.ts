@@ -292,6 +292,16 @@ export type HomeSyncResponse = {
   upgradePolicy: ServerUpgradePolicy;
 };
 
+export type TestModeAnnouncementClaimResult = {
+  show: boolean;
+  activationId: string;
+};
+
+export type IntroBattleCompletionResult = {
+  ok: true;
+  introBattleRequired: false;
+};
+
 type RememberedBattle =
   | { kind: 'pvp'; attackId: string }
   | {
@@ -1515,6 +1525,38 @@ export class Backend {
       console.warn('Home sync failed:', error);
       return null;
     }
+  }
+
+  /** Atomically win (or lose) this account's one announcement for an activation. */
+  static async claimTestModeAnnouncement(activationId: string): Promise<TestModeAnnouncementClaimResult> {
+    if (!activationId) return { show: false, activationId };
+    try {
+      const response = await Backend.apiPost<TestModeAnnouncementClaimResult>(
+        '/api/test-mode/announcement/claim',
+        { activationId }
+      );
+      return response.activationId === activationId
+        ? { show: response.show === true, activationId }
+        : { show: false, activationId };
+    } catch (error) {
+      const apiError = error as BackendApiError;
+      if (apiError.status === 409 && apiError.code === 'TEST_MODE_ACTIVATION_STALE') {
+        return { show: false, activationId };
+      }
+      throw error;
+    }
+  }
+
+  static async completeIntroBattle(): Promise<IntroBattleCompletionResult> {
+    const response = await Backend.apiPost<IntroBattleCompletionResult>(
+      '/api/intro-battle/complete',
+      {}
+    );
+    if (response.ok !== true || response.introBattleRequired !== false) {
+      throw new Error('Intro battle completion returned an invalid response');
+    }
+    Auth.resolveIntroBattle();
+    return response;
   }
 
   static async forceLoadFromCloud(userId: string): Promise<SerializedWorld | null> {

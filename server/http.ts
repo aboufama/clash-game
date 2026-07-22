@@ -18,7 +18,8 @@ import type {
   MatchmakeRequest,
   MerchantTradeRequest,
   ResourceMutationRequest,
-  SaveWorldRequest
+  SaveWorldRequest,
+  TestModeAnnouncementClaimRequest
 } from './runtime/contracts'
 
 export interface ApiRequest {
@@ -313,6 +314,19 @@ export function createApiHandler<Principal>(
 
       // Everything below requires a valid device token.
       const player = await game.authenticate(token)
+
+      if (method === 'POST' && path === '/test-mode/announcement/claim') {
+        return {
+          status: 200,
+          body: await game.claimTestModeAnnouncement(
+            player,
+            body as TestModeAnnouncementClaimRequest
+          )
+        }
+      }
+      if (method === 'POST' && path === '/intro-battle/complete') {
+        return { status: 200, body: await game.completeIntroBattle(player) }
+      }
 
       if (method === 'POST' && path === '/player/banner') {
         if (!game.setBanner) {

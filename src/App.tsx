@@ -26,9 +26,12 @@ import { AccountModal } from './components/AccountModal';
 import { JukeboxModal } from './components/JukeboxModal';
 import { BannerPickerModal } from './components/BannerPickerModal';
 import { MerchantModal } from './components/MerchantModal';
+import { IntroBattleScroll } from './components/IntroBattleScroll';
+import { IntroBattleGuide } from './components/IntroBattleGuide';
 import { soundSystem } from './game/systems/SoundSystem';
 import { musicSystem } from './game/systems/MusicSystem';
 import type { MerchantOffer } from './game/systems/VillageLifeSystem';
+import { INTRO_BATTLE_ARMY, INTRO_BATTLE_ARMY_SPACE, INTRO_BATTLE_WORLD_ID } from './game/config/IntroBattle';
 import './App.css';
 
 // Initialize mobile support
@@ -157,12 +160,21 @@ function App() {
   const [infiniteResources, setInfiniteResources] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [isTestModePopupOpen, setIsTestModePopupOpen] = useState(false);
-  const testModeAnnouncementShownRef = useRef(false);
+  const [testModeClaimAttempt, setTestModeClaimAttempt] = useState(0);
+  const testModeClaimInFlightRef = useRef<string | null>(null);
+  const testModeClaimRetryTimerRef = useRef<number | null>(null);
+  const [introBattleRequired, setIntroBattleRequired] = useState(false);
+  const introBattleRequiredRef = useRef(false);
+  const [introBattleActive, setIntroBattleActive] = useState(false);
+  const introBattleActiveRef = useRef(false);
+  const [introBattleLaunching, setIntroBattleLaunching] = useState(false);
+  const [introDeployCount, setIntroDeployCount] = useState(0);
   const [sessionExpired, setSessionExpired] = useState(false);
   // Production registration wall: the server granted no identity, so the
   // account gate (username + password) is all this device may see.
   const [needsAccount, setNeedsAccount] = useState(false);
   const [worldReady, setWorldReady] = useState(false);
+  const [worldLoadFailed, setWorldLoadFailed] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isJukeboxOpen, setIsJukeboxOpen] = useState(false);
   const [isBannerPickerOpen, setIsBannerPickerOpen] = useState(false);
@@ -204,23 +216,81 @@ function App() {
   const cloudHideTimerRef = useRef<number | null>(null);
   useEffect(() => {
     if (!testMode) {
-      // A later false -> true transition is a new enablement and deserves a
-      // fresh announcement. Repeated home heartbeats while true stay silent.
-      testModeAnnouncementShownRef.current = false;
+      if (testModeClaimRetryTimerRef.current !== null) {
+        window.clearTimeout(testModeClaimRetryTimerRef.current);
+        testModeClaimRetryTimerRef.current = null;
+      }
       setIsTestModePopupOpen(false);
       return;
     }
+    const activationId = Auth.pendingTestModeAnnouncement();
     if (
-      testModeAnnouncementShownRef.current
+      !userId
+      || !activationId
+      || testModeClaimInFlightRef.current !== null
       || !worldReady
       || showCloudOverlay
       || isLockedOut
       || isBannerRequired
       || isBannerPickerOpen
+      || introBattleRequired
+      || introBattleActive
     ) return;
-    testModeAnnouncementShownRef.current = true;
-    setIsTestModePopupOpen(true);
-  }, [testMode, worldReady, showCloudOverlay, isLockedOut, isBannerRequired, isBannerPickerOpen]);
+    testModeClaimInFlightRef.current = activationId;
+    void Backend.claimTestModeAnnouncement(activationId)
+      .then(result => {
+        // Account switches reload today, but keep the async boundary safe if
+        // that lifecycle ever becomes in-place.
+        if (Auth.getCurrentUser()?.id !== userId) return;
+        Auth.resolveTestModeAnnouncement(activationId);
+        if (testModeClaimRetryTimerRef.current !== null) {
+          window.clearTimeout(testModeClaimRetryTimerRef.current);
+          testModeClaimRetryTimerRef.current = null;
+        }
+        const current = Auth.getFeatures();
+        if (
+          result.show
+          && result.activationId === activationId
+          && current.testMode
+          && current.testModeActivationId === activationId
+        ) setIsTestModePopupOpen(true);
+      })
+      .catch(error => {
+        // Network failures do not consume the server claim. Retry while this
+        // same session-latched activation remains pending; 409 races are
+        // converted to a silent loser result by GameBackend.
+        if (
+          Auth.getCurrentUser()?.id === userId
+          && Auth.pendingTestModeAnnouncement() === activationId
+          && testModeClaimRetryTimerRef.current === null
+        ) {
+          console.warn('Test Mode announcement claim is still pending:', error);
+          testModeClaimRetryTimerRef.current = window.setTimeout(() => {
+            testModeClaimRetryTimerRef.current = null;
+            setTestModeClaimAttempt(attempt => attempt + 1);
+          }, 2_500);
+        }
+      })
+      .finally(() => {
+        if (testModeClaimInFlightRef.current === activationId) {
+          testModeClaimInFlightRef.current = null;
+        }
+        // If authority moved to a newer session-latched activation while this
+        // request was in flight, promptly evaluate it. Network failures keep
+        // their bounded retry timer instead of spinning here.
+        if (
+          Auth.getCurrentUser()?.id === userId
+          && Auth.pendingTestModeAnnouncement() !== null
+          && testModeClaimRetryTimerRef.current === null
+        ) setTestModeClaimAttempt(attempt => attempt + 1);
+      });
+  }, [testMode, testModeClaimAttempt, userId, worldReady, showCloudOverlay, isLockedOut, isBannerRequired, isBannerPickerOpen, introBattleRequired, introBattleActive]);
+  useEffect(() => () => {
+    if (testModeClaimRetryTimerRef.current !== null) {
+      window.clearTimeout(testModeClaimRetryTimerRef.current);
+      testModeClaimRetryTimerRef.current = null;
+    }
+  }, []);
   const [resources, setResources] = useState({ gold: 0, ore: 0, food: 0 });
   // Server-authoritative village population — a core mechanic later; display-only today.
   const [population, setPopulation] = useState({ count: 0, capacity: 0, workersNeeded: 0, staffing: 1 });
@@ -269,6 +339,8 @@ function App() {
         const features = Auth.getFeatures();
         setInfiniteResources(online && features.infiniteResources);
         setTestMode(online && features.testMode);
+        introBattleRequiredRef.current = online && features.introBattleRequired;
+        setIntroBattleRequired(online && features.introBattleRequired);
         setIsOnline(online);
       })
       .catch(error => {
@@ -278,6 +350,8 @@ function App() {
           setIsOnline(false);
           setInfiniteResources(false);
           setTestMode(false);
+          introBattleRequiredRef.current = false;
+          setIntroBattleRequired(false);
           setNeedsAccount(false);
         }
       })
@@ -535,6 +609,7 @@ function App() {
 
     if (!userId || !isOnline) {
       setWorldReady(false);
+      setWorldLoadFailed(false);
       clearCloudTimers();
       setLoading(false);
       setCloudOverlayLoading(false);
@@ -547,6 +622,7 @@ function App() {
       let loaded = false;
       try {
         setWorldReady(false);
+        setWorldLoadFailed(false);
         setLoading(true);
         beginVillageLoadCloud(8);
 
@@ -636,10 +712,21 @@ function App() {
         setWorldReady(false);
       } finally {
         setLoading(false);
-        if (!loaded) {
+        if (introBattleRequiredRef.current) {
+          // The mandatory summons sits ABOVE a fully closed barrier. Do not
+          // reveal even one frame of the starter plot before Sir Andre's
+          // battle — accepting the scroll begins the normal cloud transition.
+          clearCloudTimers();
+          setCloudOpening(false);
+          setCloudOverlayLoading(false);
           setCloudLoadingProgress(100);
+          setShowCloudOverlay(true);
+          setWorldLoadFailed(!loaded);
+        } else {
+          setWorldLoadFailed(false);
+          if (!loaded) setCloudLoadingProgress(100);
+          revealVillageFromCloud();
         }
-        revealVillageFromCloud();
       }
     };
 
@@ -650,18 +737,20 @@ function App() {
   // heraldry. Missing and legacy partial banners both enter the same blocking
   // picker; complete banners remain editable later from the town hall.
   useEffect(() => {
-    if (!userId || !worldReady) {
+    if (!userId || !worldReady || introBattleRequired || introBattleActive) {
       setIsBannerRequired(false);
+      if (introBattleRequired || introBattleActive) setIsBannerPickerOpen(false);
       return;
     }
     const requiresBanner = !sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner);
     setIsBannerRequired(requiresBanner);
     if (requiresBanner) setIsBannerPickerOpen(true);
-  }, [userId, worldReady]);
+  }, [userId, worldReady, introBattleRequired, introBattleActive]);
 
   // Persist resources & army
   useEffect(() => {
-    if (user && !loading && worldReady) {
+    const bannerReady = Boolean(userId && sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner));
+    if (user && !loading && worldReady && bannerReady && !introBattleRequired && !introBattleActive) {
       try {
         const userId = user.id || 'default_player';
         Backend.updateResources(userId, resources.gold);
@@ -673,7 +762,7 @@ function App() {
         console.error('Error saving game state:', error);
       }
     }
-  }, [resources, army, user, loading, worldReady]);
+  }, [resources, army, user, userId, loading, worldReady, introBattleRequired, introBattleActive]);
 
   const [capacity, setCapacity] = useState({ current: 0, max: 30 });
   const [selectedTroopType, setSelectedTroopType] = useState<PlayerTroopType>('warrior');
@@ -909,6 +998,20 @@ function App() {
         const features = Auth.getFeatures();
         setInfiniteResources(features.infiniteResources);
         setTestMode(features.testMode);
+        const wasIntroBattleRequired = introBattleRequiredRef.current;
+        introBattleRequiredRef.current = features.introBattleRequired;
+        setIntroBattleRequired(features.introBattleRequired);
+        if (
+          wasIntroBattleRequired
+          && !features.introBattleRequired
+          && worldReady
+          && !introBattleActiveRef.current
+        ) {
+          // Another signed-in tab may have completed the summons. This tab
+          // deliberately kept its village behind closed clouds, so release
+          // that barrier as soon as shared authority clears the requirement.
+          revealVillageFromCloud();
+        }
         gameManager.syncHomeStatus(sync.serverNow, sync.shieldUntil);
 
         const latest: IncomingAttackSession | null = sync.incomingAttack
@@ -965,7 +1068,7 @@ function App() {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [userId, isOnline, view, adoptWorld]);
+  }, [userId, isOnline, view, worldReady, adoptWorld, revealVillageFromCloud]);
 
   useEffect(() => {
     selectedInMapRef.current = selectedInMap;
@@ -1015,6 +1118,10 @@ function App() {
   // the exact states the initial ensureUser path sets, which lets the normal
   // world-load and game-boot effects take over from here.
   const adoptGateSession = useCallback((authUser: AuthUser, world: SerializedWorld | null) => {
+    // The unauthenticated gate has no game canvas and deliberately drops its
+    // clouds. Close them in the SAME React batch that admits the account so
+    // the freshly booted starter plot can never flash for a frame.
+    beginVillageLoadCloud(4);
     if (hasRenderableWorldPayload(world)) {
       Backend.primeWorldCache(authUser.id, world);
     }
@@ -1026,6 +1133,8 @@ function App() {
     const features = Auth.getFeatures();
     setInfiniteResources(features.infiniteResources);
     setTestMode(features.testMode);
+    introBattleRequiredRef.current = features.introBattleRequired;
+    setIntroBattleRequired(features.introBattleRequired);
     setUser({
       id: authUser.id,
       username: authUser.username,
@@ -1034,7 +1143,7 @@ function App() {
       lastLogin: Date.now()
     });
     setIsOnline(true);
-  }, []);
+  }, [beginVillageLoadCloud]);
 
   const handleGateLogin = useCallback(async (username: string, password: string) => {
     const session = await Auth.login(username, password);
@@ -1112,6 +1221,15 @@ function App() {
       },
       hideCloudOverlay: () => {
         clearCloudTimers();
+        if (introBattleRequiredRef.current && !introBattleActiveRef.current) {
+          // A retreat or failed launch does not bypass mandatory onboarding:
+          // return to the summons over a closed barrier, never the village.
+          setCloudOverlayLoading(false);
+          setCloudLoadingProgress(100);
+          setCloudOpening(false);
+          setShowCloudOverlay(true);
+          return;
+        }
         setCloudOverlayLoading(false);
         setCloudOpening(true); // Start opening animation
         cloudHideTimerRef.current = window.setTimeout(() => {
@@ -1131,6 +1249,10 @@ function App() {
       setGameMode: (mode: GameMode) => {
         setView(mode);
         if (mode === 'HOME') {
+          introBattleActiveRef.current = false;
+          setIntroBattleActive(false);
+          setIntroBattleLaunching(false);
+          setIntroDeployCount(0);
           setScoutTarget(null);
           setActiveReplay(null);
           setBattleStarted(false);
@@ -1146,6 +1268,7 @@ function App() {
           }
         }
         if (mode === 'ATTACK') {
+          if (introBattleActiveRef.current) setIntroBattleLaunching(false);
           setActiveReplay(null);
           setBattleStats({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
           setBattleStarted(false); // Reset when entering attack mode
@@ -1212,6 +1335,24 @@ function App() {
       onRaidEnded: async (goldLooted: number, applied?: { ore?: number; food?: number; settlementDelayed?: boolean }) => {
         const scene = gameRef.current?.scene.getScene('MainScene') as any;
         const enemyWorld = scene?.currentEnemyWorld;
+
+        if (enemyWorld?.tutorial) {
+          // This local scenario never settles loot or consumes the home army.
+          // Completion is the sole authoritative write; only a successful
+          // acknowledgement lets the ordinary banner onboarding proceed.
+          try {
+            await Backend.completeIntroBattle();
+            Auth.resolveIntroBattle();
+            introBattleRequiredRef.current = false;
+            setIntroBattleRequired(false);
+          } catch (error) {
+            console.warn('Sir Andre tutorial completion is still pending:', error);
+            gameManager.showToast('The royal scribe could not record the battle. Complete the siege again after reconnecting.');
+          }
+          transitionHome(0);
+          return;
+        }
+
         let lootWon = Math.max(0, goldLooted);
 
         if (enemyWorld && isOnline && !enemyWorld.isBot && enemyWorld.id !== 'practice' && enemyWorld.attackId) {
@@ -1286,6 +1427,9 @@ function App() {
       deployTroop: (type: string, pinnedArmy?: Record<string, number>) => {
         const def = TROOP_DEFINITIONS[type as TroopType];
         if (!def) return;
+        if (introBattleActiveRef.current) {
+          setIntroDeployCount(count => count + 1);
+        }
         setBattleStarted(true); // Battle has started!
         setCapacity(prev => ({ ...prev, current: Math.max(0, prev.current - def.space) }));
         if (pinnedArmy) {
@@ -1665,7 +1809,7 @@ function App() {
   };
 
   const handleNextMap = () => {
-    if (scoutTarget) return;
+    if (scoutTarget || introBattleActiveRef.current) return;
     gameManager.findNewMap();
   };
 
@@ -1676,6 +1820,35 @@ function App() {
 
   // Drills cost nothing: snapshot the army going in, restore it coming home.
   const practiceArmyRef = useRef<{ army: typeof army; capacity: typeof capacity } | null>(null);
+
+  const handleStartIntroBattle = useCallback(() => {
+    if (
+      !introBattleRequiredRef.current
+      || introBattleActiveRef.current
+      || introBattleLaunching
+    ) return;
+
+    const suppliedArmy = playerArmySnapshot(INTRO_BATTLE_ARMY);
+    practiceArmyRef.current = {
+      army: { ...armyRef.current },
+      capacity: { ...capacity }
+    };
+    introBattleActiveRef.current = true;
+    setIntroBattleActive(true);
+    setIntroBattleLaunching(true);
+    setIntroDeployCount(0);
+    armyRef.current = suppliedArmy;
+    setArmy(suppliedArmy);
+    setCapacity({ current: INTRO_BATTLE_ARMY_SPACE, max: INTRO_BATTLE_ARMY_SPACE });
+    setIsTrainingOpen(false);
+    setIsBuildingOpen(false);
+    setIsBannerPickerOpen(false);
+
+    // Pinning gives the Phaser pointer loop a synchronous roster. Rapid
+    // deployments cannot race React commits or produce extra heavy troops.
+    gameManager.pinAttackArmy(INTRO_BATTLE_WORLD_ID, suppliedArmy);
+    gameManager.startIntroBattle();
+  }, [capacity, introBattleLaunching]);
 
   const handleStartPractice = () => {
     if (capacity.current === 0) return;
@@ -1881,6 +2054,18 @@ function App() {
     calcWallCost();
   }, [selectedBuildingInfo, view]);
 
+  const showIntroBattleSummons = introBattleRequired
+    && worldReady
+    && view === 'HOME'
+    && !introBattleActive
+    && !introBattleLaunching
+    && !isLockedOut;
+  const showIntroWorldLoadError = introBattleRequired && worldLoadFailed && !isLockedOut;
+  // Clouds cover pointer input, but the shell must also be keyboard-inert from
+  // account admission through the exact frame ATTACK becomes interactive.
+  const introOnboardingBlocksGame = introBattleRequired
+    && !(introBattleActive && view === 'ATTACK');
+
   // Wait for the initial session check before rendering game/login UI.
   if (!authReady) {
     return (
@@ -1897,6 +2082,11 @@ function App() {
 
   return (
     <div className="app-container">
+      <div
+        className="app-interaction-shell"
+        inert={introOnboardingBlocksGame ? true : undefined}
+        aria-hidden={introOnboardingBlocksGame || undefined}
+      >
       <div id="game-container" style={{ display: isLockedOut ? 'none' : 'block' }} />
 
       <Hud
@@ -1917,6 +2107,7 @@ function App() {
         wallUpgradeCostOverride={wallUpgradeCostOverride}
         isMobile={isMobile}
         isScouting={Boolean(scoutTarget)}
+        allowNextMap={!introBattleActive}
         pendingLoot={cloudTransitionReward}
         lootAnimating={lootAnimating}
         onLootAnimationDone={() => setLootAnimating(null)}
@@ -1934,6 +2125,10 @@ function App() {
         onOpenMap={() => setShowAtlas(true)}
         troopLevel={troopLevel}
       />
+
+      {view === 'ATTACK' && introBattleActive && (
+        <IntroBattleGuide deployed={introDeployCount} />
+      )}
 
       {view === 'ATTACK' && scoutTarget && (
         <div className="scout-action-panel">
@@ -2136,6 +2331,23 @@ function App() {
             setIsTestModePopupOpen(false);
           }}
         />
+      )}
+      </div>
+
+      {showIntroBattleSummons && (
+        <IntroBattleScroll onEnterBattle={handleStartIntroBattle} />
+      )}
+
+      {showIntroWorldLoadError && (
+        <div className="intro-battle-overlay" role="presentation">
+          <section className="intro-battle-scroll intro-load-error" role="alertdialog" aria-modal="true">
+            <div className="intro-scroll-seal" aria-hidden="true"><span className="sym sym-watch" /></div>
+            <p className="intro-scroll-kicker">The Road Is Hidden</p>
+            <h2>THE SUMMONS COULD NOT ARRIVE</h2>
+            <p className="intro-scroll-copy">The village remains safely behind the clouds. Reconnect, then call for Sir Andre&apos;s messenger again.</p>
+            <button className="intro-scroll-enter" type="button" onClick={handleRetryConnection} autoFocus>TRY AGAIN</button>
+          </section>
+        </div>
       )}
 
       <CloudOverlay

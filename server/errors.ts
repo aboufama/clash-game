@@ -25,3 +25,12 @@ export function bannerRequiredError(): ApiError {
     'BANNER_REQUIRED'
   )
 }
+
+/** The battle tutorial precedes even heraldry selection for new accounts. */
+export function introBattleRequiredError(): ApiError {
+  return new ApiError(
+    409,
+    'Answer Sir Andre\'s summons before changing your village',
+    'INTRO_BATTLE_REQUIRED'
+  )
+}

@@ -170,6 +170,12 @@ export interface SessionResponse {
     infiniteResources: boolean
     /** Server-authoritative operator entitlement for instant upgrades and unlocked troops. */
     testMode: boolean
+    /** Opaque identity of the account's current effective Test Mode activation. */
+    testModeActivationId: string | null
+    /** True until one session atomically claims this activation's announcement. */
+    testModeAnnouncementPending: boolean
+    /** Mandatory onboarding battle remains until the account records completion. */
+    introBattleRequired: boolean
   }
 }
 

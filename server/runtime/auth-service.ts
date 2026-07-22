@@ -16,12 +16,13 @@ import {
 } from '../domain/auth'
 import { STARTING_POPULATION, VILLAGE_SIMULATION_VERSION } from '../domain/village'
 import { effectiveStarterVillageConfig } from '../domain/village/starter-config'
-import { testModeEnabled } from '../domain/test-mode'
+import { testModeActivationId, testModeEnabled } from '../domain/test-mode'
 import { DEFAULT_GUEST_PLOT_TTL_MS } from '../domain/world'
 import { ApiError } from '../errors'
 import type {
   AccountModerationRecord,
   AccountRecord,
+  AdminRuntimeConfigRecord,
   JsonValue,
   Persistence,
   SessionRecord,
@@ -193,6 +194,22 @@ export class AuthSessionService {
     return testMode ? { fixedDurationMs: 0, timeScale: 0 } : this.upgradePolicy
   }
 
+  private sessionFeatures(
+    runtimeConfig: AdminRuntimeConfigRecord,
+    account: AccountRecord
+  ): SessionResponse['features'] {
+    const testMode = testModeEnabled(runtimeConfig, account.id)
+    const activationId = testModeActivationId(runtimeConfig, account.id)
+    return {
+      infiniteResources: this.infiniteResources || testMode,
+      testMode,
+      testModeActivationId: activationId,
+      testModeAnnouncementPending: activationId !== null
+        && account.testModeAcknowledgedActivationId !== activationId,
+      introBattleRequired: !account.introBattleCompleted
+    }
+  }
+
   private expediteUpgradesForTestMode(village: VillageRecord, now: Date, testMode: boolean): boolean {
     if (!testMode) return false
     const buildings = villageBuildings(village)
@@ -236,7 +253,7 @@ export class AuthSessionService {
       }),
       created,
       unread,
-      features: { infiniteResources: this.infiniteResources || testMode, testMode }
+      features: this.sessionFeatures(runtimeConfig, state.account)
     }
   }
 
@@ -349,7 +366,9 @@ export class AuthSessionService {
         lastSeenAt: now,
         revision: 1,
         revengeRights: {},
-        botRaidCooldowns: {}
+        botRaidCooldowns: {},
+        testModeAcknowledgedActivationId: null,
+        introBattleCompleted: false
       }
       await tx.accounts.insert(account)
       const village = createStarterVillageRecord(
@@ -388,7 +407,7 @@ export class AuthSessionService {
         }),
         created: true,
         unread: 0,
-        features: { infiniteResources: this.infiniteResources || testMode, testMode }
+        features: this.sessionFeatures(runtimeConfig, account)
       }
     })
   }

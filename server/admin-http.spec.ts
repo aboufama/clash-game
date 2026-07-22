@@ -26,6 +26,8 @@ function makeService() {
   let maintenance = false
   let playerActions = 0
   let lastPlayerAction: AdminPlayerActionRequest | null = null
+  let claimedActivation: unknown = null
+  let introCompletions = 0
   const config = (): AdminConfig => ({
     maintenance: { enabled: maintenance, message: maintenance ? 'Upgrading the keep' : null },
     testMode: { enabled: false, overrideCount: 0 },
@@ -46,6 +48,14 @@ function makeService() {
   const service = {
     authenticate: async () => 'player',
     getWorld: async () => ({ id: 'world' }),
+    claimTestModeAnnouncement: async (_player: string, body: { activationId?: unknown }) => {
+      claimedActivation = body.activationId
+      return { show: true, activationId: String(body.activationId) }
+    },
+    completeIntroBattle: async () => {
+      introCompletions += 1
+      return { ok: true as const, introBattleRequired: false as const }
+    },
     adminConfig: async () => config(),
     adminOverview: async () => ({
       generatedAt: now,
@@ -75,7 +85,9 @@ function makeService() {
   return {
     service: service as unknown as ApiService<string> & AdminApiService,
     playerActionCount: () => playerActions,
-    lastPlayerAction: () => lastPlayerAction
+    lastPlayerAction: () => lastPlayerAction,
+    claimedActivation: () => claimedActivation,
+    introCompletionCount: () => introCompletions
   }
 }
 
@@ -203,4 +215,29 @@ test('missing server credentials fail closed without affecting health', async ()
   assert.equal(login.status, 503)
   assert.equal((login.body as { code: string }).code, 'ADMIN_AUTH_UNAVAILABLE')
   assert.equal((await handle(request({ path: '/health' }))).status, 200)
+})
+
+test('account onboarding POST routes authenticate without banner readiness', async () => {
+  const fixture = makeService()
+  const handle = createApiHandler(fixture.service, { adminAuth: auth() })
+  const activationId = 'tm_http_claim_1'
+  const claim = await handle(request({
+    method: 'POST',
+    path: '/test-mode/announcement/claim',
+    token: 'player-token',
+    body: { activationId }
+  }))
+  assert.equal(claim.status, 200)
+  assert.deepEqual(claim.body, { show: true, activationId })
+  assert.equal(fixture.claimedActivation(), activationId)
+
+  const complete = await handle(request({
+    method: 'POST',
+    path: '/intro-battle/complete',
+    token: 'player-token',
+    body: {}
+  }))
+  assert.equal(complete.status, 200)
+  assert.deepEqual(complete.body, { ok: true, introBattleRequired: false })
+  assert.equal(fixture.introCompletionCount(), 1)
 })

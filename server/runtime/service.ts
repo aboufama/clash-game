@@ -39,9 +39,12 @@ import {
   effectiveStarterVillageConfig
 } from '../domain/village/starter-config'
 import {
-  normalizeTestModeOverrides,
+  normalizeTestModeActivationId,
+  testModeActivationId,
   testModeEnabled,
   testModeOverride,
+  transitionGlobalTestMode,
+  transitionPlayerTestModeOverride,
   type TestModeConfig
 } from '../domain/test-mode'
 import {
@@ -53,7 +56,7 @@ import {
   settledFrontierBotVillageSeedAt
 } from '../domain/world'
 import { PROCEDURAL_VILLAGE_GENERATOR_VERSION } from '../domain/world/procedural-village'
-import { ApiError, bannerRequiredError } from '../errors'
+import { ApiError, bannerRequiredError, introBattleRequiredError } from '../errors'
 import { isValidUsername, normalizeUsernameKey } from '../domain/auth'
 import type {
   AdminApiService,
@@ -103,7 +106,8 @@ import type {
   ResourceMutationRequest,
   RuntimeAttackService,
   RuntimePrincipal,
-  SaveWorldRequest
+  SaveWorldRequest,
+  TestModeAnnouncementClaimRequest
 } from './contracts'
 import { randomId } from './ids'
 import {
@@ -324,7 +328,9 @@ function accountForSummary(entry: WorldAtlasEntry): AccountRecord {
     lastSeenAt: entry.player.lastSeenAt,
     revision: entry.player.revision,
     revengeRights: {},
-    botRaidCooldowns: {}
+    botRaidCooldowns: {},
+    testModeAcknowledgedActivationId: null,
+    introBattleCompleted: true
   }
 }
 
@@ -547,6 +553,19 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     return testMode ? { fixedDurationMs: 0, timeScale: 0 } : this.upgradePolicy
   }
 
+  private sessionFeatures(config: TestModeConfig, account: AccountRecord) {
+    const testMode = this.testModeFor(config, account.id)
+    const activationId = testModeActivationId(config, account.id)
+    return {
+      infiniteResources: this.infiniteResourcesFor(config, account.id),
+      testMode,
+      testModeActivationId: activationId,
+      testModeAnnouncementPending: activationId !== null
+        && account.testModeAcknowledgedActivationId !== activationId,
+      introBattleRequired: !account.introBattleCompleted
+    }
+  }
+
   /** Existing in-flight timers become due as soon as the player's test mode is enabled. */
   private expediteUpgradesForTestMode(village: VillageRecord, now: Date, testMode: boolean): boolean {
     if (!testMode) return false
@@ -749,6 +768,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
    */
   async assertGameplayReady(principal: RuntimePrincipal): Promise<void> {
     await this.persistence.transaction(async tx => {
+      const account = await tx.accounts.getById(principal.playerId)
+      if (!account) throw new ApiError(401, 'Player authority is incomplete')
+      if (!account.introBattleCompleted) throw introBattleRequiredError()
       const village = await tx.villages.get(principal.playerId)
       if (!village) throw new ApiError(401, 'Player authority is incomplete')
       if (!explicitVillageBanner(village.banner)) throw bannerRequiredError()
@@ -772,6 +794,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     return this.persistence.transaction(async tx => {
       await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, principal.playerId, true)
+      if (!state.account.introBattleCompleted) throw introBattleRequiredError()
       if (sameBanner(state.village.banner, banner)) return { banner: { ...banner } }
       const expectedAppearanceRevision = state.village.appearanceRevision
       state.village.banner = { ...banner }
@@ -841,10 +864,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           lastSaveTime: state.village.lastMutationAt.getTime()
         },
         shieldUntil: state.account.shieldUntil?.getTime() ?? 0,
-        features: {
-          infiniteResources: this.infiniteResourcesFor(runtimeConfig, principal.playerId),
-          testMode
-        },
+        features: this.sessionFeatures(runtimeConfig, state.account),
         upgradePolicy: this.upgradePolicyFor(testMode),
         incomingAttack: incoming ? {
           attackId: incoming.id,
@@ -855,6 +875,45 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         } : null
       }
     }, { isolation: 'read committed' })
+  }
+
+  async claimTestModeAnnouncement(
+    principal: RuntimePrincipal,
+    body: TestModeAnnouncementClaimRequest
+  ) {
+    const activationId = normalizeTestModeActivationId(body.activationId)
+    if (!activationId || activationId !== body.activationId) {
+      throw new ApiError(400, 'A valid Test Mode activation id is required', 'TEST_MODE_ACTIVATION_INVALID')
+    }
+    return this.persistence.transaction(async tx => {
+      // Lock config before the account, matching admin override lock order so
+      // a disable/re-enable can never race a stale successful claim.
+      const config = await tx.admin.getConfig({ forUpdate: true })
+      const current = testModeActivationId(config, principal.playerId)
+      if (current !== activationId) {
+        throw new ApiError(
+          409,
+          'Test Mode activation changed before the announcement could be claimed',
+          'TEST_MODE_ACTIVATION_STALE'
+        )
+      }
+      const account = await tx.accounts.getById(principal.playerId, { forUpdate: true })
+      if (!account) throw new ApiError(401, 'Unknown device token')
+      const show = account.testModeAcknowledgedActivationId !== activationId
+        && await tx.accounts.claimTestModeAnnouncement(principal.playerId, activationId)
+      return { show, activationId }
+    }, { isolation: 'serializable', maxRetries: 3 })
+  }
+
+  async completeIntroBattle(principal: RuntimePrincipal) {
+    await this.persistence.transaction(async tx => {
+      const account = await tx.accounts.getById(principal.playerId, { forUpdate: true })
+      if (!account) throw new ApiError(401, 'Unknown device token')
+      if (!account.introBattleCompleted) {
+        await tx.accounts.completeIntroBattle(principal.playerId)
+      }
+    }, { isolation: 'serializable', maxRetries: 3 })
+    return { ok: true as const, introBattleRequired: false as const }
   }
 
   async saveWorld(principal: RuntimePrincipal, body: SaveWorldRequest): Promise<SerializedWorld> {
@@ -2196,10 +2255,12 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         const before = testModeOverride(config, id)
         changed = before !== input.override
         if (changed) {
-          const overrides = { ...config.testModeOverrides }
-          if (input.override === null) delete overrides[id]
-          else overrides[id] = input.override
-          config.testModeOverrides = normalizeTestModeOverrides(overrides)
+          Object.assign(config, transitionPlayerTestModeOverride(
+            config,
+            id,
+            input.override,
+            `tm_${auditId}`
+          ))
           const updated = await tx.admin.updateConfig({
             ...config,
             updatedAt: now,
@@ -2325,6 +2386,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
             maintenanceMessage: input.enabled ? message : null,
             testModeEnabled: current.testModeEnabled,
             testModeOverrides: current.testModeOverrides,
+            testModeGlobalActivationId: current.testModeGlobalActivationId,
+            testModePlayerActivationIds: current.testModePlayerActivationIds,
             starterVillage: current.starterVillage,
             updatedAt: now,
             revision: current.revision + 1
@@ -2346,9 +2409,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         const current = await tx.admin.getConfig({ forUpdate: true })
         changed = current.testModeEnabled !== input.enabled
         if (changed) {
+          const activationState = transitionGlobalTestMode(current, input.enabled, `tm_${auditId}`)
           const updated = await tx.admin.updateConfig({
             ...current,
-            testModeEnabled: input.enabled,
+            ...activationState,
             updatedAt: now,
             revision: current.revision + 1
           }, current.revision)
@@ -2381,6 +2445,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
             maintenanceMessage: current.maintenanceMessage,
             testModeEnabled: current.testModeEnabled,
             testModeOverrides: current.testModeOverrides,
+            testModeGlobalActivationId: current.testModeGlobalActivationId,
+            testModePlayerActivationIds: current.testModePlayerActivationIds,
             starterVillage,
             updatedAt: now,
             revision: current.revision + 1

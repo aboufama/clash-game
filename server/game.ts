@@ -32,7 +32,8 @@ import {
   BOT_CAMP_EXCLUSION_LIMIT,
   MATCHMAKE_EXCLUSION_LIMIT,
   type BotStartRequest,
-  type MatchmakeRequest
+  type MatchmakeRequest,
+  type TestModeAnnouncementClaimRequest
 } from './runtime/contracts'
 import { JsonCollection } from './store'
 import {
@@ -96,9 +97,14 @@ import {
   effectiveStarterVillageConfig
 } from './domain/village/starter-config'
 import {
+  normalizeTestModeActivationId,
+  normalizeTestModeActivationState,
   normalizeTestModeOverrides,
+  testModeActivationId,
   testModeEnabled,
-  testModeOverride
+  testModeOverride,
+  transitionGlobalTestMode,
+  transitionPlayerTestModeOverride
 } from './domain/test-mode'
 import {
   InMemoryAuthRateLimiter,
@@ -148,7 +154,7 @@ import {
 } from './domain/world/procedural-village'
 import { PlayerDirectory } from './domain/player'
 import { RequestReplayIndex } from './domain/idempotency'
-import { ApiError, bannerRequiredError } from './errors'
+import { ApiError, bannerRequiredError, introBattleRequiredError } from './errors'
 export { ApiError } from './errors'
 
 const MAX_BALANCE = 1_000_000_000
@@ -323,6 +329,10 @@ interface PlayerRecord {
   appearanceRevision?: number
   /** Owner-chosen village heraldry; absent means onboarding is incomplete. */
   banner?: VillageBanner
+  /** Last Test Mode activation won by this account's atomic announcement claim. */
+  testModeAcknowledgedActivationId?: string
+  /** Missing is a pre-onboarding legacy account and therefore already complete. */
+  introBattleCompleted?: boolean
 }
 
 interface AdminNoticeItem {
@@ -355,6 +365,8 @@ interface AdminRuntimeConfigRecord {
   maintenanceMessage: string | null
   testModeEnabled: boolean
   testModeOverrides: Record<string, boolean>
+  testModeGlobalActivationId: string | null
+  testModePlayerActivationIds: Record<string, string>
   starterVillage: StarterVillageConfig | null
   updatedAt: number
   revision: number
@@ -872,6 +884,8 @@ export class GameService implements AdminApiService {
         maintenanceMessage: null,
         testModeEnabled: false,
         testModeOverrides: {},
+        testModeGlobalActivationId: null,
+        testModePlayerActivationIds: {},
         starterVillage: null,
         updatedAt: Date.now(),
         revision: 1
@@ -995,6 +1009,16 @@ export class GameService implements AdminApiService {
 
     for (const [id, player] of this.players.entries()) {
       this.playerDirectory.add(id)
+      if (typeof player.introBattleCompleted !== 'boolean') {
+        // Accounts that predate mandatory onboarding are grandfathered in.
+        player.introBattleCompleted = true
+        this.players.markDirty(id)
+      }
+      if (player.testModeAcknowledgedActivationId !== undefined
+        && !normalizeTestModeActivationId(player.testModeAcknowledgedActivationId)) {
+        delete player.testModeAcknowledgedActivationId
+        this.players.markDirty(id)
+      }
       if (!Number.isSafeInteger(player.plotVersion) || (player.plotVersion ?? 0) < 1) {
         player.plotVersion = 1
         this.players.markDirty(id)
@@ -1448,6 +1472,16 @@ export class GameService implements AdminApiService {
         stored.testModeOverrides = overrides
         normalized = true
       }
+      const activationState = normalizeTestModeActivationState(stored)
+      if (!Object.prototype.hasOwnProperty.call(stored, 'testModeGlobalActivationId')
+        || !Object.prototype.hasOwnProperty.call(stored, 'testModePlayerActivationIds')
+        || stored.testModeGlobalActivationId !== activationState.testModeGlobalActivationId
+        || JSON.stringify(stored.testModePlayerActivationIds ?? {})
+          !== JSON.stringify(activationState.testModePlayerActivationIds)) {
+        stored.testModeGlobalActivationId = activationState.testModeGlobalActivationId
+        stored.testModePlayerActivationIds = activationState.testModePlayerActivationIds
+        normalized = true
+      }
       if (!Object.prototype.hasOwnProperty.call(stored, 'starterVillage')) {
         stored.starterVillage = null
         normalized = true
@@ -1467,6 +1501,8 @@ export class GameService implements AdminApiService {
       maintenanceMessage: null,
       testModeEnabled: false,
       testModeOverrides: {},
+      testModeGlobalActivationId: null,
+      testModePlayerActivationIds: {},
       starterVillage: null,
       updatedAt: Date.now(),
       revision: 1
@@ -1477,6 +1513,20 @@ export class GameService implements AdminApiService {
 
   private testModeFor(playerId: string): boolean {
     return testModeEnabled(this.currentAdminConfig(), playerId)
+  }
+
+  private sessionFeatures(player: PlayerRecord): SessionResponse['features'] {
+    const config = this.currentAdminConfig()
+    const testMode = testModeEnabled(config, player.id)
+    const activationId = testModeActivationId(config, player.id)
+    return {
+      infiniteResources: infiniteResourcesEnabled() || testMode,
+      testMode,
+      testModeActivationId: activationId,
+      testModeAnnouncementPending: activationId !== null
+        && player.testModeAcknowledgedActivationId !== activationId,
+      introBattleRequired: player.introBattleCompleted === false
+    }
   }
 
   /** The environment escape hatch remains available, but ordinary local testing is admin-controlled. */
@@ -1560,14 +1610,13 @@ export class GameService implements AdminApiService {
   }
 
   private sessionFor(player: PlayerRecord, token: string, created: boolean): SessionResponse {
-    const testMode = this.testModeFor(player.id)
     return {
       token,
       player: this.profileOf(player),
       world: this.worldOf(player),
       created,
       unread: this.unreadCount(player.id),
-      features: { infiniteResources: this.infiniteResourcesFor(player.id), testMode }
+      features: this.sessionFeatures(player)
     }
   }
 
@@ -2083,6 +2132,7 @@ export class GameService implements AdminApiService {
       population: { count: STARTING_POPULATION, lastGrowthAt: now },
       ore: starter.resources.ore,
       food: starter.resources.food,
+      introBattleCompleted: false,
       shieldUntil: now + STARTER_SHIELD_MS
     }
     if (!registered) {
@@ -2114,6 +2164,7 @@ export class GameService implements AdminApiService {
    * pass through this player-onboarding gate.
    */
   assertGameplayReady(player: PlayerRecord): void {
+    if (player.introBattleCompleted === false) throw introBattleRequiredError()
     if (!sanitizeVillageBanner(player.banner)) throw bannerRequiredError()
   }
 
@@ -2317,6 +2368,7 @@ export class GameService implements AdminApiService {
   setBanner(player: PlayerRecord, rawBanner: unknown): { banner: VillageBanner } {
     const banner = sanitizeVillageBanner(rawBanner)
     if (!banner) throw new ApiError(400, 'Invalid banner: palette 0-7, emblem 0-5, and pattern 0-4 are all required')
+    if (player.introBattleCompleted === false) throw introBattleRequiredError()
     if (villageBannersEqual(player.banner, banner)) return { banner: { ...banner } }
     player.banner = banner
     player.appearanceRevision = appearanceRevisionOf(player) + 1
@@ -2460,7 +2512,6 @@ export class GameService implements AdminApiService {
     this.expediteUpgradesForTestMode(player, now)
     this.advancePlayer(player, now)
     const incoming = this.incomingAttacks(player)[0] ?? null
-    const testMode = this.testModeFor(player.id)
     return {
       serverNow: now,
       world: {
@@ -2468,7 +2519,7 @@ export class GameService implements AdminApiService {
         lastSaveTime: player.lastMutationAt || player.lastAccrualAt
       },
       shieldUntil: player.shieldUntil ?? 0,
-      features: { infiniteResources: this.infiniteResourcesFor(player.id), testMode },
+      features: this.sessionFeatures(player),
       upgradePolicy: this.upgradePolicyFor(player.id),
       incomingAttack: incoming ? {
         attackId: incoming.attackId,
@@ -2478,6 +2529,35 @@ export class GameService implements AdminApiService {
         updatedAt: incoming.updatedAt
       } : null
     }
+  }
+
+  claimTestModeAnnouncement(player: PlayerRecord, body: TestModeAnnouncementClaimRequest) {
+    const activationId = normalizeTestModeActivationId(body.activationId)
+    if (!activationId || activationId !== body.activationId) {
+      throw new ApiError(400, 'A valid Test Mode activation id is required', 'TEST_MODE_ACTIVATION_INVALID')
+    }
+    const current = testModeActivationId(this.currentAdminConfig(), player.id)
+    if (current !== activationId) {
+      throw new ApiError(
+        409,
+        'Test Mode activation changed before the announcement could be claimed',
+        'TEST_MODE_ACTIVATION_STALE'
+      )
+    }
+    const show = player.testModeAcknowledgedActivationId !== activationId
+    if (show) {
+      player.testModeAcknowledgedActivationId = activationId
+      this.players.markDirty(player.id)
+    }
+    return { show, activationId }
+  }
+
+  completeIntroBattle(player: PlayerRecord) {
+    if (player.introBattleCompleted !== true) {
+      player.introBattleCompleted = true
+      this.players.markDirty(player.id)
+    }
+    return { ok: true as const, introBattleRequired: false as const }
   }
 
   scout(viewer: PlayerRecord, targetId: unknown): PublicWorldSnapshot {
@@ -5830,10 +5910,12 @@ export class GameService implements AdminApiService {
       const before = testModeOverride(config, id)
       changed = before !== input.override
       if (changed) {
-        const overrides = { ...config.testModeOverrides }
-        if (input.override === null) delete overrides[id]
-        else overrides[id] = input.override
-        config.testModeOverrides = normalizeTestModeOverrides(overrides)
+        Object.assign(config, transitionPlayerTestModeOverride(
+          config,
+          id,
+          input.override,
+          `tm_${randomHex(12)}`
+        ))
         config.updatedAt = now
         config.revision += 1
         this.adminRuntimeConfig.markDirty(ADMIN_CONFIG_KEY)
@@ -5974,7 +6056,11 @@ export class GameService implements AdminApiService {
       const before = current.testModeEnabled
       changed = before !== input.enabled
       if (changed) {
-        current.testModeEnabled = input.enabled
+        Object.assign(current, transitionGlobalTestMode(
+          current,
+          input.enabled,
+          `tm_${randomHex(12)}`
+        ))
         current.updatedAt = now
         current.revision += 1
         this.adminRuntimeConfig.markDirty(ADMIN_CONFIG_KEY)

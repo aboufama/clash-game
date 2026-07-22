@@ -82,7 +82,7 @@ import {
   attackRecordWithAuthority
 } from '../attack-authority'
 import { allocationOrdinalOf } from '../../domain/world/allocation'
-import { normalizeTestModeOverrides } from '../../domain/test-mode'
+import { normalizeTestModeActivationState } from '../../domain/test-mode'
 
 function date(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value)
@@ -105,6 +105,8 @@ interface AccountRow extends QueryResultRow {
   revision: string | number
   revenge_rights: JsonObject
   bot_raid_cooldowns: JsonObject
+  test_mode_acknowledged_activation_id: string | null
+  intro_battle_completed: boolean
 }
 
 function accountFromRow(row: AccountRow): AccountRecord {
@@ -120,7 +122,9 @@ function accountFromRow(row: AccountRow): AccountRecord {
     lastSeenAt: date(row.last_seen_at),
     revision: Number(row.revision),
     revengeRights: row.revenge_rights,
-    botRaidCooldowns: row.bot_raid_cooldowns
+    botRaidCooldowns: row.bot_raid_cooldowns,
+    testModeAcknowledgedActivationId: row.test_mode_acknowledged_activation_id,
+    introBattleCompleted: row.intro_battle_completed
   }
 }
 
@@ -150,6 +154,7 @@ const PLAYER_SUMMARY_COLUMNS = String.raw`
 
 const ACCOUNT_SELECT = String.raw`
   SELECT a.id, a.username_key, a.password_hash, a.registered, a.created_at,
+    a.test_mode_acknowledged_activation_id, a.intro_battle_completed,
     p.username, p.trophies, p.shield_until, p.last_seen_at, p.revision,
     p.revenge_rights, p.bot_raid_cooldowns
   FROM accounts a JOIN player_profiles p ON p.player_id = a.id
@@ -217,8 +222,19 @@ class PgAccounts implements AccountRepository {
 
   async insert(record: AccountRecord): Promise<void> {
     await this.sql.query(
-      'INSERT INTO accounts(id, username_key, password_hash, registered, created_at) VALUES ($1, $2, $3, $4, $5)',
-      [record.id, record.usernameKey, record.passwordHash, record.registered, record.createdAt]
+      `INSERT INTO accounts(
+        id, username_key, password_hash, registered, created_at,
+        test_mode_acknowledged_activation_id, intro_battle_completed
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        record.id,
+        record.usernameKey,
+        record.passwordHash,
+        record.registered,
+        record.createdAt,
+        record.testModeAcknowledgedActivationId,
+        record.introBattleCompleted
+      ]
     )
     await this.sql.query(String.raw`
       INSERT INTO player_profiles(
@@ -276,6 +292,20 @@ class PgAccounts implements AccountRepository {
       'UPDATE player_profiles SET last_seen_at = GREATEST(last_seen_at, $2) WHERE player_id = $1',
       [id, seenAt]
     )).rowCount === 1
+  }
+
+  async claimTestModeAnnouncement(id: string, activationId: string): Promise<boolean> {
+    return (await this.sql.query(String.raw`
+      UPDATE accounts SET test_mode_acknowledged_activation_id = $2
+      WHERE id = $1 AND test_mode_acknowledged_activation_id IS DISTINCT FROM $2
+    `, [id, activationId])).rowCount === 1
+  }
+
+  async completeIntroBattle(id: string): Promise<boolean> {
+    return (await this.sql.query(String.raw`
+      UPDATE accounts SET intro_battle_completed = true
+      WHERE id = $1 AND intro_battle_completed = false
+    `, [id])).rowCount === 1
   }
 
   async clearShields(now: Date, requestedLimit: number): Promise<number> {
@@ -2701,39 +2731,49 @@ class PgAdmin implements AdminRepository {
       maintenance_message: string | null
       test_mode_enabled: boolean
       test_mode_overrides: unknown
+      test_mode_global_activation_id: string | null
+      test_mode_player_activation_ids: unknown
       starter_village: AdminRuntimeConfigRecord['starterVillage']
       updated_at: Date | string
       revision: string | number
     }>(String.raw`
       SELECT maintenance_enabled, maintenance_message, test_mode_enabled,
-        test_mode_overrides, starter_village, updated_at, revision
+        test_mode_overrides, test_mode_global_activation_id,
+        test_mode_player_activation_ids, starter_village, updated_at, revision
       FROM admin_runtime_config WHERE singleton = true${lock}
     `)
     const row = result.rows[0]
     if (!row) throw new Error('Admin runtime config is missing')
-    return {
+    const record = {
       maintenanceEnabled: row.maintenance_enabled,
       maintenanceMessage: row.maintenance_message,
       testModeEnabled: row.test_mode_enabled,
-      testModeOverrides: normalizeTestModeOverrides(row.test_mode_overrides),
+      testModeOverrides: row.test_mode_overrides,
+      testModeGlobalActivationId: row.test_mode_global_activation_id,
+      testModePlayerActivationIds: row.test_mode_player_activation_ids,
       starterVillage: row.starter_village,
       updatedAt: date(row.updated_at),
       revision: Number(row.revision)
     }
+    return { ...record, ...normalizeTestModeActivationState(record) }
   }
 
   async updateConfig(record: AdminRuntimeConfigRecord, expectedRevision: number): Promise<boolean> {
     if (record.revision !== expectedRevision + 1) throw new Error('Admin config revision must advance by one')
+    const activationState = normalizeTestModeActivationState(record)
     return (await this.sql.query(String.raw`
       UPDATE admin_runtime_config SET maintenance_enabled = $1, maintenance_message = $2,
         test_mode_enabled = $3, test_mode_overrides = $4::jsonb,
-        starter_village = $5::jsonb, updated_at = $6, revision = $7
-      WHERE singleton = true AND revision = $8
+        test_mode_global_activation_id = $5, test_mode_player_activation_ids = $6::jsonb,
+        starter_village = $7::jsonb, updated_at = $8, revision = $9
+      WHERE singleton = true AND revision = $10
     `, [
       record.maintenanceEnabled,
       record.maintenanceMessage,
-      record.testModeEnabled,
-      JSON.stringify(normalizeTestModeOverrides(record.testModeOverrides)),
+      activationState.testModeEnabled,
+      JSON.stringify(activationState.testModeOverrides),
+      activationState.testModeGlobalActivationId,
+      JSON.stringify(activationState.testModePlayerActivationIds),
       record.starterVillage === null ? null : JSON.stringify(record.starterVillage),
       record.updatedAt,
       record.revision,

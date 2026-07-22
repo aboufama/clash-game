@@ -38,8 +38,10 @@
     "test:world-nature": "node scripts/world-nature-seed-regression.mjs && node scripts/world-hydrology-renderer-regression.mjs",
     "test:display-resolution": "esbuild scripts/display-resolution-regression.ts --bundle --platform=node --format=esm --outfile=dist-server/display-resolution-test.mjs && node dist-server/display-resolution-test.mjs",
     "test:render-quality": "node scripts/render-quality-regression.mjs",
+    "test:training-tooltip": "node scripts/training-tooltip-regression.mjs",
     "test:pathing": "node scripts/run-pathing-regression.mjs",
-    "verify": "npm run test:admin && npm run test:admin-client && npm run test:server && npm run test:persistence && npm run test:runtime && npm run test:village-simulation && npm run test:world-domain && npm run test:procedural-village && npm run test:postgres && node scripts/run-attack-domain-regression.mjs && npm run test:defenses && npm run test:building-visuals && npm run test:client-attacks && npm run test:pathing && npm run test:world-postcards && npm run test:world-nature && npm run test:display-resolution && npm run test:render-quality && npm run build",
+    "test:intro-battle": "esbuild scripts/intro-battle-regression.ts --bundle --platform=node --format=esm --outfile=dist-server/intro-battle-test.mjs && node dist-server/intro-battle-test.mjs",
+    "verify": "npm run test:admin && npm run test:admin-client && npm run test:server && npm run test:persistence && npm run test:runtime && npm run test:village-simulation && npm run test:world-domain && npm run test:procedural-village && npm run test:postgres && node scripts/run-attack-domain-regression.mjs && npm run test:defenses && npm run test:building-visuals && npm run test:client-attacks && npm run test:pathing && npm run test:world-postcards && npm run test:world-nature && npm run test:display-resolution && npm run test:render-quality && npm run test:training-tooltip && npm run test:intro-battle && npm run build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

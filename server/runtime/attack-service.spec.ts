@@ -73,6 +73,8 @@ function account(id: string, patch: Partial<AccountRecord> = {}): AccountRecord 
     revision: 0,
     revengeRights: {},
     botRaidCooldowns: {},
+    testModeAcknowledgedActivationId: null,
+    introBattleCompleted: true,
     ...patch
   }
 }

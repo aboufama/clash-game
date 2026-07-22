@@ -55,6 +55,12 @@
     font-family: var(--ui-font);
 }
 
+/* Preserve every existing fixed-position stacking contract while giving the
+   mandatory first-session dialog one real inert boundary. */
+.app-interaction-shell {
+    display: contents;
+}
+
 #game-container {
     position: fixed;
     top: 0;
@@ -895,6 +901,253 @@ button:disabled {
     .test-mode-popup {
         animation: none;
     }
+}
+
+/* First-session summons. The clouds remain closed behind this sheet, so a
+   newly created account never exposes the starter plot before the battle. */
+.intro-battle-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 38px 18px;
+    box-sizing: border-box;
+    background: radial-gradient(circle at 50% 48%, rgba(43, 29, 12, 0.08), rgba(5, 8, 13, 0.32));
+    pointer-events: auto;
+}
+
+.intro-battle-scroll {
+    position: relative;
+    width: min(590px, calc(100vw - 40px));
+    max-height: calc(100vh - 76px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 54px 58px 48px;
+    color: #3a2414;
+    text-align: center;
+    background:
+        linear-gradient(90deg, rgba(101, 60, 22, 0.14), transparent 10%, transparent 90%, rgba(101, 60, 22, 0.14)),
+        repeating-linear-gradient(0deg, rgba(88, 52, 18, 0.045) 0 2px, transparent 2px 7px),
+        #e8c982;
+    border: 5px solid #6e3f1f;
+    box-shadow:
+        inset 0 0 0 4px #f8dfa0,
+        inset 0 0 0 8px #b77a35,
+        0 8px 0 #3a210f,
+        0 24px 58px rgba(0, 0, 0, 0.58);
+    image-rendering: pixelated;
+    animation: intro-scroll-unfurl 360ms steps(6, end);
+}
+
+.intro-battle-scroll::before,
+.intro-battle-scroll::after {
+    content: '';
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    height: 3px;
+    background: repeating-linear-gradient(90deg, #75451f 0 8px, #c18a43 8px 14px);
+    opacity: 0.75;
+}
+
+.intro-battle-scroll::before { top: 31px; }
+.intro-battle-scroll::after { bottom: 29px; }
+
+.intro-scroll-roll {
+    position: absolute;
+    left: -13px;
+    right: -13px;
+    height: 20px;
+    background: #c58a42;
+    border: 4px solid #5a3219;
+    box-shadow: inset 0 4px 0 #f1cd7c, inset 0 -4px 0 #8d5528, 4px 4px 0 rgba(30, 16, 8, 0.6);
+}
+
+.intro-scroll-roll::before,
+.intro-scroll-roll::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    width: 22px;
+    height: 28px;
+    background: #a96d32;
+    border: 4px solid #5a3219;
+    box-shadow: inset 4px 0 0 #dfad5a;
+}
+
+.intro-scroll-roll::before { left: -8px; }
+.intro-scroll-roll::after { right: -8px; transform: scaleX(-1); }
+.intro-scroll-roll-top { top: -12px; }
+.intro-scroll-roll-bottom { bottom: -12px; transform: scaleY(-1); }
+
+.intro-scroll-seal {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f8d984;
+    background: #8d1f24;
+    border: 5px solid #541117;
+    box-shadow: inset 0 0 0 4px #b83836, 4px 4px 0 rgba(60, 31, 13, 0.4);
+    transform: rotate(-3deg);
+}
+
+.intro-scroll-seal .sym { transform: scale(1.7); filter: drop-shadow(2px 2px 0 #4a1115); }
+
+.intro-scroll-kicker {
+    margin: 0 0 7px;
+    color: #8d1f24;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 2.2px;
+    text-transform: uppercase;
+}
+
+.intro-battle-scroll h2 {
+    margin: 0;
+    color: #4b2814;
+    font-size: clamp(21px, 4vw, 31px);
+    line-height: 1.08;
+    letter-spacing: 1.2px;
+    text-shadow: 2px 2px 0 rgba(255, 233, 173, 0.85);
+}
+
+.intro-scroll-copy {
+    max-width: 460px;
+    margin: 15px auto 16px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.55;
+}
+
+.intro-scroll-army {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 11px 13px;
+    color: #ffe6a5;
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1.3;
+    letter-spacing: 0.45px;
+    background: #50331d;
+    border: 3px solid #2c1a0d;
+    box-shadow: inset 0 0 0 2px #8e6232;
+}
+
+.intro-scroll-army i { color: #d9a448; font-style: normal; }
+
+.intro-scroll-order {
+    margin: 14px auto 13px;
+    color: #6b3c1d;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1.45;
+}
+
+.intro-scroll-enter {
+    min-width: min(300px, 100%);
+    padding: 12px 20px;
+    color: #fff1bd;
+    font-family: var(--ui-font);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    text-shadow: 2px 2px 0 #2b100b;
+    cursor: pointer;
+    background: #8d1f24;
+    border: 4px solid #4e1015;
+    box-shadow: inset 0 0 0 3px #c2443d, 4px 4px 0 #3a210f;
+}
+
+.intro-scroll-enter:hover,
+.intro-scroll-enter:focus-visible {
+    filter: brightness(1.13);
+    outline: 3px solid #fff0a5;
+    outline-offset: 3px;
+}
+
+.intro-scroll-enter:active { transform: translate(3px, 3px); box-shadow: inset 0 0 0 3px #c2443d, 1px 1px 0 #3a210f; }
+
+.intro-battle-scroll > small {
+    display: block;
+    margin-top: 12px;
+    color: #79502c;
+    font-size: 8px;
+    font-weight: 800;
+}
+
+@keyframes intro-scroll-unfurl {
+    from { opacity: 0; transform: scaleY(0.18) scaleX(0.88); }
+    to { opacity: 1; transform: scaleY(1) scaleX(1); }
+}
+
+@media (max-width: 560px) {
+    .intro-battle-overlay { padding: 30px 12px; }
+    .intro-battle-scroll { padding: 48px 25px 42px; }
+    .intro-scroll-copy { font-size: 10px; }
+    .intro-scroll-army { gap: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .intro-battle-scroll { animation: none; }
+}
+
+.intro-battle-guide {
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    left: 50%;
+    z-index: 215;
+    width: min(520px, calc(100vw - 28px));
+    min-height: 66px;
+    display: grid;
+    grid-template-columns: 46px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    box-sizing: border-box;
+    color: #3a2414;
+    background: #e7c47d;
+    border: 4px solid #5c341a;
+    box-shadow: inset 0 0 0 3px #f5dda2, 4px 5px 0 rgba(25, 13, 7, 0.72);
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.intro-guide-sigil {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffe39a;
+    background: #8d1f24;
+    border: 3px solid #501016;
+    box-shadow: inset 0 0 0 2px #c2443d;
+}
+
+.intro-guide-copy { min-width: 0; }
+.intro-guide-copy small,
+.intro-guide-copy strong,
+.intro-guide-copy em { display: block; }
+.intro-guide-copy small { color: #8d1f24; font-size: 7px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+.intro-guide-copy strong { margin-top: 2px; font-size: 10px; line-height: 1.15; }
+.intro-guide-copy em { margin-top: 3px; color: #6d4528; font-size: 8px; font-style: normal; font-weight: 700; line-height: 1.3; }
+
+.intro-guide-steps { display: flex; gap: 4px; }
+.intro-guide-steps i { width: 8px; height: 8px; background: #9d7548; border: 2px solid #5b391f; }
+.intro-guide-steps i.done { background: #8d1f24; }
+
+@media (max-width: 560px) {
+    .intro-battle-guide { top: max(8px, env(safe-area-inset-top)); grid-template-columns: 38px 1fr; min-height: 58px; }
+    .intro-guide-sigil { width: 31px; height: 31px; }
+    .intro-guide-steps { display: none; }
 }
 
 .training-modal {

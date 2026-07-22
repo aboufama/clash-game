@@ -72,6 +72,10 @@ export interface AccountRepository {
   update(record: AccountRecord, expectedRevision: number): Promise<boolean>
   /** Presence-only write; deliberately does not advance gameplay/profile revision. */
   touchLastSeen(id: string, seenAt: Date): Promise<boolean>
+  /** Atomic once-per-account claim; true only for the first writer of this activation. */
+  claimTestModeAnnouncement(id: string, activationId: string): Promise<boolean>
+  /** Idempotently completes mandatory intro-battle onboarding without a gameplay revision. */
+  completeIntroBattle(id: string): Promise<boolean>
   /** Clears one indexed batch and advances profile revisions atomically. */
   clearShields(now: Date, limit: number): Promise<number>
   /** Deletes the account root; dependent authority rows cascade with it. */

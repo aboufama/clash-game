@@ -76,6 +76,8 @@ type UIHandlers = {
 type SceneCommands = {
     selectBuilding: (type: string | null) => void;
     startAttack: () => void;
+    /** Mandatory first-session siege starring Sir Andre's supplied army. */
+    startIntroBattle: () => void;
     startPracticeAttack: () => void;
     startOnlineAttack: () => void;
     startAttackOnUser: (userId: string, username: string) => void;
@@ -249,6 +251,10 @@ class GameManager {
 
     startAttack() {
         this.sceneCommands.startAttack?.();
+    }
+
+    startIntroBattle() {
+        this.sceneCommands.startIntroBattle?.();
     }
 
     startPracticeAttack() {

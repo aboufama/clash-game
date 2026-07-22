@@ -77,6 +77,9 @@ export interface HomeSyncResponse {
   features: {
     infiniteResources: boolean
     testMode: boolean
+    testModeActivationId: string | null
+    testModeAnnouncementPending: boolean
+    introBattleRequired: boolean
   }
   upgradePolicy: {
     fixedDurationMs?: number
@@ -89,6 +92,20 @@ export interface HomeSyncResponse {
     startedAt: number
     updatedAt: number
   }
+}
+
+export interface TestModeAnnouncementClaimRequest {
+  activationId?: unknown
+}
+
+export interface TestModeAnnouncementClaimResponse {
+  activationId: string
+  show: boolean
+}
+
+export interface IntroBattleCompletionResponse {
+  ok: true
+  introBattleRequired: false
 }
 
 export interface AttackCommandRequest {
@@ -134,6 +151,11 @@ export interface ApiService<Principal> {
 
   getWorld(player: Principal): Awaitable<unknown>
   homeSync(player: Principal): Awaitable<HomeSyncResponse>
+  claimTestModeAnnouncement(
+    player: Principal,
+    body: TestModeAnnouncementClaimRequest
+  ): Awaitable<TestModeAnnouncementClaimResponse>
+  completeIntroBattle(player: Principal): Awaitable<IntroBattleCompletionResponse>
   saveWorld(player: Principal, body: SaveWorldRequest): Awaitable<unknown>
   applyResources(player: Principal, body: ResourceMutationRequest): Awaitable<unknown>
   trainTroop(player: Principal, body: ArmyMutationRequest): Awaitable<unknown>

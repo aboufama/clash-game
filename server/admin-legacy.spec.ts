@@ -435,6 +435,87 @@ test('legacy admin test mode persists global state and explicit player exclusion
   }
 })
 
+test('legacy Test Mode claims and intro completion are durable per account and activation', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'clash-test-mode-claim-legacy-'))
+  try {
+    const service = new GameService(root)
+    const created = service.register(null, 'ClaimLegacyChief', 'valid-password-123')
+    assert.ok('token' in created)
+    if (!('token' in created)) return
+    const player = service.authenticate(created.token)
+    assert.equal(created.features.introBattleRequired, true)
+    assert.throws(
+      () => service.setBanner(player, { palette: 1, emblem: 1, pattern: 1 }),
+      (error: unknown) => error instanceof ApiError && error.code === 'INTRO_BATTLE_REQUIRED'
+    )
+    assert.throws(
+      () => service.assertGameplayReady(player),
+      (error: unknown) => error instanceof ApiError && error.code === 'INTRO_BATTLE_REQUIRED'
+    )
+    assert.deepEqual(service.completeIntroBattle(player), { ok: true, introBattleRequired: false })
+    assert.deepEqual(service.completeIntroBattle(player), { ok: true, introBattleRequired: false })
+
+    service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'First claim activation' })
+    const first = service.homeSync(player).features
+    assert.ok(first.testModeActivationId)
+    assert.equal(first.testModeAnnouncementPending, true)
+    assert.deepEqual(service.claimTestModeAnnouncement(player, {
+      activationId: first.testModeActivationId
+    }), { show: true, activationId: first.testModeActivationId })
+    assert.deepEqual(service.claimTestModeAnnouncement(player, {
+      activationId: first.testModeActivationId
+    }), { show: false, activationId: first.testModeActivationId })
+    assert.equal(service.homeSync(player).features.testModeAnnouncementPending, false)
+
+    service.adminPlayerAction(player.id, {
+      type: 'set_test_mode', override: true, reason: 'Preserve activation across source changes'
+    })
+    service.adminOperation({ type: 'set_test_mode', enabled: false, reason: 'Disable inherited testing' })
+    service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'Re-enable inherited testing' })
+    assert.equal(service.homeSync(player).features.testModeActivationId, first.testModeActivationId)
+    assert.equal(service.homeSync(player).features.testModeAnnouncementPending, false)
+
+    service.adminPlayerAction(player.id, {
+      type: 'set_test_mode', override: false, reason: 'Turn this account off'
+    })
+    service.adminPlayerAction(player.id, {
+      type: 'set_test_mode', override: null, reason: 'Activate this account again'
+    })
+    const second = service.homeSync(player).features
+    assert.ok(second.testModeActivationId)
+    assert.notEqual(second.testModeActivationId, first.testModeActivationId)
+    assert.equal(second.testModeAnnouncementPending, true)
+    assert.throws(
+      () => service.claimTestModeAnnouncement(player, { activationId: first.testModeActivationId }),
+      (error: unknown) => error instanceof Error && 'code' in error
+        && error.code === 'TEST_MODE_ACTIVATION_STALE'
+    )
+    assert.equal(service.claimTestModeAnnouncement(player, {
+      activationId: second.testModeActivationId
+    }).show, true)
+    service.adminOperation({ type: 'set_test_mode', enabled: false, reason: 'End the second activation' })
+    service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'Begin the third activation' })
+    const third = service.homeSync(player).features
+    assert.ok(third.testModeActivationId)
+    assert.notEqual(third.testModeActivationId, second.testModeActivationId)
+    assert.equal(third.testModeAnnouncementPending, true)
+    assert.equal(service.claimTestModeAnnouncement(player, {
+      activationId: third.testModeActivationId
+    }).show, true)
+    assert.ok(service.flush())
+
+    const restarted = new GameService(root)
+    const resumed = restarted.ensureSession(created.token, 'legacy-claim-restart')
+    assert.ok('token' in resumed)
+    if (!('token' in resumed)) return
+    assert.equal(resumed.features.introBattleRequired, false)
+    assert.equal(resumed.features.testModeActivationId, third.testModeActivationId)
+    assert.equal(resumed.features.testModeAnnouncementPending, false)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('legacy test mode is authoritative for sessions, spending, upgrades, and troop unlocks', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'clash-admin-test-mode-gameplay-'))
   try {
@@ -459,12 +540,16 @@ test('legacy test mode is authoritative for sessions, spending, upgrades, and tr
       type: 'set_test_mode', enabled: true, reason: 'Exercise every legacy test entitlement'
     })
     const heartbeat = service.homeSync(player)
-    assert.deepEqual(heartbeat.features, { infiniteResources: true, testMode: true })
+    assert.equal(heartbeat.features.infiniteResources, true)
+    assert.equal(heartbeat.features.testMode, true)
+    assert.equal(heartbeat.features.testModeAnnouncementPending, true)
+    assert.ok(heartbeat.features.testModeActivationId)
+    assert.equal(heartbeat.features.introBattleRequired, true)
     assert.deepEqual(heartbeat.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
     const enabled = service.ensureSession(session.token, 'test-mode-legacy')
     assert.ok('token' in enabled)
     if (!('token' in enabled)) return
-    assert.deepEqual(enabled.features, { infiniteResources: true, testMode: true })
+    assert.deepEqual(enabled.features, heartbeat.features)
     assert.deepEqual(enabled.world.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
 
     const before = service.getWorld(player)
@@ -505,7 +590,13 @@ test('legacy test mode is authoritative for sessions, spending, upgrades, and tr
     const disabled = service.ensureSession(session.token, 'test-mode-legacy-disabled')
     assert.ok('token' in disabled)
     if ('token' in disabled) {
-      assert.deepEqual(disabled.features, { infiniteResources: false, testMode: false })
+      assert.deepEqual(disabled.features, {
+        infiniteResources: false,
+        testMode: false,
+        testModeActivationId: null,
+        testModeAnnouncementPending: false,
+        introBattleRequired: true
+      })
     }
   } finally {
     rmSync(root, { recursive: true, force: true })

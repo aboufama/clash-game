@@ -654,6 +654,46 @@ ALTER TABLE admin_runtime_config
   );
 `
 
+const ACCOUNT_ONBOARDING_AND_TEST_MODE_ANNOUNCEMENTS_SQL = String.raw`
+ALTER TABLE admin_runtime_config
+  ADD COLUMN test_mode_global_activation_id text,
+  ADD COLUMN test_mode_player_activation_ids jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+UPDATE admin_runtime_config AS config
+SET test_mode_global_activation_id = CASE
+      WHEN test_mode_enabled THEN 'tm.g.legacy.' || revision::text
+      ELSE NULL
+    END,
+    test_mode_player_activation_ids = CASE
+      WHEN test_mode_enabled THEN '{}'::jsonb
+      ELSE COALESCE((
+        SELECT jsonb_object_agg(
+          entry.key,
+          to_jsonb('tm.p.legacy.' || config.revision::text || '.' || entry.key)
+        )
+        FROM jsonb_each(config.test_mode_overrides) AS entry
+        WHERE entry.value = 'true'::jsonb
+      ), '{}'::jsonb)
+    END;
+
+ALTER TABLE admin_runtime_config
+  ADD CONSTRAINT admin_runtime_config_test_mode_global_activation_id CHECK (
+    test_mode_global_activation_id IS NULL
+    OR length(test_mode_global_activation_id) BETWEEN 1 AND 160
+  ),
+  ADD CONSTRAINT admin_runtime_config_test_mode_player_activation_ids_object CHECK (
+    jsonb_typeof(test_mode_player_activation_ids) = 'object'
+  );
+
+ALTER TABLE accounts
+  ADD COLUMN test_mode_acknowledged_activation_id text,
+  ADD COLUMN intro_battle_completed boolean NOT NULL DEFAULT true,
+  ADD CONSTRAINT accounts_test_mode_acknowledged_activation_id CHECK (
+    test_mode_acknowledged_activation_id IS NULL
+    OR length(test_mode_acknowledged_activation_id) BETWEEN 1 AND 160
+  );
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -671,7 +711,12 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 14, name: 'admin_authority', sql: ADMIN_AUTHORITY_SQL },
   { version: 15, name: 'bot_revision_epoch', sql: BOT_REVISION_EPOCH_SQL },
   { version: 16, name: 'admin_starter_village', sql: ADMIN_STARTER_VILLAGE_SQL },
-  { version: 17, name: 'admin_test_mode', sql: ADMIN_TEST_MODE_SQL }
+  { version: 17, name: 'admin_test_mode', sql: ADMIN_TEST_MODE_SQL },
+  {
+    version: 18,
+    name: 'account_onboarding_and_test_mode_announcements',
+    sql: ACCOUNT_ONBOARDING_AND_TEST_MODE_ANNOUNCEMENTS_SQL
+  }
 ]
 
 function checksum(sql: string): string {

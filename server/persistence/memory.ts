@@ -82,7 +82,7 @@ import {
   attackRecordWithAuthority
 } from './attack-authority'
 import { allocationOrdinalOf } from '../domain/world/allocation'
-import { normalizeTestModeOverrides } from '../domain/test-mode'
+import { normalizeTestModeActivationState } from '../domain/test-mode'
 
 interface MemoryState {
   accounts: Map<string, AccountRecord>
@@ -144,6 +144,8 @@ function emptyState(): MemoryState {
       maintenanceMessage: null,
       testModeEnabled: false,
       testModeOverrides: {},
+      testModeGlobalActivationId: null,
+      testModePlayerActivationIds: {},
       starterVillage: null,
       updatedAt: new Date(0),
       revision: 1
@@ -313,6 +315,20 @@ class MemoryAccounts implements AccountRepository {
     const account = this.state.accounts.get(id)
     if (!account) return false
     if (seenAt > account.lastSeenAt) account.lastSeenAt = copy(seenAt)
+    return true
+  }
+
+  async claimTestModeAnnouncement(id: string, activationId: string): Promise<boolean> {
+    const account = this.state.accounts.get(id)
+    if (!account || account.testModeAcknowledgedActivationId === activationId) return false
+    account.testModeAcknowledgedActivationId = activationId
+    return true
+  }
+
+  async completeIntroBattle(id: string): Promise<boolean> {
+    const account = this.state.accounts.get(id)
+    if (!account || account.introBattleCompleted) return false
+    account.introBattleCompleted = true
     return true
   }
 
@@ -1572,20 +1588,15 @@ class MemoryAdmin implements AdminRepository {
   }
 
   async getConfig(): Promise<AdminRuntimeConfigRecord> {
-    return copy({
-      ...this.state.adminConfig,
-      testModeEnabled: this.state.adminConfig.testModeEnabled === true,
-      testModeOverrides: normalizeTestModeOverrides(this.state.adminConfig.testModeOverrides)
-    })
+    const activationState = normalizeTestModeActivationState(this.state.adminConfig)
+    this.state.adminConfig = copy({ ...this.state.adminConfig, ...activationState })
+    return copy(this.state.adminConfig)
   }
 
   async updateConfig(record: AdminRuntimeConfigRecord, expectedRevision: number): Promise<boolean> {
     if (this.state.adminConfig.revision !== expectedRevision) return false
     if (record.revision !== expectedRevision + 1) throw new Error('Admin config revision must advance by one')
-    this.state.adminConfig = copy({
-      ...record,
-      testModeOverrides: normalizeTestModeOverrides(record.testModeOverrides)
-    })
+    this.state.adminConfig = copy({ ...record, ...normalizeTestModeActivationState(record) })
     return true
   }
 
