@@ -91,6 +91,78 @@ export interface ReplayFrame {
   troops: ReplayTroopState[]
 }
 
+/**
+ * Replay-v2 separates discrete combat presentation events from periodic state
+ * correction keyframes. `sequence` is one contiguous stream shared by both
+ * kinds, so a consumer can apply them in deterministic order without deriving
+ * damage timing from sparse snapshots.
+ */
+export type ReplayV2CombatEventType =
+  | 'troop.spawn'
+  | 'combat.attack'
+  | 'defense.charge'
+  | 'defense.fire'
+  | 'projectile.launch'
+  | 'projectile.impact'
+  | 'combat.damage'
+  | 'combat.heal'
+  | 'entity.death'
+  | 'building.destroy'
+  | 'ability'
+  | 'status'
+  | 'fx'
+  | 'sound'
+
+export interface ReplayV2CombatEvent {
+  version: 1
+  id: string
+  seed: number
+  type: ReplayV2CombatEventType
+  /**
+   * Type-specific JSON payload authored by the client presentation seam. The
+   * server deliberately preserves it opaquely so new effects do not require a
+   * persistence migration; version/type remain the validation boundary.
+   */
+  payload: Record<string, unknown>
+}
+
+export interface ReplayV2EventChunk {
+  kind: 'event'
+  sequence: number
+  t: number
+  event: ReplayV2CombatEvent
+}
+
+export interface ReplayV2KeyframeChunk {
+  kind: 'keyframe'
+  sequence: number
+  t: number
+  /** Terminal correction keyframes bypass the rolling presentation budget. */
+  terminal?: boolean
+  frame: ReplayFrame
+}
+
+export type ReplayV2Chunk = ReplayV2EventChunk | ReplayV2KeyframeChunk
+
+export interface ReplayV2Batch {
+  chunks: ReplayV2Chunk[]
+}
+
+export interface ReplayPushReceipt {
+  /** Legacy v1 storage high-water; retained for old clients. */
+  frameCount: number
+  acceptedFrames: number
+  replacedFrames: number
+  duplicateFrames: number
+  droppedFrames: number
+  acceptedV2: number
+  duplicateV2: number
+  droppedV2: number
+  lastV2Sequence: number
+  /** True once the v2 budget is exhausted; only a final correction may follow. */
+  terminalOnlyV2: boolean
+}
+
 export type AttackStatus = 'live' | 'finished' | 'aborted'
 
 /** Full attack/replay record. Fetched in a single request, so replays start instantly. */
@@ -140,6 +212,15 @@ export interface AttackRecord {
   /** Exact serialized bytes, maintained by the server for memory bounds. */
   byteSize?: number
   frames: ReplayFrame[]
+  /** Ordered replay-v2 event/keyframe stream, when published by a v2 client. */
+  v2Chunks?: ReplayV2Chunk[]
+  lastV2Sequence?: number
+  /** Internal legacy-runtime state: preserve only a final correction after a budget drop. */
+  replayV2TerminalOnly?: boolean
+  /** Highest replay transport version included in this response. */
+  replayVersion?: 1 | 2
+  /** The event stream was truncated and is completed by its terminal keyframe. */
+  terminalOnlyV2?: boolean
   finalResult?: {
     destruction: number
     goldLooted: number

@@ -123,6 +123,7 @@ export interface AttackCommandRequest {
 export interface AttackFrameRequest {
   attackId?: unknown
   frames?: unknown
+  replayV2?: unknown
 }
 
 export interface AttackEndRequest {
@@ -197,7 +198,7 @@ export interface ApiService<Principal> {
   pushCommands(player: Principal, body: AttackCommandRequest): Awaitable<unknown>
   endAttack(player: Principal, body: AttackEndRequest): Awaitable<unknown>
   incomingAttacks(player: Principal): Awaitable<unknown>
-  getReplay(player: Principal, attackId: unknown, afterT?: unknown): Awaitable<unknown>
+  getReplay(player: Principal, attackId: unknown, afterT?: unknown, afterV2Sequence?: unknown): Awaitable<unknown>
 
   listNotifications(player: Principal): Awaitable<unknown>
   getUnread(player: Principal): Awaitable<number>

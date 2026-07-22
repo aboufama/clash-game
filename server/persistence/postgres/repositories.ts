@@ -1866,8 +1866,8 @@ class PgReplays implements ReplayRepository {
   }
 
   async append(record: ReplayChunkRecord): Promise<'inserted' | 'duplicate'> {
-    if (record.format === 'presentation-frame-v1') {
-      throw new Error('Presentation frames must use appendPresentation so storage is budgeted')
+    if (record.format.startsWith('presentation-')) {
+      throw new Error('Presentation replay chunks must use appendPresentation so storage is budgeted')
     }
     if ((record.payload === null) === (record.objectKey === null)) {
       throw new Error('Replay chunk must have exactly one payload location')
@@ -1908,10 +1908,16 @@ class PgReplays implements ReplayRepository {
 
   async appendPresentation(
     record: ReplayChunkRecord,
-    budget: { byteSize: number; maxBytes: number; maxChunks: number }
-  ): Promise<'inserted' | 'duplicate' | 'dropped'> {
-    if (record.format !== 'presentation-frame-v1' || record.payload === null || record.objectKey !== null) {
-      throw new Error('Presentation replay budget accepts only inline presentation-frame-v1 chunks')
+    budget: {
+      byteSize: number
+      maxBytes: number
+      maxChunks: number
+      replaceExisting?: boolean
+      force?: boolean
+    }
+  ): Promise<'inserted' | 'duplicate' | 'replaced' | 'dropped'> {
+    if (!record.format.startsWith('presentation-') || record.payload === null || record.objectKey !== null) {
+      throw new Error('Presentation replay budget accepts only inline presentation chunks')
     }
     if (!Number.isSafeInteger(budget.byteSize) || budget.byteSize < 0
       || !Number.isSafeInteger(budget.maxBytes) || budget.maxBytes < 1
@@ -1940,12 +1946,29 @@ class PgReplays implements ReplayRepository {
     if (collision) {
       if (collision.format === record.format && collision.checksum === record.checksum
         && isDeepStrictEqual(collision.payload, record.payload) && collision.objectKey === record.objectKey) return 'duplicate'
-      throw new PersistenceConflictError('Replay chunk sequence was reused with different content')
+      if (!budget.replaceExisting || !collision.format.startsWith('presentation-')) {
+        throw new PersistenceConflictError('Replay chunk sequence was reused with different content')
+      }
+      const priorBytes = Buffer.byteLength(JSON.stringify(collision.payload), 'utf8')
+      const bytesUsed = Number(usage.bytes_used)
+      const projectedBytes = Math.max(0, bytesUsed - priorBytes + budget.byteSize)
+      if (!budget.force && (budget.byteSize > budget.maxBytes || projectedBytes > budget.maxBytes)) return 'dropped'
+      await this.sql.query(String.raw`
+        UPDATE replay_chunks
+        SET format = $3, payload = $4, object_key = NULL, checksum = $5, created_at = $6
+        WHERE attack_id = $1 AND sequence = $2
+      `, [record.attackId, record.sequence, record.format, record.payload, record.checksum, record.createdAt])
+      await this.sql.query(String.raw`
+        UPDATE replay_presentation_usage
+        SET bytes_used = $2, updated_at = $3
+        WHERE attack_id = $1
+      `, [record.attackId, projectedBytes, record.createdAt])
+      return 'replaced'
     }
 
     const bytesUsed = Number(usage.bytes_used)
-    if (budget.byteSize > budget.maxBytes || bytesUsed + budget.byteSize > budget.maxBytes
-      || usage.chunk_count >= budget.maxChunks) return 'dropped'
+    if (!budget.force && (budget.byteSize > budget.maxBytes || bytesUsed + budget.byteSize > budget.maxBytes
+      || usage.chunk_count >= budget.maxChunks)) return 'dropped'
     await this.sql.query(String.raw`
       UPDATE replay_presentation_usage
       SET bytes_used = bytes_used + $2, chunk_count = chunk_count + 1, updated_at = $3
@@ -1968,10 +1991,34 @@ class PgReplays implements ReplayRepository {
       WHERE attack.id = $1
         AND (attack.attacker_id = $2 OR attack.defender_id = $2)
         AND chunk.sequence > $3
+        AND chunk.sequence <= $5
       ORDER BY chunk.sequence
       LIMIT $4
-    `, [query.attackId, query.participantId, query.afterSequence, query.limit])
+    `, [
+      query.attackId,
+      query.participantId,
+      query.afterSequence,
+      query.limit,
+      query.maxSequence ?? 2_147_483_647
+    ])
     return result.rows.map(replayChunkFromRow)
+  }
+
+  async latestSequenceForParticipant(input: {
+    attackId: string
+    participantId: string
+    minSequence: number
+    maxSequence: number
+  }): Promise<number> {
+    const result = await this.sql.query<{ latest: number | null }>(String.raw`
+      SELECT max(chunk.sequence)::integer AS latest
+      FROM attacks attack
+      JOIN replay_chunks chunk ON chunk.attack_id = attack.id
+      WHERE attack.id = $1
+        AND (attack.attacker_id = $2 OR attack.defender_id = $2)
+        AND chunk.sequence BETWEEN $3 AND $4
+    `, [input.attackId, input.participantId, input.minSequence, input.maxSequence])
+    return Number(result.rows[0]?.latest ?? input.minSequence - 1)
   }
 
   async prunePresentation(before: Date, requestedLimit: number): Promise<number> {
@@ -1984,7 +2031,7 @@ class PgReplays implements ReplayRepository {
         WHERE attack.ended_at IS NOT NULL AND attack.ended_at < $1
           AND EXISTS (
             SELECT 1 FROM replay_chunks chunk
-            WHERE chunk.attack_id = attack.id AND chunk.format = 'presentation-frame-v1'
+            WHERE chunk.attack_id = attack.id AND chunk.format LIKE 'presentation-%'
           )
         ORDER BY attack.ended_at, attack.id
         LIMIT $2
@@ -1992,7 +2039,7 @@ class PgReplays implements ReplayRepository {
       ), deleted_chunks AS (
         DELETE FROM replay_chunks chunk
         USING victims
-        WHERE chunk.attack_id = victims.id AND chunk.format = 'presentation-frame-v1'
+        WHERE chunk.attack_id = victims.id AND chunk.format LIKE 'presentation-%'
         RETURNING chunk.attack_id
       ), deleted_usage AS (
         DELETE FROM replay_presentation_usage usage

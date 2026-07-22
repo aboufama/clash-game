@@ -25,6 +25,8 @@ import type {
   PlayerProfile,
   PublicWorldSnapshot,
   ReplayFrame,
+  ReplayPushReceipt,
+  ReplayV2Chunk,
   SessionResponse,
   StartedAttackResponse
 } from './protocol'
@@ -156,6 +158,7 @@ import {
 import { PlayerDirectory } from './domain/player'
 import { RequestReplayIndex } from './domain/idempotency'
 import { ApiError, bannerRequiredError, introBattleRequiredError, watchtowerPlacementRequiredError } from './errors'
+import { replayV2Chunks } from './replay-v2'
 export { ApiError } from './errors'
 
 const MAX_BALANCE = 1_000_000_000
@@ -195,7 +198,8 @@ const MAX_REQUEST_KEYS = 400
 const MAX_RELOCATION_RECEIPTS = 64
 const MAX_REPLAY_FRAMES = 900
 const MAX_REPLAY_BYTES = 2 * 1024 * 1024
-const MAX_TOTAL_REPLAY_BYTES = 64 * 1024 * 1024
+const MAX_REPLAY_V2_BYTES = 64 * 1024 * 1024
+const MAX_TOTAL_REPLAY_BYTES = 512 * 1024 * 1024
 const MAX_NOTIFICATIONS = 50
 /** New villages get a grace period before the wolves may descend (env-tunable for tests). */
 const STARTER_SHIELD_MS = Number(process.env.CLASH_STARTER_SHIELD_MS ?? 2 * 60 * 60 * 1000)
@@ -4724,14 +4728,56 @@ export class GameService implements AdminApiService {
     }
   }
 
-  pushFrames(attacker: PlayerRecord, body: { attackId?: unknown; frames?: unknown }): { frameCount: number } {
+  pushFrames(
+    attacker: PlayerRecord,
+    body: { attackId?: unknown; frames?: unknown; replayV2?: unknown }
+  ): ReplayPushReceipt {
     const replay = this.getReplayFor(attacker, body?.attackId)
     if (replay.attackerId !== attacker.id) throw new ApiError(403, 'Only the attacker can publish frames')
     if (replay.status !== 'live') {
       throw new ApiError(409, 'That attack was already closed by another session', 'ATTACK_INVALIDATED')
     }
 
-    const incoming = Array.isArray(body?.frames) ? body.frames.slice(0, MAX_FRAMES_PER_PUSH) : []
+    // Parse the whole v2 batch before mutating v1 state so malformed event
+    // envelopes cannot partially commit an otherwise valid frame request.
+    const v2 = replayV2Chunks(body?.replayV2, MAX_ATTACK_DURATION_MS, raw => sanitizeFrame(raw))
+    const storedV2 = Array.isArray(replay.v2Chunks) ? replay.v2Chunks : []
+    const v2BySequence = new Map(storedV2.map(chunk => [chunk.sequence, chunk]))
+    const newestStoredV2 = storedV2.reduce<ReplayV2Chunk | undefined>((newest, chunk) => (
+      !newest || chunk.sequence > newest.sequence ? chunk : newest
+    ), undefined)
+    let preflightSequence = newestStoredV2?.sequence ?? 0
+    let preflightT = newestStoredV2?.t ?? -1
+    let preflightTerminated = newestStoredV2?.kind === 'keyframe' && newestStoredV2.terminal === true
+    let preflightTerminalOnly = replay.replayV2TerminalOnly === true
+    for (const item of v2) {
+      const terminal = item.kind === 'keyframe' && item.terminal === true
+      if (item.sequence <= preflightSequence) {
+        const existing = v2BySequence.get(item.sequence)
+        if (!existing || JSON.stringify(existing) !== JSON.stringify(item)) {
+          throw new ApiError(409, 'Replay-v2 sequence was already used by different data', 'REPLAY_SEQUENCE_CONFLICT', {
+            sequence: item.sequence
+          })
+        }
+        continue
+      }
+      if (preflightTerminated) {
+        throw new ApiError(409, 'Replay-v2 stream already has a terminal keyframe', 'REPLAY_TERMINATED')
+      }
+      if (preflightTerminalOnly && !terminal) continue
+      if (item.sequence !== preflightSequence + 1 && !terminal) {
+        throw new ApiError(409, 'Replay-v2 sequence has a gap', 'REPLAY_SEQUENCE_GAP', {
+          expectedSequence: preflightSequence + 1
+        })
+      }
+      if (item.t < preflightT) throw new ApiError(409, 'Replay-v2 time moved backwards', 'REPLAY_TIME_REPLAY')
+      if (terminal && item.sequence > preflightSequence + 1) preflightTerminalOnly = true
+      preflightSequence = item.sequence
+      preflightT = item.t
+      preflightTerminated = terminal
+    }
+    const rawFrames = Array.isArray(body?.frames) ? body.frames : []
+    const incoming = rawFrames.slice(0, MAX_FRAMES_PER_PUSH)
     const enemyById = new Map((replay.enemyWorld?.buildings ?? []).map(building => [building.id, building]))
     const preNormalizationBytes = replay.byteSize ?? exactReplayBytes(replay)
     const validated = Object.assign(Object.create(null) as Record<string, string>, replay.validatedDeployments ?? {})
@@ -4744,6 +4790,8 @@ export class GameService implements AdminApiService {
     this.replayBytesTotal = Math.max(0, this.replayBytesTotal + replay.byteSize - preNormalizationBytes)
     const deployedCounts = this.deploymentCounts(replay)
     let accepted = 0
+    let duplicateFrames = 0
+    let droppedFrames = Math.max(0, rawFrames.length - incoming.length)
     let leaseEvidence = false
     const rollbackDeployments = (ids: string[]) => {
       for (const id of ids) {
@@ -4754,15 +4802,26 @@ export class GameService implements AdminApiService {
         if (type) deployedCounts[type] = Math.max(0, (deployedCounts[type] ?? 1) - 1)
       }
     }
-    for (const raw of incoming) {
+    for (let incomingIndex = 0; incomingIndex < incoming.length; incomingIndex += 1) {
+      const raw = incoming[incomingIndex]
       const frame = sanitizeFrame(raw)
-      if (!frame) continue
+      if (!frame) {
+        droppedFrames += 1
+        continue
+      }
       const newDeploymentIds: string[] = []
       // The stream flows forward only: watchers interpolate on frame time,
       // so an out-of-order frame would make troops walk backwards.
       const lastT = replay.frames.length > 0 ? replay.frames[replay.frames.length - 1].t : -1
-      if (frame.t <= lastT) continue
-      if (frame.t > Date.now() - replay.startedAt + MAX_FRAME_CLOCK_LEAD_MS) continue
+      if (frame.t <= lastT) {
+        if (frame.t === lastT) duplicateFrames += 1
+        else droppedFrames += 1
+        continue
+      }
+      if (frame.t > Date.now() - replay.startedAt + MAX_FRAME_CLOCK_LEAD_MS) {
+        droppedFrames += 1
+        continue
+      }
 
       const seenBuildings = new Set<string>()
       frame.buildings = frame.buildings.flatMap(state => {
@@ -4852,6 +4911,7 @@ export class GameService implements AdminApiService {
       if (projectedBytes > MAX_REPLAY_BYTES || replay.frames.length + 1 - dropIndices.length > MAX_REPLAY_FRAMES
         || !this.pruneGlobalReplayStorage(Math.max(0, projectedBytes - replayBytes))) {
         rollbackDeployments(newDeploymentIds)
+        droppedFrames += incoming.length - incomingIndex
         break
       }
 
@@ -4947,7 +5007,98 @@ export class GameService implements AdminApiService {
       this.replayBytesTotal = Math.max(0, this.replayBytesTotal + actualBytes - accountedBytes)
       this.replays.markDirty(replay.attackId)
     }
-    return { frameCount: replay.frames.length }
+
+    let lastV2Sequence = newestStoredV2?.sequence ?? 0
+    let lastV2T = newestStoredV2?.t ?? -1
+    let v2Terminated = newestStoredV2?.kind === 'keyframe' && newestStoredV2.terminal === true
+    let terminalOnlyV2 = replay.replayV2TerminalOnly === true
+    let terminalOnlyChanged = false
+    let acceptedV2 = 0
+    let duplicateV2 = 0
+    let droppedV2 = 0
+    for (const item of v2) {
+      const terminal = item.kind === 'keyframe' && item.terminal === true
+      if (v2Terminated && item.sequence > lastV2Sequence) {
+        throw new ApiError(409, 'Replay-v2 stream already has a terminal keyframe', 'REPLAY_TERMINATED')
+      }
+      if (item.sequence <= lastV2Sequence) {
+        const existing = v2BySequence.get(item.sequence)
+        if (existing && JSON.stringify(existing) === JSON.stringify(item)) {
+          duplicateV2 += 1
+          continue
+        }
+        throw new ApiError(409, 'Replay-v2 sequence was already used by different data', 'REPLAY_SEQUENCE_CONFLICT', {
+          sequence: item.sequence
+        })
+      }
+      if (terminalOnlyV2 && !terminal) {
+        droppedV2 += 1
+        continue
+      }
+      if (item.sequence > lastV2Sequence + 1 && !terminal) {
+        throw new ApiError(409, 'Replay-v2 sequence has a gap', 'REPLAY_SEQUENCE_GAP', {
+          expectedSequence: lastV2Sequence + 1
+        })
+      }
+      if (item.t < lastV2T) {
+        throw new ApiError(409, 'Replay-v2 time moved backwards', 'REPLAY_TIME_REPLAY')
+      }
+
+      const priorBytes = replay.byteSize ?? exactReplayBytes(replay)
+      if (terminal && item.sequence > lastV2Sequence + 1) {
+        replay.replayV2TerminalOnly = true
+        terminalOnlyV2 = true
+        terminalOnlyChanged = true
+      }
+      const hadStoredV2 = Array.isArray(replay.v2Chunks)
+      const previousLastV2Sequence = replay.lastV2Sequence
+      if (!hadStoredV2) replay.v2Chunks = []
+      replay.v2Chunks!.push(item)
+      replay.lastV2Sequence = item.sequence
+      const actualBytes = exactReplayBytes(replay)
+      const requiredBytes = Math.max(0, actualBytes - priorBytes)
+      const fitsBudget = actualBytes <= MAX_REPLAY_BYTES + MAX_REPLAY_V2_BYTES
+        && this.pruneGlobalReplayStorage(requiredBytes)
+      if (!terminal && !fitsBudget) {
+        replay.v2Chunks!.pop()
+        if (!hadStoredV2 && replay.v2Chunks!.length === 0) delete replay.v2Chunks
+        if (previousLastV2Sequence === undefined) delete replay.lastV2Sequence
+        else replay.lastV2Sequence = previousLastV2Sequence
+        replay.replayV2TerminalOnly = true
+        terminalOnlyV2 = true
+        terminalOnlyChanged = true
+        const revertedBytes = exactReplayBytes(replay)
+        replay.byteSize = revertedBytes
+        this.replayBytesTotal = Math.max(0, this.replayBytesTotal + revertedBytes - priorBytes)
+        droppedV2 += 1
+        continue
+      }
+      if (terminal && !fitsBudget) {
+        // Final correction state is worth a small bounded budget exception:
+        // without it, a full event stream could make the saved result stale.
+        this.pruneGlobalReplayStorage(requiredBytes)
+      }
+      replay.byteSize = actualBytes
+      this.replayBytesTotal = Math.max(0, this.replayBytesTotal + actualBytes - priorBytes)
+      v2BySequence.set(item.sequence, item)
+      lastV2Sequence = item.sequence
+      lastV2T = item.t
+      v2Terminated ||= terminal
+      acceptedV2 += 1
+    }
+    if (acceptedV2 > 0 || terminalOnlyChanged) this.replays.markDirty(replay.attackId)
+    return {
+      frameCount: replay.frames.length,
+      acceptedFrames: accepted,
+      replacedFrames: 0,
+      duplicateFrames,
+      droppedFrames,
+      acceptedV2,
+      duplicateV2,
+      droppedV2,
+      lastV2Sequence,
+      terminalOnlyV2
+    }
   }
 
   /** Idempotent battle resolution: loot moves once, trophies move once, the defender gets one notification. */
@@ -5282,7 +5433,12 @@ export class GameService implements AdminApiService {
    * Fetch a replay. One request returns everything needed to play it back
    * instantly. `afterT` narrows the frames for cheap live-spectate polling.
    */
-  getReplay(player: PlayerRecord, attackId: unknown, afterT?: unknown): AttackRecord {
+  getReplay(
+    player: PlayerRecord,
+    attackId: unknown,
+    afterT?: unknown,
+    afterV2Sequence?: unknown
+  ): AttackRecord {
     const replay = this.getReplayFor(player, attackId, true)
     const {
       reservedArmy: _reserved,
@@ -5299,6 +5455,7 @@ export class GameService implements AdminApiService {
       ownerTokenHash: _ownerTokenHash,
       startEffects: _startEffects,
       startEffectsApplied: _startEffectsApplied,
+      replayV2TerminalOnly: _replayV2TerminalOnly,
       byteSize: _bytes,
       ...publicReplay
     } = replay
@@ -5316,6 +5473,7 @@ export class GameService implements AdminApiService {
     void _ownerTokenHash
     void _startEffects
     void _startEffectsApplied
+    void _replayV2TerminalOnly
     void _bytes
     const participant = replay.attackerId === player.id || replay.victimId === player.id
     let visibleReplay = publicReplay
@@ -5335,14 +5493,34 @@ export class GameService implements AdminApiService {
         ...(enemyWorld ? { enemyWorld: { ...enemyWorld, resources: { gold: 0, ore: 0, food: 0 } } } : {})
       } as typeof publicReplay
     }
+    const versionedReplay: AttackRecord = {
+      ...visibleReplay,
+      replayVersion: (visibleReplay.v2Chunks?.length ?? 0) > 0 || replay.replayV2TerminalOnly === true ? 2 : 1,
+      lastV2Sequence: visibleReplay.v2Chunks?.at(-1)?.sequence ?? 0,
+      terminalOnlyV2: replay.replayV2TerminalOnly === true
+    }
     const after = Number(afterT)
-    if (!Number.isFinite(after)) return visibleReplay
+    const afterV2 = Number(afterV2Sequence)
+    const incrementalV1 = afterT !== undefined && Number.isFinite(after)
+    const incrementalV2 = afterV2Sequence !== undefined && Number.isFinite(afterV2)
+    if (!incrementalV1 && !incrementalV2) return versionedReplay
     // Incremental spectate poll: the watcher already holds the enemy world
     // from its first full fetch — re-shipping the whole base (plus every
     // older frame) up to 3x a second was pure bandwidth rot.
-    const { enemyWorld: _fullWorld, ...slim } = visibleReplay
+    const { enemyWorld: _fullWorld, ...slim } = versionedReplay
     void _fullWorld
-    return { ...slim, frames: replay.frames.filter(frame => frame.t > after) }
+    const v2Chunks = (replay.v2Chunks ?? []).filter(chunk => (
+      incrementalV2
+        ? chunk.sequence > Math.max(0, Math.floor(afterV2))
+        : (!incrementalV1 || chunk.t > after)
+    ))
+    return {
+      ...slim,
+      frames: incrementalV1 ? replay.frames.filter(frame => frame.t > after) : [],
+      v2Chunks,
+      lastV2Sequence: v2Chunks.at(-1)?.sequence
+        ?? (incrementalV2 ? Math.max(0, Math.floor(afterV2)) : 0)
+    }
   }
 
   // ---- admin authority ----

@@ -381,7 +381,16 @@ export interface ParticipantReplayQuery {
   participantId: string
   /** Exclusive sequence cursor. Use -1 for the first page. */
   afterSequence: number
+  /** Inclusive upper storage cursor; omitted for the remainder of the stream. */
+  maxSequence?: number
   limit: number
+}
+
+export interface ParticipantReplaySequenceRange {
+  attackId: string
+  participantId: string
+  minSequence: number
+  maxSequence: number
 }
 
 export interface NotificationRecord {

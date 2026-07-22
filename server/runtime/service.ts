@@ -2711,7 +2711,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     return this.attacks.incomingAttacks(player)
   }
 
-  getReplay(player: RuntimePrincipal, attackId: unknown, afterT?: unknown) {
-    return this.attacks.getReplay(player, attackId, afterT)
+  getReplay(player: RuntimePrincipal, attackId: unknown, afterT?: unknown, afterV2Sequence?: unknown) {
+    return this.attacks.getReplay(player, attackId, afterT, afterV2Sequence)
   }
 }

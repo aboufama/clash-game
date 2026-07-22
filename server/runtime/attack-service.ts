@@ -45,6 +45,8 @@ import {
   spendRevengeRight
 } from '../domain/attack-retention'
 import { ApiError } from '../errors'
+import type { ReplayPushReceipt, ReplayV2Chunk } from '../protocol'
+import { MAX_REPLAY_V2_SEQUENCE, replayV2Chunks } from '../replay-v2'
 import {
   PersistenceConflictError,
   attackCommandsFromAuthority,
@@ -92,11 +94,16 @@ const BOT_RAID_SESSION_MS = 15 * 60_000
 const MATCHMAKE_LIMIT = 64
 const BOT_PROBE_LIMIT = 64
 const ACTIVE_LIMIT = 16
-const REPLAY_PAGE_SIZE = 128
-const REPLAY_PAGE_LIMIT = 8
+const REPLAY_PAGE_SIZE = 1_024
+const REPLAY_PAGE_LIMIT = 1_024
 const MAX_REPLAY_FRAMES = 512
+const MAX_PRESENTATION_REPLAY_CHUNKS = MAX_REPLAY_FRAMES + MAX_REPLAY_V2_SEQUENCE
 export const MAX_PRESENTATION_REPLAY_BYTES = 2 * 1024 * 1024
+export const MAX_PRESENTATION_REPLAY_V2_BYTES = 64 * 1024 * 1024
 export const PRESENTATION_REPLAY_RETENTION_MS = 7 * 24 * 60 * 60_000
+const REPLAY_V2_STORAGE_BASE = 1_000_000
+const REPLAY_V2_STATE_SEQUENCE = REPLAY_V2_STORAGE_BASE
+const REPLAY_V2_STORAGE_MAX = REPLAY_V2_STORAGE_BASE + MAX_REPLAY_V2_SEQUENCE
 const FINAL_REPLAY_SEQUENCE = 2_000_000_000
 
 type Clock = () => Date
@@ -105,6 +112,8 @@ type IdFactory = (prefix: 'atk' | 'botraid') => string
 export interface PersistenceAttackServiceOptions {
   now?: Clock
   createId?: IdFactory
+  /** Test seam; production always defaults to the practical 64 MiB v2 cap. */
+  maxPresentationReplayV2Bytes?: number
 }
 
 type StartedPlayerAttack = {
@@ -444,16 +453,39 @@ function presentationSequence(t: number, maxDurationMs: number): number {
   return Math.min(MAX_REPLAY_FRAMES, Math.floor(t / bucketMs) + 1)
 }
 
+function replayV2StorageSequence(sequence: number): number {
+  return REPLAY_V2_STORAGE_BASE + sequence
+}
+
+function replayV2Payload(chunk: ReplayChunkRecord): ReplayV2Chunk | null {
+  const payload = replayPayload(chunk)
+  if (!payload || (payload.kind !== 'event' && payload.kind !== 'keyframe')) return null
+  return payload as unknown as ReplayV2Chunk
+}
+
+function replayV2TerminalOnlyPayload(chunk: ReplayChunkRecord | undefined): boolean {
+  const payload = chunk ? replayPayload(chunk) : null
+  return chunk?.format === 'presentation-stream-v2-state' && payload?.terminalOnly === true
+}
+
 /** Normalized persistence authority for every player and bot combat route. */
 export class PersistenceAttackService implements RuntimeAttackService {
   private readonly persistence: Persistence
   private readonly now: Clock
   private readonly createId: IdFactory
+  private readonly maxPresentationReplayV2Bytes: number
 
   constructor(persistence: Persistence, options: PersistenceAttackServiceOptions = {}) {
     this.persistence = persistence
     this.now = options.now ?? (() => new Date())
     this.createId = options.createId ?? randomId
+    this.maxPresentationReplayV2Bytes = Math.max(
+      1,
+      nonNegativeInt(
+        options.maxPresentationReplayV2Bytes,
+        MAX_PRESENTATION_REPLAY_BYTES + MAX_PRESENTATION_REPLAY_V2_BYTES
+      )
+    )
   }
 
   private async serializable<T>(work: (tx: UnitOfWork, now: Date) => Promise<T>): Promise<T> {
@@ -1546,7 +1578,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
     }
   }
 
-  async pushFrames(principal: RuntimePrincipal, body: AttackFrameRequest): Promise<{ frameCount: number }> {
+  async pushFrames(principal: RuntimePrincipal, body: AttackFrameRequest): Promise<ReplayPushReceipt> {
     const id = strictId(body?.attackId, 'attackId')
     const rawFrames = Array.isArray(body?.frames) ? body.frames : []
     if (rawFrames.length > 16) throw new ApiError(400, 'Replay frame batches may contain at most 16 frames')
@@ -1556,10 +1588,18 @@ export class PersistenceAttackService implements RuntimeAttackService {
       if (record.attackerId !== principal.playerId) throw new ApiError(403, 'Only the attacker can publish replay frames')
       if (!phaseIsActive(record.authority.phase)) throw new ApiError(409, 'That attack is no longer active', 'ATTACK_INVALIDATED')
       const maxT = record.authority.rules.maxCombatDurationMs
+      const v2 = replayV2Chunks(body?.replayV2, maxT, sanitizeFrame)
       let highWater = 0
+      let acceptedFrames = 0
+      let replacedFrames = 0
+      let duplicateFrames = 0
+      let droppedFrames = 0
       for (const raw of rawFrames) {
         const frame = sanitizeFrame(raw, maxT)
-        if (!frame) continue
+        if (!frame) {
+          droppedFrames += 1
+          continue
+        }
         // Mirror legacy game.ts: stored replay frames advertise the settled
         // loot curve (authoritative caps × destruction), never the attacker's
         // claimed counters — defender-side replays/reports must not inflate.
@@ -1573,12 +1613,21 @@ export class PersistenceAttackService implements RuntimeAttackService {
           attackId: id,
           participantId: principal.playerId,
           afterSequence: sequence - 1,
+          maxSequence: sequence,
           limit: 1
         }))[0]
-        highWater = Math.max(highWater, sequence)
-        // One deterministic sample per duration bucket keeps storage capped at
-        // MAX_REPLAY_FRAMES without scanning prior chunks on every append.
-        if (existing?.sequence === sequence) continue
+        if (existing?.sequence === sequence) {
+          highWater = Math.max(highWater, sequence)
+          const prior = replayPayload(existing)
+          const priorT = nonNegativeInt(prior?.t)
+          // Same-bucket retries are idempotent, while a later correction replaces
+          // the earlier sample so destruction/final state is never pinned stale.
+          if (priorT > frame.t || (priorT === frame.t && existing.checksum === checksum)) {
+            highWater = Math.max(highWater, sequence)
+            duplicateFrames += 1
+            continue
+          }
+        }
         const chunk: ReplayChunkRecord = {
           attackId: id,
           sequence,
@@ -1588,13 +1637,155 @@ export class PersistenceAttackService implements RuntimeAttackService {
           checksum,
           createdAt: now
         }
-        await tx.replays.appendPresentation(chunk, {
+        const outcome = await tx.replays.appendPresentation(chunk, {
           byteSize: Buffer.byteLength(JSON.stringify(frame), 'utf8'),
           maxBytes: MAX_PRESENTATION_REPLAY_BYTES,
-          maxChunks: MAX_REPLAY_FRAMES
+          maxChunks: MAX_PRESENTATION_REPLAY_CHUNKS,
+          replaceExisting: true
+        })
+        if (outcome === 'dropped') {
+          droppedFrames += 1
+          continue
+        }
+        highWater = Math.max(highWater, sequence)
+        if (outcome === 'inserted') acceptedFrames += 1
+        else if (outcome === 'replaced') replacedFrames += 1
+        else duplicateFrames += 1
+      }
+
+      const latestStorage = await tx.replays.latestSequenceForParticipant({
+        attackId: id,
+        participantId: principal.playerId,
+        minSequence: REPLAY_V2_STORAGE_BASE + 1,
+        maxSequence: REPLAY_V2_STORAGE_MAX
+      })
+      let lastV2Sequence = Math.max(0, latestStorage - REPLAY_V2_STORAGE_BASE)
+      let lastV2T = -1
+      let v2Terminated = false
+      const stateChunk = (await tx.replays.listForParticipant({
+        attackId: id,
+        participantId: principal.playerId,
+        afterSequence: REPLAY_V2_STATE_SEQUENCE - 1,
+        maxSequence: REPLAY_V2_STATE_SEQUENCE,
+        limit: 1
+      }))[0]
+      let terminalOnlyV2 = replayV2TerminalOnlyPayload(stateChunk)
+      if (lastV2Sequence > 0) {
+        const latest = (await tx.replays.listForParticipant({
+          attackId: id,
+          participantId: principal.playerId,
+          afterSequence: replayV2StorageSequence(lastV2Sequence) - 1,
+          maxSequence: replayV2StorageSequence(lastV2Sequence),
+          limit: 1
+        }))[0]
+        const latestPayload = latest ? replayV2Payload(latest) : null
+        lastV2T = latestPayload?.t ?? -1
+        v2Terminated = latestPayload?.kind === 'keyframe' && latestPayload.terminal === true
+      }
+      let acceptedV2 = 0
+      let duplicateV2 = 0
+      let droppedV2 = 0
+      const markTerminalOnly = async (lastOfferedSequence: number) => {
+        terminalOnlyV2 = true
+        const payload = jsonValue({
+          version: 1,
+          terminalOnly: true,
+          lastAcceptedSequence: lastV2Sequence,
+          lastOfferedSequence
+        })
+        await tx.replays.appendPresentation({
+          attackId: id,
+          sequence: REPLAY_V2_STATE_SEQUENCE,
+          format: 'presentation-stream-v2-state',
+          payload,
+          objectKey: null,
+          checksum: stableHash(payload),
+          createdAt: now
+        }, {
+          byteSize: Buffer.byteLength(JSON.stringify(payload), 'utf8'),
+          maxBytes: this.maxPresentationReplayV2Bytes,
+          maxChunks: MAX_PRESENTATION_REPLAY_CHUNKS,
+          replaceExisting: true,
+          force: true
         })
       }
-      return { frameCount: highWater }
+      for (const item of v2) {
+        const terminal = item.kind === 'keyframe' && item.terminal === true
+        const payload = jsonValue(item)
+        const checksum = stableHash(payload)
+        if (item.sequence <= lastV2Sequence) {
+          const existing = (await tx.replays.listForParticipant({
+            attackId: id,
+            participantId: principal.playerId,
+            afterSequence: replayV2StorageSequence(item.sequence) - 1,
+            maxSequence: replayV2StorageSequence(item.sequence),
+            limit: 1
+          }))[0]
+          if (existing?.format === 'presentation-stream-v2' && existing.checksum === checksum) {
+            duplicateV2 += 1
+            continue
+          }
+          throw new ApiError(409, 'Replay-v2 sequence was already used by different data', 'REPLAY_SEQUENCE_CONFLICT', {
+            sequence: item.sequence
+          })
+        }
+        if (v2Terminated) {
+          throw new ApiError(409, 'Replay-v2 stream already has a terminal keyframe', 'REPLAY_TERMINATED')
+        }
+        if (terminalOnlyV2 && item.sequence > lastV2Sequence && !terminal) {
+          droppedV2 += 1
+          continue
+        }
+        if (item.sequence > lastV2Sequence + 1 && !terminal) {
+          throw new ApiError(409, 'Replay-v2 sequence has a gap', 'REPLAY_SEQUENCE_GAP', {
+            expectedSequence: lastV2Sequence + 1
+          })
+        }
+        if (item.sequence > lastV2Sequence && item.t < lastV2T) {
+          throw new ApiError(409, 'Replay-v2 time moved backwards', 'REPLAY_TIME_REPLAY')
+        }
+        const terminalGap = terminal && item.sequence > lastV2Sequence + 1
+        if (terminalGap && !terminalOnlyV2) await markTerminalOnly(item.sequence)
+        const outcome = await tx.replays.appendPresentation({
+          attackId: id,
+          sequence: replayV2StorageSequence(item.sequence),
+          format: 'presentation-stream-v2',
+          payload,
+          objectKey: null,
+          checksum,
+          createdAt: now
+        }, {
+          byteSize: Buffer.byteLength(JSON.stringify(item), 'utf8'),
+          maxBytes: this.maxPresentationReplayV2Bytes,
+          maxChunks: MAX_PRESENTATION_REPLAY_CHUNKS,
+          force: terminal
+        })
+        if (outcome === 'dropped') {
+          droppedV2 += 1
+          await markTerminalOnly(item.sequence)
+          continue
+        }
+        if (outcome === 'duplicate') {
+          duplicateV2 += 1
+        } else {
+          acceptedV2 += 1
+        }
+        lastV2Sequence = Math.max(lastV2Sequence, item.sequence)
+        lastV2T = Math.max(lastV2T, item.t)
+        v2Terminated ||= terminal
+      }
+      return {
+        frameCount: highWater,
+        acceptedFrames,
+        replacedFrames,
+        duplicateFrames,
+        droppedFrames,
+        acceptedV2,
+        duplicateV2,
+        droppedV2,
+        lastV2Sequence,
+        terminalOnlyV2
+      }
     })
   }
 
@@ -1602,8 +1793,10 @@ export class PersistenceAttackService implements RuntimeAttackService {
     tx: UnitOfWork,
     attackId: string,
     participantId: string,
-    afterSequence: number
+    afterSequence: number,
+    maxSequence?: number
   ): Promise<ReplayChunkRecord[]> {
+    if (maxSequence !== undefined && afterSequence >= maxSequence) return []
     const chunks: ReplayChunkRecord[] = []
     let cursor = afterSequence
     for (let page = 0; page < REPLAY_PAGE_LIMIT; page += 1) {
@@ -1611,6 +1804,7 @@ export class PersistenceAttackService implements RuntimeAttackService {
         attackId,
         participantId,
         afterSequence: cursor,
+        ...(maxSequence === undefined ? {} : { maxSequence }),
         limit: REPLAY_PAGE_SIZE
       })
       chunks.push(...next)
@@ -1620,7 +1814,12 @@ export class PersistenceAttackService implements RuntimeAttackService {
     return chunks
   }
 
-  async getReplay(principal: RuntimePrincipal, rawAttackId: unknown, afterT?: unknown): Promise<Record<string, unknown>> {
+  async getReplay(
+    principal: RuntimePrincipal,
+    rawAttackId: unknown,
+    afterT?: unknown,
+    afterV2Sequence?: unknown
+  ): Promise<Record<string, unknown>> {
     const attackId = strictId(rawAttackId, 'attackId')
     return this.persistence.transaction(async tx => {
       const record = await tx.attacks.get(attackId)
@@ -1628,17 +1827,51 @@ export class PersistenceAttackService implements RuntimeAttackService {
       if (record.attackerId !== principal.playerId && record.defenderId !== principal.playerId) {
         throw new ApiError(403, 'Not authorized to watch this attack')
       }
-      const incremental = afterT !== undefined && Number.isFinite(Number(afterT))
-      const afterSequence = incremental
+      const incrementalV1 = afterT !== undefined && Number.isFinite(Number(afterT))
+      const incrementalV2 = afterV2Sequence !== undefined && Number.isFinite(Number(afterV2Sequence))
+      const incremental = incrementalV1 || incrementalV2
+      const afterSequence = incrementalV1
         ? presentationSequence(nonNegativeInt(afterT), record.authority.rules.maxCombatDurationMs)
-        : -1
-      const chunks = await this.loadReplayChunks(tx, attackId, principal.playerId, afterSequence)
-      const frames = chunks
+        : incrementalV2 ? MAX_REPLAY_FRAMES : -1
+      const v1Chunks = await this.loadReplayChunks(
+        tx,
+        attackId,
+        principal.playerId,
+        afterSequence,
+        MAX_REPLAY_FRAMES
+      )
+      const afterV2 = incrementalV2
+        ? nonNegativeInt(afterV2Sequence, 0, MAX_REPLAY_V2_SEQUENCE)
+        : 0
+      const v2Chunks = await this.loadReplayChunks(
+        tx,
+        attackId,
+        principal.playerId,
+        replayV2StorageSequence(afterV2),
+        REPLAY_V2_STORAGE_MAX
+      )
+      const frames = v1Chunks
         .filter(chunk => chunk.format === 'presentation-frame-v1')
         .map(replayPayload)
         .filter((frame): frame is Record<string, unknown> => Boolean(frame))
-        .slice(-260)
-      const start = incremental ? null : chunks.find(chunk => chunk.format === 'attack-start-v1')
+      const orderedV2 = v2Chunks
+        .filter(chunk => chunk.format === 'presentation-stream-v2')
+        .map(replayV2Payload)
+        .filter((chunk): chunk is ReplayV2Chunk => Boolean(chunk))
+        .filter(chunk => incrementalV2 || !incrementalV1 || chunk.t > nonNegativeInt(afterT))
+        .sort((left, right) => left.sequence - right.sequence)
+      const stateChunk = (await tx.replays.listForParticipant({
+        attackId,
+        participantId: principal.playerId,
+        afterSequence: REPLAY_V2_STATE_SEQUENCE - 1,
+        maxSequence: REPLAY_V2_STATE_SEQUENCE,
+        limit: 1
+      }))[0]
+      const terminalOnlyV2 = replayV2TerminalOnlyPayload(stateChunk)
+      const startChunks = incremental
+        ? []
+        : await this.loadReplayChunks(tx, attackId, principal.playerId, -1, 0)
+      const start = startChunks.find(chunk => chunk.format === 'attack-start-v1')
       const world = start ? replayPayload(start)?.world : undefined
       const result = record.authority.finalization
       const applied = result?.receipt?.applied
@@ -1664,7 +1897,13 @@ export class PersistenceAttackService implements RuntimeAttackService {
         } : {}),
         frameCount: frames.length,
         latestFrame: frames.length > 0 ? frames[frames.length - 1] : null,
-        frames
+        frames,
+        replayVersion: incrementalV2 || orderedV2.length > 0 || terminalOnlyV2 ? 2 : 1,
+        lastV2Sequence: orderedV2.length > 0
+          ? orderedV2[orderedV2.length - 1]!.sequence
+          : afterV2,
+        v2Chunks: orderedV2,
+        terminalOnlyV2
       }
     })
   }

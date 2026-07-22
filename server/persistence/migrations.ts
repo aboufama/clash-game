@@ -699,6 +699,13 @@ ALTER TABLE accounts
   ADD COLUMN watchtower_placement_completed boolean NOT NULL DEFAULT true;
 `
 
+const REPLAY_V2_PRESENTATION_INDEX_SQL = String.raw`
+DROP INDEX IF EXISTS replay_chunks_presentation_retention_idx;
+CREATE INDEX replay_chunks_presentation_retention_idx
+  ON replay_chunks(attack_id, sequence)
+  WHERE format LIKE 'presentation-%';
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -722,7 +729,8 @@ export const MIGRATIONS: readonly Migration[] = [
     name: 'account_onboarding_and_test_mode_announcements',
     sql: ACCOUNT_ONBOARDING_AND_TEST_MODE_ANNOUNCEMENTS_SQL
   },
-  { version: 19, name: 'watchtower_placement_onboarding', sql: WATCHTOWER_PLACEMENT_ONBOARDING_SQL }
+  { version: 19, name: 'watchtower_placement_onboarding', sql: WATCHTOWER_PLACEMENT_ONBOARDING_SQL },
+  { version: 20, name: 'replay_v2_presentation_index', sql: REPLAY_V2_PRESENTATION_INDEX_SQL }
 ]
 
 function checksum(sql: string): string {

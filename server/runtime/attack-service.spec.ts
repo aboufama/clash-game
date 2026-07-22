@@ -17,8 +17,10 @@ import {
 } from '../domain/attack-retention'
 import {
   MAX_PRESENTATION_REPLAY_BYTES,
+  MAX_PRESENTATION_REPLAY_V2_BYTES,
   PRESENTATION_REPLAY_RETENTION_MS,
-  createPersistenceAttackService
+  createPersistenceAttackService,
+  type PersistenceAttackServiceOptions
 } from './attack-service'
 
 const START = new Date('2026-01-01T00:00:00.000Z')
@@ -107,7 +109,8 @@ function village(playerId: string, army: Record<string, number> = { warrior: 2 }
 
 async function fixture(
   ids: readonly string[] = ['attacker', 'defender'],
-  persistence: Persistence = new MemoryPersistence()
+  persistence: Persistence = new MemoryPersistence(),
+  options: PersistenceAttackServiceOptions = {}
 ): Promise<{
   persistence: Persistence
   now: { value: Date }
@@ -146,6 +149,7 @@ async function fixture(
   const now = { value: new Date(START) }
   let nextId = 0
   const service = createPersistenceAttackService(persistence, {
+    ...options,
     now: () => new Date(now.value),
     createId: prefix => `${prefix}_test_${++nextId}`
   })
@@ -678,6 +682,235 @@ test('maintenance deterministically settles an abandoned active attack', async (
   const attack = await persistence.transaction(tx => tx.attacks.get(started.attackId))
   assert.equal(attack?.authority?.phase, 'SETTLED')
   assert.equal((await villageOf(persistence, 'attacker')).army.warrior, 1)
+})
+
+test('replay-v2 is contiguous, ordered, retry-safe, and same-bucket v1 corrections replace stale health', async () => {
+  const { now, service } = await fixture()
+  const attacker = { playerId: 'attacker' }
+  const defender = { playerId: 'defender' }
+  const started = await service.startAttack(attacker, {
+    targetId: 'defender', requestId: 'start-replay-v2-order'
+  }, false, 'device-token')
+  now.value = new Date(START.getTime() + 1_000)
+  await service.pushCommands(attacker, deploy(started.attackId))
+
+  const frame = (t: number, health: number) => ({
+    t,
+    destruction: health <= 0 ? 100 : 0,
+    goldLooted: 0,
+    buildings: [{ id: 'town-hall-defender', health, isDestroyed: health <= 0 }],
+    troops: []
+  })
+  const receipt = await service.pushFrames(attacker, {
+    attackId: started.attackId,
+    frames: [frame(100, 1_000), frame(1_000, 700)],
+    replayV2: {
+      chunks: [{
+        kind: 'event', sequence: 1, t: 400,
+        event: {
+          version: 1, id: 'impact-1', seed: 101, type: 'projectile.impact',
+          payload: { projectileId: 'projectile-1', targetId: 'town-hall-defender' }
+        }
+      }, {
+        kind: 'event', sequence: 2, t: 400,
+        event: {
+          version: 1, id: 'damage-1', seed: 102, type: 'combat.damage',
+          payload: { sourceId: 'troop_1', targetId: 'town-hall-defender', amount: 300, healthAfter: 700 }
+        }
+      }, {
+        kind: 'keyframe', sequence: 3, t: 1_000, frame: frame(1_000, 700)
+      }]
+    }
+  })
+  assert.deepEqual(receipt, {
+    frameCount: 1,
+    acceptedFrames: 1,
+    replacedFrames: 1,
+    duplicateFrames: 0,
+    droppedFrames: 0,
+    acceptedV2: 3,
+    duplicateV2: 0,
+    droppedV2: 0,
+    lastV2Sequence: 3,
+    terminalOnlyV2: false
+  })
+
+  const full = await service.getReplay(defender, started.attackId) as {
+    frames: Array<{ t: number; buildings: Array<{ health: number }> }>
+    v2Chunks: Array<{ sequence: number; kind: string }>
+    lastV2Sequence: number
+  }
+  assert.equal(full.frames.length, 1)
+  assert.equal(full.frames[0]?.t, 1_000)
+  assert.equal(full.frames[0]?.buildings[0]?.health, 700)
+  assert.deepEqual(full.v2Chunks.map(chunk => chunk.sequence), [1, 2, 3])
+  assert.equal(full.lastV2Sequence, 3)
+
+  const retry = await service.pushFrames(attacker, {
+    attackId: started.attackId,
+    replayV2: {
+      chunks: [{
+        kind: 'event', sequence: 2, t: 400,
+        event: {
+          version: 1, id: 'damage-1', seed: 102, type: 'combat.damage',
+          payload: { sourceId: 'troop_1', targetId: 'town-hall-defender', amount: 300, healthAfter: 700 }
+        }
+      }, {
+        kind: 'keyframe', sequence: 3, t: 1_000, frame: frame(1_000, 700)
+      }]
+    }
+  })
+  assert.equal(retry.duplicateV2, 2)
+  assert.equal(retry.lastV2Sequence, 3)
+
+  const incremental = await service.getReplay(defender, started.attackId, 400, 1) as {
+    enemyWorld?: unknown
+    v2Chunks: Array<{ sequence: number }>
+  }
+  assert.equal(incremental.enemyWorld, undefined)
+  assert.deepEqual(incremental.v2Chunks.map(chunk => chunk.sequence), [2, 3])
+
+  await assert.rejects(service.pushFrames(attacker, {
+    attackId: started.attackId,
+    replayV2: {
+      chunks: [{
+        kind: 'event', sequence: 5, t: 1_100,
+        event: {
+          version: 1, id: 'gap-5', seed: 105, type: 'combat.attack',
+          payload: { actorId: 'troop_1', phase: 'release' }
+        }
+      }]
+    }
+  }), error => {
+    assert.ok(error instanceof ApiError)
+    assert.equal(error.code, 'REPLAY_SEQUENCE_GAP')
+    return true
+  })
+})
+
+test('complete saved replay returns more than the former 260-frame tail', async () => {
+  const { now, service } = await fixture()
+  const principal = { playerId: 'attacker' }
+  const started = await service.startAttack(principal, {
+    targetId: 'defender', requestId: 'start-complete-replay'
+  }, false, 'device-token')
+  now.value = new Date(START.getTime() + 1_000)
+  await service.pushCommands(principal, deploy(started.attackId))
+
+  for (let offset = 0; offset < 304; offset += 16) {
+    await service.pushFrames(principal, {
+      attackId: started.attackId,
+      frames: Array.from({ length: Math.min(16, 304 - offset) }, (_, index) => ({
+        t: (offset + index) * 2_000,
+        destruction: 0,
+        goldLooted: 0,
+        buildings: [{ id: 'town-hall-defender', health: 1_000, isDestroyed: false }],
+        troops: []
+      }))
+    })
+  }
+  const replay = await service.getReplay({ playerId: 'defender' }, started.attackId) as {
+    frames: Array<{ t: number }>
+  }
+  assert.equal(replay.frames.length, 304)
+  assert.equal(replay.frames[0]?.t, 0)
+  assert.equal(replay.frames[303]?.t, 606_000)
+})
+
+test('default replay-v2 budget accepts a stream larger than the legacy 2 MiB frame budget', async () => {
+  assert.ok(MAX_PRESENTATION_REPLAY_V2_BYTES >= 64 * 1024 * 1024)
+  const { now, service } = await fixture()
+  const principal = { playerId: 'attacker' }
+  const started = await service.startAttack(principal, {
+    targetId: 'defender', requestId: 'start-replay-v2-large-default'
+  }, false, 'device-token')
+  now.value = new Date(START.getTime() + 1_000)
+  await service.pushCommands(principal, deploy(started.attackId))
+
+  const chunks = Array.from({ length: 40 }, (_, index) => ({
+    kind: 'event',
+    sequence: index + 1,
+    t: index * 10,
+    event: {
+      version: 1,
+      id: `large-default-${index + 1}`,
+      seed: index + 1,
+      type: 'fx',
+      payload: { data: 'x'.repeat(60_000), index }
+    }
+  }))
+  assert.ok(Buffer.byteLength(JSON.stringify(chunks), 'utf8') > MAX_PRESENTATION_REPLAY_BYTES)
+  const receipt = await service.pushFrames(principal, {
+    attackId: started.attackId,
+    replayV2: { chunks }
+  })
+  assert.equal(receipt.acceptedV2, chunks.length)
+  assert.equal(receipt.droppedV2, 0)
+  assert.equal(receipt.lastV2Sequence, chunks.length)
+  assert.equal(receipt.terminalOnlyV2, false)
+})
+
+test('v2 has a practical budget and accepts a terminal correction gap after an earlier reported drop', async () => {
+  assert.ok(MAX_PRESENTATION_REPLAY_V2_BYTES >= 64 * 1024 * 1024)
+  const { now, service } = await fixture(undefined, undefined, {
+    maxPresentationReplayV2Bytes: 75_000
+  })
+  const principal = { playerId: 'attacker' }
+  const started = await service.startAttack(principal, {
+    targetId: 'defender', requestId: 'start-replay-v2-terminal'
+  }, false, 'device-token')
+  now.value = new Date(START.getTime() + 1_000)
+  await service.pushCommands(principal, deploy(started.attackId))
+
+  const largeEvent = (sequence: number) => ({
+    kind: 'event',
+    sequence,
+    t: sequence * 100,
+    event: {
+      version: 1,
+      id: `large-event-${sequence}`,
+      seed: sequence,
+      type: 'fx',
+      payload: { data: 'x'.repeat(60_000), sequence }
+    }
+  })
+  const dropped = await service.pushFrames(principal, {
+    attackId: started.attackId,
+    replayV2: { chunks: [largeEvent(1), largeEvent(2), largeEvent(3)] }
+  })
+  assert.equal(dropped.acceptedV2, 1)
+  assert.equal(dropped.droppedV2, 2)
+  assert.equal(dropped.lastV2Sequence, 1)
+  assert.equal(dropped.terminalOnlyV2, true)
+
+  const terminal = await service.pushFrames(principal, {
+    attackId: started.attackId,
+    replayV2: {
+      chunks: [{
+        kind: 'keyframe', sequence: 4, t: 400, terminal: true,
+        frame: {
+          t: 400,
+          destruction: 100,
+          goldLooted: 0,
+          buildings: [{ id: 'town-hall-defender', health: 0, isDestroyed: true }],
+          troops: []
+        }
+      }]
+    }
+  })
+  assert.equal(terminal.acceptedV2, 1)
+  assert.equal(terminal.lastV2Sequence, 4)
+  assert.equal(terminal.terminalOnlyV2, true)
+
+  const replay = await service.getReplay({ playerId: 'defender' }, started.attackId) as {
+    v2Chunks: Array<{ sequence: number; kind: string; terminal?: boolean }>
+    terminalOnlyV2: boolean
+  }
+  assert.deepEqual(replay.v2Chunks.map(chunk => chunk.sequence), [1, 4])
+  assert.equal(replay.v2Chunks.at(-1)?.sequence, 4)
+  assert.equal(replay.v2Chunks.at(-1)?.kind, 'keyframe')
+  assert.equal(replay.v2Chunks.at(-1)?.terminal, true)
+  assert.equal(replay.terminalOnlyV2, true)
 })
 
 test('presentation replay bytes are atomically capped and old visual chunks expire without deleting authority', async () => {

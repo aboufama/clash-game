@@ -12,10 +12,22 @@ import {
 export type DefenseFireHandler = (defense: PlacedBuilding, target: Troop, time: number) => boolean | void;
 export type DefenseFireHandlers = Record<ActiveDefenseType, DefenseFireHandler>;
 export type DefenseIdleHandlers = Record<DefenseIdleEffect, (defense: PlacedBuilding) => void>;
+export type DefenseChargePhase = 'start' | 'cancel' | 'complete' | 'visual-clear';
+export type DefenseChargeHandler = (
+    phase: DefenseChargePhase,
+    defense: PlacedBuilding,
+    target: Troop | undefined,
+    time: number,
+    chargeMs: number,
+    chargedVisualMs: number
+) => void;
 
 export interface DefenseEffects {
     fire: DefenseFireHandlers;
     idle: DefenseIdleHandlers;
+    /** Optional causal presentation hook. The simulation remains authoritative
+     *  over the charge fields; replay capture only observes each transition. */
+    charge?: DefenseChargeHandler;
 }
 
 function gridDistance(ax: number, ay: number, bx: number, by: number): number {
@@ -204,6 +216,9 @@ export class DefenseSystem {
             // health, and a stale object would otherwise take the discharge.
             const isSceneMember = !!target && troops.includes(target);
             if (!isSceneMember || !isTargetInRange(target)) {
+                this.effects.charge?.(
+                    'cancel', defense, target, time, chargeMs, chargedVisualMs
+                );
                 defense.teslaCharging = false;
                 defense.teslaChargeTarget = undefined;
                 if (usesTargetLock) defense.lockedTargetId = undefined;
@@ -211,6 +226,9 @@ export class DefenseSystem {
             }
 
             if (time >= defense.teslaChargeStart + chargeMs) {
+                this.effects.charge?.(
+                    'complete', defense, target, time, chargeMs, chargedVisualMs
+                );
                 if (target.health > 0) this.effects.fire[fireEffect](defense, target, time);
                 defense.teslaCharging = false;
                 defense.teslaCharged = true;
@@ -222,6 +240,9 @@ export class DefenseSystem {
         }
 
         if (defense.teslaCharged && defense.lastFireTime && time > defense.lastFireTime + chargedVisualMs) {
+            this.effects.charge?.(
+                'visual-clear', defense, undefined, time, chargeMs, chargedVisualMs
+            );
             defense.teslaCharged = false;
         }
 
@@ -229,6 +250,9 @@ export class DefenseSystem {
 
         const target = lockedTarget ?? findNearestTarget();
         if (target) {
+            this.effects.charge?.(
+                'start', defense, target, time, chargeMs, chargedVisualMs
+            );
             defense.teslaCharging = true;
             defense.teslaChargeStart = time;
             defense.teslaChargeTarget = target;

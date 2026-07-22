@@ -909,8 +909,44 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
         foodLooted: 0,
         buildings: [],
         troops: []
-      }]
-    }), { frameCount: 1 })
+      }],
+      replayV2: {
+        chunks: [{
+          kind: 'event', sequence: 1, t: 0,
+          event: {
+            version: 1, id: 'pglite-sound-1', seed: 1, type: 'sound',
+            payload: { cue: 'impact' }
+          }
+        }, {
+          kind: 'keyframe', sequence: 2, t: 0,
+          frame: {
+            t: 0,
+            destruction: 0,
+            goldLooted: 0,
+            buildings: [],
+            troops: []
+          }
+        }]
+      }
+    }), {
+      frameCount: 1,
+      acceptedFrames: 1,
+      replacedFrames: 0,
+      duplicateFrames: 0,
+      droppedFrames: 0,
+      acceptedV2: 2,
+      duplicateV2: 0,
+      droppedV2: 0,
+      lastV2Sequence: 2,
+      terminalOnlyV2: false
+    })
+    const incrementalReplay = await service.getReplay(
+      { playerId: third.player.id },
+      started.attackId,
+      0,
+      1
+    ) as { v2Chunks: Array<{ sequence: number }> }
+    assert.deepEqual(incrementalReplay.v2Chunks.map(chunk => chunk.sequence), [2])
 
     // PostgreSQL JSONB removes undefined optional properties. Ending after the
     // finalization CAS must reload that canonical aggregate before settlement.

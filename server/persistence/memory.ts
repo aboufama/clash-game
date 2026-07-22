@@ -1096,8 +1096,8 @@ class MemoryReplays implements ReplayRepository {
 
   async append(record: ReplayChunkRecord): Promise<'inserted' | 'duplicate'> {
     if (!this.state.attacks.has(record.attackId)) throw new Error(`Unknown attack: ${record.attackId}`)
-    if (record.format === 'presentation-frame-v1') {
-      throw new Error('Presentation frames must use appendPresentation so storage is budgeted')
+    if (record.format.startsWith('presentation-')) {
+      throw new Error('Presentation replay chunks must use appendPresentation so storage is budgeted')
     }
     if ((record.payload === null) === (record.objectKey === null)) {
       throw new Error('Replay chunk must have exactly one payload location')
@@ -1114,10 +1114,16 @@ class MemoryReplays implements ReplayRepository {
 
   async appendPresentation(
     record: ReplayChunkRecord,
-    budget: { byteSize: number; maxBytes: number; maxChunks: number }
-  ): Promise<'inserted' | 'duplicate' | 'dropped'> {
-    if (record.format !== 'presentation-frame-v1' || record.payload === null || record.objectKey !== null) {
-      throw new Error('Presentation replay budget accepts only inline presentation-frame-v1 chunks')
+    budget: {
+      byteSize: number
+      maxBytes: number
+      maxChunks: number
+      replaceExisting?: boolean
+      force?: boolean
+    }
+  ): Promise<'inserted' | 'duplicate' | 'replaced' | 'dropped'> {
+    if (!record.format.startsWith('presentation-') || record.payload === null || record.objectKey !== null) {
+      throw new Error('Presentation replay budget accepts only inline presentation chunks')
     }
     if (!Number.isSafeInteger(budget.byteSize) || budget.byteSize < 0
       || !Number.isSafeInteger(budget.maxBytes) || budget.maxBytes < 1
@@ -1130,11 +1136,22 @@ class MemoryReplays implements ReplayRepository {
     if (current) {
       if (current.format === record.format && current.checksum === record.checksum
         && isDeepStrictEqual(current.payload, record.payload) && current.objectKey === record.objectKey) return 'duplicate'
-      throw new PersistenceConflictError('Replay chunk sequence was reused with different content')
+      if (!budget.replaceExisting || !current.format.startsWith('presentation-')) {
+        throw new PersistenceConflictError('Replay chunk sequence was reused with different content')
+      }
+      const usage = this.state.presentationUsage.get(record.attackId) ?? { bytes: 0, chunks: 0 }
+      const previousBytes = this.state.presentationBytes.get(key)
+        ?? Buffer.byteLength(JSON.stringify(current.payload), 'utf8')
+      const projectedBytes = Math.max(0, usage.bytes - previousBytes + budget.byteSize)
+      if (!budget.force && (budget.byteSize > budget.maxBytes || projectedBytes > budget.maxBytes)) return 'dropped'
+      this.state.replayChunks.set(key, copy(record))
+      this.state.presentationBytes.set(key, budget.byteSize)
+      this.state.presentationUsage.set(record.attackId, { bytes: projectedBytes, chunks: usage.chunks })
+      return 'replaced'
     }
     const usage = this.state.presentationUsage.get(record.attackId) ?? { bytes: 0, chunks: 0 }
-    if (budget.byteSize > budget.maxBytes || usage.bytes + budget.byteSize > budget.maxBytes
-      || usage.chunks >= budget.maxChunks) return 'dropped'
+    if (!budget.force && (budget.byteSize > budget.maxBytes || usage.bytes + budget.byteSize > budget.maxBytes
+      || usage.chunks >= budget.maxChunks)) return 'dropped'
     this.state.replayChunks.set(key, copy(record))
     this.state.presentationBytes.set(key, budget.byteSize)
     this.state.presentationUsage.set(record.attackId, {
@@ -1149,9 +1166,28 @@ class MemoryReplays implements ReplayRepository {
     const attack = this.state.attacks.get(query.attackId)
     if (!attack || (attack.attackerId !== query.participantId && attack.defenderId !== query.participantId)) return []
     return copy([...this.state.replayChunks.values()]
-      .filter(chunk => chunk.attackId === query.attackId && chunk.sequence > query.afterSequence)
+      .filter(chunk => chunk.attackId === query.attackId && chunk.sequence > query.afterSequence
+        && (query.maxSequence === undefined || chunk.sequence <= query.maxSequence))
       .sort((a, b) => a.sequence - b.sequence)
       .slice(0, query.limit))
+  }
+
+  async latestSequenceForParticipant(input: {
+    attackId: string
+    participantId: string
+    minSequence: number
+    maxSequence: number
+  }): Promise<number> {
+    const attack = this.state.attacks.get(input.attackId)
+    if (!attack || (attack.attackerId !== input.participantId && attack.defenderId !== input.participantId)) {
+      return input.minSequence - 1
+    }
+    let latest = input.minSequence - 1
+    for (const chunk of this.state.replayChunks.values()) {
+      if (chunk.attackId === input.attackId && chunk.sequence >= input.minSequence
+        && chunk.sequence <= input.maxSequence) latest = Math.max(latest, chunk.sequence)
+    }
+    return latest
   }
 
   async prunePresentation(before: Date, requestedLimit: number): Promise<number> {
@@ -1159,14 +1195,14 @@ class MemoryReplays implements ReplayRepository {
     const limit = Math.max(1, Math.min(100, Math.floor(requestedLimit)))
     const attackIds = [...this.state.attacks.values()]
       .filter(attack => attack.endedAt !== null && attack.endedAt < before
-        && [...this.state.replayChunks.values()].some(chunk => chunk.attackId === attack.id && chunk.format === 'presentation-frame-v1'))
+        && [...this.state.replayChunks.values()].some(chunk => chunk.attackId === attack.id && chunk.format.startsWith('presentation-')))
       .sort((a, b) => a.endedAt!.getTime() - b.endedAt!.getTime() || a.id.localeCompare(b.id))
       .slice(0, limit)
       .map(attack => attack.id)
     const selected = new Set(attackIds)
     let deleted = 0
     for (const [key, chunk] of this.state.replayChunks) {
-      if (!selected.has(chunk.attackId) || chunk.format !== 'presentation-frame-v1') continue
+      if (!selected.has(chunk.attackId) || !chunk.format.startsWith('presentation-')) continue
       this.state.replayChunks.delete(key)
       this.state.presentationBytes.delete(key)
       deleted += 1

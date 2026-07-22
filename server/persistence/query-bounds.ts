@@ -22,7 +22,7 @@ export const QUERY_LIMITS = Object.freeze({
   activeAttackBatch: 1_024,
   attackPlayerIds: 1_024,
   attackCommands: 512,
-  replayChunks: 128,
+  replayChunks: 1_024,
   notifications: 100,
   notificationRetention: 50,
   idempotencyPrune: 500,
@@ -210,9 +210,16 @@ export function boundWorldOccupancyBatch(
 export function boundParticipantReplayQuery(query: ParticipantReplayQuery): ParticipantReplayQuery {
   const afterSequence = safeInteger(query.afterSequence, 'afterSequence')
   if (afterSequence < -1) throw new RangeError('afterSequence must be at least -1')
+  const maxSequence = query.maxSequence === undefined
+    ? undefined
+    : safeInteger(query.maxSequence, 'maxSequence')
+  if (maxSequence !== undefined && maxSequence <= afterSequence) {
+    throw new RangeError('maxSequence must be greater than afterSequence')
+  }
   return {
     ...query,
     afterSequence,
+    ...(maxSequence === undefined ? {} : { maxSequence }),
     limit: boundedLimit(query.limit, QUERY_LIMITS.replayChunks)
   }
 }

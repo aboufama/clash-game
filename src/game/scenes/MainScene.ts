@@ -13,7 +13,7 @@ import { TroopDeathRenderer, isLargeTroopDeathType } from '../renderers/TroopDea
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
 import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
-import { DefenseSystem, peekDefenseTarget } from '../systems/DefenseSystem';
+import { DefenseSystem, peekDefenseTarget, type DefenseChargePhase } from '../systems/DefenseSystem';
 import { TargetingSystem } from '../systems/TargetingSystem';
 import { DEFENSE_BEHAVIOR_CATALOG } from '../systems/DefenseBehaviorCatalog';
 import { CombatNavigationSystem, type CombatNavigationSelection } from '../systems/CombatNavigationSystem';
@@ -46,6 +46,26 @@ import { SpriteBank, battleSpriteRequirements, homeSpriteRequirements } from '..
 import { installPixelModeHandle, registerPixelSurface, settleLogicalZoom, zoomSettleEnabled } from '../renderers/TextureRenderPolicy';
 import { pixelBitmap, pixelEllipse, pixelLine, pixelRect, PIXEL_CELL } from '../render/PixelDraw';
 import { PixelFx, screenShake, townHallScreenShake } from '../systems/PixelFx';
+import {
+    ReplayPresentationRecorder,
+    ReplayPresentationDispatcher,
+    createReplayPresentationRandom,
+    replayPresentationEvent,
+    type ReplayPresentationDispatchContext,
+    type ReplayPresentationEventChunk,
+    type ReplayV2Chunk
+} from '../replay/ReplayPresentationStream';
+import type {
+    ReplayBuildingRef,
+    ReplayAttackStyle,
+    ReplayDefenseWeapon,
+    ReplayPresentationEventDraft,
+    ReplayPresentationEvent,
+    ReplayPresentationPoint,
+    ReplayDamageKind,
+    ReplayTroopDeathStyle,
+    ReplayTroopRef
+} from '../replay/ReplayPresentationEvents';
 
 const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
@@ -102,6 +122,7 @@ interface ReplayCaptureState {
     framePushInFlight: boolean;
     lastFramePushAt: number;
     ended: boolean;
+    recorder: ReplayPresentationRecorder<ReplayFrameSnapshot>;
 }
 
 interface ReplayWatchState {
@@ -115,6 +136,19 @@ interface ReplayWatchState {
     status: 'live' | 'finished' | 'aborted';
     pollInFlight: boolean;
     frames: ReplayFrameSnapshot[];
+    /** Adaptive live-watch target, always larger than the observed keyframe
+     *  gap plus polling/network headroom. */
+    liveDelayMs: number;
+    scheduledCalls: Array<{ at: number; epoch: number; callback: () => void }>;
+    usesV2: boolean;
+    /** Contiguous network receipt cursor. Never acknowledge across a missing
+     * sequence or the next incremental poll could make that gap permanent. */
+    lastFetchedV2Sequence: number;
+    pendingV2Sequences: Set<number>;
+    terminalOnlyV2: boolean;
+    terminalGapChunk?: Extract<ReplayV2Chunk<ReplayFrameSnapshot>, { kind: 'keyframe' }>;
+    shownHealPulses: Set<string>;
+    v2Dispatcher?: ReplayPresentationDispatcher<ReplayFrameSnapshot>;
     pollEvent?: Phaser.Time.TimerEvent;
     /** Peeked troop positions from the first UNAPPLIED frame — the forward
      *  bracket for interpolation (rebuilt whenever that frame's t changes). */
@@ -193,17 +227,21 @@ export class MainScene extends Phaser.Scene {
 
     private readonly defenseSystem = new DefenseSystem({
         fire: {
-            cannon: (defense, target) => this.shootAt(defense, target),
-            ballista: (defense, target) => this.shootBallistaAt(defense, target),
-            xbow: (defense, target) => this.shootXBowAt(defense, target),
-            mortar: (defense, target) => this.shootMortarAt(defense, target),
-            tesla: (defense, target) => this.shootTeslaAt(defense, target),
-            prism: (defense, target, time) => this.shootPrismContinuousLaser(defense, target, time),
-            dragons_breath: (defense, target) => this.shootDragonsBreathAt(defense, target),
-            spike_launcher: (defense, target) => this.shootSpikeLauncherAt(defense, target)
+            cannon: (defense, target, time) => this.fireDefensePresentation('cannon', defense, target, time),
+            ballista: (defense, target, time) => this.fireDefensePresentation('ballista', defense, target, time),
+            xbow: (defense, target, time) => this.fireDefensePresentation('xbow', defense, target, time),
+            mortar: (defense, target, time) => this.fireDefensePresentation('mortar', defense, target, time),
+            tesla: (defense, target, time) => this.fireDefensePresentation('tesla', defense, target, time),
+            prism: (defense, target, time) => this.fireDefensePresentation('prism', defense, target, time),
+            dragons_breath: (defense, target, time) => this.fireDefensePresentation('dragons-breath', defense, target, time),
+            spike_launcher: (defense, target, time) => this.fireDefensePresentation('spike-launcher', defense, target, time)
         },
+        charge: (phase, defense, target, time, chargeMs, chargedVisualMs) =>
+            this.recordDefenseChargePresentation(
+                phase, defense, target, time, chargeMs, chargedVisualMs
+            ),
         idle: {
-            cleanupPrismLaser: defense => this.cleanupPrismLaser(defense)
+            cleanupPrismLaser: defense => this.cleanupPrismPresentation(defense)
         }
     });
 
@@ -268,10 +306,16 @@ export class MainScene extends Phaser.Scene {
     private readonly HEALTH_BAR_IDLE_MS = 5000;
     private readonly HEALTH_BAR_FADE_MS = 600;
     private readonly REPLAY_LIVE_POLL_INTERVAL_MS = 300;
-    /** Live spectating rides this far behind the newest frame — the jitter buffer. */
+    /** Minimum live-watch jitter buffer. The effective delay grows above the
+     *  largest observed keyframe gap, so a sparse/late publisher cannot force
+     *  the render clock into a stop-start cycle. */
     private readonly REPLAY_LIVE_DELAY_MS = 1500;
-    /** Recorded replays play back at a brisk fixed speed. */
-    private readonly REPLAY_SPEED = 1.6;
+    /** Pre-roll rebuilds transient projectile/charge state before a live join. */
+    // Long enough to recreate the longest transient combat object (L4 spike
+    // field = 5.2s) instead of joining into invisible hazard damage.
+    private readonly REPLAY_LIVE_PREROLL_MS = 5500;
+    /** Default playback is real-time: animation cadence matches the attack. */
+    private readonly REPLAY_SPEED = 1;
 
     /** Sticky Town Hall tooltip is present only while inspecting a foreign
      *  village; the first real deployment clears it. */
@@ -334,6 +378,10 @@ export class MainScene extends Phaser.Scene {
     /** Battle tweens that target plain state objects (progress drivers) but
      *  draw/spawn battle visuals from onUpdate — killed on the same sweep. */
     private battleFxTweens = new Set<Phaser.Tweens.Tween>();
+    /** Seeded only while one recorded presentation event is being authored or
+     * replayed; every other scene random call retains its existing behavior. */
+    private activeReplayPresentationRandom: (() => number) | null = null;
+    private activeReplayPresentationSeed: number | null = null;
     /** Optimistic scaffolds wait for a matching authoritative world ack before
      *  their local deadline is allowed to reveal the upgraded level. */
     private pendingUpgradeAuthority = new Set<string>();
@@ -438,13 +486,78 @@ export class MainScene extends Phaser.Scene {
         this.transitionLabel = '';
     }
 
-    private scheduleBattleCall(delay: number, callback: () => void): Phaser.Time.TimerEvent {
+    private battleRandom(): number {
+        return this.activeReplayPresentationRandom?.() ?? Math.random();
+    }
+
+    /** PixelFx's generic one-shot vocabulary calls this optional scene seam.
+     * During a recorded/replayed presentation event it resolves to that
+     * event's seeded stream; everywhere else it retains ordinary randomness. */
+    public nextPresentationRandom(): number {
+        return this.battleRandom();
+    }
+
+    private withReplayPresentationRandom<T>(
+        random: (() => number) | null,
+        run: () => T,
+        seed: number | null = this.activeReplayPresentationSeed
+    ): T {
+        const previous = this.activeReplayPresentationRandom;
+        const previousSeed = this.activeReplayPresentationSeed;
+        this.activeReplayPresentationRandom = random;
+        this.activeReplayPresentationSeed = seed;
+        try {
+            return run();
+        } finally {
+            this.activeReplayPresentationRandom = previous;
+            this.activeReplayPresentationSeed = previousSeed;
+        }
+    }
+
+    /** Fork a stable async phase from the current event seed. Tween callbacks
+     * run after the synchronous event scope has ended; this keeps impact
+     * debris/jitter identical without depending on unrelated frame work. */
+    private replayPresentationCallback<TArgs extends unknown[], TResult>(
+        label: string,
+        callback: (...args: TArgs) => TResult
+    ): (...args: TArgs) => TResult {
+        const seed = this.activeReplayPresentationSeed;
+        const inherited = this.activeReplayPresentationRandom;
+        if (seed === null && inherited === null) return callback;
+        const random = seed === null
+            ? inherited
+            : createReplayPresentationRandom(hashString(`${seed}:${label}`) >>> 0);
+        return (...args: TArgs) => this.withReplayPresentationRandom(
+            random,
+            () => callback(...args),
+            seed
+        );
+    }
+
+    private scheduleBattleCall(delay: number, callback: () => void): Phaser.Time.TimerEvent | undefined {
         const epoch = this.battleEpoch;
+        const presentationRandom = this.activeReplayPresentationRandom;
+        const presentationSeed = this.activeReplayPresentationSeed;
+        const guardedCallback = () => this.withReplayPresentationRandom(
+            presentationRandom,
+            callback,
+            presentationSeed
+        );
+        const replay = this.mode === 'REPLAY' ? this.replayWatchState : null;
+        if (replay) {
+            replay.scheduledCalls.push({
+                at: this.replaySimulationTime + Math.max(0, delay),
+                epoch,
+                callback: guardedCallback
+            });
+            replay.scheduledCalls.sort((a, b) => a.at - b.at);
+            return undefined;
+        }
         let event!: Phaser.Time.TimerEvent;
         event = this.time.delayedCall(delay, () => {
             this.battleTimerEvents.delete(event);
             if (epoch !== this.battleEpoch) return;
-            callback();
+            guardedCallback();
         });
         this.battleTimerEvents.add(event);
         return event;
@@ -579,6 +692,15 @@ export class MainScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.setBackgroundColor('#141824'); // Deep midnight navy background
+        // Phaser advances Scene tweens on UPDATE before calling scene.update.
+        // Advance the replay clock and dispatch causal events on PRE_UPDATE so
+        // newly launched projectiles receive this frame's tween step and their
+        // recorded impact/health event shares the same frame boundary.
+        this.events.on(
+            Phaser.Scenes.Events.PRE_UPDATE,
+            this.preUpdateReplayWatch,
+            this
+        );
 
         // Set default zoom based on device. In 'snap' mode the boot zoom must
         // already put one baked texel on a whole number of backing pixels.
@@ -829,6 +951,11 @@ export class MainScene extends Phaser.Scene {
             this.dayNight?.clearLights();
             this.weather?.destroy();
             this.worldMap?.teardown();
+            this.events.off(
+                Phaser.Scenes.Events.PRE_UPDATE,
+                this.preUpdateReplayWatch,
+                this
+            );
             this.time.removeAllEvents();
             this.tweens.killAll();
             window.removeEventListener('clash:attack-invalidated', onAttackInvalidated);
@@ -1183,7 +1310,14 @@ export class MainScene extends Phaser.Scene {
                 this.lastUpdateErrorLogAt = time;
                 console.error(`[bulkhead] update() error #${this.updateErrorCount} (frame skipped, loop alive):`, error);
             }
+        } finally {
+            this.activeReplayPresentationRandom = null;
+            this.activeReplayPresentationSeed = null;
         }
+    }
+
+    private preUpdateReplayWatch(time: number, delta: number) {
+        if (this.mode === 'REPLAY') this.updateReplayWatchPlayback(time, delta);
     }
 
     private updateCore(time: number, delta: number) {
@@ -1194,8 +1328,12 @@ export class MainScene extends Phaser.Scene {
 
         if (this.mode === 'REPLAY') {
             this.handleCameraMovement(delta);
-            this.updateReplayWatchPlayback(time, delta);
             this.updateReplayTroopSmoothing(delta);
+            for (const troop of this.troops) {
+                if (troop.type === 'clockworkbeetle' && troop.beetleLatch) {
+                    this.updateClockworkBeetleLatch(troop, this.animClockNow());
+                }
+            }
             this.updateCombat(this.animClockNow());
             this.updateSpikeZones();
             this.refreshBuildingHealthBars();
@@ -1468,7 +1606,7 @@ export class MainScene extends Phaser.Scene {
             // not throw here — one bad entry would freeze every later
             // building's bar mid-fade for the rest of the battle (the
             // update() bulkhead swallows the error each frame).
-            if (building.health >= building.maxHealth && !building.healthBar?.visible) return;
+            if (this.mode !== 'REPLAY' && building.health >= building.maxHealth && !building.healthBar?.visible) return;
             this.updateHealthBar(building);
         });
     }
@@ -1650,6 +1788,7 @@ export class MainScene extends Phaser.Scene {
                 // (peek returns null) and target-less turrets fall through to
                 // the existing grace release + idle swivel.
                 if ((this.mode === 'ATTACK' || this.mode === 'REPLAY')
+                    && !(this.mode === 'REPLAY' && this.replayWatchState?.usesV2)
                     && ROTATING_DEFENSE_TYPES.has(b.type)
                     && !b.isDestroyed && b.health > 0) {
                     const victim = peekDefenseTarget(b, this.troops, time);
@@ -3089,7 +3228,7 @@ export class MainScene extends Phaser.Scene {
 
         // Asymptotic approach: growth gets rarer as cover nears the target,
         // so the village greens up early on and then just about holds steady.
-        if (Math.random() < fill * 0.8) return;
+        if (this.battleRandom() < fill * 0.8) return;
 
         // Spread logic: Pick random grass, try neighbor (high probability)
         const spreadChance = grass.length > 5 ? 0.9 : 0.4; // If established, spread mostly
@@ -3097,21 +3236,21 @@ export class MainScene extends Phaser.Scene {
         // Grown greenery persists to the village save (skipBackend=false):
         // the same patch — including a lucky easter egg — is still there
         // tomorrow, on any device, because the variant hashes off its saved id.
-        if (grass.length > 0 && Math.random() < spreadChance) {
-            const parent = grass[Math.floor(Math.random() * grass.length)];
+        if (grass.length > 0 && this.battleRandom() < spreadChance) {
+            const parent = grass[Math.floor(this.battleRandom() * grass.length)];
             const neighbors = [
                 { x: parent.gridX + 1, y: parent.gridY },
                 { x: parent.gridX - 1, y: parent.gridY },
                 { x: parent.gridX, y: parent.gridY + 1 },
                 { x: parent.gridX, y: parent.gridY - 1 }
             ];
-            const spot = neighbors[Math.floor(Math.random() * neighbors.length)];
+            const spot = neighbors[Math.floor(this.battleRandom() * neighbors.length)];
             // placeObstacle checks validity (bounds + optimization)
             this.placeObstacle(spot.x, spot.y, 'grass_patch', false);
         } else {
             // Spontaneous generation
-            const x = Math.floor(Math.random() * (this.mapSize - 4)) + 2;
-            const y = Math.floor(Math.random() * (this.mapSize - 4)) + 2;
+            const x = Math.floor(this.battleRandom() * (this.mapSize - 4)) + 2;
+            const y = Math.floor(this.battleRandom() * (this.mapSize - 4)) + 2;
             this.placeObstacle(x, y, 'grass_patch', false);
         }
     }
@@ -3231,7 +3370,7 @@ export class MainScene extends Phaser.Scene {
         if (!this.isObstaclePositionValid(gridX, gridY, info.width, info.height)) return false;
 
         const graphics = this.add.graphics();
-        const animOffset = Math.random() * Math.PI * 2;
+        const animOffset = this.battleRandom() * Math.PI * 2;
 
         const obstacle: PlacedObstacle = {
             id: idOverride || Phaser.Utils.String.UUID(),
@@ -3346,7 +3485,7 @@ export class MainScene extends Phaser.Scene {
         if (!item.healthBar || !item.healthBar.scene) return; // Ignore destroyed health bars
         if ('isDestroyed' in item && item.isDestroyed) return;
         const bar = item.healthBar;
-        const now = this.time.now;
+        const now = this.animClockNow();
 
         if (item.lastHealthBarValue === undefined || item.lastHealthBarValue !== item.health) {
             item.lastHealthBarValue = item.health;
@@ -3356,7 +3495,9 @@ export class MainScene extends Phaser.Scene {
         // Only show health bar if damage has been taken
         const hasDamage = item.health < item.maxHealth;
         const isTroop = !('graphics' in item);
-        const showBar = isTroop ? (item as Troop).hasTakenDamage : hasDamage;
+        const showBar = this.mode === 'REPLAY'
+            ? item.health > 0
+            : (isTroop ? (item as Troop).hasTakenDamage : hasDamage);
 
         if (!showBar) {
             bar.setVisible(false);
@@ -3368,7 +3509,10 @@ export class MainScene extends Phaser.Scene {
         const lastChangeTime = item.lastHealthChangeTime ?? now;
         const elapsedSinceChange = Math.max(0, now - lastChangeTime);
         let alpha = 1;
-        if (elapsedSinceChange > this.HEALTH_BAR_IDLE_MS) {
+        // Replay watch is an inspection surface: once an entity is damaged
+        // its bar remains readable. Fading by scene uptime also made bars
+        // disappear while the replay clock was paused for network data.
+        if (this.mode !== 'REPLAY' && elapsedSinceChange > this.HEALTH_BAR_IDLE_MS) {
             const fadeElapsed = elapsedSinceChange - this.HEALTH_BAR_IDLE_MS;
             alpha = Phaser.Math.Clamp(1 - (fadeElapsed / this.HEALTH_BAR_FADE_MS), 0, 1);
         }
@@ -3625,6 +3769,7 @@ export class MainScene extends Phaser.Scene {
                 if (troop.lastHealPulseAt === undefined) troop.lastHealPulseAt = time;
                 if (time > troop.lastHealPulseAt + cadence) {
                     troop.lastHealPulseAt = time;
+                    if (isReplayWatch && this.replayWatchState?.usesV2) continue;
                     troop.lastAttackTime = time;
                     troop.attackClockActive = true;
 
@@ -3649,9 +3794,24 @@ export class MainScene extends Phaser.Scene {
                             if (d > (stats.healRadius ?? 0)) continue;
                             const healed = Math.min(other.maxHealth - other.health, stats.healAmount ?? 0);
                             if (healed <= 0) continue;
+                            const healthBefore = other.health;
                             other.health += healed;
                             this.updateHealthBar(other);
-                            this.showHealNumber(other, healed, seq++);
+                            const targetIndex = seq++;
+                            this.showHealNumber(other, healed, targetIndex);
+                            this.recordReplayPresentation(replayPresentationEvent('combat.heal', {
+                                source: this.replayTroopRef(troop),
+                                target: this.replayTroopRef(other),
+                                at: this.replayPoint(other.gridX, other.gridY, other.visualOffsetY ?? 0),
+                                healKind: 'physician-pulse',
+                                amount: healed,
+                                healthBefore,
+                                healthAfter: other.health,
+                                maxHealth: other.maxHealth,
+                                pulseIndex: Math.floor(time / Math.max(1, cadence)),
+                                targetIndex,
+                                healthBar: { show: true, holdMs: this.HEALTH_BAR_IDLE_MS, fadeMs: this.HEALTH_BAR_FADE_MS }
+                            }));
                         }
                     }
                 }
@@ -3754,7 +3914,7 @@ export class MainScene extends Phaser.Scene {
                 troop.parked01 = driver.p;
                 this.redrawTroopWithMovement(troop, false);
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('siege-ramp-open', () => {
                 if (troop.health <= 0) return;
                 troop.parked01 = 1;
                 this.redrawTroopWithMovement(troop, false);
@@ -3764,7 +3924,7 @@ export class MainScene extends Phaser.Scene {
                 } else {
                     troop.parkedWallId = undefined;
                 }
-            }
+            })
         }));
 
         // Settling dust as the ramp drops.
@@ -3776,6 +3936,24 @@ export class MainScene extends Phaser.Scene {
             depth: depthForGroundEffect(troop.gridX, troop.gridY)
         });
         screenShake(this, 30, 0.001);
+    }
+
+    private parkRecordedSiegeTower(troop: Troop, target: PlacedBuilding, time: number) {
+        // The causal stream already proved this exact wall was authorized.
+        // Rebuild only the transient plan shape that the shared live presenter
+        // defensively checks, then let it clear the plan as usual.
+        troop.target = target;
+        troop.navigationPlan = {
+            strategicTargetId: target.id,
+            activeTargetId: target.id,
+            rampWallId: target.id,
+            topologyRevision: this.combatTopologyRevision,
+            routeCost: 0,
+            goal: { x: target.gridX, y: target.gridY },
+            waypoints: [],
+            plannedAt: time
+        };
+        this.parkSiegeTower(troop, time);
     }
 
     /** The ally-ramp set threaded into navigation for THIS troop — only
@@ -3999,6 +4177,25 @@ export class MainScene extends Phaser.Scene {
     private detonateTroopAttack(troop: Troop) {
         const stats = this.getTroopCombatStats(troop);
         const target = troop.target as PlacedBuilding | null;
+        if (troop.type === 'clockworkbeetle' && target) {
+            const info = BUILDINGS[target.type];
+            if (info) {
+                this.recordReplayPresentation(replayPresentationEvent('combat.attack', {
+                    actor: this.replayTroopRef(troop),
+                    target: this.replayBuildingRef(target),
+                    at: this.replayPoint(troop.gridX, troop.gridY, troop.visualOffsetY ?? 0),
+                    targetPoint: this.replayPoint(
+                        target.gridX + info.width / 2,
+                        target.gridY + info.height / 2
+                    ),
+                    style: 'clockwork-beetle-detonation',
+                    phase: 'impact',
+                    facingAngle: troop.facingAngle || 0,
+                    attackDelayMs: troop.attackDelay,
+                    phaseDurationMs: 0
+                }));
+            }
+        }
         const wallMult = target?.type === 'wall' ? (stats.wallDamageMultiplier ?? 1) : 1;
         const splashRadius = stats.splashRadius || 2.5;
 
@@ -4010,8 +4207,7 @@ export class MainScene extends Phaser.Scene {
             const damage = distance < 0.5
                 ? stats.damage * buildingMult
                 : stats.damage * buildingMult * 0.6;
-            building.health -= damage;
-            this.updateHealthBar(building);
+            this.applyLocalBuildingDamage(building, damage);
             if (building.health <= 0) this.destroyBuilding(building);
         });
 
@@ -4027,7 +4223,9 @@ export class MainScene extends Phaser.Scene {
         // icy dressing on the same frame the defense resumes firing.
         this.updateFrozenDefenses(time);
 
-        this.defenseSystem.update(time, this.buildings, this.troops);
+        if (!isReplayWatch || !this.replayWatchState?.usesV2) {
+            this.defenseSystem.update(time, this.buildings, this.troops);
+        }
 
         // Support-kit presentation + (outside replay) the burst heals: runs in
         // BOTH modes so auras/pulse FX show while spectating, but never
@@ -4150,6 +4348,36 @@ export class MainScene extends Phaser.Scene {
                             troop.lastAttackTime = time;
                             troop.attackClockActive = true;
 
+                            const attackTarget = troop.target as PlacedBuilding;
+                            const attackInfo = BUILDINGS[attackTarget.type];
+                            if (attackInfo) {
+                                const actorPoint = this.replayPoint(
+                                    troop.gridX,
+                                    troop.gridY,
+                                    troop.visualOffsetY ?? 0
+                                );
+                                const targetPoint = this.replayPoint(
+                                    attackTarget.gridX + attackInfo.width / 2,
+                                    attackTarget.gridY + attackInfo.height / 2
+                                );
+                                // Pure healers do not swing. Siege towers have
+                                // zero damage too, but their park choreography
+                                // is itself a recorded attack-style event.
+                                if (stats.damage > 0 || troop.type === 'siegetower') {
+                                    this.recordReplayPresentation(replayPresentationEvent('combat.attack', {
+                                        actor: this.replayTroopRef(troop),
+                                        target: this.replayBuildingRef(attackTarget),
+                                        at: actorPoint,
+                                        targetPoint,
+                                        style: this.replayAttackStyle(troop, attackTarget),
+                                        phase: 'release',
+                                        facingAngle: troop.facingAngle || 0,
+                                        attackDelayMs: troop.attackDelay,
+                                        phaseDurationMs: 0
+                                    }));
+                                }
+                            }
+
                             if (troop.type === 'archer') {
                                 this.showArcherProjectile(troop, troop.target, stats.damage);
                             } else if (troop.type === 'mobilemortar') {
@@ -4207,8 +4435,7 @@ export class MainScene extends Phaser.Scene {
                                                 const bdy = (b.gridY + BUILDINGS[b.type].height / 2) - troop.gridY;
                                                 const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
                                                 if (bdist <= aoeTiles) {
-                                                    b.health -= stats.damage;
-                                                    this.updateHealthBar(b);
+                                                    this.applyLocalBuildingDamage(b, stats.damage);
                                                     if (b.health <= 0) {
                                                         this.destroyBuilding(b);
                                                     }
@@ -4243,157 +4470,7 @@ export class MainScene extends Phaser.Scene {
                                 });
 
                             } else if (troop.type === 'davincitank') {
-                                // DA VINCI TANK - Fire cannon from closest 45° position toward target
-                                const tankPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
-                                const targetBuilding = troop.target;
-                                const targetInfo = BUILDINGS[targetBuilding.type];
-                                const targetPos = IsoUtils.cartToIso(
-                                    targetBuilding.gridX + targetInfo.width / 2,
-                                    targetBuilding.gridY + targetInfo.height / 2
-                                );
-
-                                // Store current angle for rotation after shot
-                                const currentAngle = troop.facingAngle || 0;
-
-                                // The cannon ring is authored in aim space and
-                                // projected to screen with Y×0.5. Undo that
-                                // projection before choosing the closest bay;
-                                // snapping the already-projected screen angle
-                                // compressed it twice and selected the wrong
-                                // visible cannon on diagonal shots.
-                                const aimAngleToTarget = Math.atan2(
-                                    (targetPos.y - tankPos.y) * 2,
-                                    targetPos.x - tankPos.x
-                                );
-
-                                // Snap relative to the ring's current rotation
-                                // (8 cannons = PI/4 spacing).
-                                const snapIncrement = Math.PI / 4;
-                                const ringAngle = Phaser.Math.Angle.Normalize(
-                                    currentAngle + Phaser.Math.Clamp(troop.tankSpin01 ?? 0, 0, 1) * snapIncrement
-                                );
-                                const relativeAim = Phaser.Math.Angle.Wrap(aimAngleToTarget - ringAngle);
-                                const firingAngle = ringAngle + Math.round(relativeAim / snapIncrement) * snapIncrement;
-
-                                // Renderer geometry: ring radius 29 + barrel
-                                // length 16, with its hub 2 px below the anchor.
-                                const muzzleOffset = 45;
-                                const muzzleX = tankPos.x + Math.cos(firingAngle) * muzzleOffset;
-                                const muzzleY = tankPos.y + 2 + Math.sin(firingAngle) * muzzleOffset * 0.5;
-
-                                // Start just beyond that exact barrel tip so
-                                // the ball never appears inside the hull.
-                                const ballOffset = 48;
-                                const ballX = tankPos.x + Math.cos(firingAngle) * ballOffset;
-                                const ballY = tankPos.y + 2 + Math.sin(firingAngle) * ballOffset * 0.5;
-
-                                // Painter's-order depth from the shot's ground track: launch at
-                                // the tank's tile, then per-frame along the track (onUpdate below)
-                                // — "behind when shooting up" falls out of the row math for free.
-                                const launchGX = troop.gridX;
-                                const launchGY = troop.gridY;
-                                const shotTargetGX = targetBuilding.gridX + targetInfo.width / 2;
-                                const shotTargetGY = targetBuilding.gridY + targetInfo.height / 2;
-                                const ballDepth = depthForProjectile(launchGX, launchGY);
-
-                                // Muzzle flash
-                                const flash = this.trackBattleFx(this.add.graphics());
-                                pixelEllipse(flash, 0, 0, 10, 10, 0xffaa00, 0.9);
-                                pixelEllipse(flash, 0, 0, 5, 5, 0xffff00, 0.7);
-                                flash.setPosition(muzzleX, muzzleY);
-                                flash.setDepth(depthForGroundEffect(launchGX, launchGY));
-                                this.tweens.add({
-                                    targets: flash,
-                                    scale: 2, alpha: 0,
-                                    duration: 150,
-                                    onComplete: () => flash.destroy()
-                                });
-
-                                // Cannonball projectile — sized to the beefed-up bombards
-                                const ball = this.trackBattleFx(this.add.graphics());
-                                pixelEllipse(ball, 0, 0, 4, 4, 0x2a2a2a, 1);
-                                pixelEllipse(ball, -0.7, -0.7, 1.5, 1.5, 0x4a4a4a, 1);
-                                ball.setPosition(ballX, ballY);
-                                ball.setDepth(ballDepth);
-
-                                // Smoke puff at muzzle - smaller
-                                particleManager.emitSmokeTracker('troop_fire_' + troop.id, muzzleX, muzzleY, time, depthForGroundEffect(launchGX, launchGY), 3, 0);
-
-                                // Light screen shake on fire
-                                screenShake(this, 25, 0.0005);
-
-                                // ROTATE AFTER SHOT - delayed until cannonball is in flight
-                                const newAngle = currentAngle + Math.PI / 4;
-                                troop.tankSpin01 = 0;
-                                this.scheduleBattleCall(150, () => {
-                                    const rotationTarget = { spin01: 0 };
-                                    this.tweens.add({
-                                        targets: rotationTarget,
-                                        spin01: 1,
-                                        duration: 200,
-                                        ease: 'Quad.easeOut',
-                                        onUpdate: () => {
-                                            // Keep facing in its current baked direction while
-                                            // the attack atlas supplies the six intermediate
-                                            // cannon-ring poses. Moving facing directly only
-                                            // crossed one octant threshold, so the old bake
-                                            // popped instead of spinning.
-                                            troop.tankSpin01 = rotationTarget.spin01;
-                                            this.redrawTroopWithMovement(troop, false);
-                                        },
-                                        onComplete: () => {
-                                            troop.facingAngle = Phaser.Math.Angle.Normalize(newAngle);
-                                            troop.tankSpin01 = 0;
-                                            this.redrawTroopWithMovement(troop, false);
-                                        }
-                                    });
-                                });
-
-                                // Store target reference for damage application
-                                const targetRef = targetBuilding;
-                                const damage = stats.damage;
-
-                                // Cannonball flies to target - FASTER, damage on IMPACT
-                                this.tweens.add({
-                                    targets: ball,
-                                    x: targetPos.x,
-                                    y: targetPos.y - 10,
-                                    duration: 200,  // Faster flight
-                                    ease: 'Quad.easeIn',
-                                    onUpdate: (tween) => {
-                                        // Depth follows the ground track under the shot.
-                                        const t = tween.progress;
-                                        ball.setDepth(depthForProjectile(
-                                            launchGX + (shotTargetGX - launchGX) * t,
-                                            launchGY + (shotTargetGY - launchGY) * t));
-                                    },
-                                    onComplete: () => {
-                                        // Impact effect - isometric oval
-                                        const impact = this.trackBattleFx(this.add.graphics());
-                                        pixelEllipse(impact, 0, 0, 8, 4, 0xff6600, 0.6);
-                                        impact.setPosition(targetPos.x, targetPos.y - 10);
-                                        impact.setDepth(depthForGroundEffect(shotTargetGX, shotTargetGY));
-                                        this.tweens.add({
-                                            targets: impact,
-                                            scale: 1.5, alpha: 0,
-                                            duration: 200,
-                                            onComplete: () => impact.destroy()
-                                        });
-                                        ball.destroy();
-
-                                        // DAMAGE APPLIED ON IMPACT
-                                        if (targetRef && targetRef.health > 0) {
-                                            targetRef.health -= damage;
-                                            this.updateHealthBar(targetRef);
-
-                                            if (targetRef.health <= 0) {
-                                                this.destroyBuilding(targetRef);
-                                                troop.target = null;
-                                            }
-                                        }
-                                    }
-                                });
-
+                                this.showDaVinciTankShot(troop, troop.target, stats.damage, time);
                             } else if (troop.type === 'phalanx') {
                                 // PHALANX - Spear thrust attack
                                 const targetBuilding = troop.target;
@@ -4424,14 +4501,18 @@ export class MainScene extends Phaser.Scene {
                                     }
                                 });
 
-                                // Apply damage directly
-                                targetBuilding.health -= stats.damage;
-                                this.updateHealthBar(targetBuilding);
-
-                                if (targetBuilding.health <= 0) {
-                                    this.destroyBuilding(targetBuilding);
-                                    troop.target = null;
-                                }
+                                // The spear tip reaches the building at the
+                                // forward tween's 150 ms apex. Stamp damage at
+                                // that contact, so both live and replay bars
+                                // move with the authored hit frame.
+                                this.scheduleBattleCall(150, () => {
+                                    if (troop.health <= 0 || targetBuilding.health <= 0) return;
+                                    this.applyLocalBuildingDamage(targetBuilding, stats.damage);
+                                    if (targetBuilding.health <= 0) {
+                                        this.destroyBuilding(targetBuilding);
+                                        troop.target = null;
+                                    }
+                                });
                             } else if (stats.detonateOnAttack) {
                                 if (troop.type === 'clockworkbeetle') {
                                     this.beginClockworkBeetleLatch(troop, troop.target as PlacedBuilding, time);
@@ -4460,8 +4541,6 @@ export class MainScene extends Phaser.Scene {
                                 // damage (Barbarian, Ram, Elephant, etc.).
                                 const struckTarget = troop.target;
                                 const isWallStrike = struckTarget.type === 'wall';
-                                this.applyDeclarativeTroopHit(troop, struckTarget, stats.damage);
-
                                 const currentPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
                                 const targetPos = IsoUtils.cartToIso(bx + tw / 2, by + th / 2);
                                 const angle = Math.atan2(targetPos.y - currentPos.y, targetPos.x - currentPos.x);
@@ -4482,24 +4561,31 @@ export class MainScene extends Phaser.Scene {
                                         depth: depthForGroundEffect(bx + tw / 2, by + th / 2)
                                     });
                                     this.redrawTroopWithMovement(troop, true);
+                                    this.applyDeclarativeTroopHit(troop, struckTarget, stats.damage);
+                                    if (struckTarget.health <= 0) troop.target = null;
                                 } else {
                                     // Ram gets a bigger punch animation
                                     const punchDist = troop.type === 'ram' ? 18 : 10;
+                                    const contactMs = troop.type === 'ram' ? 100 : 50;
                                     this.tweens.add({
                                         targets: troop.gameObject,
                                         x: currentPos.x + Math.cos(angle) * punchDist,
                                         y: currentPos.y + Math.sin(angle) * (punchDist * 0.5),
-                                        duration: troop.type === 'ram' ? 100 : 50,
+                                        duration: contactMs,
                                         yoyo: true
+                                    });
+
+                                    this.scheduleBattleCall(contactMs, () => {
+                                        if (troop.health <= 0 || struckTarget.health <= 0) return;
+                                        this.applyDeclarativeTroopHit(troop, struckTarget, stats.damage);
+                                        if (struckTarget.health <= 0) troop.target = null;
                                     });
 
                                     // Screen shake for Ram impact
                                     if (troop.type === 'ram') {
-                                        screenShake(this, 40, 0.002);
+                                        this.scheduleBattleCall(contactMs, () => screenShake(this, 40, 0.002));
                                     }
                                 }
-
-                                if (struckTarget.health <= 0) troop.target = null;
                             }
                         }
                     }
@@ -4507,6 +4593,203 @@ export class MainScene extends Phaser.Scene {
             }
         });
 
+    }
+
+    private recordDefenseChargePresentation(
+        phase: DefenseChargePhase,
+        defense: PlacedBuilding,
+        target: Troop | undefined,
+        _time: number,
+        chargeMs: number,
+        chargedVisualMs: number
+    ): void {
+        const info = BUILDINGS[defense.type];
+        if (!info) return;
+        const source = this.replayPoint(
+            defense.gridX + info.width / 2,
+            defense.gridY + info.height / 2
+        );
+        const targetPoint = target
+            ? this.replayPoint(target.gridX, target.gridY, target.visualOffsetY ?? 0)
+            : undefined;
+        this.recordReplayPresentation(replayPresentationEvent('defense.charge', {
+            defense: this.replayBuildingRef(defense),
+            target: target ? this.replayTroopRef(target) : undefined,
+            weapon: 'tesla',
+            phase,
+            chargeMs,
+            chargedVisualMs,
+            facingAngle: targetPoint
+                ? Math.atan2(targetPoint.worldY - source.worldY, targetPoint.worldX - source.worldX)
+                : defense.ballistaAngle ?? 0
+        }));
+    }
+
+    private fireDefensePresentation(
+        weapon: ReplayDefenseWeapon,
+        defense: PlacedBuilding,
+        target: Troop,
+        time: number
+    ): boolean | void {
+        // The cannon deliberately refuses a second shot while its previous
+        // ball is airborne. Preserve that scheduler contract and do not
+        // publish a phantom fire event or consume the cooldown.
+        if (weapon === 'cannon' && defense.isFiring) return false;
+        const info = BUILDINGS[defense.type];
+        if (!info) return;
+        const sourceX = defense.gridX + info.width / 2;
+        const sourceY = defense.gridY + info.height / 2;
+        const source = this.replayPoint(sourceX, sourceY);
+        const targetPoint = this.replayPoint(target.gridX, target.gridY, target.visualOffsetY ?? 0);
+        const stats = this.getDefenseStats(defense);
+        this.recordReplayPresentation(replayPresentationEvent('defense.fire', {
+            defense: this.replayBuildingRef(defense),
+            target: this.replayTroopRef(target),
+            weapon,
+            source,
+            targetPoint,
+            facingAngle: Math.atan2(
+                targetPoint.worldY - source.worldY,
+                targetPoint.worldX - source.worldX
+            ),
+            damage: Math.max(0, stats.damage || 0),
+            fireRateMs: Math.max(1, stats.fireRate || 2500),
+            windupMs: weapon === 'tesla' ? 800 : 0
+        }));
+
+        switch (weapon) {
+            case 'cannon': return this.shootAt(defense, target);
+            case 'ballista': this.shootBallistaAt(defense, target); break;
+            case 'xbow': this.shootXBowAt(defense, target); break;
+            case 'mortar': this.shootMortarAt(defense, target); break;
+            case 'tesla': this.shootTeslaAt(defense, target); break;
+            case 'prism': this.shootPrismContinuousLaser(defense, target, time); break;
+            case 'dragons-breath': this.shootDragonsBreathAt(defense, target); break;
+            case 'spike-launcher': this.shootSpikeLauncherAt(defense, target); break;
+        }
+    }
+
+    /** Replay-safe copy of the live Da Vinci tank release. The live branch and
+     * replay event feed the same authored cannon-ring, muzzle, flight, impact,
+     * and post-shot bay rotation values; building damage remains gated. */
+    private showDaVinciTankShot(
+        troop: Troop,
+        targetBuilding: PlacedBuilding,
+        damage: number,
+        time: number
+    ) {
+        const targetInfo = BUILDINGS[targetBuilding.type];
+        if (!targetInfo) return;
+        const tankPos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        const targetPos = IsoUtils.cartToIso(
+            targetBuilding.gridX + targetInfo.width / 2,
+            targetBuilding.gridY + targetInfo.height / 2
+        );
+        const currentAngle = troop.facingAngle || 0;
+        const aimAngleToTarget = Math.atan2(
+            (targetPos.y - tankPos.y) * 2,
+            targetPos.x - tankPos.x
+        );
+        const snapIncrement = Math.PI / 4;
+        const ringAngle = Phaser.Math.Angle.Normalize(
+            currentAngle + Phaser.Math.Clamp(troop.tankSpin01 ?? 0, 0, 1) * snapIncrement
+        );
+        const relativeAim = Phaser.Math.Angle.Wrap(aimAngleToTarget - ringAngle);
+        const firingAngle = ringAngle + Math.round(relativeAim / snapIncrement) * snapIncrement;
+        const muzzleX = tankPos.x + Math.cos(firingAngle) * 45;
+        const muzzleY = tankPos.y + 2 + Math.sin(firingAngle) * 45 * 0.5;
+        const ballX = tankPos.x + Math.cos(firingAngle) * 48;
+        const ballY = tankPos.y + 2 + Math.sin(firingAngle) * 48 * 0.5;
+        const launchGX = troop.gridX;
+        const launchGY = troop.gridY;
+        const targetGX = targetBuilding.gridX + targetInfo.width / 2;
+        const targetGY = targetBuilding.gridY + targetInfo.height / 2;
+
+        const flash = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(flash, 0, 0, 10, 10, 0xffaa00, 0.9);
+        pixelEllipse(flash, 0, 0, 5, 5, 0xffff00, 0.7);
+        flash.setPosition(muzzleX, muzzleY);
+        flash.setDepth(depthForGroundEffect(launchGX, launchGY));
+        this.tweens.add({
+            targets: flash,
+            scale: 2,
+            alpha: 0,
+            duration: 150,
+            onComplete: () => flash.destroy()
+        });
+
+        const ball = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(ball, 0, 0, 4, 4, 0x2a2a2a, 1);
+        pixelEllipse(ball, -0.7, -0.7, 1.5, 1.5, 0x4a4a4a, 1);
+        ball.setPosition(ballX, ballY);
+        ball.setDepth(depthForProjectile(launchGX, launchGY));
+        particleManager.emitSmokeTracker(
+            `troop_fire_${troop.id}`,
+            muzzleX,
+            muzzleY,
+            time,
+            depthForGroundEffect(launchGX, launchGY),
+            3,
+            0
+        );
+        screenShake(this, 25, 0.0005);
+
+        const newAngle = currentAngle + snapIncrement;
+        troop.tankSpin01 = 0;
+        this.scheduleBattleCall(150, () => {
+            const rotation = { spin01: 0 };
+            this.tweens.add({
+                targets: rotation,
+                spin01: 1,
+                duration: 200,
+                ease: 'Quad.easeOut',
+                onUpdate: () => {
+                    troop.tankSpin01 = rotation.spin01;
+                    this.redrawTroopWithMovement(troop, false);
+                },
+                onComplete: () => {
+                    troop.facingAngle = Phaser.Math.Angle.Normalize(newAngle);
+                    troop.tankSpin01 = 0;
+                    this.redrawTroopWithMovement(troop, false);
+                }
+            });
+        });
+
+        this.tweens.add({
+            targets: ball,
+            x: targetPos.x,
+            y: targetPos.y - 10,
+            duration: 200,
+            ease: 'Quad.easeIn',
+            onUpdate: tween => {
+                const progress = tween.progress;
+                ball.setDepth(depthForProjectile(
+                    launchGX + (targetGX - launchGX) * progress,
+                    launchGY + (targetGY - launchGY) * progress
+                ));
+            },
+            onComplete: this.replayPresentationCallback('da-vinci-impact', () => {
+                const impact = this.trackBattleFx(this.add.graphics());
+                pixelEllipse(impact, 0, 0, 8, 4, 0xff6600, 0.6);
+                impact.setPosition(targetPos.x, targetPos.y - 10);
+                impact.setDepth(depthForGroundEffect(targetGX, targetGY));
+                this.tweens.add({
+                    targets: impact,
+                    scale: 1.5,
+                    alpha: 0,
+                    duration: 200,
+                    onComplete: () => impact.destroy()
+                });
+                ball.destroy();
+                if (targetBuilding.health > 0) {
+                    this.applyLocalBuildingDamage(targetBuilding, damage);
+                    if (targetBuilding.health <= 0) {
+                        this.destroyBuilding(targetBuilding);
+                        troop.target = null;
+                    }
+                }
+            })
+        });
     }
 
 
@@ -4579,10 +4862,10 @@ export class MainScene extends Phaser.Scene {
                     launchGY + (shotTargetGY - launchGY) * t));
                 if (ballBaked) this.syncProjectileSprite(ball, 'mortar_shell', Math.min(level, 4), t * Math.PI * 4);
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('defense-mortar-impact', () => {
                 ball.destroy();
                 this.createMortarExplosion(end.x, end.y, mortar.owner, troop.gridX, troop.gridY, level, mortarDamage);
-            }
+            })
         });
     }
 
@@ -4616,20 +4899,20 @@ export class MainScene extends Phaser.Scene {
             cracks.setDepth(depthForGroundDecal('crater'));
             // Draw 6 cracks radiating outward
             for (let i = 0; i < 6; i++) {
-                const angle = (i / 6) * Math.PI * 2 + Math.random() * 0.3;
-                const length = 25 + Math.random() * 20;
+                const angle = (i / 6) * Math.PI * 2 + this.battleRandom() * 0.3;
+                const length = 25 + this.battleRandom() * 20;
                 const midX = x + Math.cos(angle) * length * 0.5;
                 const midY = y + Math.sin(angle) * length * 0.3; // Flatten for isometric
                 const endX = x + Math.cos(angle) * length;
                 const endY = y + Math.sin(angle) * length * 0.5;
                 // Jagged crack line
-                const jagX = midX + (Math.random() - 0.5) * 8;
-                const jagY = midY + (Math.random() - 0.5) * 4;
+                const jagX = midX + (this.battleRandom() - 0.5) * 8;
+                const jagY = midY + (this.battleRandom() - 0.5) * 4;
                 pixelLine(cracks, x, y, jagX, jagY, 1, 0x1a1a1a, 0.7);
                 pixelLine(cracks, jagX, jagY, endX, endY, 1, 0x1a1a1a, 0.7);
                 // Branch cracks
-                if (Math.random() > 0.5) {
-                    const branchAngle = angle + (Math.random() - 0.5) * 0.8;
+                if (this.battleRandom() > 0.5) {
+                    const branchAngle = angle + (this.battleRandom() - 0.5) * 0.8;
                     pixelLine(cracks, midX, midY, midX + Math.cos(branchAngle) * 12, midY + Math.sin(branchAngle) * 6, 1, 0x1a1a1a, 0.7);
                 }
             }
@@ -4678,19 +4961,19 @@ export class MainScene extends Phaser.Scene {
         const fireCount = level >= 3 ? 16 : 12;
         for (let i = 0; i < fireCount; i++) {
             const angle = (i / fireCount) * Math.PI * 2;
-            const dist = (15 + Math.random() * 25) * scale;
+            const dist = (15 + this.battleRandom() * 25) * scale;
             const fireColors = [0xff4400, 0xff6600, 0xff8800, 0xffaa00];
-            const fireSize = (6 + Math.floor(Math.random() * 8)) * scale;
+            const fireSize = (6 + Math.floor(this.battleRandom() * 8)) * scale;
             const fire = this.trackBattleFx(this.add.graphics());
-            pixelRect(fire, -fireSize / 2, -fireSize / 2, fireSize, fireSize, fireColors[Math.floor(Math.random() * 4)], 0.9);
+            pixelRect(fire, -fireSize / 2, -fireSize / 2, fireSize, fireSize, fireColors[Math.floor(this.battleRandom() * 4)], 0.9);
             fire.setPosition(x, y);
             fire.setDepth(fxDepth + 2);
             this.tweens.add({
                 targets: fire,
                 x: x + Math.cos(angle) * dist,
-                y: y + Math.sin(angle) * dist * 0.5 - 30 * scale - Math.random() * 40 * scale,
+                y: y + Math.sin(angle) * dist * 0.5 - 30 * scale - this.battleRandom() * 40 * scale,
                 alpha: 0, scale: 0.2,
-                duration: 300 + Math.random() * 200,
+                duration: 300 + this.battleRandom() * 200,
                 ease: 'Quad.easeOut',
                 onComplete: () => fire.destroy()
             });
@@ -4701,17 +4984,17 @@ export class MainScene extends Phaser.Scene {
             const delay = i * 30;
             this.scheduleBattleCall(delay, () => {
                 const smokeColors = [0x444444, 0x555555, 0x666666];
-                const smokeSize = 8 + Math.floor(Math.random() * 12);
+                const smokeSize = 8 + Math.floor(this.battleRandom() * 12);
                 const smoke = this.trackBattleFx(this.add.graphics());
-                pixelRect(smoke, -smokeSize / 2, -smokeSize / 2, smokeSize, smokeSize, smokeColors[Math.floor(Math.random() * 3)], 0.6);
-                smoke.setPosition(x + (Math.random() - 0.5) * 30, y);
+                pixelRect(smoke, -smokeSize / 2, -smokeSize / 2, smokeSize, smokeSize, smokeColors[Math.floor(this.battleRandom() * 3)], 0.6);
+                smoke.setPosition(x + (this.battleRandom() - 0.5) * 30, y);
                 smoke.setDepth(fxDepth - 2);
                 this.tweens.add({
                     targets: smoke,
-                    y: smoke.y - 60 - Math.random() * 40,
-                    x: smoke.x + (Math.random() - 0.5) * 30,
+                    y: smoke.y - 60 - this.battleRandom() * 40,
+                    x: smoke.x + (this.battleRandom() - 0.5) * 30,
                     scale: 2.5, alpha: 0,
-                    duration: 800 + Math.random() * 400,
+                    duration: 800 + this.battleRandom() * 400,
                     ease: 'Quad.easeOut',
                     onComplete: () => smoke.destroy()
                 });
@@ -4720,25 +5003,25 @@ export class MainScene extends Phaser.Scene {
 
         // Debris/dirt chunks
         for (let i = 0; i < 6; i++) {
-            const angle = Math.random() * Math.PI * 2;
+            const angle = this.battleRandom() * Math.PI * 2;
             const debris = this.trackBattleFx(this.add.graphics());
             pixelRect(debris, -3, -3, 6, 6, 0x5a4a3a, 1);
             debris.setPosition(x, y);
             debris.setDepth(fxDepth + 3);
 
-            const dist = 30 + Math.random() * 40;
-            const peakY = y - 40 - Math.random() * 30;
+            const dist = 30 + this.battleRandom() * 40;
+            const peakY = y - 40 - this.battleRandom() * 30;
 
             this.tweens.add({
                 targets: debris,
                 x: x + Math.cos(angle) * dist,
-                duration: 500 + Math.random() * 200,
+                duration: 500 + this.battleRandom() * 200,
                 ease: 'Quad.easeOut'
             });
             this.tweens.add({
                 targets: debris,
                 y: [peakY, y + 10],
-                duration: 500 + Math.random() * 200,
+                duration: 500 + this.battleRandom() * 200,
                 ease: 'Quad.easeIn',
                 onComplete: () => debris.destroy()
             });
@@ -4884,9 +5167,9 @@ export class MainScene extends Phaser.Scene {
         // Gunpowder smoke - pixelated rectangles
         for (let i = 0; i < 3; i++) {
             const smoke = this.trackBattleFx(this.add.graphics());
-            const smokeSize = 4 + Math.floor(Math.random() * 4);
-            const smokeAngle = angle + (Math.random() - 0.5) * 0.5;
-            const dist = 10 + Math.random() * 15;
+            const smokeSize = 4 + Math.floor(this.battleRandom() * 4);
+            const smokeAngle = angle + (this.battleRandom() - 0.5) * 0.5;
+            const dist = 10 + this.battleRandom() * 15;
             const sx = barrelTipX + Math.cos(smokeAngle) * dist * 0.2; // Start near tip
             const sy = barrelTipY + Math.sin(smokeAngle) * dist * 0.2;
 
@@ -4897,10 +5180,10 @@ export class MainScene extends Phaser.Scene {
             this.tweens.add({
                 targets: smoke,
                 x: sx + Math.cos(smokeAngle) * dist,
-                y: sy + Math.sin(smokeAngle) * dist * 0.5 - 10 - Math.random() * 10, // Drift up
+                y: sy + Math.sin(smokeAngle) * dist * 0.5 - 10 - this.battleRandom() * 10, // Drift up
                 alpha: 0,
                 scale: 1.5,
-                duration: 400 + Math.random() * 300,
+                duration: 400 + this.battleRandom() * 300,
                 onComplete: () => smoke.destroy()
             });
         }
@@ -5064,8 +5347,8 @@ export class MainScene extends Phaser.Scene {
                         const progress = j / segments;
                         const tx = boltLastTarget.x + (end.x - boltLastTarget.x) * progress;
                         const ty = boltLastTarget.y + (end.y - boltLastTarget.y) * progress;
-                        const nx = tx + (Math.random() - 0.5) * jitter;
-                        const ny = ty + (Math.random() - 0.5) * jitter;
+                        const nx = tx + (this.battleRandom() - 0.5) * jitter;
+                        const ny = ty + (this.battleRandom() - 0.5) * jitter;
                         pixelLine(lightning, prevX, prevY, nx, ny, thick, color, alpha);
                         prevX = nx;
                         prevY = ny;
@@ -5116,8 +5399,8 @@ export class MainScene extends Phaser.Scene {
             // Electric spark particles at impact
             for (let s = 0; s < 4; s++) {
                 const spark = this.trackBattleFx(this.add.graphics());
-                const sparkLen = 5 + Math.random() * 10;
-                const sparkAngle = Math.random() * Math.PI * 2;
+                const sparkLen = 5 + this.battleRandom() * 10;
+                const sparkAngle = this.battleRandom() * Math.PI * 2;
                 pixelLine(spark,
                     end.x, end.y,
                     end.x + Math.cos(sparkAngle) * sparkLen,
@@ -5128,7 +5411,7 @@ export class MainScene extends Phaser.Scene {
                 this.tweens.add({
                     targets: spark,
                     alpha: 0,
-                    duration: 100 + Math.random() * 100,
+                    duration: 100 + this.battleRandom() * 100,
                     delay: impactDelay + idx * 40,
                     onComplete: () => spark.destroy()
                 });
@@ -5210,26 +5493,26 @@ export class MainScene extends Phaser.Scene {
         // Spawn particles every few frames
         if (time % 50 < 20) {
             for (let i = 0; i < 3; i++) {
-                const t = Math.random();
-                const px = start.x + (hit.x - start.x) * t + (Math.random() - 0.5) * 15;
-                const py = start.y + (hit.y - start.y) * t + (Math.random() - 0.5) * 10;
+                const t = this.battleRandom();
+                const px = start.x + (hit.x - start.x) * t + (this.battleRandom() - 0.5) * 15;
+                const py = start.y + (hit.y - start.y) * t + (this.battleRandom() - 0.5) * 10;
 
                 const particle = this.trackBattleFx(this.add.graphics());
-                const particleColor = Phaser.Display.Color.HSLToColor(((hue + Math.random() * 60) % 360) / 360, 1, 0.5).color;
-                const particleR = 2 + Math.random() * 3;
+                const particleColor = Phaser.Display.Color.HSLToColor(((hue + this.battleRandom() * 60) % 360) / 360, 1, 0.5).color;
+                const particleR = 2 + this.battleRandom() * 3;
                 pixelEllipse(particle, 0, 0, particleR, particleR, particleColor, 1);
                 particle.setPosition(px, py);
                 particle.setDepth(beamDepth + 2);
 
                 // Particles fly outward
-                const perpAngle = angle + Math.PI / 2 * (Math.random() > 0.5 ? 1 : -1);
+                const perpAngle = angle + Math.PI / 2 * (this.battleRandom() > 0.5 ? 1 : -1);
                 this.tweens.add({
                     targets: particle,
-                    x: px + Math.cos(perpAngle) * (20 + Math.random() * 20),
-                    y: py + Math.sin(perpAngle) * (10 + Math.random() * 10),
+                    x: px + Math.cos(perpAngle) * (20 + this.battleRandom() * 20),
+                    y: py + Math.sin(perpAngle) * (10 + this.battleRandom() * 10),
                     alpha: 0,
                     scale: 0.2,
-                    duration: 200 + Math.random() * 150,
+                    duration: 200 + this.battleRandom() * 150,
                     ease: 'Quad.easeOut',
                     onComplete: () => particle.destroy()
                 });
@@ -5240,20 +5523,20 @@ export class MainScene extends Phaser.Scene {
         // Reset trail if target changed significantly (or initialization)
         if (!prism.prismTrailLastPos) {
             prism.prismTrailLastPos = {
-                x: end.x + (Math.random() - 0.5) * 10,
-                y: end.y + (Math.random() - 0.5) * 10
+                x: end.x + (this.battleRandom() - 0.5) * 10,
+                y: end.y + (this.battleRandom() - 0.5) * 10
             };
         } else if (prism.prismTarget !== target && prism.prismTarget?.id !== target.id) {
             // Target switched, reset pos
             prism.prismTrailLastPos = {
-                x: end.x + (Math.random() - 0.5) * 10,
-                y: end.y + (Math.random() - 0.5) * 10
+                x: end.x + (this.battleRandom() - 0.5) * 10,
+                y: end.y + (this.battleRandom() - 0.5) * 10
             };
         }
 
         // Calculate Jagged Current Target for the segment end
-        const jaggedEndX = end.x + (Math.random() - 0.5) * 6;
-        const jaggedEndY = end.y + (Math.random() - 0.5) * 6;
+        const jaggedEndX = end.x + (this.battleRandom() - 0.5) * 6;
+        const jaggedEndY = end.y + (this.battleRandom() - 0.5) * 6;
 
         const distLast = Phaser.Math.Distance.Between(prism.prismTrailLastPos.x, prism.prismTrailLastPos.y, jaggedEndX, jaggedEndY);
 
@@ -5281,9 +5564,9 @@ export class MainScene extends Phaser.Scene {
             // STATIONARY: Random scratch around target (static)
             const scratch = this.trackBattleFx(this.add.graphics());
 
-            const sx = end.x + (Math.random() - 0.5) * 15;
-            const sy = end.y + (Math.random() - 0.5) * 15;
-            pixelLine(scratch, sx, sy, sx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 8, 3, 0x0a0505, 0.6);
+            const sx = end.x + (this.battleRandom() - 0.5) * 15;
+            const sy = end.y + (this.battleRandom() - 0.5) * 15;
+            pixelLine(scratch, sx, sy, sx + (this.battleRandom() - 0.5) * 12, sy + (this.battleRandom() - 0.5) * 8, 3, 0x0a0505, 0.6);
 
             scratch.setDepth(depthForGroundDecal('scorch'));
 
@@ -5324,11 +5607,34 @@ export class MainScene extends Phaser.Scene {
             prism.prismLastDamageTime = time;
             const damagePerTick = prismDps * (tickInterval / 1000);
             if (this.applyLocalTroopDamage(target, damagePerTick) && target.health <= 0) {
-                this.cleanupPrismLaser(prism);
+                this.cleanupPrismPresentation(prism);
             }
         }
 
         prism.prismTarget = target;
+    }
+
+    private cleanupPrismPresentation(prism: PlacedBuilding) {
+        // Idle is probed every eligible defense tick. Record only the actual
+        // visible beam transition, not a stream of redundant no-op stops.
+        if (prism.prismLaserGraphics || prism.prismLaserCore || prism.prismTarget) {
+            const stats = this.getDefenseStats(prism);
+            const info = BUILDINGS[prism.type];
+            if (info) {
+                this.recordReplayPresentation(replayPresentationEvent('ability', {
+                    ability: 'prism-beam-stop',
+                    actor: this.replayBuildingRef(prism),
+                    target: prism.prismTarget ? this.replayTroopRef(prism.prismTarget) : undefined,
+                    at: this.replayPoint(
+                        prism.gridX + info.width / 2,
+                        prism.gridY + info.height / 2
+                    ),
+                    tickMs: Math.max(25, stats.fireRate ?? 100),
+                    hue: (this.animClockNow() / 10) % 360
+                }));
+            }
+        }
+        this.cleanupPrismLaser(prism);
     }
 
     // Clean up prism laser graphics when no target
@@ -5379,8 +5685,7 @@ export class MainScene extends Phaser.Scene {
             else if (BUILDINGS[building.type]?.category === 'resource') {
                 damage *= stats.resourceDamageMultiplier ?? 1;
             }
-            building.health -= damage;
-            this.updateHealthBar(building);
+            this.applyLocalBuildingDamage(building, damage);
             if (building.health <= 0) destroyed.push(building);
         }
 
@@ -5605,8 +5910,7 @@ export class MainScene extends Phaser.Scene {
 
                 // Apply damage on hit
                 if (targetBuilding && targetBuilding.health > 0) {
-                    targetBuilding.health -= damage;
-                    this.updateHealthBar(targetBuilding);
+                    this.applyLocalBuildingDamage(targetBuilding, damage);
 
                     if (targetBuilding.health <= 0) {
                         this.destroyBuilding(targetBuilding);
@@ -5710,7 +6014,7 @@ export class MainScene extends Phaser.Scene {
                     launchGY + (shotTargetGY - launchGY) * t));
                 if (shellBaked) this.syncProjectileSprite(shell, 'mm_shell', 1, 0, 1);
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('mobile-mortar-apex', () => {
                 this.tweens.add({
                     targets: shell,
                     x: { value: end.x, duration: 300, ease: 'Linear' },
@@ -5722,7 +6026,7 @@ export class MainScene extends Phaser.Scene {
                             launchGY + (shotTargetGY - launchGY) * t));
                         if (shellBaked) this.syncProjectileSprite(shell, 'mm_shell', 1, 0, 1);
                     },
-                    onComplete: () => {
+                    onComplete: this.replayPresentationCallback('mobile-mortar-impact', () => {
                         shell.destroy();
 
                         // Explosion effect
@@ -5747,17 +6051,16 @@ export class MainScene extends Phaser.Scene {
                                 if (bdist <= sRadius) {
                                     // Full damage at center, half at edge
                                     const splashDamage = bdist < 0.5 ? damage : damage * 0.6;
-                                    b.health -= splashDamage;
-                                    this.updateHealthBar(b);
+                                    this.applyLocalBuildingDamage(b, splashDamage);
                                     if (b.health <= 0) {
                                         this.destroyBuilding(b);
                                     }
                                 }
                             }
                         });
-                    }
+                    })
                 });
-            }
+            })
         });
     }
 
@@ -5807,7 +6110,7 @@ export class MainScene extends Phaser.Scene {
                     launchGY + (shotTargetGY - launchGY) * t));
                 if (stoneBaked) this.syncProjectileSprite(stone, 'trebuchet_stone', level, rotFor(t));
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('trebuchet-apex', () => {
                 this.tweens.add({
                     targets: stone,
                     x: { value: end.x, duration: flightMs / 2, ease: 'Linear' },
@@ -5819,7 +6122,7 @@ export class MainScene extends Phaser.Scene {
                             launchGY + (shotTargetGY - launchGY) * t));
                         if (stoneBaked) this.syncProjectileSprite(stone, 'trebuchet_stone', level, rotFor(t));
                     },
-                    onComplete: () => {
+                    onComplete: this.replayPresentationCallback('trebuchet-impact', () => {
                         stone.destroy();
 
                         screenShake(this, 45, 0.0018);
@@ -5836,15 +6139,14 @@ export class MainScene extends Phaser.Scene {
                                 const bdist = Math.hypot(bdx, bdy);
                                 if (bdist <= sRadius) {
                                     const splashDamage = bdist < 0.5 ? damage : damage * 0.6;
-                                    b.health -= splashDamage;
-                                    this.updateHealthBar(b);
+                                    this.applyLocalBuildingDamage(b, splashDamage);
                                     if (b.health <= 0) this.destroyBuilding(b);
                                 }
                             }
                         });
-                    }
+                    })
                 });
-            }
+            })
         });
     }
 
@@ -5885,7 +6187,7 @@ export class MainScene extends Phaser.Scene {
                     launchGY + (shotTargetGY - launchGY) * t));
                 if (bombBaked) this.syncProjectileSprite(bomb, 'ornithopter_bomb', 1, 0, 1);
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('ornithopter-apex', () => {
                 this.tweens.add({
                     targets: bomb,
                     x: { value: end.x, duration: flightMs / 2, ease: 'Linear' },
@@ -5897,7 +6199,7 @@ export class MainScene extends Phaser.Scene {
                             launchGY + (shotTargetGY - launchGY) * t));
                         if (bombBaked) this.syncProjectileSprite(bomb, 'ornithopter_bomb', 1, 0, 1);
                     },
-                    onComplete: () => {
+                    onComplete: this.replayPresentationCallback('ornithopter-impact', () => {
                         bomb.destroy();
 
                         screenShake(this, 20, 0.0008);
@@ -5912,19 +6214,23 @@ export class MainScene extends Phaser.Scene {
                                 const bdist = Math.hypot(bCenterX - shotTargetGX, bCenterY - shotTargetGY);
                                 if (bdist <= sRadius) {
                                     const splashDamage = bdist < 0.5 ? damage : damage * 0.6;
-                                    b.health -= splashDamage;
-                                    this.updateHealthBar(b);
+                                    this.applyLocalBuildingDamage(b, splashDamage);
                                     if (b.health <= 0) this.destroyBuilding(b);
                                 }
                             }
                         });
-                    }
+                    })
                 });
-            }
+            })
         });
     }
 
-    private showStormLightning(troop: Troop, target: PlacedBuilding, damage: number) {
+    private showStormLightning(
+        troop: Troop,
+        target: PlacedBuilding,
+        damage: number,
+        recordedChainTargets?: readonly PlacedBuilding[]
+    ) {
         // Redraw to show attack pose (could be facing change or effect)
         const start = IsoUtils.cartToIso(troop.gridX, troop.gridY);
         const info = BUILDINGS[target.type];
@@ -5939,7 +6245,18 @@ export class MainScene extends Phaser.Scene {
         const stormStats = this.getTroopCombatStats(troop);
         const chainCount = Math.max(0, stormStats.chainCount ?? 0);
         const chainRange = stormStats.chainRange || 5;
-        const targets = this.findChainTargets(target, chainCount, chainRange, troop.owner);
+        const targets = recordedChainTargets?.slice()
+            ?? this.findChainTargets(target, chainCount, chainRange, troop.owner);
+        if (this.mode === 'ATTACK') {
+            this.recordReplayPresentation(replayPresentationEvent('ability', {
+                ability: 'storm-chain',
+                actor: this.replayTroopRef(troop),
+                at: this.replayPoint(troop.gridX, troop.gridY, troop.visualOffsetY ?? 0),
+                targets: [target, ...targets].map(building => this.replayBuildingRef(building)),
+                hopDelayMs: 100,
+                damageFalloff: 0.8
+            }));
+        }
 
         // Initial Zap Visual (Troop -> First Target)
         // Start from the staff crystal (raised two-handed while casting).
@@ -6043,7 +6360,7 @@ export class MainScene extends Phaser.Scene {
             const ty = y1 + (y2 - y1) * progress;
 
             // Jitter perpendicular to line
-            const jitter = (Math.random() - 0.5) * 15;
+            const jitter = (this.battleRandom() - 0.5) * 15;
             const px = tx + Math.cos(angle + Math.PI / 2) * jitter;
             const py = ty + Math.sin(angle + Math.PI / 2) * jitter;
 
@@ -6052,9 +6369,9 @@ export class MainScene extends Phaser.Scene {
             cy = py;
 
             // Occasional fork logic
-            if (Math.random() > 0.7) {
+            if (this.battleRandom() > 0.7) {
                 const forkLen = 15;
-                const forkAngle = angle + (Math.random() - 0.5);
+                const forkAngle = angle + (this.battleRandom() - 0.5);
                 const fx = cx + Math.cos(forkAngle) * forkLen;
                 const fy = cy + Math.sin(forkAngle) * forkLen;
 
@@ -6091,8 +6408,7 @@ export class MainScene extends Phaser.Scene {
 
     private applyLightningDamage(target: PlacedBuilding, damage: number) {
         if (target && target.health > 0) {
-            target.health -= damage;
-            this.updateHealthBar(target);
+            this.applyLocalBuildingDamage(target, damage);
 
             if (target.health <= 0) {
                 this.destroyBuilding(target);
@@ -6139,7 +6455,7 @@ export class MainScene extends Phaser.Scene {
             onUpdate: (tween) => {
                 ballista.ballistaStringTension = tween.getValue() ?? 0;
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('ballista-release', () => {
                 // Fire! Hide the bolt on the ballista
                 ballista.ballistaBoltLoaded = false;
                 // Create flying bolt projectile
@@ -6177,7 +6493,7 @@ export class MainScene extends Phaser.Scene {
                 // rail); `groundAim` keeps the feet tile for the ground
                 // shadow's track. Flight duration stays keyed to `end`.
                 const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
-                let lastTrailTime = 0;
+                let emittedBoltTrails = 0;
                 const aim = this.visualImpactPoint(targetTroop, boltStartX, boltStartY);
                 const groundAim = { x: end.x, y: end.y };
 
@@ -6214,21 +6530,25 @@ export class MainScene extends Phaser.Scene {
                         boltShadow.setPosition(bolt.x, (start.y + 3) + (groundAim.y - start.y) * t);
                         boltShadow.setRotation(liveAngle);
                         if (boltBaked) this.syncProjectileSprite(bolt, 'ballista_bolt', Math.min(bLevel, 3), liveAngle);
-                        // White trail particles at TAIL - Aggressive
-                        const now = this.time.now;
-                        if (now - lastTrailTime > 10) {
-                            lastTrailTime = now;
+                        // Progress-slotted trail: stable density across FPS
+                        // and replay buffer holds.
+                        const wantedTrails = Math.floor(t * 12);
+                        while (emittedBoltTrails < wantedTrails) {
+                            emittedBoltTrails++;
+                            const trailT = emittedBoltTrails / 12;
                             const trail = this.trackBattleFx(this.add.graphics());
                             pixelEllipse(trail, 0, 0, 3, 3, 0xffffff, 0.7);
 
                             // Calculate tail position (bolt is ~30px long, tail at -16 local)
                             // Responsive offset: Starts at 0, grows to 70 based on travel
-                            const traveled = t * dist;
+                            const traveled = trailT * dist;
                             const currentOffset = Math.min(traveled, 70);
 
                             const rot = bolt.rotation;
-                            const tailX = bolt.x - Math.cos(rot) * currentOffset;
-                            const tailY = bolt.y - Math.sin(rot) * currentOffset;
+                            const trailX = boltStartX + (aim.x - boltStartX) * trailT;
+                            const trailY = boltStartY + (aim.y - boltStartY) * trailT;
+                            const tailX = trailX - Math.cos(rot) * currentOffset;
+                            const tailY = trailY - Math.sin(rot) * currentOffset;
 
                             trail.setPosition(tailX, tailY);
                             trail.setDepth(bolt.depth - 1);
@@ -6241,7 +6561,7 @@ export class MainScene extends Phaser.Scene {
                             });
                         }
                     },
-                    onComplete: () => {
+                    onComplete: this.replayPresentationCallback('ballista-impact', () => {
                         screenShake(this, 50, 0.00025);
                         bolt.destroy();
                         boltShadow.destroy();
@@ -6275,10 +6595,10 @@ export class MainScene extends Phaser.Scene {
                         // Fire/explosion particles
                         for (let i = 0; i < 6; i++) {
                             const particle = this.trackBattleFx(this.add.graphics());
-                            const pAngle = Math.random() * Math.PI * 2;
-                            const pDist = 15 + Math.random() * 20;
-                            const pR = 4 + Math.random() * 4;
-                            pixelEllipse(particle, 0, 0, pR, pR, 0xff6600 + Math.floor(Math.random() * 0x3300), 0.9);
+                            const pAngle = this.battleRandom() * Math.PI * 2;
+                            const pDist = 15 + this.battleRandom() * 20;
+                            const pR = 4 + this.battleRandom() * 4;
+                            pixelEllipse(particle, 0, 0, pR, pR, 0xff6600 + Math.floor(this.battleRandom() * 0x3300), 0.9);
                             particle.setPosition(aim.x, aim.y);
                             particle.setDepth(fxDepth);
 
@@ -6288,7 +6608,7 @@ export class MainScene extends Phaser.Scene {
                                 y: aim.y + Math.sin(pAngle) * pDist * 0.5 - 10,
                                 scale: 0.3,
                                 alpha: 0,
-                                duration: 200 + Math.random() * 100,
+                                duration: 200 + this.battleRandom() * 100,
                                 ease: 'Quad.easeOut',
                                 onComplete: () => particle.destroy()
                             });
@@ -6306,7 +6626,7 @@ export class MainScene extends Phaser.Scene {
                             duration: 200,
                             onComplete: () => impact.destroy()
                         });
-                    }
+                    })
                 }));
 
                 // Reload bolt based on configured fire cadence.
@@ -6314,7 +6634,7 @@ export class MainScene extends Phaser.Scene {
                 this.scheduleBattleCall(reloadDelay, () => {
                     ballista.ballistaBoltLoaded = true;
                 });
-            }
+            })
         }));
     }
 
@@ -6384,7 +6704,7 @@ export class MainScene extends Phaser.Scene {
                     launchGY + (targetTroop.gridY - launchGY) * flight.t));
                 if (arrowBaked) this.syncProjectileSprite(arrow, 'xbow_bolt', Math.min(xbowLevel, 3), liveAngle);
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('xbow-impact', () => {
                 arrow.destroy();
                 // Deal level-scaled damage.
                 if (targetTroop && targetTroop.health > 0) {
@@ -6392,7 +6712,7 @@ export class MainScene extends Phaser.Scene {
                 }
                 // Small impact
                 this.trackBattleFx(PixelFx.flash(this, aim.x, aim.y, { r: 4, color: 0x8b4513, alpha: 0.6, scaleTo: 1.5, life: 100, depth: depthForGroundEffect(targetTroop.gridX, targetTroop.gridY) }));
-            }
+            })
         }));
     }
 
@@ -7279,6 +7599,31 @@ export class MainScene extends Phaser.Scene {
             return;
         }
 
+        const destroyStyle = b.type === 'town_hall'
+            ? 'town-hall' as const
+            : b.type === 'tesla'
+                ? 'tesla-defense' as const
+                : Object.prototype.hasOwnProperty.call(DEFENSE_BEHAVIOR_CATALOG, b.type)
+                    ? 'defense' as const
+                    : 'ordinary' as const;
+        this.recordReplayPresentation(replayPresentationEvent('building.destroy', {
+            building: this.replayBuildingRef(b),
+            at: this.replayPoint(
+                b.gridX + info.width / 2,
+                b.gridY + info.height / 2,
+                -20
+            ),
+            footprint: { width: info.width, height: info.height },
+            style: destroyStyle,
+            silent,
+            createRubble: this.mode === 'ATTACK' || this.mode === 'REPLAY',
+            shake: {
+                durationMs: 75 + Math.max(info.width, info.height) * 50,
+                intensity: (0.0015 + Math.max(info.width, info.height) * 0.001),
+                townHall: b.type === 'town_hall'
+            }
+        }));
+
         // Remove any baked base from the ground layer so ruins can replace it.
         this.unbakeBuildingFromGround(b);
 
@@ -7342,26 +7687,26 @@ export class MainScene extends Phaser.Scene {
 
         // Rubble/debris chunks
         for (let i = 0; i < (silent ? 0 : 8 + size * 4); i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 20 + Math.random() * 30 * size;
+            const angle = this.battleRandom() * Math.PI * 2;
+            const dist = 20 + this.battleRandom() * 30 * size;
             const rubbleColors = [0x8b7355, 0x6b5344, 0x5a4a3a, 0x4a3a2a];
             const rubble = this.trackBattleFx(this.add.graphics());
-            const rubbleSize = 3 + Math.random() * 5;
-            pixelRect(rubble, -rubbleSize / 2, -rubbleSize / 2, rubbleSize, rubbleSize, rubbleColors[Math.floor(Math.random() * 4)], 1);
+            const rubbleSize = 3 + this.battleRandom() * 5;
+            pixelRect(rubble, -rubbleSize / 2, -rubbleSize / 2, rubbleSize, rubbleSize, rubbleColors[Math.floor(this.battleRandom() * 4)], 1);
             rubble.setPosition(pos.x, pos.y - 15);
             rubble.setDepth(30000);
 
-            const peakY = pos.y - 40 - Math.random() * 30 * size;
+            const peakY = pos.y - 40 - this.battleRandom() * 30 * size;
             this.tweens.add({
                 targets: rubble,
                 x: pos.x + Math.cos(angle) * dist,
-                duration: 400 + Math.random() * 200,
+                duration: 400 + this.battleRandom() * 200,
                 ease: 'Quad.easeOut'
             });
             this.tweens.add({
                 targets: rubble,
                 y: [peakY, pos.y + 5],
-                duration: 400 + Math.random() * 200,
+                duration: 400 + this.battleRandom() * 200,
                 ease: 'Quad.easeIn',
                 onComplete: () => rubble.destroy()
             });
@@ -7371,17 +7716,17 @@ export class MainScene extends Phaser.Scene {
         for (let i = 0; i < (silent ? 0 : 6 + size * 2); i++) {
             this.scheduleBattleCall(i * 30, () => {
                 const dustColors = [0x8b7355, 0x9b8365, 0x7b6345];
-                const dustSize = 8 + Math.floor(Math.random() * 10);
+                const dustSize = 8 + Math.floor(this.battleRandom() * 10);
                 const dust = this.trackBattleFx(this.add.graphics());
-                pixelRect(dust, -dustSize / 2, -dustSize / 2, dustSize, dustSize, dustColors[Math.floor(Math.random() * 3)], 0.6);
-                dust.setPosition(pos.x + (Math.random() - 0.5) * 40 * size, pos.y - 10);
+                pixelRect(dust, -dustSize / 2, -dustSize / 2, dustSize, dustSize, dustColors[Math.floor(this.battleRandom() * 3)], 0.6);
+                dust.setPosition(pos.x + (this.battleRandom() - 0.5) * 40 * size, pos.y - 10);
                 dust.setDepth(29999);
                 this.tweens.add({
                     targets: dust,
-                    y: dust.y - 30 - Math.random() * 20,
-                    x: dust.x + (Math.random() - 0.5) * 30,
+                    y: dust.y - 30 - this.battleRandom() * 20,
+                    x: dust.x + (this.battleRandom() - 0.5) * 30,
                     scale: 2, alpha: 0,
-                    duration: 600 + Math.random() * 300,
+                    duration: 600 + this.battleRandom() * 300,
                     onComplete: () => dust.destroy()
                 });
             });
@@ -7394,16 +7739,16 @@ export class MainScene extends Phaser.Scene {
                 const delay = i * 40;
                 this.scheduleBattleCall(delay, () => {
                     const fireColors = [0xff4400, 0xff6600, 0xff8800, 0xffaa00];
-                    const fireSize = 8 + Math.floor(Math.random() * 15);
+                    const fireSize = 8 + Math.floor(this.battleRandom() * 15);
                     const fire = this.trackBattleFx(this.add.graphics());
-                    pixelRect(fire, -fireSize / 2, -fireSize / 2, fireSize, fireSize, fireColors[Math.floor(Math.random() * 4)], 0.9);
-                    fire.setPosition(pos.x + (Math.random() - 0.5) * 80, pos.y - 10 - (Math.random() * 40));
+                    pixelRect(fire, -fireSize / 2, -fireSize / 2, fireSize, fireSize, fireColors[Math.floor(this.battleRandom() * 4)], 0.9);
+                    fire.setPosition(pos.x + (this.battleRandom() - 0.5) * 80, pos.y - 10 - (this.battleRandom() * 40));
                     fire.setDepth(30000);
                     this.tweens.add({
                         targets: fire,
                         y: fire.y - 80,
                         scale: 0.3, alpha: 0,
-                        duration: 500 + Math.random() * 300,
+                        duration: 500 + this.battleRandom() * 300,
                         onComplete: () => fire.destroy()
                     });
                 });
@@ -7412,17 +7757,17 @@ export class MainScene extends Phaser.Scene {
             // Sparks for defensive buildings
             for (let i = 0; i < 12; i++) {
                 const spark = this.trackBattleFx(this.add.graphics());
-                const len = 5 + Math.random() * 15;
-                const angle = Math.random() * Math.PI * 2;
+                const len = 5 + this.battleRandom() * 15;
+                const angle = this.battleRandom() * Math.PI * 2;
                 pixelLine(spark, 0, 0, Math.cos(angle) * len, Math.sin(angle) * len, 1, b.type === 'tesla' ? 0x00ccff : 0xffaa00, 0.8);
                 spark.setPosition(pos.x, pos.y - 15);
                 spark.setDepth(30002);
                 this.tweens.add({
                     targets: spark,
-                    x: pos.x + (Math.random() - 0.5) * 50,
-                    y: pos.y - 30 - Math.random() * 30,
+                    x: pos.x + (this.battleRandom() - 0.5) * 50,
+                    y: pos.y - 30 - this.battleRandom() * 30,
                     alpha: 0,
-                    duration: 200 + Math.random() * 200,
+                    duration: 200 + this.battleRandom() * 200,
                     onComplete: () => spark.destroy()
                 });
             }
@@ -7493,6 +7838,34 @@ export class MainScene extends Phaser.Scene {
         gameManager.updateBattleStats(destruction, this.goldLooted, this.oreLooted, this.foodLooted);
     }
 
+    /** One gate for locally simulated damage against buildings. Replay-v2
+     *  invokes the same attack/projectile routines for presentation, while
+     *  timestamped impact events own the actual health transition. */
+    private applyLocalBuildingDamage(
+        building: PlacedBuilding,
+        damage: number,
+        damageKind: ReplayDamageKind = 'projectile'
+    ): boolean {
+        if (this.mode === 'REPLAY' || building.health <= 0 || damage <= 0) return false;
+        const healthBefore = building.health;
+        building.health -= damage;
+        this.updateHealthBar(building);
+        const info = BUILDINGS[building.type];
+        const centerX = building.gridX + (info?.width ?? 1) / 2;
+        const centerY = building.gridY + (info?.height ?? 1) / 2;
+        this.recordReplayPresentation(replayPresentationEvent('combat.damage', {
+            target: this.replayBuildingRef(building),
+            at: this.replayPoint(centerX, centerY),
+            damageKind,
+            amount: Math.max(0, healthBefore - Math.max(0, building.health)),
+            healthBefore,
+            healthAfter: Math.max(0, building.health),
+            maxHealth: building.maxHealth,
+            healthBar: { show: true, holdMs: this.HEALTH_BAR_IDLE_MS, fadeMs: this.HEALTH_BAR_FADE_MS }
+        }));
+        return true;
+    }
+
 
 
     /**
@@ -7501,11 +7874,26 @@ export class MainScene extends Phaser.Scene {
      * stay visual-only there — mutating health would saw-tooth against each
      * frame sync. Returns whether the damage was applied (kill included).
      */
-    private applyLocalTroopDamage(t: Troop, damage: number): boolean {
+    private applyLocalTroopDamage(
+        t: Troop,
+        damage: number,
+        damageKind: ReplayDamageKind = 'projectile'
+    ): boolean {
         if (this.mode === 'REPLAY') return false;
+        const healthBefore = t.health;
         t.health -= damage;
         t.hasTakenDamage = true;
         this.updateHealthBar(t);
+        this.recordReplayPresentation(replayPresentationEvent('combat.damage', {
+            target: this.replayTroopRef(t),
+            at: this.replayPoint(t.gridX, t.gridY, t.visualOffsetY ?? 0),
+            damageKind,
+            amount: Math.max(0, healthBefore - Math.max(0, t.health)),
+            healthBefore,
+            healthAfter: Math.max(0, t.health),
+            maxHealth: t.maxHealth,
+            healthBar: { show: true, holdMs: this.HEALTH_BAR_IDLE_MS, fadeMs: this.HEALTH_BAR_FADE_MS }
+        }));
         // Stone golem per-tick hit reaction (throttled inside; dies <300 ms).
         if (t.type === 'golem' && t.health > 0) this.showStoneGolemHitFx(t);
         // Ice golem hit reaction (throttled inside): chips of ice + frost puff.
@@ -7594,6 +7982,30 @@ export class MainScene extends Phaser.Scene {
             return;
         }
 
+        let deathStyle: ReplayTroopDeathStyle = 'standard-poof';
+        if (t.type === 'wallbreaker') deathStyle = 'wall-breaker-detonation';
+        else if (t.type === 'clockworkbeetle') deathStyle = 'clockwork-beetle-detonation';
+        else if (t.type === 'phalanx') deathStyle = 'phalanx-split';
+        else if (t.type === 'golem') deathStyle = 'golem-collapse';
+        else if (t.type === 'icegolem') deathStyle = 'ice-golem-collapse';
+        else if (t.type === 'siegetower') {
+            deathStyle = (t.parked01 ?? 0) >= 0.5
+                ? 'siege-tower-collapse-parked'
+                : 'siege-tower-collapse-rolling';
+        } else if (t.type === 'davincitank') deathStyle = 'da-vinci-tank-collapse';
+        else if (t.type === 'trebuchet') deathStyle = 'trebuchet-collapse';
+        else if (t.type === 'warelephant') deathStyle = 'war-elephant-collapse';
+        this.recordReplayPresentation(replayPresentationEvent('entity.death', {
+            entity: this.replayTroopRef(t),
+            at: this.replayPoint(t.gridX, t.gridY, t.visualOffsetY ?? 0),
+            style: deathStyle,
+            facingAngle: t.facingAngle || 0,
+            animationMs: isLargeTroopDeathType(t.type)
+                ? (t.type === 'siegetower' || t.type === 'trebuchet' ? 1200 : t.type === 'warelephant' ? 1100 : 900)
+                : 350,
+            leaveRemnant: isLargeTroopDeathType(t.type)
+        }));
+
         // A troop can die mid attack/recoil tween — kill those before the game
         // object is destroyed so no orphaned tween keeps driving a dead target
         // (buildings already do this in their destroy path).
@@ -7607,6 +8019,7 @@ export class MainScene extends Phaser.Scene {
         // the branch-local repeats below are harmless no-ops after this.
         this.troops = this.troops.filter(x => x.id !== t.id);
         t.healthBar.destroy();
+        if (this.mode === 'ATTACK') this.maybePushReplayFrame(true);
 
         // Kit bookkeeping (all death branches): healers tracking this troop
         // re-pick a leader; a parked siege tower RELEASES its ramp with a
@@ -7672,33 +8085,33 @@ export class MainScene extends Phaser.Scene {
             // 5. Debris — barrel chunks + splinters (wallbreaker) or brass
             // gears + cogs (clockwork beetle)
             for (let i = 0; i < (isBeetle ? 10 : 14); i++) {
-                const debrisAngle = Math.random() * Math.PI * 2;
-                const debrisDist = 15 + Math.random() * 35;
+                const debrisAngle = this.battleRandom() * Math.PI * 2;
+                const debrisDist = 15 + this.battleRandom() * 35;
                 const debris = this.trackBattleFx(this.add.graphics());
-                const isChunk = Math.random() > 0.4;
+                const isChunk = this.battleRandom() > 0.4;
                 if (isChunk) {
                     // Wood/barrel chunk — or a brass plate off the beetle
                     const chunkColors = isBeetle
                         ? [0x7a5c20, 0x9a7a30, 0xb08d3a]
                         : [0x5a3a1a, 0x6b4a2a, 0x8b6b4a];
-                    pixelRect(debris, -1.5, -1, 3, 2 + Math.random() * 2, chunkColors[Math.floor(Math.random() * 3)], 0.9);
+                    pixelRect(debris, -1.5, -1, 3, 2 + this.battleRandom() * 2, chunkColors[Math.floor(this.battleRandom() * 3)], 0.9);
                 } else {
                     // Metal band / stone bit — or a flying gear
-                    const debrisR = 1 + Math.random() * 1.5;
+                    const debrisR = 1 + this.battleRandom() * 1.5;
                     const bitColors = isBeetle
                         ? [0xb08d3a, 0x7a5c20, 0x555555]
                         : [0x555555, 0x777777, 0x993300];
-                    pixelEllipse(debris, 0, 0, debrisR, debrisR, bitColors[Math.floor(Math.random() * 3)], 0.9);
+                    pixelEllipse(debris, 0, 0, debrisR, debrisR, bitColors[Math.floor(this.battleRandom() * 3)], 0.9);
                     if (isBeetle) pixelRect(debris, -0.7, -0.7, 1.4, 1.4, 0x3a2c10, 0.9); // gear hub
                 }
                 debris.setPosition(ex, ey);
                 debris.setDepth(30001);
-                const arcHeight = -20 - Math.random() * 20;
+                const arcHeight = -20 - this.battleRandom() * 20;
                 const endX = ex + Math.cos(debrisAngle) * debrisDist;
                 const endY = ey + Math.sin(debrisAngle) * debrisDist * 0.5;
                 const midX = (ex + endX) / 2;
                 const midY = (ey + endY) / 2 + arcHeight;
-                const dur = 350 + Math.random() * 250;
+                const dur = 350 + this.battleRandom() * 250;
                 // Arcing trajectory
                 this.tweens.add({
                     targets: debris,
@@ -7714,7 +8127,7 @@ export class MainScene extends Phaser.Scene {
                     targets: debris,
                     y: [{ value: midY, duration: dur * 0.5, ease: 'Sine.easeOut' }, { value: endY, duration: dur * 0.5, ease: 'Sine.easeIn' }],
                     alpha: 0,
-                    rotation: Math.random() * 6,
+                    rotation: this.battleRandom() * 6,
                     duration: dur,
                     onComplete: () => debris.destroy()
                 });
@@ -7723,20 +8136,20 @@ export class MainScene extends Phaser.Scene {
             // 6. Smoke puffs — multiple rising smoke clouds
             for (let i = 0; i < 4; i++) {
                 const smoke = this.trackBattleFx(this.add.graphics());
-                const smokeSize = 6 + Math.random() * 8;
-                const smokeAlpha = 0.3 + Math.random() * 0.2;
+                const smokeSize = 6 + this.battleRandom() * 8;
+                const smokeAlpha = 0.3 + this.battleRandom() * 0.2;
                 pixelEllipse(smoke, 0, 0, smokeSize, smokeSize, i < 2 ? 0x222222 : 0x444444, smokeAlpha);
-                const offsetX = (Math.random() - 0.5) * 16;
-                const offsetY = (Math.random() - 0.5) * 8;
+                const offsetX = (this.battleRandom() - 0.5) * 16;
+                const offsetY = (this.battleRandom() - 0.5) * 8;
                 smoke.setPosition(ex + offsetX, ey + offsetY);
                 smoke.setDepth(30000);
                 this.tweens.add({
                     targets: smoke,
-                    y: ey + offsetY - 25 - Math.random() * 15,
-                    x: ex + offsetX + (Math.random() - 0.5) * 10,
-                    scale: 2 + Math.random(),
+                    y: ey + offsetY - 25 - this.battleRandom() * 15,
+                    x: ex + offsetX + (this.battleRandom() - 0.5) * 10,
+                    scale: 2 + this.battleRandom(),
                     alpha: 0,
-                    duration: 600 + Math.random() * 400,
+                    duration: 600 + this.battleRandom() * 400,
                     delay: i * 50,
                     onComplete: () => smoke.destroy()
                 });
@@ -7745,17 +8158,17 @@ export class MainScene extends Phaser.Scene {
             // 7. Sparks — small bright particles
             for (let i = 0; i < 6; i++) {
                 const spark = this.trackBattleFx(this.add.graphics());
-                pixelEllipse(spark, 0, 0, 1, 1, [0xffaa00, 0xff6600, 0xffff00][Math.floor(Math.random() * 3)], 1);
+                pixelEllipse(spark, 0, 0, 1, 1, [0xffaa00, 0xff6600, 0xffff00][Math.floor(this.battleRandom() * 3)], 1);
                 spark.setPosition(ex, ey);
                 spark.setDepth(30004);
-                const sparkAngle = Math.random() * Math.PI * 2;
-                const sparkDist = 20 + Math.random() * 25;
+                const sparkAngle = this.battleRandom() * Math.PI * 2;
+                const sparkDist = 20 + this.battleRandom() * 25;
                 this.tweens.add({
                     targets: spark,
                     x: ex + Math.cos(sparkAngle) * sparkDist,
                     y: ey + Math.sin(sparkAngle) * sparkDist * 0.5 - 10,
                     alpha: 0,
-                    duration: 200 + Math.random() * 150,
+                    duration: 200 + this.battleRandom() * 150,
                     onComplete: () => spark.destroy()
                 });
             }
@@ -7786,13 +8199,15 @@ export class MainScene extends Phaser.Scene {
                 { dx: -0.5, dy: 0 }, { dx: 0, dy: 0 }, { dx: 0.5, dy: 0 },
                 { dx: -0.5, dy: 0.5 }, { dx: 0, dy: 0.5 }, { dx: 0.5, dy: 0.5 }
             ];
-            for (let i = 0; i < offsets.length; i++) {
-                const off = offsets[i];
-                this.pendingSpawnCount++;
-                this.scheduleBattleCall(i * 30, () => { // Staggered spawn
-                    this.spawnTroop(t.gridX + off.dx, t.gridY + off.dy, 'romanwarrior', t.owner, t.level || 1);
-                    this.pendingSpawnCount--;
-                });
+            if (this.mode !== 'REPLAY') {
+                for (let i = 0; i < offsets.length; i++) {
+                    const off = offsets[i];
+                    this.pendingSpawnCount++;
+                    this.scheduleBattleCall(i * 30, () => { // Staggered spawn
+                        this.spawnTroop(t.gridX + off.dx, t.gridY + off.dy, 'romanwarrior', t.owner, t.level || 1);
+                        this.pendingSpawnCount--;
+                    });
+                }
             }
 
             // Debris dust (isometric oval) — flat ground bloom: decal band.
@@ -7832,7 +8247,7 @@ export class MainScene extends Phaser.Scene {
                 x: pos.x + Math.cos(angle) * 25,
                 y: pos.y + Math.sin(angle) * 15 - 15,
                 alpha: 0, scale: 0.3,
-                duration: 250 + Math.random() * 100,
+                duration: 250 + this.battleRandom() * 100,
                 ease: 'Quad.easeOut',
                 onComplete: () => particle.destroy()
             });
@@ -8165,8 +8580,8 @@ export class MainScene extends Phaser.Scene {
      *  where the shot lands. Throttled per troop so continuous-beam damage
      *  ticks don't strobe. Fire-and-forget one-shots (Math.random allowed). */
     private emitIceGolemHitFx(t: Troop) {
-        const now = this.time.now;
-        if (now - (t.frostHitFxAt ?? 0) < 160) return;
+        const now = this.animClockNow();
+        if (now - (t.frostHitFxAt ?? -1e9) < 160) return;
         t.frostHitFxAt = now;
         const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
         const c = this.iceGolemColors(t.owner);
@@ -8392,7 +8807,7 @@ export class MainScene extends Phaser.Scene {
      *  loose plus a flicker of the rune-bond seam. Throttled per troop so
      *  burst-fire defenses don't stack it; everything dies within 300 ms. */
     private showStoneGolemHitFx(t: Troop) {
-        const now = this.time.now;
+        const now = this.animClockNow();
         const carrier = t as Troop & { __stoneHitFxAt?: number };
         if (now - (carrier.__stoneHitFxAt ?? -1e9) < 90) return;
         carrier.__stoneHitFxAt = now;
@@ -8400,7 +8815,8 @@ export class MainScene extends Phaser.Scene {
         const pos = IsoUtils.cartToIso(t.gridX, t.gridY);
         const pal = this.stoneGolemFxPalette(t.owner === 'PLAYER', t.level || 1);
         const depth = depthForTroop(t.gridX, t.gridY, t.type) + 0.5;
-        const rng = this.stoneGolemFxRng(t.id, Math.floor(now));
+        const rng = this.activeReplayPresentationRandom
+            ?? this.stoneGolemFxRng(t.id, Math.floor(now));
 
         // Chipped stone motes knocked off the struck body, falling.
         PixelFx.burst(this, pos.x, pos.y - 16, {
@@ -8583,6 +8999,11 @@ export class MainScene extends Phaser.Scene {
         const legalSpawn = this.nearestWalkableTroopPoint({ type, level: troopLevel }, gx, gy);
         gx = legalSpawn.x;
         gy = legalSpawn.y;
+        // Capture begins before the first live troop exists, giving replay-v2
+        // a clean t=0 base keyframe followed by the deploy event.
+        if (owner === 'PLAYER' && this.mode === 'ATTACK' && !this.isScouting) {
+            this.beginAttackReplayCapture();
+        }
         const pos = IsoUtils.cartToIso(gx, gy);
 
         // Create detailed troop graphic
@@ -8625,7 +9046,7 @@ export class MainScene extends Phaser.Scene {
             target: null, owner: owner,
             lastAttackTime: spawnTime - attackDelay + firstAttackDelay,
             attackDelay,
-            speedMult: 0.9 + Math.random() * 0.2,
+            speedMult: 0.9 + this.battleRandom() * 0.2,
             hasTakenDamage: false,
             facingAngle: 0
         };
@@ -8659,7 +9080,28 @@ export class MainScene extends Phaser.Scene {
         }
         if (owner === 'PLAYER' && this.mode === 'ATTACK' && !this.isScouting) {
             this.setVillageNameVisible(false);
-            this.beginAttackReplayCapture();
+        }
+        if (this.mode === 'ATTACK' && this.replayCaptureState) {
+            const generatedReason = type === 'skeleton'
+                ? 'necromancer-summon' as const
+                : type === 'romanwarrior'
+                    ? 'phalanx-split' as const
+                    : 'deployment' as const;
+            this.recordReplayPresentation(replayPresentationEvent('troop.spawn', {
+                troop: this.replayTroopRef(troop),
+                at: this.replayPoint(gx, gy),
+                reason: generatedReason,
+                facingAngle: troop.facingAngle,
+                maxHealth: troop.maxHealth,
+                attackDelayMs: attackDelay,
+                firstAttackDelayMs: firstAttackDelay,
+                landingMs: 200,
+                playDeploySound: owner === 'PLAYER'
+            }));
+            // Every deployment is a lifecycle boundary. It is emitted before
+            // the correction frame so an exact watcher sees the landing, then
+            // receives the post-spawn state as a recovery point.
+            this.maybePushReplayFrame(true);
         }
         this.updateHealthBar(troop);
         this.acquireTroopNavigation(troop, spawnTime);
@@ -8881,15 +9323,15 @@ export class MainScene extends Phaser.Scene {
                 '....f....',
                 '....f....'
             ], { f: 0xFFD700 }, 1);
-            star.x = centerX + (Math.random() - 0.5) * 30;
+            star.x = centerX + (this.battleRandom() - 0.5) * 30;
             star.y = centerY;
 
             this.tweens.add({
                 targets: star,
-                y: centerY - 60 - Math.random() * 40,
+                y: centerY - 60 - this.battleRandom() * 40,
                 alpha: { from: 1, to: 0 },
                 scale: { from: 1.5, to: 0.5 },
-                duration: 800 + Math.random() * 400,
+                duration: 800 + this.battleRandom() * 400,
                 delay: i * 100,
                 ease: 'Cubic.easeOut',
                 onComplete: () => star.destroy()
@@ -10244,19 +10686,150 @@ export class MainScene extends Phaser.Scene {
         return null;
     }
 
+    private replayCaptureT(): number {
+        const startedAt = this.replayCaptureState?.startedAt ?? this.time.now;
+        return Math.max(0, Math.floor(this.time.now - startedAt));
+    }
+
+    private replayPoint(gridX: number, gridY: number, worldYOffset = 0): ReplayPresentationPoint {
+        const world = IsoUtils.cartToIso(gridX, gridY);
+        return { gridX, gridY, worldX: world.x, worldY: world.y + worldYOffset };
+    }
+
+    /** Invoke a live-authored launcher from the exact recorded release pose.
+     * The presenter captures its source, distance and duration synchronously;
+     * afterwards interpolation owns the carriers again. */
+    private withReplayLaunchPose<T>(
+        actor: Troop | undefined,
+        actorPoint: ReplayPresentationPoint | undefined,
+        target: Troop | PlacedBuilding | undefined,
+        targetPoint: ReplayPresentationPoint | undefined,
+        run: () => T
+    ): T {
+        const actorState = actor && actorPoint ? {
+            gridX: actor.gridX,
+            gridY: actor.gridY,
+            visualOffsetY: actor.visualOffsetY,
+            x: actor.gameObject.x,
+            y: actor.gameObject.y
+        } : undefined;
+        const targetState = target && targetPoint ? {
+            gridX: target.gridX,
+            gridY: target.gridY,
+            x: 'gameObject' in target ? target.gameObject.x : undefined,
+            y: 'gameObject' in target ? target.gameObject.y : undefined,
+            visualOffsetY: 'gameObject' in target ? target.visualOffsetY : undefined
+        } : undefined;
+        if (actor && actorPoint) {
+            actor.gridX = actorPoint.gridX;
+            actor.gridY = actorPoint.gridY;
+            const base = IsoUtils.cartToIso(actorPoint.gridX, actorPoint.gridY);
+            actor.visualOffsetY = actorPoint.worldY - base.y;
+            actor.gameObject.setPosition(actorPoint.worldX, actorPoint.worldY);
+        }
+        if (target && targetPoint) {
+            if ('gameObject' in target) {
+                target.gridX = targetPoint.gridX;
+                target.gridY = targetPoint.gridY;
+                const base = IsoUtils.cartToIso(targetPoint.gridX, targetPoint.gridY);
+                target.visualOffsetY = targetPoint.worldY - base.y;
+                target.gameObject.setPosition(targetPoint.worldX, targetPoint.worldY);
+            } else {
+                const info = BUILDINGS[target.type];
+                target.gridX = targetPoint.gridX - (info?.width ?? 1) / 2;
+                target.gridY = targetPoint.gridY - (info?.height ?? 1) / 2;
+            }
+        }
+        try {
+            return run();
+        } finally {
+            if (actor && actorState) {
+                actor.gridX = actorState.gridX;
+                actor.gridY = actorState.gridY;
+                actor.visualOffsetY = actorState.visualOffsetY;
+                actor.gameObject.setPosition(actorState.x, actorState.y);
+            }
+            if (target && targetState) {
+                target.gridX = targetState.gridX;
+                target.gridY = targetState.gridY;
+                if ('gameObject' in target) {
+                    target.visualOffsetY = targetState.visualOffsetY;
+                    target.gameObject.setPosition(targetState.x!, targetState.y!);
+                }
+            }
+        }
+    }
+
+    private replayTroopRef(troop: Troop): ReplayTroopRef {
+        return {
+            kind: 'troop',
+            id: troop.id,
+            type: troop.type,
+            owner: troop.owner,
+            level: Math.max(1, Math.floor(troop.level || 1))
+        };
+    }
+
+    private replayBuildingRef(building: PlacedBuilding): ReplayBuildingRef {
+        return {
+            kind: 'building',
+            id: building.id,
+            type: building.type as BuildingType,
+            owner: building.owner,
+            level: Math.max(1, Math.floor(building.level || 1))
+        };
+    }
+
+    private replayAttackStyle(troop: Troop, target?: PlacedBuilding): ReplayAttackStyle {
+        const stats = this.getTroopCombatStats(troop);
+        if (troop.type === 'archer') return 'archer-arrow';
+        if (troop.type === 'mobilemortar') return 'mobile-mortar';
+        if (troop.type === 'trebuchet') return 'trebuchet';
+        if (troop.type === 'ornithopter') return 'ornithopter-bomb';
+        if ((stats.chainCount ?? 0) > 0) return 'storm-lightning';
+        if (troop.type === 'golem') return 'stone-golem-slam';
+        if (troop.type === 'icegolem') return 'ice-golem-slam';
+        if (troop.type === 'davincitank') return 'da-vinci-cannon';
+        if (troop.type === 'phalanx') return 'phalanx-thrust';
+        if (troop.type === 'wallbreaker') return 'wall-breaker-detonation';
+        if (troop.type === 'clockworkbeetle') {
+            return troop.beetleLatch ? 'clockwork-beetle-detonation' : 'clockwork-beetle-latch';
+        }
+        if (troop.type === 'siegetower') return 'siege-tower-park';
+        if (troop.type === 'necromancer') return 'necromancer-orb';
+        if (troop.type === 'warelephant' && target?.type === 'wall') return 'war-elephant-trample';
+        if (troop.type === 'ram') return 'battering-ram';
+        if (stats.range > 1) return 'generic-tracer';
+        return 'melee-punch';
+    }
+
+    private recordReplayPresentation(
+        draft: ReplayPresentationEventDraft
+    ): ReplayPresentationEventChunk | null {
+        const capture = this.replayCaptureState;
+        if (!capture || capture.ended || this.mode !== 'ATTACK') return null;
+        const chunk = capture.recorder.recordEvent(this.replayCaptureT(), draft);
+        this.activeReplayPresentationRandom = createReplayPresentationRandom(chunk.event.seed);
+        this.activeReplayPresentationSeed = chunk.event.seed;
+        Backend.pushAttackReplayV2Chunk(capture.attackId, chunk);
+        return chunk;
+    }
+
     private clearReplayWatchState() {
         if (this.replayWatchState?.pollEvent) {
             this.replayWatchState.pollEvent.remove(false);
         }
         this.replayWatchState = null;
-        this.replaySimulationTime = this.time.now;
+        // Replay state is relative to the recorded battle origin. Never seed
+        // replay-created entities from scene uptime.
+        this.replaySimulationTime = 0;
         this.isApplyingReplayFrame = false;
         this.isApplyingReplayBaseline = false;
         this.replayAutoExitQueued = false;
         // Any auto-exit timer still pending belongs to the session that just
         // ended; the epoch bump strands it.
         this.replayWatchEpoch++;
-        // Recorded playback may have accelerated tweens/timers to REPLAY_SPEED.
+        // Recorded playback owns tween/timer scaling while it is active.
         this.tweens.timeScale = 1;
         this.time.timeScale = 1;
     }
@@ -10304,15 +10877,483 @@ export class MainScene extends Phaser.Scene {
         }
 
         state.frames = Array.from(byT.values()).sort((a, b) => a.t - b.t);
+        if (state.mode === 'live' && state.frames.length > 1) {
+            let largestRecentGap = 0;
+            const first = Math.max(1, state.frames.length - 24);
+            for (let index = first; index < state.frames.length; index++) {
+                largestRecentGap = Math.max(
+                    largestRecentGap,
+                    state.frames[index].t - state.frames[index - 1].t
+                );
+            }
+            state.liveDelayMs = Math.max(
+                this.REPLAY_LIVE_DELAY_MS,
+                largestRecentGap + this.REPLAY_LIVE_POLL_INTERVAL_MS * 2
+            );
+        }
         this.rebuildReplayFrameCursor(state);
 
-        // Keep memory bounded while preserving a bit of already-played history.
-        const maxFrames = 260;
+        // Keep a live watch bounded while preserving a bit of already-played
+        // history. A saved replay must retain its complete timeline.
+        const maxFrames = state.mode === 'live' ? 260 : Number.POSITIVE_INFINITY;
         if (state.frames.length > maxFrames) {
             const keepFrom = Math.max(0, state.nextFrameIndex - 40);
             state.frames = state.frames.slice(keepFrom);
             this.rebuildReplayFrameCursor(state);
         }
+    }
+
+    private ingestReplayV2Chunks(
+        state: ReplayWatchState,
+        incoming: readonly ReplayV2Chunk<ReplayFrameSnapshot>[],
+        installIfMissing = true
+    ) {
+        if (incoming.length === 0) return;
+        // Accept into the ordered dispatcher before advancing the network
+        // receipt cursor. A rejected batch must remain requestable.
+        if (state.v2Dispatcher) {
+            state.v2Dispatcher.ingest(incoming);
+        } else if (installIfMissing) {
+            // A watch may begin on a legacy publisher and upgrade when v2
+            // first appears. Its legacy state is already current, so skip v2
+            // history through the present playhead instead of replaying old
+            // attacks/FX on top of it.
+            let baselineSequence = Math.max(0, incoming[0].sequence - 1);
+            if (state.lastAppliedFrameT >= 0) {
+                for (const chunk of incoming) {
+                    if (chunk.t <= state.renderClockT) baselineSequence = chunk.sequence;
+                }
+            }
+            this.installReplayV2Dispatcher(
+                state,
+                incoming,
+                baselineSequence
+            );
+        }
+        state.usesV2 = true;
+        for (const chunk of incoming) {
+            if (chunk.sequence > state.lastFetchedV2Sequence) {
+                state.pendingV2Sequences.add(chunk.sequence);
+            }
+            if (chunk.kind === 'keyframe' && chunk.terminal === true
+                && chunk.sequence > state.lastFetchedV2Sequence + 1) {
+                state.terminalGapChunk = chunk;
+            }
+        }
+        while (state.pendingV2Sequences.delete(state.lastFetchedV2Sequence + 1)) {
+            state.lastFetchedV2Sequence += 1;
+        }
+        this.ingestReplayFrames(
+            state,
+            incoming
+                .filter((chunk): chunk is Extract<ReplayV2Chunk<ReplayFrameSnapshot>, { kind: 'keyframe' }> => chunk.kind === 'keyframe')
+                .map(chunk => chunk.frame)
+        );
+    }
+
+    private installReplayV2Dispatcher(
+        state: ReplayWatchState,
+        chunks: readonly ReplayV2Chunk<ReplayFrameSnapshot>[],
+        baselineSequence: number
+    ) {
+        state.v2Dispatcher = new ReplayPresentationDispatcher<ReplayFrameSnapshot>({
+            initialSequence: baselineSequence + 1,
+            // A saved replay is ingested as one complete ordered stream. Its
+            // 15-minute high-action timeline can legitimately exceed the
+            // generic dispatcher's small live-window default.
+            maxPendingChunks: 1_000_000,
+            beforeChunk: chunk => this.drainReplayScheduledCalls(state, chunk.t),
+            onEvent: (event, context) => this.applyReplayPresentationEvent(event, context),
+            onKeyframe: chunk => {
+                const active = this.replayWatchState;
+                if (active !== state) return;
+                this.replaySimulationTime = chunk.t;
+                this.applyReplayFrame(chunk.frame);
+                state.lastAppliedFrameT = chunk.t;
+                this.rebuildReplayFrameCursor(state);
+            }
+        });
+        state.v2Dispatcher.ingest(chunks);
+    }
+
+    private applyReplayPresentationEvent(
+        event: ReplayPresentationEvent,
+        context: ReplayPresentationDispatchContext<ReplayFrameSnapshot>
+    ) {
+        const eventT = context.chunk.t;
+        this.replaySimulationTime = eventT;
+
+        this.withReplayPresentationRandom(context.random, () => {
+            switch (event.type) {
+            case 'troop.spawn': {
+                const payload = event.payload;
+                if (this.troops.some(troop => troop.id === payload.troop.id)) break;
+                const troop = this.createReplayTroop({
+                    id: payload.troop.id,
+                    type: payload.troop.type,
+                    level: payload.troop.level,
+                    owner: payload.troop.owner,
+                    gridX: payload.at.gridX,
+                    gridY: payload.at.gridY,
+                    health: payload.maxHealth,
+                    maxHealth: payload.maxHealth,
+                    facingAngle: payload.facingAngle,
+                    hasTakenDamage: false
+                });
+                if (!troop) break;
+                troop.lastAttackTime = eventT - payload.attackDelayMs + payload.firstAttackDelayMs;
+                this.troops.push(troop);
+                const depth = depthForTroop(troop.gridX, troop.gridY, troop.type);
+                PixelFx.burst(this, payload.at.worldX, payload.at.worldY + 5, {
+                    count: 5, colors: [0x8b7355], alpha: 0.5, r: 3, rJitter: 3,
+                    spread: 15, speed: 20, up: 10, scaleTo: 1.5,
+                    life: 300, lifeJitter: 200, depth: depth - 1,
+                    rng: context.random
+                });
+                troop.gameObject.setScale(0.5);
+                troop.gameObject.y -= 20;
+                this.tweens.add({
+                    targets: troop.gameObject,
+                    scaleX: 1,
+                    scaleY: 1,
+                    y: payload.at.worldY,
+                    duration: payload.landingMs,
+                    ease: 'Bounce.easeOut'
+                });
+                if (payload.playDeploySound) soundSystem.play('deploy');
+                this.updateHealthBar(troop);
+                break;
+            }
+            case 'combat.attack': {
+                const payload = event.payload;
+                const troop = this.troops.find(candidate => candidate.id === payload.actor.id);
+                const target = payload.target?.kind === 'building'
+                    ? this.buildings.find(candidate => candidate.id === payload.target?.id)
+                    : undefined;
+                if (!troop || !target || troop.health <= 0 || target.health <= 0) break;
+                troop.target = target;
+                troop.lastAttackTime = eventT;
+                troop.attackClockActive = true;
+                troop.facingAngle = payload.facingAngle;
+                this.withReplayLaunchPose(troop, payload.at, target, payload.targetPoint, () => {
+                  switch (payload.style) {
+                    case 'archer-arrow': this.showArcherProjectile(troop, target, this.getTroopCombatStats(troop).damage); break;
+                    case 'mobile-mortar': this.showMobileMortarShot(troop, target, this.getTroopCombatStats(troop).damage); break;
+                    case 'trebuchet': this.showTrebuchetShot(troop, target, this.getTroopCombatStats(troop).damage); break;
+                    case 'ornithopter-bomb': this.showOrnithopterBomb(troop, target, this.getTroopCombatStats(troop).damage); break;
+                    // Exact primary + chain victims arrive in the following
+                    // storm-chain ability event.
+                    case 'storm-lightning': break;
+                    case 'necromancer-orb': this.showNecromancerOrb(troop, target, this.getTroopCombatStats(troop).damage); break;
+                    case 'generic-tracer': this.showGenericRangedAttack(troop, target, this.getTroopCombatStats(troop).damage); break;
+                    case 'clockwork-beetle-latch': this.beginClockworkBeetleLatch(troop, target, eventT); break;
+                    case 'clockwork-beetle-detonation':
+                    case 'wall-breaker-detonation':
+                        this.detonateTroopAttack(troop);
+                        break;
+                    case 'siege-tower-park': this.parkRecordedSiegeTower(troop, target, eventT); break;
+                    case 'da-vinci-cannon':
+                        this.showDaVinciTankShot(troop, target, this.getTroopCombatStats(troop).damage, eventT);
+                        break;
+                    case 'stone-golem-slam':
+                    case 'ice-golem-slam': {
+                        const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                        const driver = { offset: 0 };
+                        this.tweens.add({
+                            targets: driver,
+                            offset: 12,
+                            duration: 200,
+                            ease: 'Quad.easeIn',
+                            onUpdate: () => {
+                                troop.slamOffset = driver.offset;
+                                this.redrawTroopWithMovement(troop, false);
+                            },
+                            onComplete: () => {
+                                screenShake(this, 50, 0.0015);
+                                if (payload.style === 'ice-golem-slam') {
+                                    this.showIceGolemCrackEffect(pos.x, pos.y + 15, 3, troop.owner);
+                                } else {
+                                    this.showGolemCrackEffect(pos.x, pos.y + 15, 3);
+                                }
+                                this.tweens.add({
+                                    targets: driver,
+                                    offset: payload.style === 'ice-golem-slam' ? 24 : 0,
+                                    duration: 400,
+                                    ease: 'Quad.easeOut',
+                                    onUpdate: () => {
+                                        troop.slamOffset = driver.offset;
+                                        this.redrawTroopWithMovement(troop, false);
+                                    },
+                                    onComplete: () => { troop.slamOffset = 0; }
+                                });
+                            }
+                        });
+                        break;
+                    }
+                    case 'phalanx-thrust': {
+                        const targetInfo = BUILDINGS[target.type];
+                        if (targetInfo) {
+                            const from = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                            const to = IsoUtils.cartToIso(
+                                target.gridX + targetInfo.width / 2,
+                                target.gridY + targetInfo.height / 2
+                            );
+                            troop.facingAngle = Math.atan2(to.y - from.y, to.x - from.x);
+                        }
+                        troop.phalanxSpearOffset = 0;
+                        this.tweens.add({
+                            targets: troop,
+                            phalanxSpearOffset: 1,
+                            duration: 150,
+                            yoyo: true,
+                            ease: 'Quad.easeIn',
+                            onUpdate: () => this.redrawTroopWithMovement(troop, false),
+                            onComplete: () => { troop.phalanxSpearOffset = 0; }
+                        });
+                        break;
+                    }
+                    case 'war-elephant-trample': {
+                        const point = payload.targetPoint ?? this.replayPoint(target.gridX, target.gridY);
+                        screenShake(this, 50, 0.0022);
+                        PixelFx.burst(this, point.worldX, point.worldY + 4, {
+                            count: 8,
+                            colors: [0x8b7355, 0x9b8365, 0x6b5344],
+                            alpha: 0.7,
+                            r: 2.2,
+                            rJitter: 1.6,
+                            spread: 14,
+                            up: 9,
+                            upJitter: 6,
+                            life: 320,
+                            lifeJitter: 120,
+                            scaleTo: 1.6,
+                            depth: depthForGroundEffect(point.gridX, point.gridY),
+                            rng: context.random
+                        });
+                        this.redrawTroopWithMovement(troop, true);
+                        break;
+                    }
+                    default: {
+                        const from = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+                        const to = payload.targetPoint ?? this.replayPoint(target.gridX, target.gridY);
+                        const angle = Math.atan2(to.worldY - from.y, to.worldX - from.x);
+                        const punchDist = payload.style === 'battering-ram' ? 18 : 10;
+                        this.tweens.add({
+                            targets: troop.gameObject,
+                            x: from.x + Math.cos(angle) * punchDist,
+                            y: from.y + Math.sin(angle) * punchDist * 0.5,
+                            duration: payload.style === 'battering-ram' ? 100 : 50,
+                            yoyo: true
+                        });
+                        if (payload.style === 'battering-ram') {
+                            this.scheduleBattleCall(100, () => screenShake(this, 40, 0.002));
+                        }
+                    }
+                  }
+                });
+                break;
+            }
+            case 'defense.fire': {
+                const payload = event.payload;
+                const defense = this.buildings.find(candidate => candidate.id === payload.defense.id);
+                const target = this.troops.find(candidate => candidate.id === payload.target.id);
+                if (defense && target && defense.health > 0 && target.health > 0) {
+                    defense.lastFireTime = eventT;
+                    defense.ballistaAngle = payload.facingAngle;
+                    defense.ballistaTargetAngle = payload.facingAngle;
+                    // Multi-target dragon salvos are reconstructed from the
+                    // following exact-target ability event, not by locally
+                    // re-running range selection on interpolated positions.
+                    if (payload.weapon !== 'dragons-breath') {
+                        this.withReplayLaunchPose(
+                            undefined,
+                            undefined,
+                            target,
+                            payload.targetPoint,
+                            () => this.fireDefensePresentation(payload.weapon, defense, target, eventT)
+                        );
+                    }
+                    // Live weapon presenters derive their own aim from the
+                    // current carrier. The stream angle remains canonical.
+                    defense.ballistaAngle = payload.facingAngle;
+                    defense.ballistaTargetAngle = payload.facingAngle;
+                }
+                break;
+            }
+            case 'defense.charge': {
+                const payload = event.payload;
+                const defense = this.buildings.find(candidate => candidate.id === payload.defense.id);
+                if (!defense || defense.health <= 0) break;
+                const target = payload.target
+                    ? this.troops.find(candidate => candidate.id === payload.target?.id)
+                    : undefined;
+                defense.ballistaAngle = payload.facingAngle;
+                defense.ballistaTargetAngle = payload.facingAngle;
+                switch (payload.phase) {
+                    case 'start':
+                        defense.teslaCharging = true;
+                        defense.teslaChargeStart = eventT;
+                        defense.teslaChargeTarget = target;
+                        if (target) defense.lockedTargetId = target.id;
+                        break;
+                    case 'cancel':
+                        defense.teslaCharging = false;
+                        defense.teslaChargeTarget = undefined;
+                        defense.lockedTargetId = undefined;
+                        break;
+                    case 'complete':
+                        defense.teslaCharging = false;
+                        defense.teslaCharged = true;
+                        defense.lastFireTime = eventT;
+                        defense.teslaChargeTarget = undefined;
+                        if (target) defense.lockedTargetId = target.id;
+                        break;
+                    case 'visual-clear':
+                        defense.teslaCharged = false;
+                        break;
+                }
+                break;
+            }
+            case 'combat.damage': {
+                const payload = event.payload;
+                if (payload.target.kind === 'building') {
+                    const building = this.buildings.find(candidate => candidate.id === payload.target.id);
+                    if (building) {
+                        building.health = Phaser.Math.Clamp(payload.healthAfter, 0, building.maxHealth);
+                        this.updateHealthBar(building);
+                    }
+                } else {
+                    const troop = this.troops.find(candidate => candidate.id === payload.target.id);
+                    if (troop) {
+                        troop.health = Phaser.Math.Clamp(payload.healthAfter, 0, troop.maxHealth);
+                        troop.hasTakenDamage = true;
+                        this.updateHealthBar(troop);
+                        if (payload.healthAfter > 0 && troop.type === 'golem') {
+                            this.showStoneGolemHitFx(troop);
+                        } else if (payload.healthAfter > 0 && troop.type === 'icegolem') {
+                            this.emitIceGolemHitFx(troop);
+                        }
+                        if (payload.damageKind === 'spike-zone') {
+                            PixelFx.burst(this, payload.at.worldX, payload.at.worldY, {
+                                count: 1,
+                                colors: [0xff4444],
+                                alpha: 0.8,
+                                r: 3,
+                                speed: 0,
+                                up: 10,
+                                scaleTo: 0.5,
+                                life: 200,
+                                depth: troop.gameObject.depth + 1,
+                                rng: context.random
+                            });
+                        }
+                    }
+                }
+                break;
+            }
+            case 'combat.heal': {
+                const payload = event.payload;
+                const target = this.troops.find(candidate => candidate.id === payload.target.id);
+                const source = this.troops.find(candidate => candidate.id === payload.source.id);
+                if (target) {
+                    target.health = Phaser.Math.Clamp(payload.healthAfter, 0, target.maxHealth);
+                    this.updateHealthBar(target);
+                    this.showHealNumber(
+                        target,
+                        Math.round(payload.amount),
+                        payload.targetIndex ?? payload.pulseIndex
+                    );
+                }
+                if (source) {
+                    const pulseKey = `${source.id}:${payload.pulseIndex}`;
+                    const watch = this.replayWatchState;
+                    if (!watch?.shownHealPulses.has(pulseKey)) {
+                        watch?.shownHealPulses.add(pulseKey);
+                        const pos = IsoUtils.cartToIso(source.gridX, source.gridY);
+                        const radii = this.gridRangeToIsoRadii(this.getTroopCombatStats(source).healRadius ?? 5.5);
+                        this.trackBattleFx(PixelFx.ring(this, pos.x, pos.y + 5, {
+                            r0: 8,
+                            r1: radii.rx,
+                            squash: radii.ry / Math.max(1, radii.rx),
+                            thick0: 3,
+                            thick1: 1,
+                            color: 0x8ef5b6,
+                            alpha: 0.85,
+                            life: 460,
+                            ease: 'Quad.easeOut',
+                            depth: depthForGroundDecal('aura') + 0.5
+                        }));
+                    }
+                }
+                break;
+            }
+            case 'entity.death': {
+                const troop = this.troops.find(candidate => candidate.id === event.payload.entity.id);
+                if (!troop) break;
+                troop.health = 0;
+                this.isApplyingReplayFrame = true;
+                try {
+                    this.destroyTroop(troop);
+                } finally {
+                    this.isApplyingReplayFrame = false;
+                }
+                break;
+            }
+            case 'building.destroy': {
+                const building = this.buildings.find(candidate => candidate.id === event.payload.building.id);
+                if (!building) break;
+                building.health = 0;
+                this.isApplyingReplayFrame = true;
+                try {
+                    this.destroyBuilding(building);
+                } finally {
+                    this.isApplyingReplayFrame = false;
+                }
+                break;
+            }
+            case 'ability': {
+                const payload = event.payload;
+                if (payload.ability === 'prism-beam-stop') {
+                    const prism = this.buildings.find(candidate => candidate.id === payload.actor.id);
+                    if (prism) this.cleanupPrismLaser(prism);
+                } else if (payload.ability === 'dragons-breath-salvo') {
+                    const defense = this.buildings.find(candidate => candidate.id === payload.actor.id);
+                    const targets = payload.targets
+                        .map(ref => this.troops.find(candidate => candidate.id === ref.id))
+                        .filter((candidate): candidate is Troop => Boolean(candidate));
+                    if (defense && targets.length > 0) {
+                        this.shootDragonsBreathAt(
+                            defense,
+                            targets[0],
+                            targets,
+                            payload.salvoSize,
+                            payload.staggerMs
+                        );
+                    }
+                } else if (payload.ability === 'storm-chain') {
+                    const actor = this.troops.find(candidate => candidate.id === payload.actor.id);
+                    const targets = payload.targets
+                        .map(ref => this.buildings.find(candidate => candidate.id === ref.id))
+                        .filter((candidate): candidate is PlacedBuilding => Boolean(candidate));
+                    if (actor && targets.length > 0) {
+                        this.showStormLightning(
+                            actor,
+                            targets[0],
+                            this.getTroopCombatStats(actor).damage,
+                            targets.slice(1)
+                        );
+                    }
+                }
+                break;
+            }
+            case 'sound': {
+                soundSystem.play(event.payload.sound);
+                break;
+            }
+                default:
+                    break;
+            }
+        }, event.seed);
     }
 
     private buildReplayFrameSnapshot(): ReplayFrameSnapshot {
@@ -10377,7 +11418,16 @@ export class MainScene extends Phaser.Scene {
             startedRemotely: true,
             framePushInFlight: false,
             lastFramePushAt: -Infinity,
-            ended: false
+            ended: false,
+            recorder: new ReplayPresentationRecorder<ReplayFrameSnapshot>({
+                streamId: this.currentEnemyWorld.attackId,
+                initialSequence: 1,
+                // Transport acknowledges continuously; these bounds only
+                // protect a disconnected tab from unbounded local growth.
+                maxChunks: 16_384,
+                maxApproxBytes: 16 * 1024 * 1024,
+                maxAgeMs: 15 * 60_000
+            })
         };
         this.maybePushReplayFrame(true);
     }
@@ -10387,17 +11437,22 @@ export class MainScene extends Phaser.Scene {
         if (!state || state.ended) return;
 
         const now = this.time.now;
-        // Live viewers interpolate between samples, so long battles do not
-        // benefit from publishing multi-kilobyte snapshots at a fixed 6fps.
-        // Thin the routine stream as it ages; forced destruction/final frames
-        // still bypass this cadence and preserve important state changes.
-        const battleAge = Math.max(0, now - state.startedAt);
-        const interval = battleAge < 30_000 ? 500 : battleAge < 90_000 ? 1000 : 2000;
+        // Motion correction keyframes stay inside the minimum live jitter
+        // buffer for the whole battle. Causal attack/impact events are carried
+        // separately by replay-v2; these frames are recovery brackets.
+        const interval = 500;
         if (!force && now - state.lastFramePushAt < interval) return;
         state.lastFramePushAt = now;
 
-        // Frames are buffered client-side and shipped in ~1s batches.
-        Backend.pushAttackReplayFrame(state.attackId, this.buildReplayFrameSnapshot());
+        // Frames are buffered client-side and shipped in compact batches. V1
+        // remains for old viewers; v2 orders this correction keyframe among
+        // the causal presentation events with one global sequence.
+        const frame = this.buildReplayFrameSnapshot();
+        Backend.pushAttackReplayKeyframe(
+            state.attackId,
+            frame,
+            state.recorder.recordKeyframe(frame.t, frame)
+        );
     }
 
     private endAttackReplayCapture(status: 'finished' | 'aborted'): Promise<AttackEndResult | null> | null {
@@ -10405,11 +11460,12 @@ export class MainScene extends Phaser.Scene {
         if (!state || state.ended) return this.pendingAttackSettlement;
         state.ended = true;
         const finalFrame = this.buildReplayFrameSnapshot();
+        const terminalChunk = state.recorder.recordKeyframe(finalFrame.t, finalFrame, true);
         this.replayCaptureState = null;
 
         // This attack is now settled; block any later abandon from re-settling it.
         this.settledAttackIds.add(state.attackId);
-        Backend.pushAttackReplayFrame(state.attackId, finalFrame);
+        Backend.pushAttackReplayKeyframe(state.attackId, finalFrame, terminalChunk);
         // Settles loot + trophies and notifies the defender, exactly once.
         const settlement = Backend.endAttack(
             state.attackId,
@@ -10845,7 +11901,10 @@ export class MainScene extends Phaser.Scene {
                 let angleDiff = desiredAngle - currentAngle;
                 while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
                 while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-                troop.facingAngle = currentAngle + angleDiff * 0.35;
+                // Exponential turn response is invariant across 30/60/120 Hz;
+                // the old fixed blend per render frame was not.
+                const turnFollow = 1 - Math.exp(-delta / 45);
+                troop.facingAngle = currentAngle + angleDiff * turnFollow;
             }
 
             const pos = IsoUtils.cartToIso(troop.gridX, troop.gridY);
@@ -10939,7 +11998,7 @@ export class MainScene extends Phaser.Scene {
         gameManager.updateBattleStats(0, 0);
         this.setVillageNameVisible(true);
         this.updateVillageName();
-        this.replaySimulationTime = this.time.now;
+        this.replaySimulationTime = 0;
 
         const watchState: ReplayWatchState = {
             attackId: replay.attackId,
@@ -10951,71 +12010,126 @@ export class MainScene extends Phaser.Scene {
             lastFetchedFrameT: -1,
             status: replay.status,
             pollInFlight: false,
-            frames: []
+            frames: [],
+            liveDelayMs: this.REPLAY_LIVE_DELAY_MS,
+            scheduledCalls: [],
+            usesV2: false,
+            lastFetchedV2Sequence: 0,
+            pendingV2Sequences: new Set<number>(),
+            terminalOnlyV2: replay.terminalOnlyV2 === true,
+            shownHealPulses: new Set<string>()
         };
         this.replayWatchState = watchState;
+        const initialV2 = (replay.v2Chunks ?? []).slice().sort((a, b) => a.sequence - b.sequence);
 
         if (mode === 'replay') {
-            // The recorded sim plays at REPLAY_SPEED; projectile/effect tweens
-            // and battle timers must ride the same rate or they trail the
-            // frames they illustrate. Restored by clearReplayWatchState.
+            // Projectile/effect tweens and battle timers must ride the same
+            // recorded clock or they trail the frames they illustrate.
+            // Restored by clearReplayWatchState.
             this.tweens.timeScale = this.REPLAY_SPEED;
             this.time.timeScale = this.REPLAY_SPEED;
 
-            const replayFrames = replay.frames ?? [];
-            const replayTimeOffset = replayFrames.length > 0 ? replayFrames[0].t : 0;
-            const normalizedFrames = replayFrames.map(frame => ({
-                ...frame,
-                t: Math.max(0, frame.t - replayTimeOffset)
-            }));
-            this.ingestReplayFrames(watchState, normalizedFrames);
+            if (initialV2.length > 0) {
+                this.ingestReplayV2Chunks(watchState, initialV2, false);
+            } else {
+                const replayFrames = replay.frames ?? [];
+                const replayTimeOffset = replayFrames.length > 0 ? replayFrames[0].t : 0;
+                const normalizedFrames = replayFrames.map(frame => ({
+                    ...frame,
+                    t: Math.max(0, frame.t - replayTimeOffset)
+                }));
+                this.ingestReplayFrames(watchState, normalizedFrames);
+            }
 
             if (watchState.frames.length > 0) {
+                // V2 may legitimately contain several correction keyframes at
+                // the same timestamp (for example baseline -> deploy ->
+                // post-deploy correction at t=0). `frames` is intentionally
+                // de-duplicated by timestamp for interpolation, so choose the
+                // actual first stream keyframe as the saved-replay baseline.
+                // Otherwise the post-deploy snapshot can be applied before
+                // the deploy event and silently suppress its presentation FX.
+                const baselineChunk = initialV2.find(
+                    (chunk): chunk is Extract<ReplayV2Chunk<ReplayFrameSnapshot>, { kind: 'keyframe' }> =>
+                        chunk.kind === 'keyframe'
+                );
+                const baselineFrame = baselineChunk?.frame ?? watchState.frames[0];
+                this.replaySimulationTime = baselineFrame.t;
                 this.isApplyingReplayBaseline = true;
                 try {
-                    this.applyReplayFrame(watchState.frames[0]);
+                    this.applyReplayFrame(baselineFrame);
                 } finally {
                     this.isApplyingReplayBaseline = false;
                 }
-                watchState.nextFrameIndex = 1;
-                watchState.lastAppliedFrameT = watchState.frames[0].t;
-                watchState.renderClockT = watchState.frames[0].t;
+                watchState.lastAppliedFrameT = baselineFrame.t;
+                this.rebuildReplayFrameCursor(watchState);
+                watchState.renderClockT = baselineFrame.t;
                 watchState.clockStarted = true;
+                if (initialV2.length > 0) {
+                    this.installReplayV2Dispatcher(
+                        watchState,
+                        initialV2,
+                        baselineChunk?.sequence ?? Math.max(0, initialV2[0].sequence - 1)
+                    );
+                }
             } else {
                 this.queueReplayReturnHome(700);
             }
             return true;
         }
 
-        const initialFrames: ReplayFrameSnapshot[] = [];
-        if (Array.isArray(replay.frames) && replay.frames.length > 0) {
-            initialFrames.push(...replay.frames);
+        if (initialV2.length > 0) {
+            this.ingestReplayV2Chunks(watchState, initialV2, false);
+        } else {
+            const initialFrames: ReplayFrameSnapshot[] = [];
+            if (Array.isArray(replay.frames) && replay.frames.length > 0) {
+                initialFrames.push(...replay.frames);
+            }
+            if (replay.latestFrame) {
+                initialFrames.push(replay.latestFrame);
+            }
+            this.ingestReplayFrames(watchState, initialFrames);
         }
-        if (replay.latestFrame) {
-            initialFrames.push(replay.latestFrame);
-        }
-        this.ingestReplayFrames(watchState, initialFrames);
 
         if (watchState.frames.length > 0) {
-            // Join at the live edge minus the jitter buffer: apply the newest
-            // frame at or before the join point as the baseline and play on
-            // from there — never race the whole battle to catch up.
+            // Join behind the live edge and pre-roll far enough to rebuild
+            // in-flight projectiles, charge telegraphs and short status FX.
             const headT = watchState.frames[watchState.frames.length - 1].t;
-            const joinT = Math.max(watchState.frames[0].t, headT - this.REPLAY_LIVE_DELAY_MS);
+            const joinT = Math.max(watchState.frames[0].t, headT - watchState.liveDelayMs);
+            const preRollT = Math.max(
+                watchState.frames[0].t,
+                joinT - this.REPLAY_LIVE_PREROLL_MS
+            );
             let baseline = 0;
-            while (baseline + 1 < watchState.frames.length && watchState.frames[baseline + 1].t <= joinT) baseline += 1;
+            while (baseline + 1 < watchState.frames.length && watchState.frames[baseline + 1].t <= preRollT) baseline += 1;
+            let baselineChunk: Extract<ReplayV2Chunk<ReplayFrameSnapshot>, { kind: 'keyframe' }> | undefined;
+            if (initialV2.length > 0) {
+                for (const chunk of initialV2) {
+                    if (chunk.kind === 'keyframe' && chunk.t <= preRollT) baselineChunk = chunk;
+                }
+            }
+            const baselineFrame = baselineChunk?.frame ?? watchState.frames[baseline];
             // Catch-up state, not live events: buildings already destroyed
             // before the join must not all detonate at once.
+            this.replaySimulationTime = baselineFrame.t;
             this.isApplyingReplayBaseline = true;
             try {
-                this.applyReplayFrame(watchState.frames[baseline]);
+                this.applyReplayFrame(baselineFrame);
             } finally {
                 this.isApplyingReplayBaseline = false;
             }
-            watchState.lastAppliedFrameT = watchState.frames[baseline].t;
-            watchState.nextFrameIndex = baseline + 1;
-            watchState.renderClockT = joinT;
+            watchState.lastAppliedFrameT = baselineFrame.t;
+            this.rebuildReplayFrameCursor(watchState);
+            // Begin at the pre-roll correction, not at the later ideal join
+            // point. A direct jump would launch every intervening hit FX at
+            // once and omit charge/projectile state already in progress.
+            watchState.renderClockT = baselineFrame.t;
             watchState.clockStarted = true;
+            if (initialV2.length > 0) {
+                const baselineSequence = baselineChunk?.sequence
+                    ?? Math.max(0, initialV2[0].sequence - 1);
+                this.installReplayV2Dispatcher(watchState, initialV2, baselineSequence);
+            }
         } else if (watchState.status !== 'live') {
             this.queueReplayReturnHome(700);
         }
@@ -11029,7 +12143,11 @@ export class MainScene extends Phaser.Scene {
                 if (current.pollInFlight) return;
                 current.pollInFlight = true;
 
-                void Backend.getLiveAttackState(current.attackId, current.lastFetchedFrameT)
+                void Backend.getLiveAttackState(
+                    current.attackId,
+                    current.lastFetchedFrameT,
+                    current.lastFetchedV2Sequence
+                )
                     .then(next => {
                         const active = this.replayWatchState;
                         if (!active || active.attackId !== current.attackId || active.mode !== 'live') return;
@@ -11039,14 +12157,19 @@ export class MainScene extends Phaser.Scene {
                         }
 
                         active.status = next.status;
-                        const incoming: ReplayFrameSnapshot[] = [];
-                        if (Array.isArray(next.frames) && next.frames.length > 0) {
-                            incoming.push(...next.frames);
+                        active.terminalOnlyV2 ||= next.terminalOnlyV2 === true;
+                        if (Array.isArray(next.v2Chunks) && next.v2Chunks.length > 0) {
+                            this.ingestReplayV2Chunks(active, next.v2Chunks);
+                        } else if (!active.usesV2) {
+                            const incoming: ReplayFrameSnapshot[] = [];
+                            if (Array.isArray(next.frames) && next.frames.length > 0) {
+                                incoming.push(...next.frames);
+                            }
+                            if (next.latestFrame && next.latestFrame.t > active.lastFetchedFrameT) {
+                                incoming.push(next.latestFrame);
+                            }
+                            this.ingestReplayFrames(active, incoming);
                         }
-                        if (next.latestFrame && next.latestFrame.t > active.lastFetchedFrameT) {
-                            incoming.push(next.latestFrame);
-                        }
-                        this.ingestReplayFrames(active, incoming);
 
                         if (next.status !== 'live' && active.pollEvent) {
                             active.pollEvent.remove(false);
@@ -11074,8 +12197,8 @@ export class MainScene extends Phaser.Scene {
     /**
      * The stream clock. Live spectating rides a fixed jitter buffer behind
      * the newest frame: the clock never races ahead (no extrapolation, ever)
-     * and never rubber-bands — it adapts its rate within ±15%, and if the
-     * buffer runs dry (a network stall) it eases into a clean hold on the
+     * and never rubber-bands. If the buffer runs dry (a network stall), it
+     * eases into a clean hold on the
      * last frame until data arrives. Recorded replays run the same pipeline
      * at a fixed speed. Defences, animations and combat visuals all share
      * this one clock, so nothing in the scene can drift apart.
@@ -11097,25 +12220,62 @@ export class MainScene extends Phaser.Scene {
         }
 
         const headT = frames[frames.length - 1].t;
+        let playbackRate = replay.mode === 'replay' ? this.REPLAY_SPEED : 1;
         if (replay.mode === 'live' && replay.status === 'live') {
             const lead = headT - replay.renderClockT;
-            // Gentle rate control toward the target buffer depth...
-            let rate = Phaser.Math.Clamp(1 + (lead - this.REPLAY_LIVE_DELAY_MS) / 4000, 0.85, 1.15);
-            // ...and a smooth-stepped hold when the buffer is nearly dry.
+            // Preserve the attack's exact cadence while the buffer is
+            // healthy. Only ease into a hold when data is genuinely dry;
+            // silently speeding up/slowing down combat made recoil and hit
+            // timing feel different from the attack being replayed.
             const fuel = Phaser.Math.Clamp(lead / 350, 0, 1);
-            rate *= fuel * fuel * (3 - 2 * fuel);
-            replay.renderClockT += delta * rate;
+            playbackRate = fuel * fuel * (3 - 2 * fuel);
+            replay.renderClockT += delta * playbackRate;
         } else {
-            replay.renderClockT = Math.min(headT, replay.renderClockT + delta * this.REPLAY_SPEED);
+            replay.renderClockT = Math.min(headT, replay.renderClockT + delta * playbackRate);
         }
 
-        while (replay.nextFrameIndex < frames.length) {
-            const frame = frames[replay.nextFrameIndex];
-            if (frame.t > replay.renderClockT) break;
-            this.applyReplayFrame(frame);
-            replay.lastAppliedFrameT = frame.t;
-            replay.nextFrameIndex += 1;
+        // Every loose projectile/particle tween advances on the same clock as
+        // state. In particular, a live buffer hold freezes an in-flight shot
+        // instead of letting it visually impact before its recorded damage.
+        this.tweens.timeScale = playbackRate;
+        this.replaySimulationTime = replay.renderClockT;
+
+        this.drainReplayScheduledCalls(replay, replay.renderClockT);
+        if (replay.usesV2) {
+            const result = replay.v2Dispatcher?.dispatchThrough(replay.renderClockT);
+            const terminalGap = replay.terminalGapChunk;
+            // A storage-budget truncation deliberately preserves a final
+            // correction after an unavailable sequence range. Once the
+            // settled replay reaches it, skip only that known-missing range
+            // and apply the terminal snapshot as the authoritative ending.
+            if (replay.terminalOnlyV2 && replay.status !== 'live' && terminalGap
+                && terminalGap.t <= replay.renderClockT
+                && result?.nextSequence !== undefined
+                && terminalGap.sequence > result.nextSequence) {
+                replay.v2Dispatcher?.reset(terminalGap.sequence);
+                replay.v2Dispatcher?.ingest([terminalGap]);
+                replay.v2Dispatcher?.dispatchThrough(replay.renderClockT);
+                replay.lastFetchedV2Sequence = Math.max(
+                    replay.lastFetchedV2Sequence,
+                    terminalGap.sequence
+                );
+                replay.pendingV2Sequences.clear();
+                replay.terminalGapChunk = undefined;
+            }
+        } else {
+            while (replay.nextFrameIndex < frames.length) {
+                const frame = frames[replay.nextFrameIndex];
+                if (frame.t > replay.renderClockT) break;
+                this.replaySimulationTime = frame.t;
+                this.applyReplayFrame(frame);
+                replay.lastAppliedFrameT = frame.t;
+                replay.nextFrameIndex += 1;
+            }
         }
+
+        // Newly dispatched chunks can schedule zero/short-delay work already
+        // due at this playhead. Drain once more after dispatch.
+        this.drainReplayScheduledCalls(replay, replay.renderClockT);
 
         // One clock for everything that moves during a replay.
         this.replaySimulationTime = replay.renderClockT;
@@ -11129,12 +12289,27 @@ export class MainScene extends Phaser.Scene {
         }
     }
 
+    private drainReplayScheduledCalls(state: ReplayWatchState, throughT: number) {
+        while (state.scheduledCalls.length > 0 && state.scheduledCalls[0].at <= throughT) {
+            const scheduled = state.scheduledCalls.shift();
+            if (!scheduled || scheduled.epoch !== this.battleEpoch) continue;
+            this.replaySimulationTime = scheduled.at;
+            scheduled.callback();
+        }
+    }
+
 
     public createSmokeEffect(x: number, y: number, depth: number = 10005) {
         particleManager.emitDustBurst(x, y, depth);
     }
 
-    private shootDragonsBreathAt(db: PlacedBuilding, troop: Troop) {
+    private shootDragonsBreathAt(
+        db: PlacedBuilding,
+        troop: Troop,
+        recordedTargets?: readonly Troop[],
+        recordedSalvoSize?: number,
+        staggerMs = 50
+    ) {
         const stats = this.getDefenseStats(db);
         const range = stats.range || 13;
         const dbInfo = BUILDINGS['dragons_breath'];
@@ -11145,7 +12320,7 @@ export class MainScene extends Phaser.Scene {
         const dbCenterY = db.gridY + dbInfo.height / 2;
 
         // Find all potential targets in range to distribute pods
-        const potentialTargets = this.troops.filter(t =>
+        const potentialTargets = recordedTargets?.slice() ?? this.troops.filter(t =>
             t.owner !== db.owner &&
             t.health > 0 &&
             Phaser.Math.Distance.Between(dbCenterX, dbCenterY, t.gridX, t.gridY) <= range
@@ -11156,9 +12331,21 @@ export class MainScene extends Phaser.Scene {
 
         // One rocket per silo — the catalog's fire model is the single source
         // for the volley size (the UI derives its DPS from the same number).
-        const salvoSize = DEFENSE_BEHAVIOR_CATALOG.dragons_breath.fireModel.salvoSize;
+        const salvoSize = recordedSalvoSize
+            ?? DEFENSE_BEHAVIOR_CATALOG.dragons_breath.fireModel.salvoSize;
+        if (this.mode === 'ATTACK') {
+            const exactTargets = potentialTargets.length > 0 ? potentialTargets : [troop];
+            this.recordReplayPresentation(replayPresentationEvent('ability', {
+                ability: 'dragons-breath-salvo',
+                actor: this.replayBuildingRef(db),
+                at: this.replayPoint(dbCenterX, dbCenterY),
+                targets: exactTargets.map(target => this.replayTroopRef(target)),
+                salvoSize,
+                staggerMs
+            }));
+        }
         for (let i = 0; i < salvoSize; i++) {
-            this.scheduleBattleCall(i * 50, () => {
+            this.scheduleBattleCall(i * staggerMs, () => {
                 if (!db || db.health <= 0) return;
 
                 // Cycle through targets if we have them, otherwise fallback to the primary target
@@ -11167,8 +12354,8 @@ export class MainScene extends Phaser.Scene {
                     : troop;
 
                 if (target && target.health > 0) {
-                    const jitterX = (Math.random() - 0.5) * 2.0;
-                    const jitterY = (Math.random() - 0.5) * 2.0;
+                    const jitterX = (this.battleRandom() - 0.5) * 2.0;
+                    const jitterY = (this.battleRandom() - 0.5) * 2.0;
                     // Launch from this pod's actual silo so the standing rocket
                     // (hidden by the renderer at this exact moment) visibly
                     // becomes the projectile — no teleporting.
@@ -11214,38 +12401,40 @@ export class MainScene extends Phaser.Scene {
         // PHASE 1 — LIFTOFF: the rocket climbs straight out of its silo on a
         // building flame before tipping over into its arc.
         const riseY = startY - 52;
+        let emittedLiftBlasts = 0;
         this.tweens.add({
             targets: pod,
             y: riseY,
             duration: 230,
             ease: 'Quad.easeIn',
-            onUpdate: () => {
+            onUpdate: this.replayPresentationCallback('dragon-liftoff-puffs', (tween: Phaser.Tweens.Tween) => {
                 if (podBaked) this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, 0);
                 else drawRocket();
-                if (Math.random() > 0.5) {
+                const wanted = Math.floor(tween.progress * 5);
+                while (emittedLiftBlasts < wanted) {
+                    emittedLiftBlasts++;
                     const blast = this.trackBattleFx(this.add.graphics());
-                    const blastR = 2 + Math.random() * 2;
+                    const blastR = 2 + this.battleRandom() * 2;
                     pixelEllipse(blast, 0, 0, blastR, blastR, 0xffaa33, 0.7);
-                    blast.setPosition(pod.x + (Math.random() - 0.5) * 5, pod.y + 14);
+                    blast.setPosition(pod.x + (this.battleRandom() - 0.5) * 5, pod.y + 14);
                     blast.setDepth(pod.depth - 1);
                     this.tweens.add({ targets: blast, alpha: 0, y: blast.y + 8, duration: 180, onComplete: () => blast.destroy() });
                 }
-            },
-            onComplete: () => flyArc()
+            }),
+            onComplete: this.replayPresentationCallback('dragon-arc-start', () => flyArc())
         });
 
         const flyArc = () => {
         const arcStartY = riseY;
         const midY = (arcStartY + end.y) / 2 - 200; // Arc height
         const dist = Phaser.Math.Distance.Between(startX, arcStartY, end.x, end.y);
-        let lastX = startX;
-        let lastY = arcStartY;
-        let lastEmberAt = 0;
+        let emittedArcEmbers = 0;
+        const flightDuration = dist / 0.4 + this.battleRandom() * 100;
 
         this.tweens.add({
             targets: pod,
             x: end.x,
-            duration: dist / 0.4 + Math.random() * 100,
+            duration: flightDuration,
             ease: 'Linear',
             onUpdate: (tween) => {
                 const t = tween.progress;
@@ -11257,19 +12446,26 @@ export class MainScene extends Phaser.Scene {
                     launchGridX + (targetGridX - launchGridX) * t,
                     launchGridY + (targetGridY - launchGridY) * t));
                 // The rocket stays a rocket all the way down its arc.
-                const angle = Math.atan2(pod.y - lastY, pod.x - lastX);
+                const dx = end.x - startX;
+                const dy = 2 * (1 - t) * (midY - arcStartY) + 2 * t * (end.y - midY);
+                const angle = Math.atan2(dy, dx);
                 pod.setRotation(angle + Math.PI / 2);
                 if (podBaked) this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, angle + Math.PI / 2);
                 else drawRocket();
 
                 // A tight ember ribbon — uniform glowing motes, no grey smog.
-                const now = this.time.now;
-                if (now - lastEmberAt > 26) {
-                    lastEmberAt = now;
+                const wantedEmbers = Math.floor(t * 18);
+                while (emittedArcEmbers < wantedEmbers) {
+                    emittedArcEmbers++;
+                    const emberT = emittedArcEmbers / 18;
+                    const emberX = startX + (end.x - startX) * emberT;
+                    const emberY = (1 - emberT) * (1 - emberT) * arcStartY
+                        + 2 * (1 - emberT) * emberT * midY
+                        + emberT * emberT * end.y;
                     const ember = this.trackBattleFx(this.add.graphics());
                     ember.setBlendMode(Phaser.BlendModes.ADD);
                     pixelEllipse(ember, 0, 0, 2.2, 2.2, 0xffa14a, 0.8);
-                    ember.setPosition(pod.x, pod.y + 4);
+                    ember.setPosition(emberX, emberY + 4);
                     ember.setDepth(pod.depth - 1);
                     this.tweens.add({
                         targets: ember,
@@ -11282,10 +12478,8 @@ export class MainScene extends Phaser.Scene {
                     });
                 }
 
-                lastX = pod.x;
-                lastY = pod.y;
             },
-            onComplete: () => {
+            onComplete: this.replayPresentationCallback('dragon-impact', () => {
                 pod.destroy();
                 screenShake(this, 85, 0.0016);
                 // Impact layers sort with the world at the impact tile.
@@ -11330,19 +12524,19 @@ export class MainScene extends Phaser.Scene {
                 for (let i = 0; i < 10; i++) {
                     const ember = this.trackBattleFx(this.add.graphics());
                     ember.setBlendMode(Phaser.BlendModes.ADD);
-                    const emberR = 1.6 + Math.random() * 1.4;
+                    const emberR = 1.6 + this.battleRandom() * 1.4;
                     pixelEllipse(ember, 0, 0, emberR, emberR, i % 2 === 0 ? 0xffc35a : 0xff7a22, 0.95);
                     ember.setPosition(end.x, end.y - 4);
                     ember.setDepth(fxDepth + 2);
-                    const angle = Math.random() * Math.PI * 2;
-                    const throwDist = 18 + Math.random() * 30;
+                    const angle = this.battleRandom() * Math.PI * 2;
+                    const throwDist = 18 + this.battleRandom() * 30;
                     this.tweens.add({
                         targets: ember,
                         x: end.x + Math.cos(angle) * throwDist,
-                        y: end.y + Math.sin(angle) * throwDist * 0.5 - 8 + Math.random() * 16,
+                        y: end.y + Math.sin(angle) * throwDist * 0.5 - 8 + this.battleRandom() * 16,
                         alpha: 0,
                         scale: 0.3,
-                        duration: 320 + Math.random() * 220,
+                        duration: 320 + this.battleRandom() * 220,
                         ease: 'Quad.easeOut',
                         onComplete: () => ember.destroy()
                     });
@@ -11353,7 +12547,7 @@ export class MainScene extends Phaser.Scene {
                     this.scheduleBattleCall(70 + i * 90, () => {
                         const smoke = this.trackBattleFx(this.add.graphics());
                         pixelEllipse(smoke, 0, 0, 5 + i * 2, 5 + i * 2, 0x4a4038, 0.4);
-                        smoke.setPosition(end.x + (Math.random() - 0.5) * 10, end.y - 6);
+                        smoke.setPosition(end.x + (this.battleRandom() - 0.5) * 10, end.y - 6);
                         smoke.setDepth(fxDepth + 5);
                         this.tweens.add({
                             targets: smoke,
@@ -11383,7 +12577,7 @@ export class MainScene extends Phaser.Scene {
                         }
                     }
                 });
-            }
+            })
         });
         };
     }
@@ -11436,7 +12630,7 @@ export class MainScene extends Phaser.Scene {
         const dist = Phaser.Math.Distance.Between(start.x, start.y, end.x, end.y);
 
         // Spike trail effect
-        let lastTrailTime = 0;
+        let emittedTrailSpikes = 0;
 
         // Ground shadow tracking under the arcing ball
         const bagShadow = this.trackBattleFx(this.add.graphics());
@@ -11466,7 +12660,7 @@ export class MainScene extends Phaser.Scene {
             delay: 150, // Wait for trebuchet to release
             duration: dist / 0.45,
             ease: 'Linear',
-            onUpdate: (tween) => {
+            onUpdate: this.replayPresentationCallback('spike-launcher-trail', (tween: Phaser.Tweens.Tween) => {
                 const t = tween.progress;
                 // Shallow bezier arc
                 bag.y = (1 - t) * (1 - t) * (start.y - 40) + 2 * (1 - t) * t * midY + t * t * end.y;
@@ -11481,31 +12675,41 @@ export class MainScene extends Phaser.Scene {
                 bag.setScale(scale);
                 if (bagBaked) this.syncProjectileSprite(bag, 'spike_ball', Math.min(level, 4), t * Math.PI * 2.5);
 
-                // Drop spike trail every ~80ms
-                const now = this.time.now;
-                if (now - lastTrailTime > 80 && t > 0.1 && t < 0.9) {
-                    lastTrailTime = now;
+                // Eight deterministic progress slots: trail density and RNG
+                // consumption stay identical across FPS and buffer holds.
+                const wantedSpikes = Phaser.Math.Clamp(
+                    Math.floor((t - 0.1) / 0.1) + 1,
+                    0,
+                    8
+                );
+                while (emittedTrailSpikes < wantedSpikes) {
+                    emittedTrailSpikes++;
+                    const spikeT = 0.1 + emittedTrailSpikes * 0.1;
+                    const spikeX = start.x + (end.x - start.x) * spikeT;
+                    const spikeY = (1 - spikeT) * (1 - spikeT) * (start.y - 40)
+                        + 2 * (1 - spikeT) * spikeT * midY
+                        + spikeT * spikeT * end.y;
                     const trailSpike = this.trackBattleFx(this.add.graphics());
                     // Small falling spike (cell rows tapering to the tip)
                     pixelBitmap(trailSpike, -1.5 * PIXEL_CELL, -4, ['.s.', '.s.', '.s.', 'sss', 'sss', 'sss'], { s: 0x888888 }, 0.7);
-                    trailSpike.setPosition(bag.x + (Math.random() - 0.5) * 10, bag.y);
+                    trailSpike.setPosition(spikeX + (this.battleRandom() - 0.5) * 10, spikeY);
                     trailSpike.setDepth(bag.depth - 1);
-                    trailSpike.setRotation(Math.random() * Math.PI);
+                    trailSpike.setRotation(this.battleRandom() * Math.PI);
 
                     this.tweens.add({
                         targets: trailSpike,
-                        y: trailSpike.y + 40 + Math.random() * 30,
+                        y: trailSpike.y + 40 + this.battleRandom() * 30,
                         alpha: 0,
                         rotation: trailSpike.rotation + Math.PI,
                         duration: 400,
                         onComplete: () => trailSpike.destroy()
                     });
                 }
-            },
-            onComplete: () => {
+            }),
+            onComplete: this.replayPresentationCallback('spike-launcher-impact', () => {
                 bag.destroy();
                 this.createSpikeZone(end.x, end.y, targetGridX, targetGridY, launcher.owner, zoneDamage, zoneRadius, zoneDuration, impactDamage);
-            }
+            })
         });
 
         // Launch smoke puff
@@ -11562,8 +12766,8 @@ export class MainScene extends Phaser.Scene {
             let cx = 0;
             let cy = 0;
             for (let seg = 0; seg < 3; seg++) {
-                const jag = baseAngle + (Math.random() - 0.5) * 0.7;
-                const len = 7 + Math.random() * 9;
+                const jag = baseAngle + (this.battleRandom() - 0.5) * 0.7;
+                const len = 7 + this.battleRandom() * 9;
                 const nx = cx + Math.cos(jag) * len;
                 const ny = cy + Math.sin(jag) * len * 0.5;
                 pixelLine(cracks, cx, cy, nx, ny, 1, 0x3a3020, 0.85);
@@ -11585,13 +12789,13 @@ export class MainScene extends Phaser.Scene {
             const qa = (q / quillCount) * Math.PI * 2 + 0.2;
             // Quills land inside the drawn caltrop patch — they ARE the
             // hazard's look, so they must not overshoot the damage field.
-            const qd = 12 + Math.random() * Math.max(6, 27.5 * footprintScale - 10);
+            const qd = 12 + this.battleRandom() * Math.max(6, 27.5 * footprintScale - 10);
             const landX = x + Math.cos(qa) * qd;
             const landY = y + Math.sin(qa) * qd * 0.5;
             this.tweens.add({
                 targets: quill,
                 x: landX,
-                duration: 240 + Math.random() * 120,
+                duration: 240 + this.battleRandom() * 120,
                 ease: 'Quad.easeOut',
                 onUpdate: (tw: Phaser.Tweens.Tween) => {
                     // A little hop: up then embed.
@@ -11612,15 +12816,15 @@ export class MainScene extends Phaser.Scene {
             pixelEllipse(clod, 0, 0, 1.7, 1.1, d % 2 === 0 ? 0x8a744e : 0x6e5c3e, 0.95);
             clod.setPosition(x, y - 3);
             clod.setDepth(fxDepth + 1);
-            const da = Math.random() * Math.PI * 2;
-            const dd = 10 + Math.random() * 22;
+            const da = this.battleRandom() * Math.PI * 2;
+            const dd = 10 + this.battleRandom() * 22;
             this.tweens.add({
                 targets: clod,
                 x: x + Math.cos(da) * dd,
-                y: y + Math.sin(da) * dd * 0.5 - 4 + Math.random() * 8,
+                y: y + Math.sin(da) * dd * 0.5 - 4 + this.battleRandom() * 8,
                 alpha: 0,
-                rotation: Math.random() * 2,
-                duration: 300 + Math.random() * 200,
+                rotation: this.battleRandom() * 2,
+                duration: 300 + this.battleRandom() * 200,
                 ease: 'Quad.easeOut',
                 onComplete: () => clod.destroy()
             });
@@ -11636,7 +12840,7 @@ export class MainScene extends Phaser.Scene {
                     const pos = this.troopBodyCenter(t);
                     this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y, { r: 8, color: 0xffaa00, alpha: 0.8, scaleTo: 2, life: 200, depth: t.gameObject.depth + 1 }));
 
-                    this.applyLocalTroopDamage(t, impactDamage);
+                    if (this.mode !== 'REPLAY') this.applyLocalTroopDamage(t, impactDamage, 'spike-zone');
                 }
             }
         });
@@ -11694,16 +12898,16 @@ export class MainScene extends Phaser.Scene {
             radius: damageRadiusTiles,
             damage,
             owner,
-            endTime: this.time.now + duration,
+            endTime: this.animClockNow() + duration,
             graphics: zoneGraphics,
-            lastTickTime: this.time.now
+            lastTickTime: this.animClockNow()
         };
 
         this.spikeZones.push(zone);
     }
 
     public updateSpikeZones() {
-        const now = this.time.now;
+        const now = this.animClockNow();
         const toRemove: number[] = [];
 
         this.spikeZones.forEach((zone, index) => {
@@ -11725,8 +12929,9 @@ export class MainScene extends Phaser.Scene {
             if (now >= zone.lastTickTime + tickInterval) {
                 zone.lastTickTime = now;
 
-                // Damage troops in zone
-                this.troops.forEach(t => {
+                // Damage/hit FX are causal replay events; never reselect
+                // occupants from interpolated watcher positions.
+                if (this.mode !== 'REPLAY') this.troops.forEach(t => {
                     if (t.owner !== zone.owner && t.health > 0) {
                         const dist = Phaser.Math.Distance.Between(t.gridX, t.gridY, zone.gridX, zone.gridY);
                         if (dist <= zone.radius) {
@@ -11739,7 +12944,7 @@ export class MainScene extends Phaser.Scene {
                                 depth: t.gameObject.depth + 1
                             });
 
-                            this.applyLocalTroopDamage(t, zone.damage);
+                            this.applyLocalTroopDamage(t, zone.damage, 'spike-zone');
                         }
                     }
                 });

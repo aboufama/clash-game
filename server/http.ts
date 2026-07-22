@@ -433,7 +433,17 @@ export function createApiHandler<Principal>(
 
       const replayMatch = path.match(/^\/replays\/([^/]+)$/)
       if (method === 'GET' && replayMatch) {
-        return { status: 200, body: { replay: await game.getReplay(player, replayMatch[1], query.get('afterT') ?? undefined) } }
+        return {
+          status: 200,
+          body: {
+            replay: await game.getReplay(
+              player,
+              replayMatch[1],
+              query.get('afterT') ?? undefined,
+              query.get('afterV2Sequence') ?? undefined
+            )
+          }
+        }
       }
 
       if (method === 'GET' && path === '/notifications') {

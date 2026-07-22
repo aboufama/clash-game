@@ -44,8 +44,9 @@ export function townHallScreenShake(scene: Phaser.Scene, durationMs: number, int
  * `stampRing`/`burst` internally where they are drop-ins.
  *
  * One-shot FX are allowed `Math.random()` — iron rule 3 governs AMBIENT
- * animation, not fire-and-forget bursts. Pass `opts.rng` to make one
- * deterministic. Textures come from ParticleManager.generateTextures (16px
+ * animation, not fire-and-forget bursts. MainScene exposes an event-seeded
+ * random seam so attack/replay bursts are identical; pass `opts.rng` to
+ * override it explicitly. Textures come from ParticleManager.generateTextures (16px
  * canvases, NEAREST); radius r maps to image scale as (r * 2) / 16.
  */
 
@@ -186,7 +187,13 @@ export class PixelFx {
 
     /** N one-shot tinted particles scattered from (x, y); each destroys itself. */
     static burst(scene: Phaser.Scene, x: number, y: number, opts: FxBurstOpts = {}) {
-        const rng = opts.rng ?? Math.random;
+        const replayAwareScene = scene as Phaser.Scene & {
+            nextPresentationRandom?: () => number;
+        };
+        const rng = opts.rng
+            ?? (typeof replayAwareScene.nextPresentationRandom === 'function'
+                ? replayAwareScene.nextPresentationRandom.bind(replayAwareScene)
+                : Math.random);
         const count = opts.count ?? 6;
         const colors = opts.colors ?? [0xffffff];
         const key = opts.square ? 'particle_square' : 'particle_circle';

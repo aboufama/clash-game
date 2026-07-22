@@ -2,6 +2,7 @@ import { BUILDING_DEFINITIONS, MAP_SIZE, TROOP_DEFINITIONS, createStarterVillage
 import { resourceCapacity } from '../config/Economy';
 import { adoptUpgradePolicy, type ServerUpgradePolicy } from '../config/UpgradePolicy';
 import { sanitizeVillageBanner, type SerializedBuilding, type SerializedObstacle, type SerializedWorld, type VillageBanner, type VillageLifeManifest } from '../data/Models';
+import type { ReplayV2Chunk } from '../replay/ReplayPresentationStream';
 export type { VillageBanner, VillageLifeManifest } from '../data/Models';
 import { Auth, type SessionFeatures } from './Auth';
 
@@ -68,6 +69,8 @@ const API_REQUEST_TIMEOUT_MS = 10_000;
 const FRAME_FLUSH_MS = 350;
 const FRAME_FLUSH_COUNT = 4;
 const FRAME_SEND_ATTEMPTS = 3;
+const REPLAY_FRAMES_PER_PUSH = 16;
+const REPLAY_V2_CHUNKS_PER_PUSH = 128;
 const ARMY_BATCH_DEBOUNCE_MS = 90;
 
 type ResourceDeltaResult = { applied: boolean; gold: number; revision?: number };
@@ -185,6 +188,12 @@ export type AttackReplayState = {
   frameCount: number;
   latestFrame: ReplayFrameSnapshot | null;
   frames?: ReplayFrameSnapshot[];
+  replayVersion?: 1 | 2;
+  lastV2Sequence: number;
+  /** The v2 event budget was exhausted; a terminal correction may bridge a
+   * deliberate sequence gap and is authoritative for the final state. */
+  terminalOnlyV2?: boolean;
+  v2Chunks?: ReplayV2Chunk<ReplayFrameSnapshot>[];
 };
 
 export type StartedAttack = {
@@ -2720,8 +2729,11 @@ export class Backend {
           trophies: typeof result.attackerTrophies === 'number' ? result.attackerTrophies : undefined
         }, authoritySeq);
         Backend.failedFrameBatches.delete(attackId);
+        Backend.failedReplayV2Batches.delete(attackId);
+        Backend.replayV2BudgetBlocked.delete(attackId);
         if (Backend.frameBufferAttackId === attackId) {
           Backend.frameBuffer = [];
+          Backend.replayV2Buffer = [];
           Backend.frameBufferAttackId = null;
         }
         Backend.attackCommandStates.delete(attackId);
@@ -2794,17 +2806,23 @@ export class Backend {
   }
 
   private static frameBuffer: ReplayFrameSnapshot[] = [];
+  private static replayV2Buffer: ReplayV2Chunk<ReplayFrameSnapshot>[] = [];
   private static frameBufferAttackId: string | null = null;
   private static lastFrameFlush = 0;
   private static frameFlushChain: Promise<void> = Promise.resolve();
   private static pushedFrameCount = 0;
   private static failedFrameBatches = new Map<string, ReplayFrameSnapshot[]>();
+  private static failedReplayV2Batches = new Map<string, ReplayV2Chunk<ReplayFrameSnapshot>[]>();
+  private static replayV2BudgetBlocked = new Set<string>();
 
   private static invalidateAttackCapture(attackId: string, message: string) {
     Backend.attackCommandStates.delete(attackId);
     Backend.failedFrameBatches.delete(attackId);
+    Backend.failedReplayV2Batches.delete(attackId);
+    Backend.replayV2BudgetBlocked.delete(attackId);
     if (Backend.frameBufferAttackId === attackId) {
       Backend.frameBuffer = [];
+      Backend.replayV2Buffer = [];
       Backend.frameBufferAttackId = null;
     }
     const user = Auth.getCurrentUser();
@@ -2822,9 +2840,11 @@ export class Backend {
 
   static beginReplayCapture(attackId: string) {
     Backend.frameBuffer = [];
+    Backend.replayV2Buffer = [];
     Backend.frameBufferAttackId = attackId;
     Backend.lastFrameFlush = Date.now();
     Backend.pushedFrameCount = 0;
+    Backend.replayV2BudgetBlocked.delete(attackId);
     if (!Backend.attackCommandStates.has(attackId)) {
       Backend.attackCommandStates.set(attackId, { nextSequence: 1, chain: Promise.resolve() });
     }
@@ -2840,48 +2860,152 @@ export class Backend {
     return Backend.pushedFrameCount + Backend.frameBuffer.length;
   }
 
+  /** Atomically enqueue the legacy fallback and its replay-v2 correction
+   * chunk before deciding whether to flush, so a live poll never observes
+   * one half of the same keyframe batch. */
+  static pushAttackReplayKeyframe(
+    attackId: string,
+    frame: ReplayFrameSnapshot,
+    chunk: ReplayV2Chunk<ReplayFrameSnapshot>
+  ): number {
+    if (!Auth.isOnlineMode() || !attackId) return 0;
+    if (Backend.frameBufferAttackId !== attackId) Backend.beginReplayCapture(attackId);
+    Backend.frameBuffer.push(frame);
+    if (!Backend.replayV2BudgetBlocked.has(attackId) || chunk.kind === 'keyframe' && chunk.terminal === true) {
+      Backend.replayV2Buffer.push(chunk);
+    }
+    const due = Date.now() - Backend.lastFrameFlush >= FRAME_FLUSH_MS
+      || Backend.frameBuffer.length + Backend.replayV2Buffer.length >= FRAME_FLUSH_COUNT;
+    if (due) void Backend.flushReplayFrames(attackId).catch(() => undefined);
+    return chunk.sequence;
+  }
+
+  /** Buffer one replay-v2 presentation chunk. Events and correction
+   * keyframes share a single client-owned sequence and the same retry queue. */
+  static pushAttackReplayV2Chunk(
+    attackId: string,
+    chunk: ReplayV2Chunk<ReplayFrameSnapshot>
+  ): number {
+    if (!Auth.isOnlineMode() || !attackId) return 0;
+    if (Backend.frameBufferAttackId !== attackId) Backend.beginReplayCapture(attackId);
+    if (Backend.replayV2BudgetBlocked.has(attackId)) return 0;
+    Backend.replayV2Buffer.push(chunk);
+    const due = Date.now() - Backend.lastFrameFlush >= FRAME_FLUSH_MS
+      || Backend.frameBuffer.length + Backend.replayV2Buffer.length >= FRAME_FLUSH_COUNT;
+    if (due) void Backend.flushReplayFrames(attackId).catch(() => undefined);
+    return chunk.sequence;
+  }
+
   private static flushReplayFrames(attackId: string): Promise<void> {
     const freshFrames = Backend.frameBufferAttackId === attackId ? Backend.frameBuffer : [];
+    const freshV2 = Backend.frameBufferAttackId === attackId ? Backend.replayV2Buffer : [];
     const hasRetainedFrames = (Backend.failedFrameBatches.get(attackId)?.length ?? 0) > 0;
-    if (freshFrames.length === 0 && !hasRetainedFrames) {
+    const hasRetainedV2 = (Backend.failedReplayV2Batches.get(attackId)?.length ?? 0) > 0;
+    if (freshFrames.length === 0 && freshV2.length === 0 && !hasRetainedFrames && !hasRetainedV2) {
       return Backend.frameFlushChain;
     }
-    if (Backend.frameBufferAttackId === attackId) Backend.frameBuffer = [];
+    if (Backend.frameBufferAttackId === attackId) {
+      Backend.frameBuffer = [];
+      Backend.replayV2Buffer = [];
+    }
     Backend.lastFrameFlush = Date.now();
     Backend.frameFlushChain = Backend.frameFlushChain
       .catch(() => undefined)
       .then(async () => {
         const queued = Backend.failedFrameBatches.get(attackId) ?? [];
         Backend.failedFrameBatches.delete(attackId);
+        const queuedV2 = Backend.failedReplayV2Batches.get(attackId) ?? [];
+        Backend.failedReplayV2Batches.delete(attackId);
         const byTime = new Map<number, ReplayFrameSnapshot>();
         for (const frame of [...queued, ...freshFrames]) byTime.set(frame.t, frame);
         const frames = Array.from(byTime.values()).sort((a, b) => a.t - b.t);
-        let lastError: unknown = null;
-        for (let attempt = 0; attempt < FRAME_SEND_ATTEMPTS; attempt++) {
-          try {
-            const response = await Backend.apiPost<{ frameCount?: number }>('/api/attacks/frames', { attackId, frames });
-            Backend.pushedFrameCount = Math.max(0, Math.floor(Number(response.frameCount) || 0));
-            return;
-          } catch (error) {
-            lastError = error;
-            const status = (error as { status?: number }).status;
-            const code = (error as { code?: string }).code;
-            if (code === 'ATTACK_INVALIDATED' || status === 403 || status === 404 || status === 409) {
-              Backend.invalidateAttackCapture(
+        const bySequence = new Map<number, ReplayV2Chunk<ReplayFrameSnapshot>>();
+        for (const chunk of [...queuedV2, ...freshV2]) bySequence.set(chunk.sequence, chunk);
+        const v2Chunks = Array.from(bySequence.values()).sort((a, b) => a.sequence - b.sequence);
+        // A disconnected tab can accumulate more than one server-sized v2
+        // request. Drain it in contiguous 128-chunk pages; frames travel only
+        // with the first page so a late-page retry cannot duplicate legacy
+        // bandwidth. The server de-duplicates replay sequence prefixes.
+        let pendingFrames = frames;
+        let pendingV2 = v2Chunks;
+        while (pendingFrames.length > 0 || pendingV2.length > 0) {
+          if (Backend.replayV2BudgetBlocked.has(attackId)) {
+            // Once the honest storage ceiling is reached, only the terminal
+            // correction is valuable. The server explicitly permits this one
+            // terminal sequence gap so every replay still has an ending.
+            pendingV2 = pendingV2.filter(
+              chunk => chunk.kind === 'keyframe' && chunk.terminal === true
+            );
+          }
+          const requestFrames = pendingFrames.slice(0, REPLAY_FRAMES_PER_PUSH);
+          const requestV2 = pendingV2.slice(0, REPLAY_V2_CHUNKS_PER_PUSH);
+          if (requestFrames.length === 0 && requestV2.length === 0) break;
+
+          let response: {
+            frameCount?: number;
+            lastV2Sequence?: number;
+            droppedV2?: number;
+          } | null = null;
+          let lastError: unknown = null;
+          for (let attempt = 0; attempt < FRAME_SEND_ATTEMPTS; attempt++) {
+            try {
+              response = await Backend.apiPost<{
+                frameCount?: number;
+                lastV2Sequence?: number;
+                droppedV2?: number;
+              }>('/api/attacks/frames', {
                 attackId,
-                error instanceof Error ? error.message : 'That village is no longer available'
-              );
-              return;
-            }
-            if (!Backend.retryableRequest(error) || status === 401) break;
-            if (attempt + 1 < FRAME_SEND_ATTEMPTS) {
-              await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+                frames: requestFrames,
+                ...(requestV2.length > 0 ? { replayV2: { chunks: requestV2 } } : {})
+              });
+              break;
+            } catch (error) {
+              lastError = error;
+              const status = (error as { status?: number }).status;
+              const code = (error as { code?: string }).code;
+              if (code === 'ATTACK_INVALIDATED' || status === 403 || status === 404 || status === 409) {
+                Backend.invalidateAttackCapture(
+                  attackId,
+                  error instanceof Error ? error.message : 'That village is no longer available'
+                );
+                return;
+              }
+              if (!Backend.retryableRequest(error) || status === 401) break;
+              if (attempt + 1 < FRAME_SEND_ATTEMPTS) {
+                await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+              }
             }
           }
+
+          if (!response) {
+            Backend.failedFrameBatches.set(attackId, pendingFrames);
+            Backend.failedReplayV2Batches.set(attackId, pendingV2);
+            console.warn('Replay frame push failed; batch retained for retry:', lastError);
+            throw lastError;
+          }
+
+          pendingFrames = pendingFrames.slice(requestFrames.length);
+          Backend.pushedFrameCount = Math.max(0, Math.floor(Number(response.frameCount) || 0));
+          const dropped = Math.max(0, Math.floor(Number(response.droppedV2) || 0));
+          if (requestV2.length > 0) {
+            const acknowledged = response.lastV2Sequence === undefined
+              ? requestV2[requestV2.length - 1]!.sequence
+              : Math.max(0, Math.floor(Number(response.lastV2Sequence) || 0));
+            pendingV2 = pendingV2.filter(chunk => chunk.sequence > acknowledged);
+          }
+          if (dropped > 0) {
+            Backend.replayV2BudgetBlocked.add(attackId);
+            pendingV2 = pendingV2.filter(
+              chunk => chunk.kind === 'keyframe' && chunk.terminal === true
+            );
+            if (Backend.frameBufferAttackId === attackId) {
+              Backend.replayV2Buffer = Backend.replayV2Buffer.filter(
+                buffered => buffered.kind === 'keyframe' && buffered.terminal === true
+              );
+            }
+            console.warn(`Replay-v2 server dropped ${dropped} presentation chunks`);
+          }
         }
-        Backend.failedFrameBatches.set(attackId, frames);
-        console.warn('Replay frame push failed; batch retained for retry:', lastError);
-        throw lastError;
       });
     return Backend.frameFlushChain;
   }
@@ -2899,6 +3023,9 @@ export class Backend {
     const enemyWorld = enemyWorldRaw && Array.isArray(enemyWorldRaw.buildings) ? enemyWorldRaw : undefined;
     const statusRaw = typeof record.status === 'string' ? record.status : 'live';
     const frames = Array.isArray(record.frames) ? (record.frames as ReplayFrameSnapshot[]) : [];
+    const v2Chunks = Array.isArray(record.v2Chunks)
+      ? (record.v2Chunks as ReplayV2Chunk<ReplayFrameSnapshot>[])
+      : [];
     const finalRaw = record.finalResult as { destruction?: number; goldLooted?: number } | undefined;
     return {
       attackId,
@@ -2917,9 +3044,13 @@ export class Backend {
             goldLooted: Math.max(0, Math.floor(Number(finalRaw.goldLooted) || 0))
           }
         : undefined,
-      frameCount: frames.length,
+      frameCount: Math.max(frames.length, Math.floor(Number(record.frameCount) || 0)),
       latestFrame: frames.length > 0 ? frames[frames.length - 1] : null,
-      frames: frames.length > 0 ? frames : undefined
+      frames: frames.length > 0 ? frames : undefined,
+      replayVersion: Number(record.replayVersion) === 2 || v2Chunks.length > 0 ? 2 : 1,
+      lastV2Sequence: Math.max(0, Math.floor(Number(record.lastV2Sequence) || 0)),
+      terminalOnlyV2: record.terminalOnlyV2 === true,
+      v2Chunks: v2Chunks.length > 0 ? v2Chunks : undefined
     };
   }
 
@@ -2931,9 +3062,18 @@ export class Backend {
   }
 
   /** Incremental fetch for spectating a live defense. */
-  static async getLiveAttackState(attackId: string, afterT?: number): Promise<AttackReplayState | null> {
+  static async getLiveAttackState(
+    attackId: string,
+    afterT?: number,
+    afterV2Sequence?: number
+  ): Promise<AttackReplayState | null> {
     if (!Auth.isOnlineMode() || !attackId) return null;
-    const suffix = Number.isFinite(Number(afterT)) ? `?afterT=${Number(afterT)}` : '';
+    const query = new URLSearchParams();
+    if (Number.isFinite(Number(afterT))) query.set('afterT', String(Number(afterT)));
+    if (Number.isFinite(Number(afterV2Sequence))) {
+      query.set('afterV2Sequence', String(Math.max(0, Math.floor(Number(afterV2Sequence)))));
+    }
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
     const response = await Backend.apiGet<{ replay?: Record<string, unknown> }>(`/api/replays/${encodeURIComponent(attackId)}${suffix}`);
     return Backend.toReplayState(response.replay ?? null);
   }

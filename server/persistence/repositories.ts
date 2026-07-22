@@ -30,6 +30,7 @@ import type {
   PlayerSummaryRecord,
   ReleasedWorldPlotRecord,
   ReplayChunkRecord,
+  ParticipantReplaySequenceRange,
   SessionRecord,
   SettlementRecord,
   TransactionOptions,
@@ -204,10 +205,20 @@ export interface ReplayRepository {
   /** Atomically charges a durable per-attack byte/chunk budget before append. */
   appendPresentation(
     record: ReplayChunkRecord,
-    budget: { byteSize: number; maxBytes: number; maxChunks: number }
-  ): Promise<'inserted' | 'duplicate' | 'dropped'>
+    budget: {
+      byteSize: number
+      maxBytes: number
+      maxChunks: number
+      /** Replace an existing chunk at this sequence, charging only the byte delta. */
+      replaceExisting?: boolean
+      /** Terminal correction only: persist even when the presentation budget is full. */
+      force?: boolean
+    }
+  ): Promise<'inserted' | 'duplicate' | 'replaced' | 'dropped'>
   /** Returns no rows unless participantId is the attack's attacker or defender. */
   listForParticipant(query: ParticipantReplayQuery): Promise<ReplayChunkRecord[]>
+  /** Highest authorized sequence within an inclusive storage range, or the range floor minus one. */
+  latestSequenceForParticipant(query: ParticipantReplaySequenceRange): Promise<number>
   /** Deletes only presentation chunks for a bounded set of old terminal attacks. */
   prunePresentation(before: Date, attackLimit: number): Promise<number>
 }
