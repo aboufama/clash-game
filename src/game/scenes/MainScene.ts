@@ -45,7 +45,7 @@ import { installBakeBridge } from '../dev/BakeBridge';
 import { SpriteBank, battleSpriteRequirements, homeSpriteRequirements } from '../render/SpriteBank';
 import { installPixelModeHandle, registerPixelSurface, settleLogicalZoom, zoomSettleEnabled } from '../renderers/TextureRenderPolicy';
 import { pixelBitmap, pixelEllipse, pixelLine, pixelRect, PIXEL_CELL } from '../render/PixelDraw';
-import { PixelFx, screenShake } from '../systems/PixelFx';
+import { PixelFx, screenShake, townHallScreenShake } from '../systems/PixelFx';
 
 const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
@@ -6242,7 +6242,7 @@ export class MainScene extends Phaser.Scene {
                         }
                     },
                     onComplete: () => {
-                        screenShake(this, 50, 0.00025, true);
+                        screenShake(this, 50, 0.00025);
                         bolt.destroy();
                         boltShadow.destroy();
                         // Deal damage
@@ -7327,9 +7327,15 @@ export class MainScene extends Phaser.Scene {
         const pos = IsoUtils.cartToIso(b.gridX + info.width / 2, b.gridY + info.height / 2);
         const size = Math.max(info.width, info.height);
 
-        // Screen shake proportional to building size
+        // Ordinary collapses use the compact global shake profile. The Town
+        // Hall is the sole marquee drop and deliberately keeps the original
+        // large impact.
         const shakeIntensity = (0.0015 + size * 0.001) * (this.mode === 'HOME' ? 0.2 : 1.0);
-        if (!silent) screenShake(this, 75 + size * 50, shakeIntensity);
+        if (!silent) {
+            const duration = 75 + size * 50;
+            if (b.type === 'town_hall') townHallScreenShake(this, duration, shakeIntensity);
+            else screenShake(this, duration, shakeIntensity);
+        }
 
         // Initial flash
         if (!silent) this.trackBattleFx(PixelFx.flash(this, pos.x, pos.y - 20, { r: 10 * size, color: 0xffffcc, alpha: 0.8, scaleTo: 2, life: 100, depth: 30001 }));

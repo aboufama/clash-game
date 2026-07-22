@@ -2,20 +2,28 @@ import Phaser from 'phaser';
 import { pixelEllipse, PIXEL_CELL } from '../render/PixelDraw';
 
 /**
- * Owner-tuned global screen shake level. EVERY camera shake in the game
- * routes through `screenShake` below, which multiplies its intensity by
- * this — per-event proportions stay intact (a town-hall collapse still
- * out-shakes a cannon hit); only the overall strength scales.
+ * Owner-tuned ordinary screen-shake level. Every routine combat shake routes
+ * through `screenShake` below, keeping per-event proportions intact while
+ * making the camera response compact and subtle.
  */
-export const SHAKE_SCALE = 0.6;
+export const SHAKE_SCALE = 0.3;
 
-/**
- * The single screen-shake entry point — never call `cam.shake` directly.
- * Same signature as `Camera.shake` (duration ms, intensity, force), with
- * the intensity scaled by the global `SHAKE_SCALE`.
- */
-export function screenShake(scene: Phaser.Scene, durationMs: number, intensity: number, force?: boolean) {
-    scene.cameras.main.shake(durationMs, intensity * SHAKE_SCALE, force);
+/** Town Hall collapse is the one deliberately large, preserved impact. */
+export const TOWN_HALL_SHAKE_SCALE = 0.6;
+
+/** The sole Phaser camera-shake boundary; callers choose an authored profile. */
+function applyScreenShake(scene: Phaser.Scene, durationMs: number, intensity: number, scale: number, force: boolean) {
+    scene.cameras.main.shake(durationMs, intensity * scale, force);
+}
+
+/** Routine combat profile: same event signature, globally reduced intensity. */
+export function screenShake(scene: Phaser.Scene, durationMs: number, intensity: number) {
+    applyScreenShake(scene, durationMs, intensity, SHAKE_SCALE, false);
+}
+
+/** Preserve the marquee Town Hall drop and replace any minor shake in flight. */
+export function townHallScreenShake(scene: Phaser.Scene, durationMs: number, intensity: number) {
+    applyScreenShake(scene, durationMs, intensity, TOWN_HALL_SHAKE_SCALE, true);
 }
 
 /**

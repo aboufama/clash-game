@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 const battleResultsModalUrl = new URL('../src/components/BattleResultsModal.tsx', import.meta.url)
-const [app, appCss, notifications, backend, gameManager, scene, inputController, worldMap, villageLife, villageBubbles] = await Promise.all([
+const [app, appCss, notifications, backend, gameManager, scene, inputController, worldMap, villageLife, villageBubbles, pixelFx] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/NotificationsPanel.tsx', import.meta.url), 'utf8'),
@@ -13,7 +13,8 @@ const [app, appCss, notifications, backend, gameManager, scene, inputController,
   readFile(new URL('../src/game/scenes/controllers/SceneInputController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/systems/WorldMapSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/systems/VillageLifeSystem.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/game/systems/VillageBubbles.ts', import.meta.url), 'utf8')
+  readFile(new URL('../src/game/systems/VillageBubbles.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/systems/PixelFx.ts', import.meta.url), 'utf8')
 ])
 
 assert.equal(existsSync(battleResultsModalUrl), false,
@@ -184,6 +185,60 @@ const combatAdapter = scene.slice(
   scene.indexOf('private updateCombat('),
   scene.indexOf('private shootMortarAt(')
 )
+
+// Ordinary combat movement is exactly half the former 0.6 profile. The sole
+// exception is a named Town Hall collapse helper which force-replaces any
+// minor shake already in flight; ordinary callers cannot request that power.
+const ordinaryShakeScale = Number(pixelFx.match(
+  /export\s+const\s+SHAKE_SCALE\s*=\s*([0-9.]+)\s*;/
+)?.[1])
+const townHallShakeScale = Number(pixelFx.match(
+  /export\s+const\s+TOWN_HALL_SHAKE_SCALE\s*=\s*([0-9.]+)\s*;/
+)?.[1])
+assert.equal(ordinaryShakeScale, 0.3,
+  'Ordinary screen shake must stay at the exact 0.3 half-strength profile')
+assert.equal(townHallShakeScale, 0.6,
+  'Town Hall collapse must retain the prior 0.6 cinematic profile')
+assert.equal(ordinaryShakeScale, townHallShakeScale * 0.5,
+  'Ordinary screen shake must remain exactly 50% of the Town Hall drop')
+
+const ordinaryShakeSignature = pixelFx.match(
+  /export\s+function\s+screenShake\s*\(([^)]*)\)/
+)?.[1] ?? ''
+const townHallShakeSignature = pixelFx.match(
+  /export\s+function\s+townHallScreenShake\s*\(([^)]*)\)/
+)?.[1] ?? ''
+assert.equal(ordinaryShakeSignature.split(',').length, 3,
+  'screenShake must expose only scene, duration, and intensity')
+assert.equal(townHallShakeSignature.split(',').length, 3,
+  'townHallScreenShake must not expose a generic force/profile override')
+assert.doesNotMatch(ordinaryShakeSignature, /\bforce\b/,
+  'Ordinary screen shake must not expose force replacement')
+assert.doesNotMatch(townHallShakeSignature, /\bforce\b/,
+  'Town Hall force replacement must not be caller-optional')
+assert.match(pixelFx,
+  /export\s+function\s+screenShake\s*\([^)]*\)\s*\{[^}]*applyScreenShake\([^)]*\bSHAKE_SCALE\s*,\s*false\s*\)[^}]*\}/,
+  'Ordinary screen shake must explicitly preserve any shake already in flight')
+assert.match(pixelFx,
+  /export\s+function\s+townHallScreenShake\s*\([^)]*\)\s*\{[^}]*applyScreenShake\([^)]*\bTOWN_HALL_SHAKE_SCALE\s*,\s*true\s*\)[^}]*\}/,
+  'Town Hall collapse must force-replace minor shake with the large profile')
+assert.equal((pixelFx.match(/\.cameras\.main\.shake\s*\(/g) ?? []).length, 1,
+  'PixelFx must retain one centralized Phaser camera-shake boundary')
+assert.doesNotMatch(scene, /\.shake\s*\(/,
+  'MainScene must not bypass the centralized screen-shake policy')
+assert.doesNotMatch(scene, /\bscreenShake\s*\([^)]*,\s*true\s*\)/,
+  'Ordinary screen shake must never force-replace the Town Hall marquee impact')
+
+const destroyBuilding = scene.slice(
+  scene.indexOf('private destroyBuilding('),
+  scene.indexOf('private hpWeightedDestructionPct(', scene.indexOf('private destroyBuilding('))
+)
+assert.match(destroyBuilding,
+  /if\s*\(b\.type\s*===\s*'town_hall'\)\s*townHallScreenShake\([^;]+\);\s*else\s+screenShake\(/,
+  'Building destruction must reserve the large helper exclusively for the Town Hall')
+assert.equal((scene.match(/\btownHallScreenShake\s*\(/g) ?? []).length, 1,
+  'townHallScreenShake must have exactly one production callsite')
+
 assert.match(combatAdapter, /else if \(\(stats\.chainCount \?\? 0\) > 0\)/,
   'chain presentation must dispatch from declarative stats instead of troop ids')
 assert.match(combatAdapter, /else if \(stats\.range > 1\)[\s\S]*?showGenericRangedAttack/,
