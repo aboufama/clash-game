@@ -3,15 +3,17 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 const battleResultsModalUrl = new URL('../src/components/BattleResultsModal.tsx', import.meta.url)
-const [app, appCss, notifications, backend, gameManager, scene, worldMap, villageLife] = await Promise.all([
+const [app, appCss, notifications, backend, gameManager, scene, inputController, worldMap, villageLife, villageBubbles] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/NotificationsPanel.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/backend/GameBackend.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/GameManager.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/scenes/MainScene.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/scenes/controllers/SceneInputController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/game/systems/WorldMapSystem.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/game/systems/VillageLifeSystem.ts', import.meta.url), 'utf8')
+  readFile(new URL('../src/game/systems/VillageLifeSystem.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/game/systems/VillageBubbles.ts', import.meta.url), 'utf8')
 ])
 
 assert.equal(existsSync(battleResultsModalUrl), false,
@@ -129,8 +131,27 @@ assert.equal((scene.match(/const loaded = await this\.generateFindMatchVillage\(
   'FIND MATCH and NEXT must all use the shared loader (session state carries the exclusions)')
 assert.equal((scene.match(/this\.resetMatchmakeSession\(\);/g) ?? []).length, 2,
   'Both initial FIND MATCH commands must reset the cycling session back to players')
-assert.match(scene, /enemy\?\.isBot \? '  ·  BOT' : '  ·  PLAYER'/,
-  'Server-issued raid targets must be labeled PLAYER or BOT in the village banner')
+assert.match(scene, /enemy\?\.isBot \? ' · BOT' : ' · PLAYER'/,
+  'Server-issued raid targets must be labeled PLAYER or BOT in the Town Hall tooltip')
+assert.doesNotMatch(scene, /fontFamily: 'Outfit|setAngle\(-26\.5\)/,
+  'Enemy identity must not return to the angled lawn text presentation')
+assert.match(scene, /key: 'enemy-village-name'[\s\S]*?townHallApexLift\(hall\.level \?\? 1\)[\s\S]*?visibleModes: \['ATTACK', 'REPLAY'\]/,
+  'Enemy identity must use the sticky world-anchored tooltip above the Town Hall')
+assert.match(scene, /owner === 'PLAYER' && this\.mode === 'ATTACK' && !this\.isScouting[\s\S]*?this\.setVillageNameVisible\(false\)/,
+  'The first real troop deployment must dismiss the Town Hall tooltip')
+assert.match(villageBubbles, /visibleModes\?: readonly GameMode\[\][\s\S]*?live\.spec\.visibleModes\?\.includes\(this\.scene\.mode\)/,
+  'Village bubbles must explicitly opt into visibility outside HOME mode')
+
+const pointerDownHandler = inputController.slice(
+  inputController.indexOf('onPointerDown(pointer:'),
+  inputController.indexOf('async onPointerUp(pointer:')
+)
+assert.match(pointerDownHandler, /!this\.startedOnGameCanvas\(pointer\)[\s\S]*?this\.resetPointerGameplayState\(\);[\s\S]*?return;/,
+  'DOM-origin pointer downs must be rejected before deployment starts')
+assert.match(inputController, /pointer\.downElement === this\.scene\.game\.canvas/,
+  'The native pointer-down target must define the DOM/gameplay input boundary')
+assert.match(inputController, /!pointer\.isDown \|\| this\.isPointerSuppressed\(pointer\) \|\| !this\.startedOnGameCanvas\(pointer\)/,
+  'Clock-driven hold deployment must reject gestures that began on DOM UI')
 
 const pendingStartParser = backend.slice(
   backend.indexOf('function parsePendingBattleStart('),

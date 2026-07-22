@@ -4,10 +4,11 @@ import { BUILDING_DEFINITIONS, type BuildingType } from '../config/GameDefinitio
 import { armySpaceUsed, campCapacityOf } from '../config/Economy';
 import { gameManager } from '../GameManager';
 import type { SerializedBuilding } from '../data/Models';
+import type { GameMode } from '../types/GameMode';
 import { cameraDisplayScale } from '../utils/DisplayResolution';
 
 interface BubbleHost extends Phaser.Scene {
-    mode: string;
+    mode: GameMode;
     buildings: Array<{ type: string; gridX: number; gridY: number; health: number; owner?: string }>;
     dayNight?: { nightFactor(): number };
 }
@@ -23,6 +24,8 @@ export interface VillageBubbleSpec {
     anchor?: { x: number; y: number };
     /** Auto-dismiss after this long; 0 = stays until cleared. Default 8s. */
     ttlMs?: number;
+    /** Modes where this bubble may be shown. Existing village reports default to HOME. */
+    visibleModes?: readonly GameMode[];
     action?: { label: string; run: () => void };
     closable?: boolean;
     /** A pixel icon class ('build-icon', 'sym sym-shield', ...) shown before the text. */
@@ -97,6 +100,7 @@ export class VillageBubbles {
 
         const el = document.createElement('div');
         el.className = `village-bubble ${spec.kind === 'danger' ? 'danger' : ''}`;
+        el.dataset.bubbleKey = spec.key;
         const row = document.createElement('span');
         row.className = 'vb-row';
         let icon: HTMLSpanElement | null = null;
@@ -211,11 +215,12 @@ export class VillageBubbles {
      */
     reposition(cam: Phaser.Cameras.Scene2D.Camera) {
         if (this.bubbles.size === 0) return;
-        const home = this.scene.mode === 'HOME';
         // Bubbles sharing a roof stack upward instead of overlapping.
         const stackHeight = new Map<string, number>();
         for (const live of this.bubbles.values()) {
-            if (!home) {
+            const modeVisible = live.spec.visibleModes?.includes(this.scene.mode)
+                ?? this.scene.mode === 'HOME';
+            if (!modeVisible) {
                 live.el.style.display = 'none';
                 continue;
             }

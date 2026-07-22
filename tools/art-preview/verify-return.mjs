@@ -157,7 +157,7 @@ try {
       modeDuringMarch: marching?.mode,
       endCenter: { x: Math.round(cam.worldView.centerX), y: Math.round(cam.worldView.centerY) },
       endGround: s['groundPaletteKey'],
-      labelVisible: s.villageNameLabel.visible,
+      labelVisible: s.villageBubbles.has('enemy-village-name'),
       platesAtEnd: plates,
       focusAtEnd: Boolean(s.worldMap['focusPlot'])
     }

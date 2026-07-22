@@ -265,6 +265,20 @@ export class SceneInputController {
         return pointer === input.mousePointer || pointer === input.pointer1;
     }
 
+    /** Phaser deliberately mirrors pointer downs from the whole browser
+     *  window into the scene so an off-canvas release cannot leave a held
+     *  pointer stuck. The native down target is therefore the authoritative
+     *  boundary between a world gesture and React/DOM UI. */
+    private startedOnGameCanvas(pointer: Phaser.Input.Pointer): boolean {
+        return pointer.downElement === this.scene.game.canvas;
+    }
+
+    /** A canvas gesture released over DOM UI is finished, but it is not a
+     *  world click/drop. Clear every hold/drag latch before returning. */
+    private endedOnGameCanvas(pointer: Phaser.Input.Pointer): boolean {
+        return pointer.upElement === this.scene.game.canvas;
+    }
+
     /** True while gameplay pointer events must be ignored: mid-pinch, extra
      *  fingers, and the tail of a multi-touch gesture (until all fingers up). */
     private isPointerSuppressed(pointer: Phaser.Input.Pointer): boolean {
@@ -378,6 +392,10 @@ export class SceneInputController {
 
     onPointerDown(pointer: Phaser.Input.Pointer) {
         if (this.isPointerSuppressed(pointer)) return;
+        if (!this.startedOnGameCanvas(pointer)) {
+            this.resetPointerGameplayState();
+            return;
+        }
 
         const scene = this.scene;
         if (pointer.button === 0 && scene.selectedBuildingType === 'wall' && !scene.worldMap.inBattleFrame()) {
@@ -445,6 +463,10 @@ export class SceneInputController {
 
     async onPointerUp(pointer: Phaser.Input.Pointer) {
         if (this.isPointerSuppressed(pointer)) return;
+        if (!this.startedOnGameCanvas(pointer) || !this.endedOnGameCanvas(pointer)) {
+            this.resetPointerGameplayState();
+            return;
+        }
 
         this.lastWallDragTile = null;
 
@@ -756,7 +778,7 @@ export class SceneInputController {
         const scene = this.scene;
         if (scene.mode !== 'ATTACK' || scene.isScouting) return;
         const pointer = this.getGameplayPointer();
-        if (!pointer.isDown || this.isPointerSuppressed(pointer)) return;
+        if (!pointer.isDown || this.isPointerSuppressed(pointer) || !this.startedOnGameCanvas(pointer)) return;
 
         const now = scene.time.now;
         const worldPoint = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
@@ -819,6 +841,9 @@ export class SceneInputController {
 
     onPointerMove(pointer: Phaser.Input.Pointer) {
         if (this.isPointerSuppressed(pointer)) return;
+        // A drag that began on a DOM control stays UI-owned even if it later
+        // crosses onto the canvas while still held.
+        if (pointer.isDown && !this.startedOnGameCanvas(pointer)) return;
 
         const scene = this.scene;
         // 1. Calculate common coordinate data immediately to avoid redundancy and shadowing

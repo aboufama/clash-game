@@ -95,7 +95,7 @@ try {
       nightStrength: Math.round(s.dayNight['strength'] * 100) / 100,
       rainShown: Math.round(s.weather['shownIntensity'] * 100) / 100,
       platesVisible: plates.filter(p => p.style.display !== 'none').length,
-      nameLabelVisible: s.villageNameLabel.visible,
+      nameLabelVisible: s.villageBubbles.has('enemy-village-name'),
       postcards: s.worldMap['views'].size
     }
   })
@@ -127,7 +127,7 @@ try {
   await sleep(2500)
   const homeState = await page.evaluate(() => {
     const s = window.__clashGame.scene.keys.MainScene
-    return { mode: s.mode, groundKey: s['groundPaletteKey'], label: s.villageNameLabel.visible, battleInPlace: s.battleInPlace }
+    return { mode: s.mode, groundKey: s['groundPaletteKey'], label: s.villageBubbles.has('enemy-village-name'), battleInPlace: s.battleInPlace }
   })
   const kinds = await page.evaluate(() => {
     const wm = window.__clashGame.scene.keys.MainScene.worldMap

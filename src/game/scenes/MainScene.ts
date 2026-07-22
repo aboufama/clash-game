@@ -268,7 +268,9 @@ export class MainScene extends Phaser.Scene {
     /** Recorded replays play back at a brisk fixed speed. */
     private readonly REPLAY_SPEED = 1.6;
 
-    public villageNameLabel!: Phaser.GameObjects.Text;
+    /** Sticky Town Hall tooltip is present only while inspecting a foreign
+     *  village; the first real deployment clears it. */
+    private villageNameVisible = false;
     public attackModeSelectedBuilding: PlacedBuilding | null = null;
     /** The range ring's infinite pulse tween — killed on reselect/hide
      *  (destroying the graphics alone leaves the tween running forever). */
@@ -986,10 +988,6 @@ export class MainScene extends Phaser.Scene {
         cam.setZoom(toBackingZoom(defaultZoom));
         cam.centerOn(pos.x, pos.y);
         this.hasUserMovedCamera = false;
-        // The nameplate's on-screen clamp depends on the final framing, and
-        // updateVillageName often runs before this recenter — lay it out
-        // again now that scroll/zoom are settled.
-        this.layoutVillageNameLabel();
     }
 
     /**
@@ -2145,25 +2143,6 @@ export class MainScene extends Phaser.Scene {
             }
         }
 
-        // Add username label in the left corner (Grid 0, mapSize)
-        const leftCorner = IsoUtils.cartToIso(0, this.mapSize);
-
-        this.villageNameLabel = this.add.text(leftCorner.x + 20, leftCorner.y - 15, '', {
-            fontFamily: 'Outfit, Arial Black, sans-serif',
-            fontSize: '28px',
-            fontStyle: 'bold',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 6
-        })
-            .setOrigin(0, 1)
-            .setAlpha(1.0) // Full brightness
-            // Above the world-map road band (-450) and roadside props (-440),
-            // below all plot content (ground RT at 0). At -500 it TIED the
-            // void backdrop and sat under the roads painted next to the lawn.
-            .setDepth(-430)
-            .setAngle(-26.5); // Align with isometric left axis
-
         this.updateVillageName();
     }
 
@@ -2490,29 +2469,33 @@ export class MainScene extends Phaser.Scene {
         return assigned;
     }
 
-    /** Renames arrive from the App; the label itself never shows the OWN
-     * village's name (owner call), so a rename only needs the home label
-     * to stay hidden. Foreign titles come from updateVillageName. */
+    /** Renames arrive from the App; the tooltip never shows over the OWN
+     * village. Foreign titles come from the defender snapshot. */
     public updateUsername(_name: string) {
-        if (!this.villageNameLabel) return;
-
         if (this.mode === 'HOME') {
-            // No title floats over your OWN village — you know whose it is.
-            // The label exists to identify TARGETS (attack, scout, replay).
-            this.villageNameLabel.setVisible(false);
-        } else {
-            this.villageNameLabel.setText(`ENEMY VILLAGE`);
+            this.villageNameVisible = false;
+            this.villageBubbles?.clear('enemy-village-name');
+            return;
         }
+        this.updateVillageName();
     }
 
     private updateVillageName() {
-        if (!this.villageNameLabel) return;
-
-        if (this.mode === 'HOME') {
-            // Own village: never titled (see updateUsername).
-            this.villageNameLabel.setVisible(false);
+        if (!this.villageBubbles) return;
+        if (this.mode === 'HOME' || !this.villageNameVisible) {
+            // Own village and live combat never wear a title.
+            this.villageBubbles.clear('enemy-village-name');
             return;
         }
+
+        const hall = this.buildings.find(building =>
+            building.type === 'town_hall' && building.owner === 'ENEMY' && building.health > 0
+        );
+        if (!hall) {
+            this.villageBubbles.clear('enemy-village-name');
+            return;
+        }
+
         // The enemy's username identifies the target of an attack/scout.
         const name = this.currentEnemyWorld?.username || 'ENEMY';
         // Server-issued raid targets carry a PLAYER/BOT tag so the FIND
@@ -2521,60 +2504,36 @@ export class MainScene extends Phaser.Scene {
         const enemy = this.currentEnemyWorld;
         const serverIssued = Boolean(enemy && (enemy.attackId || enemy.botRaidId));
         const kindTag = this.mode === 'ATTACK' && serverIssued
-            ? (enemy?.isBot ? '  ·  BOT' : '  ·  PLAYER')
+            ? (enemy?.isBot ? ' · BOT' : ' · PLAYER')
             : '';
-        this.villageNameLabel.setText(`${name.toUpperCase()}'S VILLAGE${kindTag}`);
-        this.layoutVillageNameLabel();
-    }
-
-    /**
-     * Keep the angled nameplate on screen: its home anchor is the plot's
-     * west corner, but the default scout/attack/replay framing (centerCamera)
-     * can put that corner outside the viewport — the ribbon then reads
-     * "…9'S VILLAGE" cut at x=0 for the whole session. When that happens,
-     * slide the label ALONG its -26.5° edge (toward the north corner) just
-     * far enough to clear the camera's left edge. It stays a world-anchored
-     * signpost on the same edge line — only its perch moves.
-     */
-    private layoutVillageNameLabel() {
-        const label = this.villageNameLabel;
-        if (!label) return;
-        const corner = IsoUtils.cartToIso(0, this.mapSize);
-        const baseX = corner.x + 20;
-        const baseY = corner.y - 15;
-        label.setPosition(baseX, baseY);
-        if (!label.visible) return;
-
-        // worldView is stale until the camera's next preRender, so derive
-        // the view from the just-set scroll/zoom instead.
-        const cam = this.cameras.main;
-        const viewLeft = cam.scrollX + (cam.width - cam.width / cam.zoom) / 2;
-        const margin = 16;
-        const bounds = label.getBounds();
-        const deficit = (viewLeft + margin) - bounds.x;
-        if (deficit <= 0) return;
-
-        // Unit step along the NW edge (one grid tile toward (0,0)):
-        // iso delta (+TILE_W/2, -TILE_H/2) — the label's own -26.5° line.
-        const step = IsoUtils.cartToIso(0, this.mapSize - 1);
-        const dx = step.x - corner.x;
-        const dy = step.y - corner.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const ux = dx / len;
-        const uy = dy / len;
-        // Never slide past the north corner: keep the whole ribbon on the edge.
-        const edgeLen = this.mapSize * len;
-        const labelAlongEdge = bounds.width / Math.max(0.0001, ux);
-        const maxSlide = Math.max(0, edgeLen - labelAlongEdge - 30);
-        const slide = Math.min(deficit / ux, maxSlide);
-        label.setPosition(baseX + ux * slide, baseY + uy * slide);
+        const definition = BUILDINGS.town_hall;
+        const apex = IsoUtils.cartToIso(
+            hall.gridX + definition.width / 2,
+            hall.gridY + definition.height / 2
+        );
+        this.villageBubbles.raise({
+            key: 'enemy-village-name',
+            text: `${name}'s village${kindTag}`,
+            // Clear the hall's 32px standard so the bubble reads as a
+            // tooltip over the landmark rather than cloth pinned to it.
+            anchor: {
+                x: apex.x,
+                y: apex.y - townHallApexLift(hall.level ?? 1) - 38
+            },
+            ttlMs: 0,
+            visibleModes: ['ATTACK', 'REPLAY']
+        });
     }
 
     private setVillageNameVisible(visible: boolean) {
-        if (!this.villageNameLabel) return;
         // The home village never wears a nameplate; only foreign villages
         // (attack, scout, replay targets) are titled.
-        this.villageNameLabel.setVisible(visible && this.mode !== 'HOME');
+        this.villageNameVisible = visible && this.mode !== 'HOME';
+        if (!this.villageNameVisible) {
+            this.villageBubbles?.clear('enemy-village-name');
+            return;
+        }
+        this.updateVillageName();
     }
 
     /** The four plot-corner tiles get their outer corner rounded off — the
