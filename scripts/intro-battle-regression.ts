@@ -63,6 +63,10 @@ const mainSource = readFileSync(new URL('../src/main.tsx', import.meta.url), 'ut
 const scrollSource = readFileSync(new URL('../src/components/IntroBattleScroll.tsx', import.meta.url), 'utf8');
 const sceneSource = readFileSync(new URL('../src/game/scenes/MainScene.ts', import.meta.url), 'utf8');
 const packageSource = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
+const scrollStyles = appStyles.slice(
+  appStyles.indexOf('.intro-battle-overlay'),
+  appStyles.indexOf('.intro-battle-demo')
+);
 assert.match(appSource, /beginVillageLoadCloud\(4\);[\s\S]*?setNeedsAccount\(false\);/,
   'account admission must close clouds before removing the auth gate');
 assert.match(appSource, /introBattleRequiredRef\.current\) \{[\s\S]*?setShowCloudOverlay\(true\);/,
@@ -99,6 +103,12 @@ assert.doesNotMatch(appStyles, /@keyframes intro-scroll-unfurl/,
   'the old scale-up reveal must not return');
 assert.doesNotMatch(appStyles, /#75451f 0 8px/,
   'the dotted rules above and below the letter copy must stay removed');
+assert.match(scrollStyles, /steps\(28, end\)/,
+  'the physical unfurl must advance on an intentional pixel-art cadence');
+assert.match(scrollStyles, /intro-scroll-roll::before[\s\S]*?clip-path:\s*polygon/,
+  'the roller end caps must use hard pixel facets instead of smooth ovals');
+assert.doesNotMatch(scrollStyles, /border-radius|blur\(/,
+  'the scroll assembly must not restore anti-aliased rounded chrome or blurred shadows');
 assert.match(appStyles, /--title-font:\s*'Jacquard 24'/,
   'authored title portions must share the Jacquard 24 font token');
 assert.match(appSource, /@fontsource\/jacquard-24\/latin\.css/,

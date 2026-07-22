@@ -921,7 +921,10 @@ button:disabled {
         max(38px, env(safe-area-inset-bottom))
         max(24px, env(safe-area-inset-left));
     box-sizing: border-box;
-    background: radial-gradient(circle at 50% 48%, rgba(43, 29, 12, 0.08), rgba(5, 8, 13, 0.32));
+    background:
+        linear-gradient(90deg, rgba(5, 8, 13, 0.22) 0 50%, rgba(12, 17, 22, 0.26) 50% 100%) 0 0 / 8px 8px,
+        linear-gradient(0deg, rgba(5, 8, 13, 0.12) 0 50%, transparent 50% 100%) 0 0 / 8px 8px,
+        rgba(5, 8, 13, 0.28);
     pointer-events: auto;
 }
 
@@ -963,20 +966,21 @@ button:disabled {
     perspective: 1100px;
     transform-style: preserve-3d;
     isolation: isolate;
-    animation: intro-scroll-stage var(--intro-scroll-duration) cubic-bezier(0.18, 0.72, 0.18, 1) both;
+    animation: intro-scroll-stage var(--intro-scroll-duration) steps(28, end) both;
 }
 
 .intro-battle-scroll--unfurl::before {
     content: '';
     position: absolute;
     z-index: -2;
-    inset: 9% -7% -12%;
-    border-radius: 48%;
-    background: rgba(6, 8, 10, 0.58);
-    filter: blur(24px);
-    transform: translateY(30px) translateZ(-90px);
+    inset: 7% -5% -10%;
+    background:
+        linear-gradient(90deg, rgba(4, 5, 7, 0.42) 0 50%, rgba(4, 5, 7, 0.26) 50% 100%) 0 0 / 8px 8px,
+        rgba(4, 5, 7, 0.34);
+    clip-path: polygon(4% 0, 96% 0, 100% 5%, 100% 95%, 96% 100%, 4% 100%, 0 95%, 0 5%);
+    transform: translate(12px, 20px) translateZ(-90px);
     pointer-events: none;
-    animation: intro-scroll-shadow var(--intro-scroll-duration) ease-out both;
+    animation: intro-scroll-shadow var(--intro-scroll-duration) steps(28, end) both;
 }
 
 .intro-scroll-paper-clip {
@@ -990,7 +994,7 @@ button:disabled {
     clip-path: inset(0);
     scrollbar-color: rgba(91, 48, 20, 0.72) transparent;
     scrollbar-width: thin;
-    animation: intro-paper-reveal var(--intro-scroll-duration) cubic-bezier(0.2, 0.68, 0.12, 1) both;
+    animation: intro-paper-reveal var(--intro-scroll-duration) steps(28, end) both;
 }
 
 .intro-scroll-paper {
@@ -1002,20 +1006,25 @@ button:disabled {
     color: #3a2414;
     text-align: center;
     background:
-        radial-gradient(ellipse at 24% 12%, rgba(255, 235, 171, 0.34), transparent 29%),
-        radial-gradient(ellipse at 78% 82%, rgba(124, 71, 24, 0.08), transparent 30%),
-        linear-gradient(90deg, rgba(84, 45, 15, 0.2), transparent 7%, transparent 92%, rgba(84, 45, 15, 0.22)),
-        repeating-linear-gradient(0deg, rgba(88, 52, 18, 0.04) 0 1px, transparent 1px 6px),
+        linear-gradient(90deg,
+            rgba(92, 49, 16, 0.28) 0 4px,
+            rgba(157, 94, 35, 0.18) 4px 9px,
+            transparent 9px calc(100% - 10px),
+            rgba(134, 75, 27, 0.2) calc(100% - 10px) calc(100% - 4px),
+            rgba(82, 41, 13, 0.3) calc(100% - 4px) 100%),
+        repeating-linear-gradient(0deg,
+            rgba(88, 52, 18, 0.08) 0 2px,
+            rgba(255, 231, 163, 0.04) 2px 4px,
+            transparent 4px 8px),
         #e8c982;
-    border: 2px solid #7b4722;
-    border-top-width: 3px;
-    border-bottom-width: 3px;
+    border: 4px solid #6b3b1c;
     box-shadow:
-        inset 11px 0 15px rgba(99, 54, 17, 0.13),
-        inset -13px 0 18px rgba(83, 43, 14, 0.15),
-        inset 0 14px 18px rgba(255, 230, 158, 0.28),
-        inset 0 -18px 22px rgba(92, 48, 17, 0.18),
-        0 18px 32px rgba(19, 10, 5, 0.42);
+        inset 8px 0 0 rgba(99, 54, 17, 0.12),
+        inset -8px 0 0 rgba(83, 43, 14, 0.14),
+        inset 0 8px 0 rgba(255, 230, 158, 0.2),
+        inset 0 -12px 0 rgba(92, 48, 17, 0.14),
+        6px 8px 0 rgba(19, 10, 5, 0.36);
+    image-rendering: pixelated;
 }
 
 .intro-scroll-paper::before {
@@ -1024,12 +1033,20 @@ button:disabled {
     z-index: 1;
     inset: 0;
     background:
-        linear-gradient(101deg, transparent 0 34%, rgba(255, 241, 194, 0.18) 47%, transparent 59%),
-        linear-gradient(90deg, rgba(65, 31, 9, 0.1), transparent 4%, transparent 96%, rgba(65, 31, 9, 0.12));
+        linear-gradient(90deg,
+            transparent 0 36%,
+            rgba(255, 241, 194, 0.08) 36% 40%,
+            rgba(255, 241, 194, 0.2) 40% 45%,
+            rgba(255, 241, 194, 0.1) 45% 49%,
+            transparent 49% 100%),
+        linear-gradient(90deg,
+            rgba(65, 31, 9, 0.1) 0 4px,
+            transparent 4px calc(100% - 4px),
+            rgba(65, 31, 9, 0.12) calc(100% - 4px) 100%);
     background-position: -360px 0, 0 0;
     background-repeat: no-repeat;
     pointer-events: none;
-    animation: intro-paper-light var(--intro-scroll-duration) ease-out both;
+    animation: intro-paper-light var(--intro-scroll-duration) steps(28, end) both;
 }
 
 .intro-scroll-paper::after {
@@ -1042,10 +1059,14 @@ button:disabled {
     height: 46px;
     opacity: 0;
     background:
-        linear-gradient(180deg, transparent 0%, rgba(255, 239, 181, 0.36) 34%, rgba(97, 50, 16, 0.22) 72%, transparent 100%);
-    filter: blur(3px);
+        linear-gradient(180deg,
+            transparent 0 8px,
+            rgba(255, 239, 181, 0.28) 8px 16px,
+            rgba(190, 127, 53, 0.18) 16px 25px,
+            rgba(97, 50, 16, 0.24) 25px 34px,
+            transparent 34px 100%);
     pointer-events: none;
-    animation: intro-paper-curl var(--intro-scroll-duration) cubic-bezier(0.2, 0.68, 0.12, 1) both;
+    animation: intro-paper-curl var(--intro-scroll-duration) steps(28, end) both;
 }
 
 .intro-scroll-ink {
@@ -1060,16 +1081,32 @@ button:disabled {
     right: -18px;
     height: 30px;
     border: 4px solid #4d2813;
-    border-radius: 50% / 38%;
+    clip-path: polygon(
+        8px 0, calc(100% - 8px) 0,
+        calc(100% - 8px) 4px, 100% 4px,
+        100% calc(100% - 4px), calc(100% - 8px) calc(100% - 4px),
+        calc(100% - 8px) 100%, 8px 100%,
+        8px calc(100% - 4px), 0 calc(100% - 4px),
+        0 4px, 8px 4px
+    );
     background:
-        linear-gradient(180deg, #5a2d14 0%, #a6662f 11%, #edc071 28%, #b77939 48%, #8f5429 68%, #4a2411 100%),
-        repeating-linear-gradient(90deg, rgba(52, 24, 9, 0.2) 0 5px, rgba(255, 221, 151, 0.09) 5px 8px, transparent 8px 15px);
+        repeating-linear-gradient(90deg,
+            rgba(52, 24, 9, 0.22) 0 4px,
+            rgba(255, 221, 151, 0.1) 4px 8px,
+            transparent 8px 16px),
+        linear-gradient(180deg,
+            #4c230f 0 4px,
+            #a6662f 4px 8px,
+            #edc071 8px 13px,
+            #b77939 13px 19px,
+            #7d421e 19px 25px,
+            #35170a 25px 100%);
     background-blend-mode: multiply, normal;
     box-shadow:
-        inset 0 3px 0 rgba(255, 222, 147, 0.55),
-        inset 0 -5px 0 rgba(46, 20, 8, 0.5),
-        0 8px 7px rgba(27, 13, 6, 0.54),
-        0 16px 22px rgba(20, 10, 5, 0.24);
+        inset 0 3px 0 #f2c776,
+        inset 0 -5px 0 #35180b,
+        4px 6px 0 rgba(27, 13, 6, 0.58),
+        8px 10px 0 rgba(20, 10, 5, 0.2);
     transform: translateZ(24px) rotateX(5deg);
     transform-style: preserve-3d;
     will-change: top, transform, background-position, box-shadow;
@@ -1083,12 +1120,28 @@ button:disabled {
     width: 34px;
     height: 43px;
     border: 3px solid #42200f;
-    border-radius: 50%;
     background:
-        radial-gradient(ellipse at 36% 30%, #f2cb80 0 9%, #ba7939 25%, #7a421f 48%, #3f1f0e 72%, #1e0e07 100%);
+        linear-gradient(135deg,
+            #f2cb80 0 16%,
+            #ba7939 16% 35%,
+            #7a421f 35% 58%,
+            #3f1f0e 58% 78%,
+            #1e0e07 78% 100%);
+    clip-path: polygon(
+        8px 0, calc(100% - 8px) 0,
+        calc(100% - 8px) 4px, calc(100% - 4px) 4px,
+        calc(100% - 4px) 8px, 100% 8px,
+        100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px),
+        calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px),
+        calc(100% - 8px) 100%, 8px 100%,
+        8px calc(100% - 4px), 4px calc(100% - 4px),
+        4px calc(100% - 8px), 0 calc(100% - 8px),
+        0 8px, 4px 8px,
+        4px 4px, 8px 4px
+    );
     box-shadow:
-        inset 3px 2px 0 rgba(255, 221, 143, 0.32),
-        2px 5px 6px rgba(23, 10, 4, 0.55);
+        inset 3px 3px 0 rgba(255, 221, 143, 0.3),
+        4px 5px 0 rgba(23, 10, 4, 0.56);
     transform: translateY(-50%) translateZ(3px);
 }
 
@@ -1097,12 +1150,12 @@ button:disabled {
 
 .intro-scroll-roll-top {
     top: -18px;
-    animation: intro-roll-top var(--intro-scroll-duration) cubic-bezier(0.18, 0.72, 0.18, 1) both;
+    animation: intro-roll-top var(--intro-scroll-duration) steps(28, end) both;
 }
 
 .intro-scroll-roll-bottom {
     top: calc(100% - 18px);
-    animation: intro-roll-bottom var(--intro-scroll-duration) cubic-bezier(0.18, 0.72, 0.18, 1) both;
+    animation: intro-roll-bottom var(--intro-scroll-duration) steps(28, end) both;
 }
 
 .intro-scroll-kicker {
@@ -1159,10 +1212,12 @@ button:disabled {
     font-weight: 900;
     letter-spacing: 1.4px;
     cursor: pointer;
-    background: rgba(109, 63, 28, 0.045);
+    background:
+        linear-gradient(90deg, rgba(109, 63, 28, 0.06) 0 50%, transparent 50% 100%) 0 0 / 8px 8px,
+        rgba(109, 63, 28, 0.03);
     border: 0;
     border-bottom: 3px solid #6e3f1f;
-    box-shadow: 0 2px 0 rgba(255, 229, 164, 0.65);
+    box-shadow: 0 3px 0 rgba(255, 229, 164, 0.65);
 }
 
 .intro-scroll-enter span,
@@ -1229,10 +1284,10 @@ button:disabled {
     0%, 6% {
         background-position: 0 0, 0 0;
         box-shadow:
-            inset 0 3px 0 rgba(255, 222, 147, 0.55),
-            inset 0 -5px 0 rgba(46, 20, 8, 0.5),
-            0 10px 8px rgba(27, 13, 6, 0.62),
-            0 18px 26px rgba(20, 10, 5, 0.34);
+            inset 0 3px 0 #f2c776,
+            inset 0 -5px 0 #35180b,
+            4px 8px 0 rgba(27, 13, 6, 0.62),
+            8px 12px 0 rgba(20, 10, 5, 0.24);
         transform: translateZ(27px) rotateX(24deg);
     }
     38% {
@@ -1256,10 +1311,10 @@ button:disabled {
         top: -12px;
         background-position: 0 0, 0 0;
         box-shadow:
-            inset 0 3px 0 rgba(255, 222, 147, 0.55),
-            inset 0 -5px 0 rgba(46, 20, 8, 0.5),
-            0 10px 9px rgba(27, 13, 6, 0.68),
-            0 19px 28px rgba(20, 10, 5, 0.38);
+            inset 0 3px 0 #f2c776,
+            inset 0 -5px 0 #35180b,
+            4px 8px 0 rgba(27, 13, 6, 0.68),
+            8px 13px 0 rgba(20, 10, 5, 0.28);
         transform: translateZ(29px) rotateX(29deg);
     }
     18% {
@@ -1294,10 +1349,10 @@ button:disabled {
         top: calc(100% - 18px);
         background-position: 0 0, 132px 0;
         box-shadow:
-            inset 0 3px 0 rgba(255, 222, 147, 0.55),
-            inset 0 -5px 0 rgba(46, 20, 8, 0.5),
-            0 8px 7px rgba(27, 13, 6, 0.54),
-            0 16px 22px rgba(20, 10, 5, 0.24);
+            inset 0 3px 0 #f2c776,
+            inset 0 -5px 0 #35180b,
+            4px 6px 0 rgba(27, 13, 6, 0.58),
+            8px 10px 0 rgba(20, 10, 5, 0.2);
         transform: translateZ(24px) rotateX(5deg);
     }
 }
@@ -1334,18 +1389,16 @@ button:disabled {
 
 @keyframes intro-scroll-shadow {
     0%, 6% {
-        opacity: 0.42;
-        filter: blur(14px);
-        transform: translateY(25px) translateZ(-90px);
+        opacity: 0.22;
+        transform: translate(8px, 12px) translateZ(-90px);
     }
     58% {
-        opacity: 0.68;
-        filter: blur(28px);
+        opacity: 0.42;
+        transform: translate(14px, 22px) translateZ(-90px);
     }
     100% {
-        opacity: 0.58;
-        filter: blur(24px);
-        transform: translateY(30px) translateZ(-90px);
+        opacity: 0.34;
+        transform: translate(12px, 20px) translateZ(-90px);
     }
 }
 
@@ -6280,29 +6333,7 @@ body {
     pointer-events: none;
 }
 
-/* --- replay theatre --- */
-.theatre-modal {
-    border-style: solid;
-    border-width: calc(var(--px) * 5);
-    border-image: var(--pxf-panel) 5 fill / calc(var(--px) * 5) stretch;
-    image-rendering: pixelated;
-    font-family: var(--ui-font);
-    color: var(--text-primary);
-    padding: calc(var(--px) * 3);
-    width: min(86vw, 560px);
-    max-height: 74vh;
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--px) * 3);
-}
-
-.theatre-list {
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--px) * 2);
-}
-
+/* Shared empty state for charting surfaces. */
 .theatre-empty {
     font-size: 9px;
     color: var(--text-secondary);
