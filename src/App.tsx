@@ -33,6 +33,7 @@ import { soundSystem } from './game/systems/SoundSystem';
 import { musicSystem } from './game/systems/MusicSystem';
 import type { MerchantOffer } from './game/systems/VillageLifeSystem';
 import { INTRO_BATTLE_ARMY, INTRO_BATTLE_ARMY_SPACE, INTRO_BATTLE_WORLD_ID } from './game/config/IntroBattle';
+import '@fontsource/jacquard-24/latin.css';
 import './App.css';
 
 // Initialize mobile support
@@ -2474,7 +2475,6 @@ function App() {
       {showIntroWorldLoadError && (
         <div className="intro-battle-overlay" role="presentation">
           <section className="intro-battle-scroll intro-load-error" role="alertdialog" aria-modal="true">
-            <div className="intro-scroll-seal" aria-hidden="true"><span className="sym sym-watch" /></div>
             <p className="intro-scroll-kicker">The Road Is Hidden</p>
             <h2>THE SUMMONS COULD NOT ARRIVE</h2>
             <p className="intro-scroll-copy">The village remains safely behind the clouds. Reconnect, then call for Sir Andre&apos;s messenger again.</p>

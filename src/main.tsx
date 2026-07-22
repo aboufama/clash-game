@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 
 const isAdminRoute = window.location.pathname.startsWith('/admin')
+const isIntroBattleDemoRoute = import.meta.env.DEV && window.location.pathname === '/dev/intro-battle'
 const favicon = document.querySelector<HTMLLinkElement>('#site-favicon')
 if (favicon) favicon.href = isAdminRoute ? '/admin-favicon.svg' : '/favicon.svg'
 
@@ -74,6 +75,8 @@ async function boot() {
   // /admin never imports App, Phaser, the player auth client, or pixel-kit.
   const surface: ReactNode = isAdminRoute
     ? await import('./admin/AdminPortal.tsx').then(module => <module.AdminPortal />)
+    : isIntroBattleDemoRoute
+      ? await import('./dev/IntroBattleDemo.tsx').then(module => <module.IntroBattleDemo />)
     : await Promise.all([import('./App.tsx'), import('./ui/pixelKit')]).then(([appModule, pixelKit]) => {
         // Game DOM chrome expects these variables before its first render.
         pixelKit.installPixelKit()

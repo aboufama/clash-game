@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "CLASH_ALLOW_GUESTS=1 CLASH_ALLOW_DEBUG_GRANTS=1 CLASH_ALLOW_WORLD_RESEED=1 vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:demo": "CLASH_ALLOW_GUESTS=1 CLASH_ALLOW_DEBUG_GRANTS=1 CLASH_ALLOW_WORLD_RESEED=1 vite --host 127.0.0.1 --port 5173 --strictPort --open '/dev/intro-battle'",
     "dev:game": "CLASH_ALLOW_GUESTS=1 CLASH_ALLOW_DEBUG_GRANTS=1 CLASH_ALLOW_WORLD_RESEED=1 vite --host 127.0.0.1 --port 5173 --strictPort --open /game",
     "build": "tsc -b && vite build && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/index.mjs",
@@ -47,6 +48,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@fontsource/jacquard-24": "^5.3.0",
     "@fontsource-variable/nunito-sans": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "class-variance-authority": "^0.7.1",

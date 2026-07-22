@@ -32,23 +32,17 @@ export function IntroBattleScroll({ onEnterBattle }: IntroBattleScrollProps) {
       >
         <span className="intro-scroll-roll intro-scroll-roll-top" aria-hidden="true" />
         <span className="intro-scroll-roll intro-scroll-roll-bottom" aria-hidden="true" />
-        <div className="intro-scroll-seal" aria-hidden="true"><span className="sym sym-swords" /></div>
         <p className="intro-scroll-kicker">A Royal Summons</p>
-        <h2 id="intro-battle-title">SIR ANDRE NEEDS YOU</h2>
-        <p id="intro-battle-copy" className="intro-scroll-copy">
-          The Iron Crown has sealed itself behind a max-level fortress. Sir Andre&apos;s
-          vanguard is waiting at the border. Take command and break the citadel.
-        </p>
-        <div className="intro-scroll-army" aria-label="Army supplied by Sir Andre">
-          <span>STONE GOLEMS</span>
-          <i aria-hidden="true">◆</i>
-          <span>DA VINCI TANKS</span>
-          <i aria-hidden="true">◆</i>
-          <span>TREBUCHETS</span>
-          <i aria-hidden="true">◆</i>
-          <span>SIEGE TOWERS</span>
+        <h2 id="intro-battle-title" className="display-title">Sir Andre Needs Your Help</h2>
+        <div id="intro-battle-copy" className="intro-scroll-copy">
+          <p>Chief,</p>
+          <p>
+            The Iron Crown has sealed itself behind a mighty fortress. My vanguard
+            waits at the border, but without a commander the citadel will not fall.
+          </p>
+          <p>Will you come to our aid and lead the attack?</p>
+          <p className="intro-scroll-closing">— Sir Andre</p>
         </div>
-        <p className="intro-scroll-order">Select a unit, then deploy it along the glowing village border.</p>
         <button
           ref={enterButtonRef}
           type="button"
@@ -59,9 +53,9 @@ export function IntroBattleScroll({ onEnterBattle }: IntroBattleScrollProps) {
             onEnterBattle();
           }}
         >
-          ENTER BATTLE
+          <span>Sign here to answer the call</span>
+          <strong>ATTACK</strong>
         </button>
-        <small>— By order of Sir Andre —</small>
       </section>
     </div>
   );

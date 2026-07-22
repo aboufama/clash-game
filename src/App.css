@@ -16,6 +16,8 @@
 :root {
     /* One font for all game text: slightly pixelated, still readable. */
     --ui-font: 'Pixelify Sans', 'Trebuchet MS', system-ui, sans-serif;
+    /* Shared display face for authored title portions. */
+    --title-font: 'Jacquard 24', Georgia, serif;
 
     /* Fantasy Color Palette */
     --ui-gold: #FFD700;
@@ -924,7 +926,7 @@ button:disabled {
     max-height: calc(100vh - 76px);
     overflow-y: auto;
     box-sizing: border-box;
-    padding: 54px 58px 48px;
+    padding: 62px 58px 52px;
     color: #3a2414;
     text-align: center;
     background:
@@ -982,24 +984,8 @@ button:disabled {
 .intro-scroll-roll-top { top: -12px; }
 .intro-scroll-roll-bottom { bottom: -12px; transform: scaleY(-1); }
 
-.intro-scroll-seal {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 13px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #f8d984;
-    background: #8d1f24;
-    border: 5px solid #541117;
-    box-shadow: inset 0 0 0 4px #b83836, 4px 4px 0 rgba(60, 31, 13, 0.4);
-    transform: rotate(-3deg);
-}
-
-.intro-scroll-seal .sym { transform: scale(1.7); filter: drop-shadow(2px 2px 0 #4a1115); }
-
 .intro-scroll-kicker {
-    margin: 0 0 7px;
+    margin: 0 0 10px;
     color: #8d1f24;
     font-size: 9px;
     font-weight: 900;
@@ -1010,78 +996,86 @@ button:disabled {
 .intro-battle-scroll h2 {
     margin: 0;
     color: #4b2814;
-    font-size: clamp(21px, 4vw, 31px);
-    line-height: 1.08;
-    letter-spacing: 1.2px;
+    font-family: var(--title-font);
+    font-size: clamp(36px, 6vw, 54px);
+    font-weight: 400;
+    line-height: 0.94;
+    letter-spacing: 0.4px;
     text-shadow: 2px 2px 0 rgba(255, 233, 173, 0.85);
+}
+
+.display-title {
+    font-family: var(--title-font);
+    font-weight: 400;
 }
 
 .intro-scroll-copy {
     max-width: 460px;
-    margin: 15px auto 16px;
-    font-size: 11px;
+    margin: 24px auto 20px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.62;
+    text-align: left;
+}
+
+.intro-scroll-copy p {
+    margin: 0 0 12px;
+}
+
+.intro-scroll-copy .intro-scroll-closing {
+    margin: 19px 8px 0 0;
     font-weight: 700;
-    line-height: 1.55;
-}
-
-.intro-scroll-army {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: 11px 13px;
-    color: #ffe6a5;
-    font-size: 8px;
-    font-weight: 900;
-    line-height: 1.3;
-    letter-spacing: 0.45px;
-    background: #50331d;
-    border: 3px solid #2c1a0d;
-    box-shadow: inset 0 0 0 2px #8e6232;
-}
-
-.intro-scroll-army i { color: #d9a448; font-style: normal; }
-
-.intro-scroll-order {
-    margin: 14px auto 13px;
-    color: #6b3c1d;
-    font-size: 9px;
-    font-weight: 900;
-    line-height: 1.45;
+    text-align: right;
 }
 
 .intro-scroll-enter {
-    min-width: min(300px, 100%);
-    padding: 12px 20px;
-    color: #fff1bd;
+    width: min(360px, 100%);
+    padding: 10px 12px 8px;
+    color: #4b2814;
     font-family: var(--ui-font);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 900;
-    letter-spacing: 0.8px;
-    text-shadow: 2px 2px 0 #2b100b;
+    letter-spacing: 1.4px;
     cursor: pointer;
-    background: #8d1f24;
-    border: 4px solid #4e1015;
-    box-shadow: inset 0 0 0 3px #c2443d, 4px 4px 0 #3a210f;
+    background: rgba(109, 63, 28, 0.045);
+    border: 0;
+    border-bottom: 3px solid #6e3f1f;
+    box-shadow: 0 2px 0 rgba(255, 229, 164, 0.65);
 }
 
-.intro-scroll-enter:hover,
-.intro-scroll-enter:focus-visible {
-    filter: brightness(1.13);
-    outline: 3px solid #fff0a5;
-    outline-offset: 3px;
-}
-
-.intro-scroll-enter:active { transform: translate(3px, 3px); box-shadow: inset 0 0 0 3px #c2443d, 1px 1px 0 #3a210f; }
-
-.intro-battle-scroll > small {
+.intro-scroll-enter span,
+.intro-scroll-enter strong {
     display: block;
-    margin-top: 12px;
+}
+
+.intro-scroll-enter span {
+    margin-bottom: 5px;
     color: #79502c;
     font-size: 8px;
-    font-weight: 800;
+    font-weight: 700;
+    letter-spacing: 0.6px;
 }
+
+.intro-scroll-enter strong {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 1.4px;
+}
+
+.intro-scroll-enter:hover {
+    color: #7b171b;
+    background: rgba(141, 31, 36, 0.08);
+}
+
+.intro-scroll-enter:focus-visible {
+    color: #7b171b;
+    background: rgba(141, 31, 36, 0.08);
+    border-bottom-color: #8d1f24;
+    outline: none;
+    box-shadow: 0 3px 0 #8d1f24;
+}
+
+.intro-scroll-enter:active { transform: translateY(2px); box-shadow: none; }
 
 @keyframes intro-scroll-unfurl {
     from { opacity: 0; transform: scaleY(0.18) scaleX(0.88); }
@@ -1091,12 +1085,71 @@ button:disabled {
 @media (max-width: 560px) {
     .intro-battle-overlay { padding: 30px 12px; }
     .intro-battle-scroll { padding: 48px 25px 42px; }
-    .intro-scroll-copy { font-size: 10px; }
-    .intro-scroll-army { gap: 5px; }
+    .intro-battle-scroll h2 { font-size: clamp(34px, 12vw, 47px); }
+    .intro-scroll-copy { font-size: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .intro-battle-scroll { animation: none; }
+}
+
+/* Fast, state-free tuning surface at /dev/intro-battle. It reuses the exact
+   production component without minting a guest account or booting Phaser. */
+.intro-battle-demo {
+    min-width: 100vw;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    color: #3a2414;
+    font-family: var(--ui-font);
+    background:
+        radial-gradient(circle at 50% 45%, rgba(173, 191, 197, 0.38), transparent 34%),
+        linear-gradient(180deg, #526777 0%, #243541 58%, #111b22 100%);
+}
+
+.intro-battle-demo-result {
+    width: min(430px, calc(100vw - 40px));
+    padding: 38px;
+    box-sizing: border-box;
+    color: #3a2414;
+    text-align: center;
+    background: #e8c982;
+    border: 5px solid #6e3f1f;
+    box-shadow: inset 0 0 0 4px #f8dfa0, 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+
+.intro-battle-demo-result h1 {
+    margin: 0 0 14px;
+    font-size: clamp(38px, 8vw, 56px);
+    line-height: 0.95;
+}
+
+.intro-battle-demo-result p {
+    margin: 0 0 22px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.intro-battle-demo-result button,
+.intro-battle-demo-result a {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+    color: #fff1bd;
+    font: 900 10px/1.2 var(--ui-font);
+    text-decoration: none;
+    cursor: pointer;
+    background: #8d1f24;
+    border: 3px solid #4e1015;
+}
+
+.intro-battle-demo-result a {
+    color: #4b2814;
+    background: transparent;
+    border-color: #6e3f1f;
 }
 
 .intro-battle-guide {

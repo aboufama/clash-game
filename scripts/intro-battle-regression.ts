@@ -57,8 +57,12 @@ assert.equal(INTRO_BATTLE_ARMY.physicianscart, 0);
 assert.ok(INTRO_BATTLE_ARMY_SPACE > 150, 'the tutorial army should feel larger than an ordinary camp cap');
 
 const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const appStyles = readFileSync(new URL('../src/App.css', import.meta.url), 'utf8');
 const hudSource = readFileSync(new URL('../src/components/Hud.tsx', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+const scrollSource = readFileSync(new URL('../src/components/IntroBattleScroll.tsx', import.meta.url), 'utf8');
 const sceneSource = readFileSync(new URL('../src/game/scenes/MainScene.ts', import.meta.url), 'utf8');
+const packageSource = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
 assert.match(appSource, /beginVillageLoadCloud\(4\);[\s\S]*?setNeedsAccount\(false\);/,
   'account admission must close clouds before removing the auth gate');
 assert.match(appSource, /introBattleRequiredRef\.current\) \{[\s\S]*?setShowCloudOverlay\(true\);/,
@@ -77,5 +81,17 @@ assert.match(sceneSource, /watchtowerPlacementTutorialActive = onboarding\.watch
   'the later Watchtower lesson must not swallow deployment input during the intro battle');
 assert.match(appSource, /gameManager\.setWatchtowerPlacementTutorial\(watchtowerTutorialActive\)/,
   'React must still arm the Watchtower placement lock after intro completion returns HOME');
+assert.doesNotMatch(scrollSource, /\bsym\b|<svg|<img|<i\b|◆/,
+  'the summons scroll must remain a text-only letter with no logos or icons');
+assert.match(scrollSource, /Sign here to answer the call[\s\S]*?<strong>ATTACK<\/strong>/,
+  'the letter must end with an explicit signature-style attack action');
+assert.match(appStyles, /--title-font:\s*'Jacquard 24'/,
+  'authored title portions must share the Jacquard 24 font token');
+assert.match(appSource, /@fontsource\/jacquard-24\/latin\.css/,
+  'the production game must bundle Jacquard 24 locally');
+assert.match(mainSource, /import\.meta\.env\.DEV[\s\S]*?\/dev\/intro-battle[\s\S]*?IntroBattleDemo/,
+  'the scroll tuning surface must be reachable only through the dev bootstrap');
+assert.match(packageSource, /"dev:demo"[\s\S]*?\/dev\/intro-battle/,
+  'the dev demo needs a one-command launch path');
 
 console.log(`intro battle regression passed (${world.buildings.length} max-level buildings, ${INTRO_BATTLE_ARMY_SPACE} housing supplied)`);
