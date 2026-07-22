@@ -331,18 +331,23 @@ test('normalized runtime materializes and persists known buildings at their curr
 
     now = new Date(now.getTime() + 1_000)
     const world = await service.getWorld(principal)
-    const migrated = world.buildings.find(building => building.type === 'barracks')
+    const migrated = world.buildings.find(building => building.id === 'overlevel-barracks-runtime')
     assert(migrated)
     assert.equal(migrated.level, 9)
     assert.equal(migrated.upgradingTo, undefined)
     assert.equal(migrated.upgradeStartedAt, undefined)
     assert.equal(migrated.upgradeEndsAt, undefined)
+    assert.equal(
+      world.buildings.find(building => building.type === 'barracks' && building.id !== migrated.id)?.level,
+      1,
+      'the shipped starter Mechanica Barracks remains distinct from the migrated fixture'
+    )
 
     await persistence.transaction(async tx => {
       const persisted = await tx.villages.get(principal.playerId)
       assert(persisted)
       const barracks = (persisted.buildings as Array<Record<string, unknown>>)
-        .find(building => building.type === 'barracks')
+        .find(building => building.id === 'overlevel-barracks-runtime')
       assert(barracks)
       assert.equal(barracks.level, 9)
       assert.equal(barracks.upgradingTo, undefined)
@@ -555,12 +560,17 @@ test('legacy runtime hydrates and persists known buildings at their current leve
     const migrator = new GameService(dataRoot)
     active = migrator
     const migrated = migrator.authenticate(session.token)
-    const barracks = migrated.buildings.find(building => building.type === 'barracks')
+    const barracks = migrated.buildings.find(building => building.id === 'overlevel-barracks-legacy')
     assert(barracks)
     assert.equal(barracks.level, 9)
     assert.equal(barracks.upgradingTo, undefined)
     assert.equal(barracks.upgradeStartedAt, undefined)
     assert.equal(barracks.upgradeEndsAt, undefined)
+    assert.equal(
+      migrated.buildings.find(building => building.type === 'barracks' && building.id !== barracks.id)?.level,
+      1,
+      'the shipped starter Mechanica Barracks remains distinct from the migrated fixture'
+    )
     assert.equal(migrated.revision, injected.revision + 1)
     assert.equal(migrated.layoutRevision, injected.layoutRevision + 1)
     assert.equal(migrated.appearanceRevision, injected.appearanceRevision + 1)
@@ -575,7 +585,7 @@ test('legacy runtime hydrates and persists known buildings at their current leve
     const reader = new GameService(dataRoot)
     active = reader
     const persisted = reader.authenticate(session.token)
-    const persistedBarracks = persisted.buildings.find(building => building.type === 'barracks')
+    const persistedBarracks = persisted.buildings.find(building => building.id === 'overlevel-barracks-legacy')
     assert(persistedBarracks)
     assert.equal(persistedBarracks.level, 9)
     assert.equal(persistedBarracks.upgradingTo, undefined)

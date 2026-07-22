@@ -13,6 +13,8 @@ interface BuildingShopModalProps {
   shopWallLevel: number;
   onClose: () => void;
   onSelect: (id: string) => void;
+  /** Locks the shop to one authored onboarding choice. */
+  tutorialRequiredType?: BuildingType | null;
 }
 
 /** Shop sections in display order, keyed by definition category. */
@@ -31,9 +33,13 @@ export function BuildingShopModal({
   resources,
   shopWallLevel,
   onClose,
-  onSelect
+  onSelect,
+  tutorialRequiredType = null
 }: BuildingShopModalProps) {
   if (!isOpen) return null;
+  const visibleBuildingList = tutorialRequiredType
+    ? buildingList.filter(building => building.id === tutorialRequiredType)
+    : buildingList;
 
   const renderCard = (b: BuildingDef) => {
     const placementLevel = b.id === 'wall' ? Math.max(1, shopWallLevel) : 1;
@@ -51,12 +57,15 @@ export function BuildingShopModal({
     const oreCost = charge.ore;
     const affordable = resources.gold >= cost;
     const oreAffordable = resources.ore >= oreCost;
-    const isDisabled = !affordable || !oreAffordable || maxed;
+    const tutorialTarget = tutorialRequiredType === b.id;
+    const isDisabled = !affordable || !oreAffordable || maxed
+      || (tutorialRequiredType !== null && !tutorialTarget);
 
     return (
       <div
         key={b.id}
-        className={`bshop-card ${isDisabled ? 'disabled' : ''} ${maxed ? 'maxed' : ''}`}
+        className={`bshop-card ${isDisabled ? 'disabled' : ''} ${maxed ? 'maxed' : ''} ${tutorialTarget ? 'watchtower-tutorial-target' : ''}`}
+        aria-disabled={isDisabled}
         onClick={() => {
           if (!isDisabled) {
             soundSystem.play('click');
@@ -90,15 +99,21 @@ export function BuildingShopModal({
   };
 
   return (
-    <div className={`modal-overlay ${showCloudOverlay ? 'hidden-ui' : ''}`} onClick={() => { soundSystem.play('uiClose'); onClose(); }}>
+    <div className={`modal-overlay ${showCloudOverlay ? 'hidden-ui' : ''}`} onClick={() => {
+      if (tutorialRequiredType) return;
+      soundSystem.play('uiClose');
+      onClose();
+    }}>
       <div className="training-modal bshop-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Building Shop</h2>
-          <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close"><span className="sym sym-close small" /></button>
+          <h2>{tutorialRequiredType ? 'Choose Your Watchtower' : 'Building Shop'}</h2>
+          {!tutorialRequiredType && (
+            <button className="pxf-close" onClick={() => { soundSystem.play('uiClose'); onClose(); }} aria-label="Close"><span className="sym sym-close small" /></button>
+          )}
         </div>
         <div className="modal-body bshop-body">
           {SHOP_SECTIONS.map(section => {
-            const items = buildingList.filter(b => section.categories.includes(b.category || 'other'));
+            const items = visibleBuildingList.filter(b => section.categories.includes(b.category || 'other'));
             if (items.length === 0) return null;
             return (
               <div className="bshop-section" key={section.label}>

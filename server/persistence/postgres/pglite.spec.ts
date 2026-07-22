@@ -20,6 +20,7 @@ import { allocationOrdinalOf, nextPlotVersion, persistentBotVillageIdAt } from '
 import type { AccountRecord, BotVillageRecord, VillageRecord } from '../model'
 import { buildLegacyImportPlan, importLegacyPlan, verifyLegacyImport } from '../legacy-import'
 import { LEGACY_COLLECTIONS, materializeLegacySnapshot } from '../legacy-snapshot'
+import type { SerializedWorld } from '../../../src/game/data/Models'
 
 interface EmbeddedResult {
   rows: unknown[]
@@ -76,6 +77,33 @@ class EmbeddedPostgres implements SqlDatabase {
 
 const NOW = new Date('2026-07-11T18:00:00.000Z')
 const DAY_MS = 86_400_000
+
+async function completeFreshAccountOnboarding(
+  service: PersistenceGameService,
+  principal: { playerId: string },
+  requestId: string
+): Promise<SerializedWorld> {
+  await service.completeIntroBattle(principal)
+  const world = await service.getWorld(principal)
+  const completed = await service.placeTutorialWatchtower(principal, {
+    world: {
+      ...world,
+      buildings: [
+        ...world.buildings,
+        {
+          id: `${principal.playerId}-first-watchtower`,
+          type: 'watchtower',
+          gridX: 3,
+          gridY: 3,
+          level: 1
+        }
+      ]
+    },
+    requestId
+  })
+  assert.equal(completed.watchtowerPlacementRequired, false)
+  return completed.world
+}
 
 test('PostgreSQL maintenance fence emits shared/update row locks and rejects ambiguous lock modes', async () => {
   const statements: string[] = []
@@ -798,6 +826,8 @@ test('embedded PostgreSQL semantics cover migration, world, attack, replay, and 
     const third = grantedSession(await service.ensureSession('', 'pglite-c'))
     const attacker = { playerId: first.player.id }
 
+    await completeFreshAccountOnboarding(service, attacker, 'pglite-first-watchtower')
+
     const bannerBefore = await database.query<{
       banner: { palette: number; emblem: number; pattern: number } | null
       appearance_revision: string | number
@@ -1092,7 +1122,7 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
     }>(origin, '/auth/session', { method: 'POST', body: {} })
     assert.notEqual(attacker.player.id, defender.player.id)
 
-    const world = await requestJson<{ world: { ownerId: string } }>(origin, '/world', {
+    const world = await requestJson<{ world: SerializedWorld }>(origin, '/world', {
       token: attacker.token
     })
     assert.equal(world.world.ownerId, attacker.player.id)
@@ -1110,6 +1140,31 @@ test('embedded PostgreSQL serves the normalized authority through real node:http
       shieldUntil: NOW.getTime()
     })
     assert.ok(map.plots.some(plot => plot.ownerId === attacker.player.id))
+
+    await requestJson(origin, '/intro-battle/complete', {
+      method: 'POST', token: attacker.token, body: {}
+    })
+    const watchtowerWorld = {
+      ...world.world,
+      buildings: [
+        ...world.world.buildings,
+        {
+          id: `${attacker.player.id}-first-watchtower`,
+          type: 'watchtower' as const,
+          gridX: 3,
+          gridY: 3,
+          level: 1
+        }
+      ]
+    }
+    const watchtowerCompletion = await requestJson<{
+      world: SerializedWorld
+      watchtowerPlacementRequired: false
+    }>(origin, '/watchtower-tutorial/place', {
+      method: 'POST', token: attacker.token,
+      body: { world: watchtowerWorld, requestId: 'http-pglite-first-watchtower' }
+    })
+    assert.equal(watchtowerCompletion.watchtowerPlacementRequired, false)
 
     await requestJson(origin, '/player/banner', {
       method: 'POST', token: attacker.token,

@@ -176,6 +176,8 @@ export interface SessionResponse {
     testModeAnnouncementPending: boolean
     /** Mandatory onboarding battle remains until the account records completion. */
     introBattleRequired: boolean
+    /** First home-base lesson remains until a Watchtower save is authoritative. */
+    watchtowerPlacementRequired: boolean
   }
 }
 

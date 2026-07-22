@@ -173,8 +173,11 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 const EXPECTED_STARTER_BUILDINGS = [
-  { type: 'army_camp', level: 1, gridX: 11, gridY: 15 },
+  { type: 'army_camp', level: 1, gridX: 11, gridY: 16 },
+  { type: 'barracks', level: 1, gridX: 7, gridY: 15 },
+  { type: 'farm', level: 1, gridX: 15, gridY: 10 },
   { type: 'mine', level: 1, gridX: 8, gridY: 11 },
+  { type: 'mystic_barracks', level: 1, gridX: 16, gridY: 15 },
   { type: 'town_hall', level: 1, gridX: 11, gridY: 11 }
 ]
 
@@ -302,6 +305,23 @@ test('normalized banner authority rejects incomplete choices and propagates the 
     }
 
     await service.completeIntroBattle(principal)
+    await assert.rejects(
+      service.setBanner(principal, { palette: 6, emblem: 3, pattern: 4 }),
+      error => error instanceof ApiError
+        && error.status === 409
+        && error.code === 'WATCHTOWER_PLACEMENT_REQUIRED'
+    )
+    const towerPlacement = await service.placeTutorialWatchtower(principal, {
+      world: {
+        ...session.world,
+        buildings: [
+          ...session.world.buildings,
+          { id: 'banner-authority-watchtower', type: 'watchtower', gridX: 2, gridY: 2, level: 1 }
+        ]
+      },
+      requestId: 'banner-authority-watchtower'
+    })
+    session.world = towerPlacement.world
 
     const before = await persistence.transaction(async tx => tx.villages.get(principal.playerId))
     assert(before)
@@ -374,7 +394,7 @@ test('normalized attack starts include an optional target-centered focus window'
   }
 })
 
-test('normalized HTTP authority blocks gameplay mutations until banner onboarding completes', async () => {
+test('normalized HTTP authority enforces intro, exact Watchtower placement, then banner', async () => {
   const persistence = new MemoryPersistence()
   const now = new Date('2026-07-11T11:30:00.000Z')
   const service = new PersistenceGameService(persistence, {
@@ -429,16 +449,78 @@ test('normalized HTTP authority blocks gameplay mutations until banner onboardin
 
     for (const [path, body] of gatedMutations) {
       const blocked = await call('POST', path, session.token, body)
-      assert.equal(blocked.status, 409, `${path} stays gated until heraldry is chosen`)
-      assert.equal(record(blocked.body).code, 'BANNER_REQUIRED')
+      assert.equal(blocked.status, 409, `${path} stays gated until the Watchtower is authoritative`)
+      assert.equal(record(blocked.body).code, 'WATCHTOWER_PLACEMENT_REQUIRED')
     }
+    const towerGatedBanner = await call('POST', '/player/banner', session.token, { banner: chosen })
+    assert.equal(towerGatedBanner.status, 409)
+    assert.equal(record(towerGatedBanner.body).code, 'WATCHTOWER_PLACEMENT_REQUIRED')
+
+    const towerWorld = {
+      ...session.world,
+      buildings: [
+        ...session.world.buildings,
+        { id: 'tutorial-watchtower', type: 'watchtower', gridX: 2, gridY: 2, level: 1 }
+      ]
+    }
+    const invalidTower = await call('POST', '/watchtower-tutorial/place', session.token, {
+      world: {
+        ...towerWorld,
+        buildings: towerWorld.buildings.map(building => (
+          building.type === 'town_hall' ? { ...building, gridX: building.gridX + 1 } : building
+        ))
+      },
+      requestId: 'invalid-first-tower'
+    })
+    assert.equal(invalidTower.status, 409)
+    assert.equal(record(invalidTower.body).code, 'WATCHTOWER_PLACEMENT_ONLY')
+
+    const placedTower = await call('POST', '/watchtower-tutorial/place', session.token, {
+      world: towerWorld,
+      requestId: 'first-tower'
+    })
+    assert.equal(placedTower.status, 200)
+    assert.equal(record(placedTower.body).watchtowerPlacementRequired, false)
+    const authoritativeTowerWorld = record(placedTower.body).world as SessionResponse['world']
+    assert.equal(authoritativeTowerWorld.buildings.filter(building => building.type === 'watchtower').length, 1)
+    const persistedPlacement = await persistence.transaction(async tx => ({
+      account: await tx.accounts.getById(session.player.id),
+      village: await tx.villages.get(session.player.id)
+    }))
+    assert.equal(persistedPlacement.account?.watchtowerPlacementCompleted, true,
+      'the onboarding completion flag is durable on the account root')
+    assert.equal(
+      (persistedPlacement.village?.buildings as Array<{ type?: unknown }> | undefined)
+        ?.filter(building => building.type === 'watchtower').length,
+      1,
+      'the Watchtower and completion flag commit together'
+    )
+
+    const sameKeyRetry = await call('POST', '/watchtower-tutorial/place', session.token, {
+      world: towerWorld,
+      requestId: 'first-tower'
+    })
+    assert.equal(sameKeyRetry.status, 200, 'same-key retry replays the committed placement')
+    const differentKeyReplay = await call('POST', '/watchtower-tutorial/place', session.token, {
+      world: authoritativeTowerWorld,
+      requestId: 'second-first-tower'
+    })
+    assert.equal(differentKeyReplay.status, 409)
+    assert.equal(record(differentKeyReplay.body).code, 'WATCHTOWER_PLACEMENT_COMPLETE')
+
+    const preBanner = await call('POST', '/world/save', session.token, {
+      world: authoritativeTowerWorld,
+      requestId: 'pre-banner-save'
+    })
+    assert.equal(preBanner.status, 409)
+    assert.equal(record(preBanner.body).code, 'BANNER_REQUIRED')
 
     const banner = await call('POST', '/player/banner', session.token, { banner: chosen })
     assert.equal(banner.status, 200)
     assert.deepEqual(record(banner.body).banner, chosen)
 
     const saved = await call('POST', '/world/save', session.token, {
-      world: session.world,
+      world: authoritativeTowerWorld,
       requestId: 'ready-save'
     })
     assert.equal(saved.status, 200, 'the same gameplay mutation succeeds after choosing a banner')
@@ -487,6 +569,28 @@ test('MemoryPersistence serves the async core routes without global scans or che
   assert.deepEqual(session.world.resources, { gold: 100_000, ore: 100_000, food: 100_000 })
   assert.deepEqual(starterBuildingPlacements(session.world), EXPECTED_STARTER_BUILDINGS)
   await service.completeIntroBattle(principal)
+  const onboardingTower = await service.placeTutorialWatchtower(principal, {
+    world: {
+      ...session.world,
+      buildings: [
+        ...session.world.buildings,
+        { id: 'runtime-onboarding-watchtower', type: 'watchtower', gridX: 2, gridY: 2, level: 1 }
+      ]
+    },
+    requestId: 'runtime-onboarding-watchtower'
+  })
+  assert.equal(onboardingTower.watchtowerPlacementRequired, false)
+  assert.equal(onboardingTower.world.buildings.filter(building => building.type === 'watchtower').length, 1)
+  assert.equal(
+    onboardingTower.world.resources.ore,
+    (session.world.resources.ore ?? 0) - placementCharge('watchtower', 1).ore,
+    'the required Watchtower still pays the normal authoritative placement price'
+  )
+  session.world = onboardingTower.world
+  const appearanceAfterTower = await persistence.base.transaction(async tx => (
+    (await tx.villages.get(session.player.id))?.appearanceRevision
+  ))
+  assert(appearanceAfterTower !== undefined)
   const chosenBanner = { palette: 1, emblem: 4, pattern: 3 }
   assert.equal((await call('POST', '/player/banner', {
     token,
@@ -526,8 +630,8 @@ test('MemoryPersistence serves the async core routes without global scans or che
     'session resume locks player authority before the token row'
   )
 
-  // A layout no-op remains accepted even when the starter mine advances the
-  // economy checkpoint between creation and save.
+  // An onboarded layout no-op remains accepted even when the starter mine
+  // advances the economy checkpoint between creation and save.
   now = new Date(now.getTime() + 1)
   const noOp = await call('POST', '/world/save', {
     token,
@@ -535,7 +639,10 @@ test('MemoryPersistence serves the async core routes without global scans or che
   })
   assert.equal(noOp.status, 200)
   const noOpWorld = record(noOp.body).world as SessionResponse['world']
-  assert.deepEqual(starterBuildingPlacements(noOpWorld), EXPECTED_STARTER_BUILDINGS)
+  assert.deepEqual(starterBuildingPlacements(noOpWorld), [
+    ...EXPECTED_STARTER_BUILDINGS,
+    { type: 'watchtower', level: 1, gridX: 2, gridY: 2 }
+  ])
   await persistence.base.transaction(async tx => {
     assert.equal((await tx.villages.get(session.player.id))?.economyRevision, noOpWorld.revision)
   })
@@ -564,7 +671,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
   await persistence.base.transaction(async tx => {
     const stored = await tx.villages.get(session.player.id)
     assert.deepEqual(stored?.banner, chosenBanner)
-    assert.equal(stored?.appearanceRevision, 2)
+    assert.equal(stored?.appearanceRevision, appearanceAfterTower + 1)
     assert.equal(stored?.economyRevision, noOpWorld.revision,
       'appearance-only writes do not invalidate layout/economy revisions')
   })
@@ -573,7 +680,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
     body: { banner: chosenBanner }
   })).status, 200)
   await persistence.base.transaction(async tx => {
-    assert.equal((await tx.villages.get(session.player.id))?.appearanceRevision, 2,
+    assert.equal((await tx.villages.get(session.player.id))?.appearanceRevision, appearanceAfterTower + 1,
       'raising the already-current banner is a revision no-op')
   })
   assert.equal(persistence.sessionTouches, 0, 'hot requests do not rewrite the device session row')
@@ -649,27 +756,10 @@ test('MemoryPersistence serves the async core routes without global scans or che
     body: { delta: 2_000, reason: 'debug_grant', requestId: 'gold-build' }
   })
   assert.equal(goldGrant.status, 200)
-  const beforeBuild = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
-  const watchtowerSave = await call('POST', '/world/save', {
-    token,
-    body: {
-      world: {
-        ...beforeBuild,
-        buildings: [
-          ...beforeBuild.buildings,
-          { id: 'runtime-watchtower', type: 'watchtower', gridX: 0, gridY: 0, level: 1 }
-        ]
-      },
-      requestId: 'build-watchtower'
-    }
-  })
-  assert.equal(watchtowerSave.status, 200)
-  const builtWorld = record(watchtowerSave.body).world as SessionResponse['world']
-  const placementOre = placementCharge('watchtower', 1).ore
-  assert.equal(builtWorld.resources.ore, (beforeBuild.resources.ore ?? 0) - placementOre)
+  const builtWorld = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
   assert.ok(
     (builtWorld.resources.ore ?? 0) > (builtWorld.storage?.ore ?? Number.MAX_SAFE_INTEGER),
-    'layout spending preserves the remaining debug overflow'
+    'tutorial placement and subsequent writes preserve the remaining debug overflow'
   )
 
   const upgradeStartedAt = now.getTime()
@@ -679,7 +769,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
       world: {
         ...builtWorld,
         buildings: builtWorld.buildings.map(building => (
-          building.id === 'runtime-watchtower' ? { ...building, level: 2 } : building
+          building.id === 'runtime-onboarding-watchtower' ? { ...building, level: 2 } : building
         ))
       },
       requestId: 'upgrade-watchtower'
@@ -687,25 +777,25 @@ test('MemoryPersistence serves the async core routes without global scans or che
   })
   assert.equal(watchtowerUpgrade.status, 200)
   const pendingWorld = record(watchtowerUpgrade.body).world as SessionResponse['world']
-  const pendingWatchtower = pendingWorld.buildings.find(building => building.id === 'runtime-watchtower')
+  const pendingWatchtower = pendingWorld.buildings.find(building => building.id === 'runtime-onboarding-watchtower')
   assert.equal(pendingWatchtower?.level, 1)
   assert.equal(pendingWatchtower?.upgradingTo, 2)
   assert.equal(pendingWatchtower?.upgradeStartedAt, upgradeStartedAt)
   assert.equal(pendingWatchtower?.upgradeEndsAt, upgradeStartedAt + 1_000)
   assert.equal(
     pendingWorld.resources.ore,
-    builtWorld.resources.ore - upgradeCharge('watchtower', 1, 2).ore
+    (builtWorld.resources.ore ?? 0) - upgradeCharge('watchtower', 1, 2).ore
   )
 
   now = new Date(upgradeStartedAt + 999)
   const almostDone = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
-  const almostDoneWatchtower = almostDone.buildings.find(building => building.id === 'runtime-watchtower')
+  const almostDoneWatchtower = almostDone.buildings.find(building => building.id === 'runtime-onboarding-watchtower')
   assert.equal(almostDoneWatchtower?.upgradingTo, 2)
   assert.equal(almostDoneWatchtower?.upgradeStartedAt, upgradeStartedAt)
   assert.equal(almostDoneWatchtower?.upgradeEndsAt, upgradeStartedAt + 1_000)
   now = new Date(upgradeStartedAt + 1_000)
   const upgradeDone = record((await call('GET', '/world', { token })).body).world as SessionResponse['world']
-  const upgradeDoneWatchtower = upgradeDone.buildings.find(building => building.id === 'runtime-watchtower')
+  const upgradeDoneWatchtower = upgradeDone.buildings.find(building => building.id === 'runtime-onboarding-watchtower')
   assert.equal(upgradeDoneWatchtower?.level, 2)
   assert.equal(upgradeDoneWatchtower?.upgradingTo, undefined)
   assert.equal(upgradeDoneWatchtower?.upgradeStartedAt, undefined)

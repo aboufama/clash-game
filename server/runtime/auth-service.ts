@@ -206,7 +206,8 @@ export class AuthSessionService {
       testModeActivationId: activationId,
       testModeAnnouncementPending: activationId !== null
         && account.testModeAcknowledgedActivationId !== activationId,
-      introBattleRequired: !account.introBattleCompleted
+      introBattleRequired: !account.introBattleCompleted,
+      watchtowerPlacementRequired: account.watchtowerPlacementCompleted === false
     }
   }
 
@@ -354,6 +355,12 @@ export class AuthSessionService {
       }
       const playerId = randomId('p')
       const testMode = testModeEnabled(runtimeConfig, playerId)
+      const village = createStarterVillageRecord(
+        playerId,
+        now,
+        1,
+        effectiveStarterVillageConfig(runtimeConfig.starterVillage)
+      )
       const account: AccountRecord = {
         id: playerId,
         username: identity.username,
@@ -368,15 +375,13 @@ export class AuthSessionService {
         revengeRights: {},
         botRaidCooldowns: {},
         testModeAcknowledgedActivationId: null,
-        introBattleCompleted: false
+        introBattleCompleted: false,
+        // Admin-authored starters may deliberately begin with the tower. Such
+        // accounts skip the placement lesson instead of deadlocking on maxCount.
+        watchtowerPlacementCompleted: villageBuildings(village)
+          .some(building => building.type === 'watchtower')
       }
       await tx.accounts.insert(account)
-      const village = createStarterVillageRecord(
-        playerId,
-        now,
-        1,
-        effectiveStarterVillageConfig(runtimeConfig.starterVillage)
-      )
       await tx.villages.insert(village)
       await tx.sessions.insert({
         tokenHash: hashSessionToken(newToken),

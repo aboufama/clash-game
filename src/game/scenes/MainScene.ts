@@ -157,6 +157,8 @@ export class MainScene extends Phaser.Scene {
     public inputController!: SceneInputController;
 
     public selectedBuildingType: string | null = null;
+    /** True only while onboarding permits the first Watchtower placement. */
+    public watchtowerPlacementTutorialActive = false;
     public selectedInWorld: PlacedBuilding | null = null;
     public isMoving = false;
     public ghostGridPos: { x: number; y: number } | null = null;
@@ -3074,6 +3076,9 @@ export class MainScene extends Phaser.Scene {
 
     private growGrass(time: number) {
         if (this.mode !== 'HOME') return;
+        const onboarding = Auth.getFeatures();
+        if (onboarding.introBattleRequired || onboarding.watchtowerPlacementRequired) return;
+        if (!sanitizeVillageBanner(Backend.getCachedWorld(this.userId)?.banner)) return;
         if (time < this.lastGrassGrowTime + this.GRASS_GROW_INTERVAL_MS) return;
         this.lastGrassGrowTime = time;
 
@@ -9197,8 +9202,12 @@ export class MainScene extends Phaser.Scene {
     }
 
     private createUI() {
+        const onboarding = Auth.getFeatures();
+        this.watchtowerPlacementTutorialActive = onboarding.watchtowerPlacementRequired
+            && !onboarding.introBattleRequired;
         gameManager.registerScene({
             selectBuilding: (type: string | null) => {
+                if (this.watchtowerPlacementTutorialActive && type !== null && type !== 'watchtower') return;
                 this.selectedBuildingType = type;
                 this.isMoving = false;
                 this.ghostGridPos = null;
@@ -9209,6 +9218,12 @@ export class MainScene extends Phaser.Scene {
                     // onPointerMove with the TRACKED gameplay pointer —
                     // activePointer can be a pinch's second finger.
                     this.inputController.onPointerMove(this.inputController.getGameplayPointer());
+                }
+            },
+            setWatchtowerPlacementTutorial: (active: boolean) => {
+                this.watchtowerPlacementTutorialActive = active;
+                if (active && this.selectedBuildingType && this.selectedBuildingType !== 'watchtower') {
+                    this.cancelPlacement();
                 }
             },
             syncHomeStatus: (serverNow: number, shieldUntil: number) => {

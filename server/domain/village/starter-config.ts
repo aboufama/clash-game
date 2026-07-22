@@ -7,6 +7,7 @@ import {
   type StarterBuildingPlacement,
   type StarterVillageConfig
 } from '../../../src/game/config/GameDefinitions'
+import { placementCharge } from '../../../src/game/config/Economy'
 import { ApiError } from '../../errors'
 import { assertCollisionFreeLayout, MAX_VILLAGE_BUILDINGS } from './layout'
 
@@ -84,6 +85,18 @@ export function parseStarterVillageConfig(raw: unknown): StarterVillageConfig {
 
   if ((counts.get('town_hall') ?? 0) !== 1) {
     throw new StarterVillageConfigError('starter villages must contain exactly one Town Hall')
+  }
+
+  // A starter without a Watchtower enters the mandatory placement lesson.
+  // Keep that authored gate completable even when an operator customizes the
+  // wallet; starters that already own the tower intentionally skip the lesson.
+  if ((counts.get('watchtower') ?? 0) === 0) {
+    const watchtowerCharge = placementCharge('watchtower', 1)
+    if (resources.gold < watchtowerCharge.gold || resources.ore < watchtowerCharge.ore) {
+      throw new StarterVillageConfigError(
+        `starter villages without a Watchtower require at least ${watchtowerCharge.gold} gold and ${watchtowerCharge.ore} ore`
+      )
+    }
   }
 
   const wallDefinition = BUILDING_DEFINITIONS.wall

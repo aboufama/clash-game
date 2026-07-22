@@ -332,6 +332,13 @@ class MemoryAccounts implements AccountRepository {
     return true
   }
 
+  async completeWatchtowerPlacement(id: string): Promise<boolean> {
+    const account = this.state.accounts.get(id)
+    if (!account || account.watchtowerPlacementCompleted !== false) return false
+    account.watchtowerPlacementCompleted = true
+    return true
+  }
+
   async clearShields(now: Date, limit: number): Promise<number> {
     const bounded = Math.max(1, Math.min(1_000, Math.floor(limit)))
     const accounts = [...this.state.accounts.values()]

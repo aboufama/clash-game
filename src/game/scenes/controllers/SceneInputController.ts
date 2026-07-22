@@ -226,6 +226,7 @@ export class SceneInputController {
     private isNonInteractiveGroundTap(touch: Touch | undefined): boolean {
         const scene = this.scene;
         if (!touch) return false;
+        if (scene.watchtowerPlacementTutorialActive) return false;
         if (scene.mode !== 'HOME') return false;
         if (scene.selectedBuildingType || scene.isMoving) return false;
         // Native TouchEvent coords are CSS pixels; Phaser cameras live in
@@ -398,6 +399,7 @@ export class SceneInputController {
         }
 
         const scene = this.scene;
+        if (scene.watchtowerPlacementTutorialActive && scene.selectedBuildingType !== 'watchtower') return;
         if (pointer.button === 0 && scene.selectedBuildingType === 'wall' && !scene.worldMap.inBattleFrame()) {
             this.wallPaintCount = 0; // fresh drag: first painted tile sounds
             this.lastWallDragTile = this.getWallPlacementTile(pointer);
@@ -471,6 +473,7 @@ export class SceneInputController {
         this.lastWallDragTile = null;
 
         const scene = this.scene;
+        if (scene.watchtowerPlacementTutorialActive && scene.selectedBuildingType !== 'watchtower') return;
         // Calculate drag distance
         const dist = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.upX, pointer.upY);
 
@@ -494,10 +497,12 @@ export class SceneInputController {
 
             // Purely additive: a tap near a villager/dog/chicken delights it,
             // and a tapped rock gets hauled off to the storehouse for ore.
-            scene.pokeVillageLife(gridPosFloat.x, gridPosFloat.y);
-            if (scene.tryOpenMerchant(gridPosSnap.x, gridPosSnap.y)) return;
-            scene.tryStartRockHaul(gridPosSnap.x, gridPosSnap.y);
-            scene.tryPickMushrooms(gridPosSnap.x, gridPosSnap.y);
+            if (!scene.watchtowerPlacementTutorialActive) {
+                scene.pokeVillageLife(gridPosFloat.x, gridPosFloat.y);
+                if (scene.tryOpenMerchant(gridPosSnap.x, gridPosSnap.y)) return;
+                scene.tryStartRockHaul(gridPosSnap.x, gridPosSnap.y);
+                scene.tryPickMushrooms(gridPosSnap.x, gridPosSnap.y);
+            }
 
             if (scene.mode === 'ATTACK') {
                 // Check if clicking on an enemy building to show its range
@@ -846,6 +851,7 @@ export class SceneInputController {
         if (pointer.isDown && !this.startedOnGameCanvas(pointer)) return;
 
         const scene = this.scene;
+        if (scene.watchtowerPlacementTutorialActive && scene.selectedBuildingType !== 'watchtower') return;
         // 1. Calculate common coordinate data immediately to avoid redundancy and shadowing
         const worldPoint = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
         const cartFloat = IsoUtils.isoToCart(worldPoint.x, worldPoint.y);

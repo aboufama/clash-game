@@ -34,3 +34,12 @@ export function introBattleRequiredError(): ApiError {
     'INTRO_BATTLE_REQUIRED'
   )
 }
+
+/** The first home-base lesson follows Sir Andre and precedes heraldry. */
+export function watchtowerPlacementRequiredError(): ApiError {
+  return new ApiError(
+    409,
+    'Place your first Watchtower before changing your village',
+    'WATCHTOWER_PLACEMENT_REQUIRED'
+  )
+}

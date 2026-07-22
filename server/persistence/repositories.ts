@@ -76,6 +76,8 @@ export interface AccountRepository {
   claimTestModeAnnouncement(id: string, activationId: string): Promise<boolean>
   /** Idempotently completes mandatory intro-battle onboarding without a gameplay revision. */
   completeIntroBattle(id: string): Promise<boolean>
+  /** Idempotently records the first authoritative Watchtower placement. */
+  completeWatchtowerPlacement(id: string): Promise<boolean>
   /** Clears one indexed batch and advances profile revisions atomically. */
   clearShields(now: Date, limit: number): Promise<number>
   /** Deletes the account root; dependent authority rows cascade with it. */

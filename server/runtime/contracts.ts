@@ -80,6 +80,7 @@ export interface HomeSyncResponse {
     testModeActivationId: string | null
     testModeAnnouncementPending: boolean
     introBattleRequired: boolean
+    watchtowerPlacementRequired: boolean
   }
   upgradePolicy: {
     fixedDurationMs?: number
@@ -106,6 +107,11 @@ export interface TestModeAnnouncementClaimResponse {
 export interface IntroBattleCompletionResponse {
   ok: true
   introBattleRequired: false
+}
+
+export interface WatchtowerPlacementResponse {
+  world: SerializedWorld
+  watchtowerPlacementRequired: false
 }
 
 export interface AttackCommandRequest {
@@ -156,6 +162,7 @@ export interface ApiService<Principal> {
     body: TestModeAnnouncementClaimRequest
   ): Awaitable<TestModeAnnouncementClaimResponse>
   completeIntroBattle(player: Principal): Awaitable<IntroBattleCompletionResponse>
+  placeTutorialWatchtower(player: Principal, body: SaveWorldRequest): Awaitable<WatchtowerPlacementResponse>
   saveWorld(player: Principal, body: SaveWorldRequest): Awaitable<unknown>
   applyResources(player: Principal, body: ResourceMutationRequest): Awaitable<unknown>
   trainTroop(player: Principal, body: ArmyMutationRequest): Awaitable<unknown>

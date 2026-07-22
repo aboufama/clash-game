@@ -77,6 +77,7 @@ import {
   VillageRuleError,
   advanceVillage,
   appearanceRevisionDelta,
+  isExactFirstWatchtowerPlacement,
   populationCapacity,
   priceVillageMutation,
   sameCombatLayout,
@@ -154,7 +155,7 @@ import {
 } from './domain/world/procedural-village'
 import { PlayerDirectory } from './domain/player'
 import { RequestReplayIndex } from './domain/idempotency'
-import { ApiError, bannerRequiredError, introBattleRequiredError } from './errors'
+import { ApiError, bannerRequiredError, introBattleRequiredError, watchtowerPlacementRequiredError } from './errors'
 export { ApiError } from './errors'
 
 const MAX_BALANCE = 1_000_000_000
@@ -333,6 +334,8 @@ interface PlayerRecord {
   testModeAcknowledgedActivationId?: string
   /** Missing is a pre-onboarding legacy account and therefore already complete. */
   introBattleCompleted?: boolean
+  /** Missing is grandfathered; false only during the first Watchtower lesson. */
+  watchtowerPlacementCompleted?: boolean
 }
 
 interface AdminNoticeItem {
@@ -1014,6 +1017,10 @@ export class GameService implements AdminApiService {
         player.introBattleCompleted = true
         this.players.markDirty(id)
       }
+      if (typeof player.watchtowerPlacementCompleted !== 'boolean') {
+        player.watchtowerPlacementCompleted = true
+        this.players.markDirty(id)
+      }
       if (player.testModeAcknowledgedActivationId !== undefined
         && !normalizeTestModeActivationId(player.testModeAcknowledgedActivationId)) {
         delete player.testModeAcknowledgedActivationId
@@ -1525,7 +1532,8 @@ export class GameService implements AdminApiService {
       testModeActivationId: activationId,
       testModeAnnouncementPending: activationId !== null
         && player.testModeAcknowledgedActivationId !== activationId,
-      introBattleRequired: player.introBattleCompleted === false
+      introBattleRequired: player.introBattleCompleted === false,
+      watchtowerPlacementRequired: player.watchtowerPlacementCompleted === false
     }
   }
 
@@ -2133,6 +2141,7 @@ export class GameService implements AdminApiService {
       ore: starter.resources.ore,
       food: starter.resources.food,
       introBattleCompleted: false,
+      watchtowerPlacementCompleted: starter.buildings.some(building => building.type === 'watchtower'),
       shieldUntil: now + STARTER_SHIELD_MS
     }
     if (!registered) {
@@ -2165,6 +2174,7 @@ export class GameService implements AdminApiService {
    */
   assertGameplayReady(player: PlayerRecord): void {
     if (player.introBattleCompleted === false) throw introBattleRequiredError()
+    if (player.watchtowerPlacementCompleted === false) throw watchtowerPlacementRequiredError()
     if (!sanitizeVillageBanner(player.banner)) throw bannerRequiredError()
   }
 
@@ -2369,6 +2379,7 @@ export class GameService implements AdminApiService {
     const banner = sanitizeVillageBanner(rawBanner)
     if (!banner) throw new ApiError(400, 'Invalid banner: palette 0-7, emblem 0-5, and pattern 0-4 are all required')
     if (player.introBattleCompleted === false) throw introBattleRequiredError()
+    if (player.watchtowerPlacementCompleted === false) throw watchtowerPlacementRequiredError()
     if (villageBannersEqual(player.banner, banner)) return { banner: { ...banner } }
     player.banner = banner
     player.appearanceRevision = appearanceRevisionOf(player) + 1
@@ -2600,14 +2611,37 @@ export class GameService implements AdminApiService {
    * other way to acquire levels. The army is NOT part of the save at all —
    * troops move only through train/untrain and battle consumption.
    */
+  placeTutorialWatchtower(player: PlayerRecord, body: { world?: Partial<SerializedWorld>; requestId?: unknown }) {
+    const world = this.persistWorld(player, body, true)
+    return { world, watchtowerPlacementRequired: false as const }
+  }
+
   saveWorld(player: PlayerRecord, body: { world?: Partial<SerializedWorld>; requestId?: unknown }): SerializedWorld {
+    return this.persistWorld(player, body, false)
+  }
+
+  private persistWorld(
+    player: PlayerRecord,
+    body: { world?: Partial<SerializedWorld>; requestId?: unknown },
+    tutorialWatchtower: boolean
+  ): SerializedWorld {
     const world = body?.world
     if (!world || typeof world !== 'object') throw new ApiError(400, 'Missing world payload')
 
     // Already-applied save: return the current state without re-applying.
-    const key = this.normalizeKey(body.requestId)
-    if (this.hasRequestKey(player, key)) {
+    const rawKey = this.normalizeKey(body.requestId)
+    const key = tutorialWatchtower && rawKey
+      ? this.normalizeKey(`onboarding.watchtower:${rawKey}`)
+      : rawKey
+    if (this.hasRequestKey(player, key)
+      && (!tutorialWatchtower || player.watchtowerPlacementCompleted === true)) {
       return this.worldOf(player)
+    }
+    if (tutorialWatchtower) {
+      if (player.introBattleCompleted === false) throw introBattleRequiredError()
+      if (player.watchtowerPlacementCompleted !== false) {
+        throw new ApiError(409, 'The Watchtower lesson is already complete', 'WATCHTOWER_PLACEMENT_COMPLETE')
+      }
     }
 
     // Land matured upgrade timers BEFORE diffing: a client whose local clock
@@ -2651,6 +2685,20 @@ export class GameService implements AdminApiService {
       proposedWallLevel: world.wallLevel,
       army: player.army
     }))
+    if (tutorialWatchtower && !isExactFirstWatchtowerPlacement({
+      currentBuildings: player.buildings,
+      currentObstacles: player.obstacles,
+      currentWallLevel: player.wallLevel,
+      proposedBuildings: proposal.buildings,
+      proposedObstacles: proposal.obstacles,
+      proposedWallLevel: proposal.wallLevel
+    })) {
+      throw new ApiError(
+        409,
+        'The first village lesson allows exactly one level-one Watchtower placement',
+        'WATCHTOWER_PLACEMENT_ONLY'
+      )
+    }
 
     // A save that changes no authority-owned layout field is a read, not a
     // revision/fsync mutation. This also makes retries with a fresh request id
@@ -2699,6 +2747,7 @@ export class GameService implements AdminApiService {
     player.layoutRevision = Math.max(0, toInt(player.layoutRevision, player.revision - 1)) + 1
     player.appearanceRevision = appearanceRevisionOf(player) + 1
     player.lastMutationAt = Date.now()
+    if (tutorialWatchtower) player.watchtowerPlacementCompleted = true
     this.recordRequestKey(player, key)
     this.players.markDirty(player.id)
     if (!infiniteResources) {

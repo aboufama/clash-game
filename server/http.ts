@@ -327,6 +327,12 @@ export function createApiHandler<Principal>(
       if (method === 'POST' && path === '/intro-battle/complete') {
         return { status: 200, body: await game.completeIntroBattle(player) }
       }
+      if (method === 'POST' && path === '/watchtower-tutorial/place') {
+        return {
+          status: 200,
+          body: await game.placeTutorialWatchtower(player, body as SaveWorldRequest)
+        }
+      }
 
       if (method === 'POST' && path === '/player/banner') {
         if (!game.setBanner) {

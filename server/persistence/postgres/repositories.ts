@@ -107,6 +107,7 @@ interface AccountRow extends QueryResultRow {
   bot_raid_cooldowns: JsonObject
   test_mode_acknowledged_activation_id: string | null
   intro_battle_completed: boolean
+  watchtower_placement_completed: boolean
 }
 
 function accountFromRow(row: AccountRow): AccountRecord {
@@ -124,7 +125,8 @@ function accountFromRow(row: AccountRow): AccountRecord {
     revengeRights: row.revenge_rights,
     botRaidCooldowns: row.bot_raid_cooldowns,
     testModeAcknowledgedActivationId: row.test_mode_acknowledged_activation_id,
-    introBattleCompleted: row.intro_battle_completed
+    introBattleCompleted: row.intro_battle_completed,
+    watchtowerPlacementCompleted: row.watchtower_placement_completed
   }
 }
 
@@ -155,6 +157,7 @@ const PLAYER_SUMMARY_COLUMNS = String.raw`
 const ACCOUNT_SELECT = String.raw`
   SELECT a.id, a.username_key, a.password_hash, a.registered, a.created_at,
     a.test_mode_acknowledged_activation_id, a.intro_battle_completed,
+    a.watchtower_placement_completed,
     p.username, p.trophies, p.shield_until, p.last_seen_at, p.revision,
     p.revenge_rights, p.bot_raid_cooldowns
   FROM accounts a JOIN player_profiles p ON p.player_id = a.id
@@ -224,8 +227,9 @@ class PgAccounts implements AccountRepository {
     await this.sql.query(
       `INSERT INTO accounts(
         id, username_key, password_hash, registered, created_at,
-        test_mode_acknowledged_activation_id, intro_battle_completed
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        test_mode_acknowledged_activation_id, intro_battle_completed,
+        watchtower_placement_completed
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         record.id,
         record.usernameKey,
@@ -233,7 +237,8 @@ class PgAccounts implements AccountRepository {
         record.registered,
         record.createdAt,
         record.testModeAcknowledgedActivationId,
-        record.introBattleCompleted
+        record.introBattleCompleted,
+        record.watchtowerPlacementCompleted !== false
       ]
     )
     await this.sql.query(String.raw`
@@ -305,6 +310,13 @@ class PgAccounts implements AccountRepository {
     return (await this.sql.query(String.raw`
       UPDATE accounts SET intro_battle_completed = true
       WHERE id = $1 AND intro_battle_completed = false
+    `, [id])).rowCount === 1
+  }
+
+  async completeWatchtowerPlacement(id: string): Promise<boolean> {
+    return (await this.sql.query(String.raw`
+      UPDATE accounts SET watchtower_placement_completed = true
+      WHERE id = $1 AND watchtower_placement_completed = false
     `, [id])).rowCount === 1
   }
 

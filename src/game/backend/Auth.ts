@@ -19,6 +19,8 @@ export interface SessionFeatures {
   testModeAnnouncementPending: boolean;
   /** Server-owned new-account onboarding gate; presentation is handled elsewhere. */
   introBattleRequired: boolean;
+  /** Server-owned first Watchtower placement gate. */
+  watchtowerPlacementRequired: boolean;
 }
 
 interface SessionResponse {
@@ -148,7 +150,8 @@ export class Auth {
     testMode: false,
     testModeActivationId: null,
     testModeAnnouncementPending: false,
-    introBattleRequired: false
+    introBattleRequired: false,
+    watchtowerPlacementRequired: false
   };
   private static ensureInFlight: Promise<EnsuredSession> | null = null;
 
@@ -176,7 +179,8 @@ export class Auth {
       infiniteResources: testMode || features?.infiniteResources === true,
       testMode,
       testModeActivationId: testMode ? activationId : null,
-      introBattleRequired: features?.introBattleRequired === true
+      introBattleRequired: features?.introBattleRequired === true,
+      watchtowerPlacementRequired: features?.watchtowerPlacementRequired === true
     };
   }
 
@@ -226,6 +230,11 @@ export class Auth {
   static resolveIntroBattle(): void {
     if (!Auth.features.introBattleRequired) return;
     Auth.features = { ...Auth.features, introBattleRequired: false };
+  }
+
+  static resolveWatchtowerPlacement(): void {
+    if (!Auth.features.watchtowerPlacementRequired) return;
+    Auth.features = { ...Auth.features, watchtowerPlacementRequired: false };
   }
 
   static getToken(): string | null {

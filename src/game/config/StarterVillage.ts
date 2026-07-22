@@ -26,8 +26,11 @@ export interface StarterVillageConfig {
 export const STARTER_VILLAGE: StarterVillageConfig = {
     buildings: [
         { type: 'town_hall', gridX: 11, gridY: 11, level: 1 },
-        { type: 'army_camp', gridX: 11, gridY: 15, level: 1 },
-        { type: 'mine', gridX: 8, gridY: 11, level: 1 }
+        { type: 'mine', gridX: 8, gridY: 11, level: 1 },
+        { type: 'farm', gridX: 15, gridY: 10, level: 1 },
+        { type: 'barracks', gridX: 7, gridY: 15, level: 1 },
+        { type: 'mystic_barracks', gridX: 16, gridY: 15, level: 1 },
+        { type: 'army_camp', gridX: 11, gridY: 16, level: 1 }
     ],
     resources: {
         gold: 100_000,

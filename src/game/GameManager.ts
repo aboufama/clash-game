@@ -75,6 +75,8 @@ type UIHandlers = {
 
 type SceneCommands = {
     selectBuilding: (type: string | null) => void;
+    /** Restrict HOME input to the authored first-Watchtower placement. */
+    setWatchtowerPlacementTutorial: (active: boolean) => void;
     startAttack: () => void;
     /** Mandatory first-session siege starring Sir Andre's supplied army. */
     startIntroBattle: () => void;
@@ -247,6 +249,10 @@ class GameManager {
 
     selectBuilding(type: string | null) {
         this.sceneCommands.selectBuilding?.(type);
+    }
+
+    setWatchtowerPlacementTutorial(active: boolean) {
+        this.sceneCommands.setWatchtowerPlacementTutorial?.(active);
     }
 
     startAttack() {

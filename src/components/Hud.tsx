@@ -38,6 +38,9 @@ interface HudProps {
   isScouting: boolean;
   /** Tutorial sieges have one authored fortress and cannot cycle targets. */
   allowNextMap?: boolean;
+  /** During the first Watchtower lesson BUILD is the only available home action. */
+  watchtowerTutorialActive?: boolean;
+  watchtowerTutorialBuildEnabled?: boolean;
   pendingLoot: number | null;
   lootAnimating: { amount: number } | null;
   onLootAnimationDone: () => void;
@@ -75,6 +78,8 @@ export function Hud({
   isMobile,
   isScouting,
   allowNextMap = true,
+  watchtowerTutorialActive = false,
+  watchtowerTutorialBuildEnabled = true,
   pendingLoot,
   lootAnimating,
   onLootAnimationDone,
@@ -255,7 +260,7 @@ export function Hud({
   );
 
   return (
-    <div className={`hud ${isMobile ? 'mobile' : ''}`}>
+    <div className={`hud ${isMobile ? 'mobile' : ''} ${watchtowerTutorialActive ? 'watchtower-tutorial-hud' : ''}`}>
       <div className="hud-top">
         {view === 'HOME' ? (
           <>
@@ -268,11 +273,12 @@ export function Hud({
               )
               : resourcesColumn}
             <div className="top-btn-stack">
-              <button className="settings-btn" onClick={() => { soundSystem.play('uiOpen'); onOpenSettings(); }}>
+              <button className="settings-btn" disabled={watchtowerTutorialActive} onClick={() => { soundSystem.play('uiOpen'); onOpenSettings(); }}>
                 <div className="btn-icon icon settings-icon"></div>
               </button>
               <button
                 className={`settings-btn mute-btn ${isMuted ? 'muted' : ''}`}
+                disabled={watchtowerTutorialActive}
                 title={isMuted ? 'Unmute' : 'Mute'}
                 onClick={() => {
                   const next = !isMuted;
@@ -324,7 +330,7 @@ export function Hud({
         )}
       </div>
 
-      {selectedBuildingInfo && view === 'HOME' && (
+      {selectedBuildingInfo && view === 'HOME' && !watchtowerTutorialActive && (
         <InfoPanel
           type={selectedBuildingInfo.type}
           level={selectedBuildingInfo.level}
@@ -352,15 +358,19 @@ export function Hud({
           {view === 'HOME' ? (
           <div className="menu-inner">
             <div className="btn-group main-actions">
-              <button className="action-btn build" onClick={() => { soundSystem.play('uiOpen'); onOpenBuild(); }}>
+              <button
+                className={`action-btn build ${watchtowerTutorialActive && watchtowerTutorialBuildEnabled ? 'watchtower-tutorial-build-target' : ''}`}
+                disabled={watchtowerTutorialActive && !watchtowerTutorialBuildEnabled}
+                onClick={() => { soundSystem.play('uiOpen'); onOpenBuild(); }}
+              >
                 <div className="btn-icon icon build-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'BUILD'}</span>
               </button>
-              <button className="action-btn raid" onClick={() => { soundSystem.play('uiOpen'); onOpenTrain(); }}>
+              <button className="action-btn raid" disabled={watchtowerTutorialActive} onClick={() => { soundSystem.play('uiOpen'); onOpenTrain(); }}>
                 <div className="btn-icon icon raid-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'RAID'}</span>
               </button>
-              <button className="action-btn map" onClick={() => { soundSystem.play('uiOpen'); onOpenMap(); }}>
+              <button className="action-btn map" disabled={watchtowerTutorialActive} onClick={() => { soundSystem.play('uiOpen'); onOpenMap(); }}>
                 <div className="btn-icon icon map-icon"></div>
                 <span className="btn-label">{isMobile ? '' : 'MAP'}</span>
               </button>

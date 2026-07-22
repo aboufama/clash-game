@@ -641,7 +641,8 @@ function playerAccount(record: LegacySourceRecord) {
     revengeRights: object(source.revengeRights),
     botRaidCooldowns: object(source.botRaids),
     testModeAcknowledgedActivationId,
-    introBattleCompleted: source.introBattleCompleted !== false
+    introBattleCompleted: source.introBattleCompleted !== false,
+    watchtowerPlacementCompleted: source.watchtowerPlacementCompleted !== false
   }
 }
 

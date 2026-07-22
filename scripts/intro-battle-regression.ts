@@ -73,5 +73,9 @@ assert.match(sceneSource, /findNewMap: \(\) => \{[\s\S]*?if \(this\.currentEnemy
   'the scene must defensively reject tutorial NEXT calls outside React');
 assert.match(sceneSource, /beginAttackSession\(false, epoch, \{ skipHomeFlush: true \}\)/,
   'banner-blocked starter saves must never deadlock the local tutorial launch');
+assert.match(sceneSource, /watchtowerPlacementTutorialActive = onboarding\.watchtowerPlacementRequired\s*&& !onboarding\.introBattleRequired/,
+  'the later Watchtower lesson must not swallow deployment input during the intro battle');
+assert.match(appSource, /gameManager\.setWatchtowerPlacementTutorial\(watchtowerTutorialActive\)/,
+  'React must still arm the Watchtower placement lock after intro completion returns HOME');
 
 console.log(`intro battle regression passed (${world.buildings.length} max-level buildings, ${INTRO_BATTLE_ARMY_SPACE} housing supplied)`);

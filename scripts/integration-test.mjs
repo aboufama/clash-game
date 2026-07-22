@@ -102,24 +102,17 @@ async function api(method, pathName, { token, body, headers } = {}) {
     && response.status === 200
     && json?.created === true
     && json?.token) {
-    const bannerResponse = await fetch(`${BASE}/api/player/banner`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${json.token}`
-      },
-      body: JSON.stringify({ banner: AUTOMATIC_TEST_BANNER })
-    })
-    if (bannerResponse.status !== 200) {
-      throw new Error(`could not complete test actor banner onboarding (${bannerResponse.status})`)
-    }
+    await completeFreshOnboarding(json, `auto-${json.player.id}`, AUTOMATIC_TEST_BANNER)
   }
   return { status: response.status, json }
 }
 
 const EXPECTED_STARTER_BUILDINGS = [
-  { type: 'army_camp', level: 1, gridX: 11, gridY: 15 },
+  { type: 'army_camp', level: 1, gridX: 11, gridY: 16 },
+  { type: 'barracks', level: 1, gridX: 7, gridY: 15 },
+  { type: 'farm', level: 1, gridX: 15, gridY: 10 },
   { type: 'mine', level: 1, gridX: 8, gridY: 11 },
+  { type: 'mystic_barracks', level: 1, gridX: 16, gridY: 15 },
   { type: 'town_hall', level: 1, gridX: 11, gridY: 11 }
 ]
 
@@ -132,6 +125,66 @@ function hasExpectedStarterVillage(world) {
     && world.resources?.gold === 100_000
     && world.resources?.ore === 100_000
     && world.resources?.food === 100_000
+}
+
+async function completeFreshOnboarding(session, prefix, banner = AUTOMATIC_TEST_BANNER) {
+  const intro = await api('POST', '/intro-battle/complete', { token: session.token })
+  if (intro.status !== 200) throw new Error(`could not complete test actor intro (${intro.status})`)
+  session.features = { ...session.features, introBattleRequired: false }
+
+  if (session.features?.watchtowerPlacementRequired !== false) {
+    const tower = await api('POST', '/watchtower-tutorial/place', {
+      token: session.token,
+      body: {
+        world: {
+          ...session.world,
+          buildings: [
+            ...session.world.buildings,
+            { id: `${prefix}-watchtower`, type: 'watchtower', gridX: 22, gridY: 22, level: 1 }
+          ]
+        },
+        requestId: `${prefix}-watchtower`
+      }
+    })
+    if (tower.status !== 200) throw new Error(`could not place test actor Watchtower (${tower.status}): ${JSON.stringify(tower.json)}`)
+    session.world = tower.json.world
+    session.features = { ...session.features, watchtowerPlacementRequired: false }
+  }
+
+  const bannerResponse = await api('POST', '/player/banner', {
+    token: session.token,
+    body: { banner }
+  })
+  if (bannerResponse.status !== 200) {
+    throw new Error(`could not complete test actor banner onboarding (${bannerResponse.status})`)
+  }
+  session.world = { ...session.world, banner }
+  return session
+}
+
+async function configureCompactShieldVillage(session, requestId) {
+  const world = (await api('GET', '/world', { token: session.token })).json.world
+  const townHall = world.buildings.find(building => building.type === 'town_hall')
+  const armyCamp = world.buildings.find(building => building.type === 'army_camp')
+  if (!townHall || !armyCamp) throw new Error('shield fixture requires the starter Town Hall and Army Camp')
+  const response = await api('POST', '/world/save', {
+    token: session.token,
+    body: {
+      world: {
+        ...world,
+        buildings: [
+          { ...armyCamp, gridX: 2, gridY: 2 },
+          { ...townHall, gridX: 5, gridY: 5 }
+        ]
+      },
+      requestId
+    }
+  })
+  if (response.status !== 200) {
+    throw new Error(`could not create compact shield fixture (${response.status}): ${JSON.stringify(response.json)}`)
+  }
+  session.world = response.json.world
+  return session.world
 }
 
 async function armWarriors(token, count, requestId) {
@@ -210,22 +263,72 @@ async function main() {
     ok((await api('GET', pathName, { token: a.token })).status === 200,
       `${pathName} stays readable while banner onboarding is incomplete`)
   }
-  for (const [pathName, body] of [
+  const onboardingMutations = [
     ['/world/save', { world: a.world, requestId: 'banner-gate-save' }],
     ['/resources/apply', { delta: 1, reason: 'debug_grant', requestId: 'banner-gate-resource' }],
     ['/army/train', { type: 'warrior', count: 1, requestId: 'banner-gate-train' }],
     ['/attacks/matchmake', { requestId: 'banner-gate-match' }],
     ['/map/relocate', { x: 3, y: 3 }]
-  ]) {
+  ]
+  for (const [pathName, body] of onboardingMutations) {
     const blocked = await api('POST', pathName, { token: a.token, body })
-    ok(blocked.status === 409 && blocked.json?.code === 'BANNER_REQUIRED',
-      `${pathName} is authoritatively gated until a banner is chosen`)
+    ok(blocked.status === 409 && blocked.json?.code === 'INTRO_BATTLE_REQUIRED',
+      `${pathName} is gated until Sir Andre's battle is complete`)
   }
+  const earlyBanner = await api('POST', '/player/banner', {
+    token: a.token,
+    body: { banner: { palette: 1, emblem: 2, pattern: 3 } }
+  })
+  ok(earlyBanner.status === 409 && earlyBanner.json?.code === 'INTRO_BATTLE_REQUIRED',
+    'banner selection cannot bypass Sir Andre')
+  ok((await api('POST', '/intro-battle/complete', { token: a.token })).status === 200,
+    'Sir Andre completion advances onboarding to the Watchtower lesson')
+
+  for (const [pathName, body] of onboardingMutations) {
+    const blocked = await api('POST', pathName, { token: a.token, body })
+    ok(blocked.status === 409 && blocked.json?.code === 'WATCHTOWER_PLACEMENT_REQUIRED',
+      `${pathName} stays gated until the first Watchtower is authoritative`)
+  }
+  const towerWorld = {
+    ...a.world,
+    buildings: [
+      ...a.world.buildings,
+      { id: 'integration-first-watchtower', type: 'watchtower', gridX: 22, gridY: 22, level: 1 }
+    ]
+  }
+  const invalidTower = await api('POST', '/watchtower-tutorial/place', {
+    token: a.token,
+    body: {
+      world: {
+        ...towerWorld,
+        buildings: towerWorld.buildings.map(building => (
+          building.type === 'town_hall' ? { ...building, gridX: building.gridX + 1 } : building
+        ))
+      },
+      requestId: 'integration-invalid-first-watchtower'
+    }
+  })
+  ok(invalidTower.status === 409 && invalidTower.json?.code === 'WATCHTOWER_PLACEMENT_ONLY',
+    'Watchtower onboarding refuses bundled layout edits')
+  const towerPlaced = await api('POST', '/watchtower-tutorial/place', {
+    token: a.token,
+    body: { world: towerWorld, requestId: 'integration-first-watchtower' }
+  })
+  ok(towerPlaced.status === 200 && towerPlaced.json?.watchtowerPlacementRequired === false,
+    'the exact Watchtower-only save completes the placement lesson')
+  a.world = towerPlaced.json.world
+  const preBannerSave = await api('POST', '/world/save', {
+    token: a.token,
+    body: { world: a.world, requestId: 'integration-pre-banner-save' }
+  })
+  ok(preBannerSave.status === 409 && preBannerSave.json?.code === 'BANNER_REQUIRED',
+    'ordinary gameplay remains gated until heraldry follows the Watchtower')
   const aBanner = await api('POST', '/player/banner', {
     token: a.token,
     body: { banner: { palette: 1, emblem: 2, pattern: 3 } }
   })
-  ok(aBanner.status === 200, 'banner selection remains available during onboarding')
+  ok(aBanner.status === 200, 'banner selection unlocks after the Watchtower is authoritative')
+  a.world.banner = { palette: 1, emblem: 2, pattern: 3 }
 
   const again = (await api('POST', '/auth/session', { body: { token: a.token } })).json
   ok(again.created === false && again.player.id === a.player.id, 'same token resumes the same account')
@@ -235,10 +338,9 @@ async function main() {
 
   const b = (await api('POST', '/auth/session')).json
   ok(b.player.id !== a.player.id, 'second device gets its own account')
-  ok((await api('POST', '/player/banner', {
-    token: b.token,
-    body: { banner: AUTOMATIC_TEST_BANNER }
-  })).status === 200, 'a second player can complete banner onboarding')
+  await completeFreshOnboarding(b, 'second-device')
+  ok(b.world.buildings.some(building => building.type === 'watchtower'),
+    'a second player completes the full onboarding sequence')
   autoConfigureFreshGuestBanners = true
 
   // --- Base persistence ---
@@ -627,12 +729,17 @@ async function main() {
   ok(Number.isFinite(leaderboardTarget.plotX) && typeof leaderboardTarget.inScoutRange === 'boolean',
     'leaderboard rows expose coordinates and truthful scout-range authorization')
 
-  const scout = (await api('GET', `/players/${a.player.id}/world`, { token: b.token })).json
-  ok(scout.error && /watchtower sight/.test(scout.error), 'a blind account cannot scout an arbitrary player id')
+  const outOfRangeTarget = lb.players.find(player => player.id !== b.player.id && player.inScoutRange === false)
+  ok(Boolean(outOfRangeTarget), 'the level-one Watchtower leaves distant leaderboard targets out of range')
+  const scout = outOfRangeTarget
+    ? (await api('GET', `/players/${outOfRangeTarget.id}/world`, { token: b.token })).json
+    : {}
+  ok(scout.error && /watchtower sight/.test(scout.error), 'a level-one Watchtower cannot scout an arbitrary distant player id')
   const selfScout = (await api('GET', `/players/${b.player.id}/world`, { token: b.token })).json
   ok(selfScout.world?.ownerId === b.player.id && selfScout.world.resources === undefined && selfScout.world.army === undefined,
     'public scout snapshots omit private resources and army')
-  ok((await api('POST', '/attacks/start', { token: b.token, body: { targetId: parallelVictim.player.id } })).status === 403,
+  ok(outOfRangeTarget
+    && (await api('POST', '/attacks/start', { token: b.token, body: { targetId: outOfRangeTarget.id } })).status === 403,
     'targeted attack IDs cannot bypass earned watchtower sight')
 
   // --- Aborted attack ---
@@ -737,13 +844,13 @@ async function main() {
   // so the workforce assertion below stays untouched.
   await api('POST', '/resources/apply', { token: a.token, body: { delta: 100, resource: 'ore', reason: 'debug_grant', requestId: 'fund-pop-ore' } })
   const fundedPopWorld = (await api('GET', '/world', { token: a.token })).json.world
-  const moreHousing = { ...fundedPopWorld, buildings: [...fundedPopWorld.buildings, { id: 'pop_camp', type: 'army_camp', gridX: 20, gridY: 20, level: 1 }] }
+  const moreHousing = { ...fundedPopWorld, buildings: [...fundedPopWorld.buildings, { id: 'pop_camp', type: 'army_camp', gridX: 2, gridY: 22, level: 1 }] }
   const popSaved = (await api('POST', '/world/save', { token: a.token, body: { world: moreHousing, requestId: 'pop-save-1' } })).json
   ok(popSaved.world.population.capacity === popCapBefore + 1, 'adding housing raises the population capacity')
 
-  // Workforce: the starter mine plus the mine + farm added earlier need 6 hands.
+  // Workforce: the starter mine + farm and the mine + farm added earlier need 8 hands.
   const wf = popSaved.world.population
-  ok(wf.workersNeeded === 6, `two mines + farm need 6 workers (${wf.workersNeeded})`)
+  ok(wf.workersNeeded === 8, `two mines + two farms need 8 workers (${wf.workersNeeded})`)
   const expectedStaffing = Math.min(1, wf.count / wf.workersNeeded)
   ok(Math.abs(wf.staffing - expectedStaffing) < 0.001,
     `staffing = population/needed, capped at 1 (${wf.staffing.toFixed(2)} for ${wf.count}/${wf.workersNeeded})`)
@@ -855,17 +962,11 @@ async function main() {
   ok(Number.isFinite(p1.plotX) && Number.isFinite(p1.plotY), 'every account owns plot coordinates')
   ok(p1.plotX !== p2.plotX || p1.plotY !== p2.plotY, 'two accounts get distinct plots')
 
-  // Sight is EARNED: before any watchtower, a village sees only itself.
-  const blind = await api('GET', `/map?x=${p1.plotX}&y=${p1.plotY}&r=2`, { token: m1.json.token })
-  ok(blind.json.plots.length === 1, 'without a watchtower the map shows only your own plot')
-  // Give both scouts eyes (level-1 towers) before the neighbourhood tests.
-  for (const [ix, acct] of [m1, m2].entries()) {
-    await api('POST', '/resources/apply', { token: acct.json.token, body: { delta: 2000, reason: 'debug_grant', requestId: `eyes-g-${ix}` } })
-    await api('POST', '/resources/apply', { token: acct.json.token, body: { delta: 125, resource: 'ore', reason: 'debug_grant', requestId: `eyes-o-${ix}` } })
-    const eyesWorld = (await api('GET', '/world', { token: acct.json.token })).json.world
-    eyesWorld.buildings.push({ id: `eyes_${ix}`, type: 'watchtower', gridX: 2, gridY: 2, level: 1 })
-    await api('POST', '/world/save', { token: acct.json.token, body: { world: eyesWorld, requestId: `eyes-save-${ix}` } })
-  }
+  // The mandatory placement lesson already gave both scouts their one legal
+  // level-1 Watchtower; do not append a second maxCount=1 tower.
+  const firstSight = await api('GET', `/map?x=${p1.plotX}&y=${p1.plotY}&r=2`, { token: m1.json.token })
+  ok(firstSight.json.plots.length === 9,
+    'the mandatory tutorial Watchtower opens the first 3x3 neighbourhood')
 
   const atlas = await api('GET', '/map/atlas', { token: m1.json.token })
   ok(atlas.status === 200 && atlas.json.players.some(p => p.me) && atlas.json.players.length >= 2, 'the atlas charts every settled chief, self included')
@@ -1017,6 +1118,8 @@ async function main() {
   const sA = await api('POST', '/auth/session', { body: {} })
   const sB = await api('POST', '/auth/session', { body: {} })
   const sC = await api('POST', '/auth/session', { body: {} })
+  await configureCompactShieldVillage(sA.json, 'shield-fixture-a')
+  await configureCompactShieldVillage(sB.json, 'shield-fixture-b')
 
   // B raids A: the beaten defender gains a shield + a revenge right on B.
   await armWarriors(sB.json.token, 50, 'arm-shield-b')
@@ -1040,7 +1143,7 @@ async function main() {
   await streamFrames(sA.json.token, rev1.json, 3, 100, 50)
   const profA2 = await api('POST', '/auth/session', { body: { token: sA.json.token } })
   ok((profA2.json.player.shieldUntil ?? 0) <= Date.now(), 'marching out drops your own shield')
-  await new Promise(resolve => setTimeout(resolve, 2500))
+  await new Promise(resolve => setTimeout(resolve, 6500))
   await api('POST', '/attacks/end', { token: sA.json.token, body: { attackId: rev1.json.attackId, destruction: 95, goldLooted: 0 } })
   const profB = await api('POST', '/auth/session', { body: { token: sB.json.token } })
   ok(profB.json.player.shieldUntil > Date.now(), 'a 95% defeat grants a long shield')
@@ -1135,6 +1238,7 @@ async function main() {
   const raceVictim = (await api('POST', '/auth/session', { body: {} })).json
   const raceOne = (await api('POST', '/auth/session', { body: {} })).json
   const raceTwo = (await api('POST', '/auth/session', { body: {} })).json
+  await configureCompactShieldVillage(raceVictim, 'race-shield-fixture')
   await armWarriors(raceOne.token, 50, 'arm-race-one')
   await armWarriors(raceTwo.token, 1, 'arm-race-two')
   const raceStartOne = await matchmakeUntil(raceOne.token, raceVictim.player.id, 'race-one')
@@ -1262,9 +1366,13 @@ async function main() {
     for (;;) {
       const world = (await api('GET', '/world', { token })).json.world
       const target = world.buildings.find(match)
+      if (!target) throw new Error(`${keyPrefix} upgrade target is missing`)
       if ((target.level ?? 1) >= targetLevel) return
       target.level = (target.level ?? 1) + 1
-      await api('POST', '/world/save', { token, body: { world, requestId: `${keyPrefix}-${target.level}` } })
+      const saved = await api('POST', '/world/save', { token, body: { world, requestId: `${keyPrefix}-${target.level}` } })
+      if (saved.status !== 200) {
+        throw new Error(`${keyPrefix} upgrade failed (${saved.status}): ${JSON.stringify(saved.json)}`)
+      }
       await new Promise(resolve => setTimeout(resolve, 700))
     }
   }
@@ -1273,10 +1381,7 @@ async function main() {
   await api('POST', '/resources/apply', { token: mechanics.token, body: { delta: 700, resource: 'ore', reason: 'debug_grant', requestId: 'mechanics-ore-3' } })
   await stepUpgrade(mechanics.token, building => building.id === 'mechanics-store', 3, 'mechanics-store-up3')
   await api('POST', '/resources/apply', { token: mechanics.token, body: { delta: 1_000, resource: 'ore', reason: 'debug_grant', requestId: 'mechanics-ore-4' } })
-  mechanicsWorld = (await api('GET', '/world', { token: mechanics.token })).json.world
-  mechanicsWorld.buildings.push({ id: 'mechanics-mystic-barracks', type: 'mystic_barracks', gridX: 18, gridY: 3, level: 1 })
-  mechanicsWorld = (await api('POST', '/world/save', { token: mechanics.token, body: { world: mechanicsWorld, requestId: 'mechanics-mystic-barracks-place' } })).json.world
-  await stepUpgrade(mechanics.token, building => building.id === 'mechanics-mystic-barracks', 3, 'mechanics-mystic-barracks-up')
+  await stepUpgrade(mechanics.token, building => building.type === 'mystic_barracks', 3, 'mechanics-mystic-barracks-up')
   mechanicsWorld = (await api('GET', '/world', { token: mechanics.token })).json.world
   mechanicsWorld.buildings.push({ id: 'mechanics-lab', type: 'lab', gridX: 5, gridY: 2, level: 3 })
   const mechanicsSaved = await api('POST', '/world/save', { token: mechanics.token, body: { world: mechanicsWorld, requestId: 'mechanics-lab-save' } })
@@ -1373,10 +1478,6 @@ async function main() {
   }
   ok(Boolean(spectator && spectatorVictim), 'an adjacent account pair is available for live spectating')
   if (spectator && spectatorVictim) {
-    await api('POST', '/resources/apply', { token: spectator.token, body: { delta: 50, resource: 'ore', reason: 'debug_grant', requestId: 'spectator-ore' } })
-    const spectatorWorld = (await api('GET', '/world', { token: spectator.token })).json.world
-    spectatorWorld.buildings.push({ id: 'spectator-watch', type: 'watchtower', gridX: 2, gridY: 18, level: 1 })
-    await api('POST', '/world/save', { token: spectator.token, body: { world: spectatorWorld, requestId: 'spectator-watch-save' } })
     const spectatorRaider = (await api('POST', '/auth/session', { body: {} })).json
     await armWarriors(spectatorRaider.token, 1, 'arm-spectator-raid')
     const spectatorAttack = await matchmakeUntil(spectatorRaider.token, spectatorVictim.player.id, 'spectator-match')
@@ -1720,13 +1821,12 @@ async function main() {
       const spot = barracksType === 'mystic_barracks' ? { gridX: 3, gridY: 3 } : { gridX: 18, gridY: 3 }
       troopWorld.buildings.push({ id: `${tag}-${barracksType}-${unlock}`, type: barracksType, ...spot, level: unlock })
     }
-    // A watchtower opens the map sight the bot raid below needs (the eco
-    // flow's pattern). Level 2 (5x5 horizon): with many guest plots allocated
-    // by earlier checks, the immediate 3x3 ring can fill up with players.
-    troopWorld.buildings.push({ id: `${tag}-watch`, type: 'watchtower', gridX: 2, gridY: 18, level: 2 })
     const troopSaved = await api('POST', '/world/save', { token: session.token, body: { world: troopWorld, requestId: `${tag}-barracks` } })
     ok(troopSaved.status === 200 && troopSaved.json.world.buildings.some(bl => bl.id === `${tag}-${barracksType}-${unlock}` && bl.level === unlock),
       `a funded level-${unlock} ${faction} barracks placement is accepted for ${type} (${troopSaved.status})`)
+    // Upgrade the one tutorial Watchtower to its 5x5 horizon; appending a
+    // second maxCount=1 tower would be sanitized away.
+    await stepUpgrade(session.token, building => building.type === 'watchtower', 2, `${tag}-watch-up`)
     const troopTrained = await api('POST', '/army/train', { token: session.token, body: { type, count: 1, requestId: `${tag}-train` } })
     ok(troopTrained.status === 200 && troopTrained.json.army?.[type] === 1,
       `a ${type} trains once the barracks reaches level ${unlock} (${troopTrained.status})`)
@@ -1758,9 +1858,7 @@ async function main() {
   await api('POST', '/resources/apply', { token: sk.token, body: { delta: 5000, reason: 'debug_grant', requestId: 'sk-gold' } })
   await api('POST', '/resources/apply', { token: sk.token, body: { delta: 1000, resource: 'ore', reason: 'debug_grant', requestId: 'sk-ore' } })
   await api('POST', '/resources/apply', { token: sk.token, body: { delta: 100, resource: 'food', reason: 'debug_grant', requestId: 'sk-food' } })
-  const skWorld = (await api('GET', '/world', { token: sk.token })).json.world
-  skWorld.buildings.push({ id: 'sk_watch', type: 'watchtower', gridX: 2, gridY: 18, level: 2 })
-  await api('POST', '/world/save', { token: sk.token, body: { world: skWorld, requestId: 'sk-watch' } })
+  await stepUpgrade(sk.token, building => building.type === 'watchtower', 2, 'sk-watch-up')
   await api('POST', '/army/train', { token: sk.token, body: { type: 'warrior', count: 1, requestId: 'sk-warrior' } })
   const skMap = (await api('GET', `/map?x=${sk.player.plotX}&y=${sk.player.plotY}&r=2`, { token: sk.token })).json
   const skCamp = skMap.plots.find(plot => plot.kind === 'bot')
@@ -1818,10 +1916,6 @@ async function main() {
     if (!near && h % 100 >= 55) return null
     return h
   }
-  await api('POST', '/resources/apply', { token: eco.token, body: { delta: 100, resource: 'ore', reason: 'debug_grant', requestId: 'eco-watch-ore' } })
-  const towerFundedWorld = (await api('GET', '/world', { token: eco.token })).json.world
-  towerFundedWorld.buildings.push({ id: 'eco_watch', type: 'watchtower', gridX: 2, gridY: 18, level: 1 })
-  await api('POST', '/world/save', { token: eco.token, body: { world: towerFundedWorld, requestId: 'eco-watch-save' } })
   await armWarriors(eco.token, 10, 'eco-arm-bot')
   const ecoMap = (await api('GET', `/map?x=${eco.player.plotX}&y=${eco.player.plotY}&r=1`, { token: eco.token })).json
   const camp = ecoMap.plots.find(plot => plot.kind === 'bot')
@@ -2013,21 +2107,8 @@ async function main() {
   const disposableGuest = (await api('POST', '/auth/session', {
     headers: { 'X-Forwarded-For': '198.51.100.122' }
   })).json
-  await api('POST', '/resources/apply', {
-    token: reseedCaller.token,
-    body: { delta: 2000, reason: 'debug_grant', requestId: 'reseed-eyes-gold' }
-  })
-  await api('POST', '/resources/apply', {
-    token: reseedCaller.token,
-    body: { delta: 125, resource: 'ore', reason: 'debug_grant', requestId: 'reseed-eyes-ore' }
-  })
   const reseedWorldBefore = (await api('GET', '/world', { token: reseedCaller.token })).json.world
-  reseedWorldBefore.buildings.push({ id: 'reseed_eyes', type: 'watchtower', gridX: 2, gridY: 2, level: 1 })
-  const savedReseedWorld = (await api('POST', '/world/save', {
-    token: reseedCaller.token,
-    body: { world: reseedWorldBefore, requestId: 'reseed-eyes-save' }
-  })).json.world
-  const callerBuildings = JSON.stringify(savedReseedWorld.buildings)
+  const callerBuildings = JSON.stringify(reseedWorldBefore.buildings)
   const mapBeforeReseed = (await api(
     'GET',
     `/map?x=${reseedCaller.player.plotX}&y=${reseedCaller.player.plotY}&r=1`,
@@ -2410,8 +2491,31 @@ async function main() {
     token: wallReg.token,
     body: { world: wallReg.world, requestId: 'wall-banner-gate-save' }
   })
-  ok(wallBlockedSave.status === 409 && wallBlockedSave.json?.code === 'BANNER_REQUIRED',
-    'production registration cannot mutate gameplay before banner onboarding')
+  ok(wallBlockedSave.status === 409 && wallBlockedSave.json?.code === 'INTRO_BATTLE_REQUIRED',
+    'production registration cannot bypass Sir Andre')
+  ok((await api('POST', '/intro-battle/complete', { token: wallReg.token })).status === 200,
+    'production registration can record Sir Andre completion')
+  const wallWatchtowerGate = await api('POST', '/world/save', {
+    token: wallReg.token,
+    body: { world: wallReg.world, requestId: 'wall-watchtower-gate-save' }
+  })
+  ok(wallWatchtowerGate.status === 409 && wallWatchtowerGate.json?.code === 'WATCHTOWER_PLACEMENT_REQUIRED',
+    'production registration requires the first Watchtower before ordinary saves')
+  const wallTower = await api('POST', '/watchtower-tutorial/place', {
+    token: wallReg.token,
+    body: {
+      world: {
+        ...wallReg.world,
+        buildings: [
+          ...wallReg.world.buildings,
+          { id: 'wall-registration-watchtower', type: 'watchtower', gridX: 22, gridY: 22, level: 1 }
+        ]
+      },
+      requestId: 'wall-registration-watchtower'
+    }
+  })
+  ok(wallTower.status === 200, 'production registration completes the authoritative Watchtower lesson')
+  wallReg.world = wallTower.json.world
   ok((await api('POST', '/player/banner', {
     token: wallReg.token,
     body: { banner: { palette: 7, emblem: 5, pattern: 4 } }

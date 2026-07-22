@@ -29,6 +29,8 @@ export interface AccountRecord {
   testModeAcknowledgedActivationId: string | null
   /** False only for accounts created after mandatory intro-battle onboarding shipped. */
   introBattleCompleted: boolean
+  /** Missing/true grandfather existing accounts; false only during the first Watchtower lesson. */
+  watchtowerPlacementCompleted?: boolean
 }
 
 /** Public account fields used by bounded discovery queries. */

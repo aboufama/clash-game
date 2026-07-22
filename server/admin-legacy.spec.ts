@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { placementCharge } from '../src/game/config/Economy'
 import { ApiError, GameService } from './game'
 
 function provisionLegacyBot(service: GameService, x: number, y: number, seed: number) {
@@ -168,19 +169,57 @@ test('legacy starter defaults persist and apply only at creation unless a full r
     if (!('token' in existing)) return
     const existingBefore = service.getWorld(service.authenticate(existing.token))
     const initialConfig = service.adminConfig()
+    const firstWatchtowerCharge = placementCharge('watchtower', 1)
+    assert.throws(
+      () => service.adminOperation({
+        type: 'set_starter_village',
+        starterVillage: {
+          resources: {
+            gold: Math.max(0, firstWatchtowerCharge.gold - 1),
+            ore: Math.max(0, firstWatchtowerCharge.ore - 1),
+            food: 0
+          },
+          buildings: [{ type: 'town_hall', level: 1, gridX: 2, gridY: 2 }],
+          wallLevel: 1
+        },
+        expectedRevision: initialConfig.revision,
+        reason: 'Reject a starter that cannot complete mandatory Watchtower placement'
+      }),
+      (error: unknown) => error instanceof ApiError && error.code === 'ADMIN_INVALID_INPUT'
+    )
+
+    const zeroWalletWithWatchtower = {
+      resources: { gold: 0, ore: 0, food: 0 },
+      buildings: [
+        { type: 'town_hall' as const, level: 1, gridX: 2, gridY: 2 },
+        { type: 'watchtower' as const, level: 1, gridX: 8, gridY: 8 }
+      ],
+      wallLevel: 1
+    }
+    const zeroWalletChanged = service.adminOperation({
+      type: 'set_starter_village',
+      starterVillage: zeroWalletWithWatchtower,
+      expectedRevision: initialConfig.revision,
+      reason: 'A starter that owns its Watchtower needs no placement wallet'
+    })
+    assert.equal(zeroWalletChanged.changed, true)
+    const afterZeroWallet = service.adminConfig()
+    assert.deepEqual(afterZeroWallet.starterVillage, zeroWalletWithWatchtower)
+
     const starterVillage = {
       resources: { gold: 210_000, ore: 220_000, food: 230_000 },
       buildings: [
         { type: 'town_hall', level: 1, gridX: 2, gridY: 2 },
         { type: 'army_camp', level: 2, gridX: 10, gridY: 10 },
-        { type: 'mine', level: 1, gridX: 18, gridY: 18 }
+        { type: 'mine', level: 1, gridX: 18, gridY: 18 },
+        { type: 'watchtower', level: 1, gridX: 22, gridY: 22 }
       ],
       wallLevel: 1
     }
     const changed = service.adminOperation({
       type: 'set_starter_village',
       starterVillage,
-      expectedRevision: initialConfig.revision,
+      expectedRevision: afterZeroWallet.revision,
       reason: 'Configure durable legacy starter defaults'
     })
     assert.equal(changed.changed, true)
@@ -193,6 +232,8 @@ test('legacy starter defaults persist and apply only at creation unless a full r
     assert.deepEqual(created.world.resources, starterVillage.resources)
     assert.deepEqual(created.world.buildings.map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY })),
       starterVillage.buildings)
+    assert.equal(created.features.watchtowerPlacementRequired, false,
+      'a configured starter that already owns a Watchtower skips the placement lesson')
     assert.ok(service.flush())
 
     const restarted = new GameService(root)
@@ -203,6 +244,8 @@ test('legacy starter defaults persist and apply only at creation unless a full r
     if (!('token' in afterRestart)) return
     assert.deepEqual(afterRestart.world.resources, starterVillage.resources,
       'post-restart creation still uses the persisted template')
+    assert.equal(afterRestart.features.watchtowerPlacementRequired, false,
+      'configured Watchtower skip survives a JSON runtime restart')
 
     restarted.adminOperation({
       type: 'set_maintenance', enabled: true, reason: 'Prepare configured legacy reset'
@@ -454,6 +497,52 @@ test('legacy Test Mode claims and intro completion are durable per account and a
     )
     assert.deepEqual(service.completeIntroBattle(player), { ok: true, introBattleRequired: false })
     assert.deepEqual(service.completeIntroBattle(player), { ok: true, introBattleRequired: false })
+    assert.equal(service.homeSync(player).features.watchtowerPlacementRequired, true)
+    assert.throws(
+      () => service.setBanner(player, { palette: 1, emblem: 1, pattern: 1 }),
+      (error: unknown) => error instanceof ApiError && error.code === 'WATCHTOWER_PLACEMENT_REQUIRED'
+    )
+    const towerWorld = {
+      ...created.world,
+      buildings: [
+        ...created.world.buildings,
+        { id: 'legacy-first-watchtower', type: 'watchtower' as const, gridX: 2, gridY: 2, level: 1 }
+      ]
+    }
+    assert.throws(
+      () => service.placeTutorialWatchtower(player, {
+        world: {
+          ...towerWorld,
+          buildings: towerWorld.buildings.map(building => (
+            building.type === 'town_hall' ? { ...building, gridY: building.gridY + 1 } : building
+          ))
+        },
+        requestId: 'invalid-first-tower'
+      }),
+      (error: unknown) => error instanceof ApiError && error.code === 'WATCHTOWER_PLACEMENT_ONLY'
+    )
+    // Legacy request ids are globally stored; the tutorial namespace must not
+    // confuse a key used by a different operation with a placement replay.
+    player.requestKeys.push('onboarding.watchtower:first-tower')
+    const placed = service.placeTutorialWatchtower(player, {
+      world: towerWorld,
+      requestId: 'first-tower'
+    })
+    assert.equal(placed.watchtowerPlacementRequired, false)
+    assert.equal(placed.world.buildings.filter(building => building.type === 'watchtower').length, 1)
+    assert.equal(service.placeTutorialWatchtower(player, {
+      world: towerWorld,
+      requestId: 'first-tower'
+    }).watchtowerPlacementRequired, false, 'same-key retry replays the committed placement')
+    assert.throws(
+      () => service.placeTutorialWatchtower(player, {
+        world: placed.world,
+        requestId: 'second-first-tower'
+      }),
+      (error: unknown) => error instanceof ApiError && error.code === 'WATCHTOWER_PLACEMENT_COMPLETE'
+    )
+    service.setBanner(player, { palette: 1, emblem: 1, pattern: 1 })
+    assert.doesNotThrow(() => service.assertGameplayReady(player))
 
     service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'First claim activation' })
     const first = service.homeSync(player).features
@@ -509,6 +598,7 @@ test('legacy Test Mode claims and intro completion are durable per account and a
     assert.ok('token' in resumed)
     if (!('token' in resumed)) return
     assert.equal(resumed.features.introBattleRequired, false)
+    assert.equal(resumed.features.watchtowerPlacementRequired, false)
     assert.equal(resumed.features.testModeActivationId, third.testModeActivationId)
     assert.equal(resumed.features.testModeAnnouncementPending, false)
   } finally {
@@ -595,7 +685,8 @@ test('legacy test mode is authoritative for sessions, spending, upgrades, and tr
         testMode: false,
         testModeActivationId: null,
         testModeAnnouncementPending: false,
-        introBattleRequired: true
+        introBattleRequired: true,
+        watchtowerPlacementRequired: true
       })
     }
   } finally {

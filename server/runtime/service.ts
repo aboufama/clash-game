@@ -27,6 +27,7 @@ import {
   VILLAGE_SIMULATION_VERSION,
   VillageRuleError,
   populationCapacity,
+  isExactFirstWatchtowerPlacement,
   priceVillageMutation,
   sanitizeBuildings,
   sanitizeObstacles,
@@ -56,7 +57,7 @@ import {
   settledFrontierBotVillageSeedAt
 } from '../domain/world'
 import { PROCEDURAL_VILLAGE_GENERATOR_VERSION } from '../domain/world/procedural-village'
-import { ApiError, bannerRequiredError, introBattleRequiredError } from '../errors'
+import { ApiError, bannerRequiredError, introBattleRequiredError, watchtowerPlacementRequiredError } from '../errors'
 import { isValidUsername, normalizeUsernameKey } from '../domain/auth'
 import type {
   AdminApiService,
@@ -562,7 +563,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       testModeActivationId: activationId,
       testModeAnnouncementPending: activationId !== null
         && account.testModeAcknowledgedActivationId !== activationId,
-      introBattleRequired: !account.introBattleCompleted
+      introBattleRequired: !account.introBattleCompleted,
+      watchtowerPlacementRequired: account.watchtowerPlacementCompleted === false
     }
   }
 
@@ -771,6 +773,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       const account = await tx.accounts.getById(principal.playerId)
       if (!account) throw new ApiError(401, 'Player authority is incomplete')
       if (!account.introBattleCompleted) throw introBattleRequiredError()
+      if (account.watchtowerPlacementCompleted === false) throw watchtowerPlacementRequiredError()
       const village = await tx.villages.get(principal.playerId)
       if (!village) throw new ApiError(401, 'Player authority is incomplete')
       if (!explicitVillageBanner(village.banner)) throw bannerRequiredError()
@@ -795,6 +798,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       await assertGameplayMutationAllowed(tx)
       const state = await this.authority.owned(tx, principal.playerId, true)
       if (!state.account.introBattleCompleted) throw introBattleRequiredError()
+      if (state.account.watchtowerPlacementCompleted === false) throw watchtowerPlacementRequiredError()
       if (sameBanner(state.village.banner, banner)) return { banner: { ...banner } }
       const expectedAppearanceRevision = state.village.appearanceRevision
       state.village.banner = { ...banner }
@@ -916,7 +920,20 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     return { ok: true as const, introBattleRequired: false as const }
   }
 
+  async placeTutorialWatchtower(principal: RuntimePrincipal, body: SaveWorldRequest) {
+    const world = await this.persistWorld(principal, body, true)
+    return { world, watchtowerPlacementRequired: false as const }
+  }
+
   async saveWorld(principal: RuntimePrincipal, body: SaveWorldRequest): Promise<SerializedWorld> {
+    return this.persistWorld(principal, body, false)
+  }
+
+  private async persistWorld(
+    principal: RuntimePrincipal,
+    body: SaveWorldRequest,
+    tutorialWatchtower: boolean
+  ): Promise<SerializedWorld> {
     const world = body.world
     if (!world || typeof world !== 'object') throw new ApiError(400, 'Missing world payload')
     const id = requestId(body.requestId)
@@ -925,9 +942,16 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       const runtimeConfig = await assertGameplayMutationAllowed(tx)
       const testMode = this.testModeFor(runtimeConfig, principal.playerId)
       const infiniteResources = this.infiniteResourcesFor(runtimeConfig, principal.playerId)
-      const claim = await this.claimRequest(tx, principal, 'world.save', id, now)
+      const operation = tutorialWatchtower ? 'onboarding.watchtower' : 'world.save'
+      const claim = await this.claimRequest(tx, principal, operation, id, now)
       if (claim.replayed) return claim.response as unknown as SerializedWorld
       const state = await this.authority.owned(tx, principal.playerId, true)
+      if (tutorialWatchtower) {
+        if (!state.account.introBattleCompleted) throw introBattleRequiredError()
+        if (state.account.watchtowerPlacementCompleted !== false) {
+          throw new ApiError(409, 'The Watchtower lesson is already complete', 'WATCHTOWER_PLACEMENT_COMPLETE')
+        }
+      }
       if (await this.authority.hasActiveIncoming(tx, principal.playerId)) {
         throw new ApiError(409, 'Village resources and layout are locked while an incoming raid is live', 'BASE_UNDER_ATTACK')
       }
@@ -965,6 +989,20 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         proposedWallLevel: world.wallLevel,
         army: villageArmy(state.village)
       }))
+      if (tutorialWatchtower && !isExactFirstWatchtowerPlacement({
+        currentBuildings: villageBuildings(state.village),
+        currentObstacles: villageObstacles(state.village),
+        currentWallLevel: state.village.wallLevel,
+        proposedBuildings: proposal.buildings,
+        proposedObstacles: proposal.obstacles,
+        proposedWallLevel: proposal.wallLevel
+      })) {
+        throw new ApiError(
+          409,
+          'The first village lesson allows exactly one level-one Watchtower placement',
+          'WATCHTOWER_PLACEMENT_ONLY'
+        )
+      }
       let pricingSummary: { chargesGold: number; chargesOre: number; refundGold: number; obstacleRewards: number } | null = null
       if (proposal.changed) {
         const pricing = villageRule(() => priceVillageMutation({
@@ -1017,14 +1055,15 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         const response = serializedWorldOf(state.account, state.village, now, {
           upgradePolicy: this.upgradePolicyFor(testMode)
         })
-        await this.completeRequest(tx, principal, 'world.save', id, response)
+        await this.completeRequest(tx, principal, operation, id, response)
         return response
       }
       await this.authority.updateVillage(tx, state.village, expectedRevision)
+      if (tutorialWatchtower) await tx.accounts.completeWatchtowerPlacement(principal.playerId)
       const response = serializedWorldOf(state.account, state.village, now, {
         upgradePolicy: this.upgradePolicyFor(testMode)
       })
-      await this.completeRequest(tx, principal, 'world.save', id, response)
+      await this.completeRequest(tx, principal, operation, id, response)
       if (proposal.changed) {
         const auditId = id || randomId('world-save')
         for (const currency of ['gold', 'ore', 'food'] as const) {

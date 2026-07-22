@@ -28,6 +28,7 @@ import { BannerPickerModal } from './components/BannerPickerModal';
 import { MerchantModal } from './components/MerchantModal';
 import { IntroBattleScroll } from './components/IntroBattleScroll';
 import { IntroBattleGuide } from './components/IntroBattleGuide';
+import { WatchtowerPlacementGuide, type WatchtowerTutorialStage } from './components/WatchtowerPlacementGuide';
 import { soundSystem } from './game/systems/SoundSystem';
 import { musicSystem } from './game/systems/MusicSystem';
 import type { MerchantOffer } from './game/systems/VillageLifeSystem';
@@ -169,6 +170,20 @@ function App() {
   const introBattleActiveRef = useRef(false);
   const [introBattleLaunching, setIntroBattleLaunching] = useState(false);
   const [introDeployCount, setIntroDeployCount] = useState(0);
+  const [watchtowerPlacementRequired, setWatchtowerPlacementRequired] = useState(false);
+  const watchtowerPlacementRequiredRef = useRef(false);
+  const [watchtowerTutorialStage, setWatchtowerTutorialStage] = useState<WatchtowerTutorialStage>('build');
+  const watchtowerTutorialStageRef = useRef<WatchtowerTutorialStage>('build');
+  const watchtowerCompletionTimerRef = useRef<number | null>(null);
+  const setWatchtowerStage = useCallback((stage: WatchtowerTutorialStage) => {
+    watchtowerTutorialStageRef.current = stage;
+    setWatchtowerTutorialStage(stage);
+  }, []);
+  useEffect(() => () => {
+    if (watchtowerCompletionTimerRef.current !== null) {
+      window.clearTimeout(watchtowerCompletionTimerRef.current);
+    }
+  }, []);
   const [sessionExpired, setSessionExpired] = useState(false);
   // Production registration wall: the server granted no identity, so the
   // account gate (username + password) is all this device may see.
@@ -235,6 +250,8 @@ function App() {
       || isBannerPickerOpen
       || introBattleRequired
       || introBattleActive
+      || watchtowerPlacementRequired
+      || !sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner)
     ) return;
     testModeClaimInFlightRef.current = activationId;
     void Backend.claimTestModeAnnouncement(activationId)
@@ -253,6 +270,7 @@ function App() {
           && result.activationId === activationId
           && current.testMode
           && current.testModeActivationId === activationId
+          && Boolean(sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner))
         ) setIsTestModePopupOpen(true);
       })
       .catch(error => {
@@ -284,7 +302,7 @@ function App() {
           && testModeClaimRetryTimerRef.current === null
         ) setTestModeClaimAttempt(attempt => attempt + 1);
       });
-  }, [testMode, testModeClaimAttempt, userId, worldReady, showCloudOverlay, isLockedOut, isBannerRequired, isBannerPickerOpen, introBattleRequired, introBattleActive]);
+  }, [testMode, testModeClaimAttempt, userId, worldReady, showCloudOverlay, isLockedOut, isBannerRequired, isBannerPickerOpen, introBattleRequired, introBattleActive, watchtowerPlacementRequired]);
   useEffect(() => () => {
     if (testModeClaimRetryTimerRef.current !== null) {
       window.clearTimeout(testModeClaimRetryTimerRef.current);
@@ -341,6 +359,8 @@ function App() {
         setTestMode(online && features.testMode);
         introBattleRequiredRef.current = online && features.introBattleRequired;
         setIntroBattleRequired(online && features.introBattleRequired);
+        watchtowerPlacementRequiredRef.current = online && features.watchtowerPlacementRequired;
+        setWatchtowerPlacementRequired(online && features.watchtowerPlacementRequired);
         setIsOnline(online);
       })
       .catch(error => {
@@ -352,6 +372,8 @@ function App() {
           setTestMode(false);
           introBattleRequiredRef.current = false;
           setIntroBattleRequired(false);
+          watchtowerPlacementRequiredRef.current = false;
+          setWatchtowerPlacementRequired(false);
           setNeedsAccount(false);
         }
       })
@@ -737,20 +759,20 @@ function App() {
   // heraldry. Missing and legacy partial banners both enter the same blocking
   // picker; complete banners remain editable later from the town hall.
   useEffect(() => {
-    if (!userId || !worldReady || introBattleRequired || introBattleActive) {
+    if (!userId || !worldReady || introBattleRequired || introBattleActive || watchtowerPlacementRequired) {
       setIsBannerRequired(false);
-      if (introBattleRequired || introBattleActive) setIsBannerPickerOpen(false);
+      if (introBattleRequired || introBattleActive || watchtowerPlacementRequired) setIsBannerPickerOpen(false);
       return;
     }
     const requiresBanner = !sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner);
     setIsBannerRequired(requiresBanner);
     if (requiresBanner) setIsBannerPickerOpen(true);
-  }, [userId, worldReady, introBattleRequired, introBattleActive]);
+  }, [userId, worldReady, introBattleRequired, introBattleActive, watchtowerPlacementRequired]);
 
   // Persist resources & army
   useEffect(() => {
     const bannerReady = Boolean(userId && sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner));
-    if (user && !loading && worldReady && bannerReady && !introBattleRequired && !introBattleActive) {
+    if (user && !loading && worldReady && bannerReady && !introBattleRequired && !introBattleActive && !watchtowerPlacementRequired) {
       try {
         const userId = user.id || 'default_player';
         Backend.updateResources(userId, resources.gold);
@@ -762,7 +784,7 @@ function App() {
         console.error('Error saving game state:', error);
       }
     }
-  }, [resources, army, user, userId, loading, worldReady, introBattleRequired, introBattleActive]);
+  }, [resources, army, user, userId, loading, worldReady, introBattleRequired, introBattleActive, watchtowerPlacementRequired]);
 
   const [capacity, setCapacity] = useState({ current: 0, max: 30 });
   const [selectedTroopType, setSelectedTroopType] = useState<PlayerTroopType>('warrior');
@@ -795,6 +817,29 @@ function App() {
   const [incomingAttack, setIncomingAttack] = useState<IncomingAttackSession | null>(null);
   const [dismissedIncomingAttackId, setDismissedIncomingAttackId] = useState<string | null>(null);
   const [activeReplay, setActiveReplay] = useState<{ attackId: string; attackerName: string; live: boolean } | null>(null);
+  const watchtowerTutorialActive = watchtowerPlacementRequired
+    && !introBattleRequired
+    && !introBattleActive
+    && worldReady
+    && view === 'HOME'
+    && !isLockedOut;
+
+  useEffect(() => {
+    gameManager.setWatchtowerPlacementTutorial(watchtowerTutorialActive);
+    if (!watchtowerTutorialActive) return;
+    // No pre-existing surface may provide a route around the authored lesson.
+    setIsTrainingOpen(false);
+    setIsAccountOpen(false);
+    setIsJukeboxOpen(false);
+    setIsBannerPickerOpen(false);
+    setShowAtlas(false);
+    setShowTheatre(false);
+    setMerchantOffers(null);
+    setPlotPanel(null);
+    setSelectedInMap(null);
+    setSelectedBuildingInfo(null);
+    setIsDebugOpen(false);
+  }, [watchtowerTutorialActive]);
   const selectedInMapRef = useRef<string | null>(null);
   const armyRef = useRef(army);
   const selectedTroopTypeRef = useRef(selectedTroopType);
@@ -1001,6 +1046,13 @@ function App() {
         const wasIntroBattleRequired = introBattleRequiredRef.current;
         introBattleRequiredRef.current = features.introBattleRequired;
         setIntroBattleRequired(features.introBattleRequired);
+        const wasWatchtowerRequired = watchtowerPlacementRequiredRef.current;
+        watchtowerPlacementRequiredRef.current = features.watchtowerPlacementRequired;
+        setWatchtowerPlacementRequired(features.watchtowerPlacementRequired);
+        if (wasWatchtowerRequired && !features.watchtowerPlacementRequired) {
+          setWatchtowerStage('complete');
+          window.setTimeout(() => setWatchtowerStage('build'), 900);
+        }
         if (
           wasIntroBattleRequired
           && !features.introBattleRequired
@@ -1068,7 +1120,7 @@ function App() {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [userId, isOnline, view, worldReady, adoptWorld, revealVillageFromCloud]);
+  }, [userId, isOnline, view, worldReady, adoptWorld, revealVillageFromCloud, setWatchtowerStage]);
 
   useEffect(() => {
     selectedInMapRef.current = selectedInMap;
@@ -1135,6 +1187,8 @@ function App() {
     setTestMode(features.testMode);
     introBattleRequiredRef.current = features.introBattleRequired;
     setIntroBattleRequired(features.introBattleRequired);
+    watchtowerPlacementRequiredRef.current = features.watchtowerPlacementRequired;
+    setWatchtowerPlacementRequired(features.watchtowerPlacementRequired);
     setUser({
       id: authUser.id,
       username: authUser.username,
@@ -1331,6 +1385,12 @@ function App() {
       onPlacementCancelled: () => {
         setSelectedInMap(null);
         setSelectedBuildingInfo(null);
+        if (
+          watchtowerPlacementRequiredRef.current
+          && !['saving', 'complete'].includes(watchtowerTutorialStageRef.current)
+        ) {
+          setWatchtowerStage('build');
+        }
       },
       onRaidEnded: async (goldLooted: number, applied?: { ore?: number; food?: number; settlementDelayed?: boolean }) => {
         const scene = gameRef.current?.scene.getScene('MainScene') as any;
@@ -1500,15 +1560,21 @@ function App() {
         showToast(message);
       },
       collectResource: (kind: 'ore' | 'food', amount: number) => {
+        const resourceUserId = userId ?? 'default_player';
+        if (
+          introBattleRequiredRef.current
+          || watchtowerPlacementRequiredRef.current
+          || !sanitizeVillageBanner(Backend.getCachedWorld(resourceUserId)?.banner)
+        ) return;
         // Optimistic bump; the server clamps to storage capacity and the
         // cached world reconciles us right after.
         setResources(prev => ({ ...prev, [kind]: Math.max(0, prev[kind] + amount) }));
         const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-        void Backend.applyResourceDelta(userId ?? 'default_player', amount, kind === 'food' ? 'egg_collect' : 'rock_haul', undefined, requestId, kind)
+        void Backend.applyResourceDelta(resourceUserId, amount, kind === 'food' ? 'egg_collect' : 'rock_haul', undefined, requestId, kind)
           .then(() => {
-            const cached = Backend.getCachedWorld(userId ?? 'default_player');
+            const cached = Backend.getCachedWorld(resourceUserId);
             if (cached) {
               setResources(prev => ({
                 ...prev,
@@ -1530,6 +1596,7 @@ function App() {
 
       const key = e.key.toLowerCase();
       if (e.repeat) return;
+      if (watchtowerPlacementRequiredRef.current) return;
 
       // Debug tools are dev-only: players typing d/n/p must not summon
       // dragons, jump the clock or open the debug menu in production.
@@ -1651,6 +1718,55 @@ function App() {
 
     gameManager.registerUI({
       onBuildingPlaced: async (type: string, isFree: boolean = false) => {
+        if (watchtowerPlacementRequiredRef.current) {
+          if (type !== 'watchtower' || !user) return;
+          setWatchtowerStage('saving');
+          // Lock the scene synchronously before the server round trip. A fast
+          // second pointerup must not place another tower from the same ghost.
+          gameManager.selectBuilding(null);
+          let retryAnnounced = false;
+          const commitPlacedWatchtower = async (): Promise<void> => {
+            if (!watchtowerPlacementRequiredRef.current) return;
+            try {
+              await Backend.completeWatchtowerPlacement(user.id || 'default_player');
+              watchtowerPlacementRequiredRef.current = false;
+              setWatchtowerStage('complete');
+              refreshBuildingCounts();
+              if (watchtowerCompletionTimerRef.current !== null) {
+                window.clearTimeout(watchtowerCompletionTimerRef.current);
+              }
+              watchtowerCompletionTimerRef.current = window.setTimeout(() => {
+                watchtowerCompletionTimerRef.current = null;
+                setWatchtowerPlacementRequired(false);
+                setWatchtowerStage('build');
+              }, 900);
+            } catch (error) {
+              console.warn('Watchtower tutorial placement is still pending:', error);
+              if (!watchtowerPlacementRequiredRef.current) return;
+              const towerStillPending = Backend.getCachedWorld(user.id || 'default_player')
+                ?.buildings.some(building => building.type === 'watchtower') === true;
+              if (!towerStillPending) {
+                // A deterministic authority rejection reloads the clean base;
+                // there is no local tower to retry, so return to BUILD.
+                setWatchtowerStage('build');
+                showToast('That foundation was refused — choose another clear place for the Watchtower.');
+                return;
+              }
+              if (!retryAnnounced) {
+                retryAnnounced = true;
+                showToast('The royal scribe is reconnecting — your Watchtower remains safely in place.');
+              }
+              // Reuse the same local edit sequence/request id. If the first
+              // response was lost, server idempotency replays its exact commit.
+              watchtowerCompletionTimerRef.current = window.setTimeout(() => {
+                watchtowerCompletionTimerRef.current = null;
+                void commitPlacedWatchtower();
+              }, 2_000);
+            }
+          };
+          void commitPlacedWatchtower();
+          return;
+        }
         if (isFree) {
           refreshBuildingCounts();
           return;
@@ -1689,10 +1805,12 @@ function App() {
         refreshBuildingCounts();
       }
     });
-  }, [user, refreshBuildingCounts, infiniteResources]);
+  }, [user, refreshBuildingCounts, infiniteResources, setWatchtowerStage, showToast]);
 
   const handleSelect = (type: string) => {
+    if (watchtowerPlacementRequiredRef.current && type !== 'watchtower') return;
     gameManager.selectBuilding(type);
+    if (watchtowerPlacementRequiredRef.current) setWatchtowerStage('place');
     // Close the modal after selection
     setIsBuildingOpen(false);
   };
@@ -2061,6 +2179,7 @@ function App() {
     && !introBattleLaunching
     && !isLockedOut;
   const showIntroWorldLoadError = introBattleRequired && worldLoadFailed && !isLockedOut;
+  const showWatchtowerPlacementGuide = watchtowerTutorialActive && !showCloudOverlay;
   // Clouds cover pointer input, but the shell must also be keyboard-inert from
   // account admission through the exact frame ATTACK becomes interactive.
   const introOnboardingBlocksGame = introBattleRequired
@@ -2108,12 +2227,18 @@ function App() {
         isMobile={isMobile}
         isScouting={Boolean(scoutTarget)}
         allowNextMap={!introBattleActive}
+        watchtowerTutorialActive={watchtowerTutorialActive}
+        watchtowerTutorialBuildEnabled={watchtowerTutorialStage === 'build'}
         pendingLoot={cloudTransitionReward}
         lootAnimating={lootAnimating}
         onLootAnimationDone={() => setLootAnimating(null)}
-        onOpenSettings={() => setIsAccountOpen(true)}
-        onOpenBuild={() => setIsBuildingOpen(true)}
-        onOpenTrain={() => setIsTrainingOpen(true)}
+        onOpenSettings={() => { if (!watchtowerTutorialActive) setIsAccountOpen(true); }}
+        onOpenBuild={() => {
+          if (watchtowerTutorialActive && watchtowerTutorialStage !== 'build') return;
+          if (watchtowerTutorialActive) setWatchtowerStage('shop');
+          setIsBuildingOpen(true);
+        }}
+        onOpenTrain={() => { if (!watchtowerTutorialActive) setIsTrainingOpen(true); }}
         onSelectTroop={(type) => setSelectedTroopType(type as typeof selectedTroopType)}
         onNextMap={handleNextMap}
         onGoHome={handleGoHome}
@@ -2122,7 +2247,7 @@ function App() {
         deleteBuildingDisabledReason={campSaleBlocked ? 'Dismiss troops before selling this camp' : undefined}
         onUpgradeBuilding={handleUpgradeBuilding}
         onMoveBuilding={() => gameManager.moveSelectedBuilding()}
-        onOpenMap={() => setShowAtlas(true)}
+        onOpenMap={() => { if (!watchtowerTutorialActive) setShowAtlas(true); }}
         troopLevel={troopLevel}
       />
 
@@ -2145,8 +2270,8 @@ function App() {
       {isOnline && user && (
         <div
           className="top-right-btns"
-          style={view === 'HOME' ? undefined : { display: 'none' }}
-          aria-hidden={view !== 'HOME'}
+          style={view === 'HOME' && !watchtowerTutorialActive ? undefined : { display: 'none' }}
+          aria-hidden={view !== 'HOME' || watchtowerTutorialActive}
         >
           <button className="atlas-btn" title="Replay theatre" onClick={() => { soundSystem.play('uiOpen'); setShowTheatre(true); }}>
             <span className="sym sym-watch" />
@@ -2183,7 +2308,7 @@ function App() {
           horn + villager panic, which are diegetic, not chrome). The
           defense-log notification still lands silently in the bell (badge
           increments, LIVE row inside the dropdown) for history. */}
-      {view === 'HOME' && incomingAttack && (
+      {view === 'HOME' && incomingAttack && !watchtowerTutorialActive && (
         <div className="incoming-attack-popup">
           <div className="title">YOUR BASE IS UNDER ATTACK</div>
           <div className="incoming-attack-meta">
@@ -2320,8 +2445,12 @@ function App() {
         buildingCounts={buildingCounts}
         resources={spendableResources}
         shopWallLevel={shopWallLevel}
-        onClose={() => setIsBuildingOpen(false)}
+        onClose={() => {
+          if (watchtowerTutorialActive) return;
+          setIsBuildingOpen(false);
+        }}
         onSelect={handleSelect}
+        tutorialRequiredType={watchtowerTutorialActive ? 'watchtower' : null}
       />
 
       {isTestModePopupOpen && (
@@ -2333,6 +2462,10 @@ function App() {
         />
       )}
       </div>
+
+      {showWatchtowerPlacementGuide && (
+        <WatchtowerPlacementGuide stage={watchtowerTutorialStage} />
+      )}
 
       {showIntroBattleSummons && (
         <IntroBattleScroll onEnterBattle={handleStartIntroBattle} />

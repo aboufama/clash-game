@@ -1,5 +1,5 @@
 export * from './economy'
 export * from './layout'
+export * from './onboarding'
 export * from './rules'
 export * from './simulation'
-

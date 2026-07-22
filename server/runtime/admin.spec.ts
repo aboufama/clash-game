@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { placementCharge } from '../../src/game/config/Economy'
 import { MemoryPersistence, type AccountRecord, type VillageRecord } from '../persistence'
 import { VILLAGE_SIMULATION_VERSION } from '../domain/village'
 import { ensurePersistedBotVillage } from './bot-villages'
@@ -193,19 +194,54 @@ test('normalized starter defaults are audited, revision-fenced, and snapshotted 
     reason: 'Reject an overlapping starter layout'
   }), (error: unknown) => error instanceof Error && 'code' in error && error.code === 'ADMIN_INVALID_INPUT')
 
+  const firstWatchtowerCharge = placementCharge('watchtower', 1)
+  await assert.rejects(service.adminOperation({
+    type: 'set_starter_village',
+    starterVillage: {
+      resources: {
+        gold: Math.max(0, firstWatchtowerCharge.gold - 1),
+        ore: Math.max(0, firstWatchtowerCharge.ore - 1),
+        food: 0
+      },
+      buildings: [{ type: 'town_hall', level: 1, gridX: 2, gridY: 2 }],
+      wallLevel: 1
+    },
+    expectedRevision: initialConfig.revision,
+    reason: 'Reject a starter that cannot complete mandatory Watchtower placement'
+  }), (error: unknown) => error instanceof Error && 'code' in error && error.code === 'ADMIN_INVALID_INPUT')
+
+  const zeroWalletWithWatchtower = {
+    resources: { gold: 0, ore: 0, food: 0 },
+    buildings: [
+      { type: 'town_hall' as const, level: 1, gridX: 2, gridY: 2 },
+      { type: 'watchtower' as const, level: 1, gridX: 8, gridY: 8 }
+    ],
+    wallLevel: 1
+  }
+  const zeroWalletUpdate = await service.adminOperation({
+    type: 'set_starter_village',
+    starterVillage: zeroWalletWithWatchtower,
+    expectedRevision: initialConfig.revision,
+    reason: 'A starter that owns its Watchtower needs no placement wallet'
+  })
+  assert.equal(zeroWalletUpdate.changed, true)
+  const afterZeroWallet = await service.adminConfig()
+  assert.deepEqual(afterZeroWallet.starterVillage, zeroWalletWithWatchtower)
+
   const configuredStarter = {
     resources: { gold: 234_567, ore: 345_678, food: 456_789 },
     buildings: [
       { type: 'town_hall', level: 1, gridX: 2, gridY: 2 },
       { type: 'army_camp', level: 2, gridX: 10, gridY: 10 },
-      { type: 'farm', level: 1, gridX: 18, gridY: 18 }
+      { type: 'farm', level: 1, gridX: 18, gridY: 18 },
+      { type: 'watchtower', level: 1, gridX: 22, gridY: 22 }
     ],
     wallLevel: 1
   }
   const updated = await service.adminOperation({
     type: 'set_starter_village',
     starterVillage: configuredStarter,
-    expectedRevision: initialConfig.revision,
+    expectedRevision: afterZeroWallet.revision,
     reason: 'Configure showcase account defaults'
   })
   assert.equal(updated.changed, true)
@@ -230,6 +266,8 @@ test('normalized starter defaults are audited, revision-fenced, and snapshotted 
     'server-issued starter resources may intentionally exceed storage capacity')
   assert.deepEqual(created.world.buildings.map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY })),
     configuredStarter.buildings)
+  assert.equal(created.features.watchtowerPlacementRequired, false,
+    'an authored starter Watchtower bypasses the placement lesson')
 
   await service.adminOperation({
     type: 'set_maintenance', enabled: true, reason: 'Prepare configured starter reset'
@@ -911,6 +949,7 @@ test('normalized test mode is authoritative for sessions, spending, upgrades, an
   assert.equal(heartbeat.features.testModeAnnouncementPending, true)
   assert.ok(heartbeat.features.testModeActivationId)
   assert.equal(heartbeat.features.introBattleRequired, true)
+  assert.equal(heartbeat.features.watchtowerPlacementRequired, true)
   assert.deepEqual(heartbeat.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
   const enabled = await service.ensureSession(session.token)
   assert.ok('token' in enabled)
@@ -961,7 +1000,8 @@ test('normalized test mode is authoritative for sessions, spending, upgrades, an
       testMode: false,
       testModeActivationId: null,
       testModeAnnouncementPending: false,
-      introBattleRequired: true
+      introBattleRequired: true,
+      watchtowerPlacementRequired: true
     })
   }
   await service.close()

@@ -660,16 +660,20 @@ test('auxiliary storage has finite notification, idempotency, outbox, and marker
 test('account Test Mode claims and intro completion are atomic idempotent metadata', async () => {
   const persistence = new MemoryPersistence()
   await persistence.transaction(async tx => tx.accounts.insert(account('onboarding', {
-    introBattleCompleted: false
+    introBattleCompleted: false,
+    watchtowerPlacementCompleted: false
   })))
   await persistence.transaction(async tx => {
     assert.equal(await tx.accounts.claimTestModeAnnouncement('onboarding', 'tm_claim_1'), true)
     assert.equal(await tx.accounts.claimTestModeAnnouncement('onboarding', 'tm_claim_1'), false)
     assert.equal(await tx.accounts.completeIntroBattle('onboarding'), true)
     assert.equal(await tx.accounts.completeIntroBattle('onboarding'), false)
+    assert.equal(await tx.accounts.completeWatchtowerPlacement('onboarding'), true)
+    assert.equal(await tx.accounts.completeWatchtowerPlacement('onboarding'), false)
     const stored = await tx.accounts.getById('onboarding')
     assert.equal(stored?.testModeAcknowledgedActivationId, 'tm_claim_1')
     assert.equal(stored?.introBattleCompleted, true)
+    assert.equal(stored?.watchtowerPlacementCompleted, true)
   })
 })
 
@@ -678,6 +682,12 @@ test('world concurrency migration repairs stale free rows and indexes guest clea
   assert.equal(migration?.version, 10)
   assert.match(migration?.sql ?? '', /DELETE FROM world_released_slots/)
   assert.match(migration?.sql ?? '', /world_plots_guest_reaper_idx/)
+})
+
+test('Watchtower onboarding migration grandfathers existing accounts', () => {
+  const migration = MIGRATIONS.find(item => item.name === 'watchtower_placement_onboarding')
+  assert.equal(migration?.version, 19)
+  assert.match(migration?.sql ?? '', /watchtower_placement_completed boolean NOT NULL DEFAULT true/)
 })
 
 test('idempotency replays the exact committed response and outbox event', async () => {

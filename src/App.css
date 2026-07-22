@@ -5563,6 +5563,162 @@ body {
     transition: width 0.3s steps(4, end);
 }
 
+/* Mandatory first-Watchtower lesson. The instruction plaque is deliberately
+   compact so the village remains visible while the highlighted target and
+   placement ghost do the teaching. */
+.watchtower-placement-guide {
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    left: 50%;
+    z-index: 1100;
+    width: min(540px, calc(100vw - 24px));
+    min-height: 76px;
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) 34px;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 14px;
+    box-sizing: border-box;
+    color: #392311;
+    background:
+        repeating-linear-gradient(0deg, rgba(88, 52, 18, 0.045) 0 2px, transparent 2px 7px),
+        #e8c982;
+    border: 4px solid #603719;
+    box-shadow: inset 0 0 0 3px #f5dda2, 5px 6px 0 rgba(25, 13, 7, 0.72);
+    transform: translateX(-50%);
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+.watchtower-guide-seal {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    color: #ffe39a;
+    background: #7e2723;
+    border: 3px solid #48130f;
+    box-shadow: inset 0 0 0 2px #bd563d;
+}
+
+.watchtower-guide-words p,
+.watchtower-guide-words h2,
+.watchtower-guide-words span { display: block; margin: 0; }
+.watchtower-guide-words p { color: #8d1f24; font-size: 7px; font-weight: 900; letter-spacing: 1.3px; text-transform: uppercase; }
+.watchtower-guide-words h2 { margin-top: 2px; font-size: 14px; line-height: 1.15; }
+.watchtower-guide-words > span { margin-top: 4px; color: #694427; font-size: 8px; font-weight: 800; line-height: 1.35; }
+
+.watchtower-guide-arrow {
+    color: #8d1f24;
+    font-size: 28px;
+    line-height: 1;
+    text-shadow: 2px 2px 0 #f5dda2;
+    animation: watchtower-arrow-nudge 720ms steps(3, end) infinite;
+}
+
+.watchtower-placement-guide.stage-build .watchtower-guide-arrow {
+    display: none;
+}
+
+.watchtower-placement-guide.stage-shop .watchtower-guide-arrow,
+.watchtower-placement-guide.stage-place .watchtower-guide-arrow { transform: rotate(90deg); }
+
+.watchtower-guide-spinner {
+    width: 22px;
+    height: 22px;
+    border: 5px solid #a56f32;
+    border-top-color: #8d1f24;
+    animation: watchtower-spin 800ms steps(8, end) infinite;
+}
+
+.watchtower-guide-check { color: #315b2c; font-size: 27px; font-weight: 900; }
+
+.watchtower-tutorial-build-target {
+    position: relative;
+    z-index: 1110;
+    overflow: visible;
+    filter: brightness(1.22);
+    animation: watchtower-target-pulse 900ms steps(3, end) infinite;
+}
+
+.watchtower-tutorial-build-target::before {
+    content: '➔';
+    position: absolute;
+    top: -38px;
+    left: 50%;
+    z-index: 3;
+    color: #ffe39a;
+    font-size: 27px;
+    line-height: 1;
+    text-shadow: 2px 2px 0 #5b1c17, -1px -1px 0 #5b1c17;
+    transform: translateX(-50%) rotate(90deg);
+    animation: watchtower-card-arrow 720ms steps(3, end) infinite;
+    pointer-events: none;
+}
+
+.bshop-card.watchtower-tutorial-target {
+    z-index: 1;
+    opacity: 1;
+    filter: brightness(1.2);
+    border-image-source: var(--pxf-gold);
+    animation: watchtower-target-pulse 900ms steps(3, end) infinite;
+}
+
+.bshop-card.watchtower-tutorial-target::before {
+    content: '➤';
+    position: absolute;
+    top: -34px;
+    left: 50%;
+    z-index: 3;
+    color: #ffe39a;
+    font-size: 27px;
+    line-height: 1;
+    text-shadow: 2px 2px 0 #5b1c17, -1px -1px 0 #5b1c17;
+    transform: translateX(-50%) rotate(90deg);
+    animation: watchtower-card-arrow 720ms steps(3, end) infinite;
+    pointer-events: none;
+}
+
+.watchtower-tutorial-hud button:disabled { pointer-events: none; opacity: 0.32; filter: grayscale(0.8); }
+
+@keyframes watchtower-arrow-nudge {
+    0%, 100% { margin-top: -4px; }
+    50% { margin-top: 6px; }
+}
+
+@keyframes watchtower-target-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px #ffe69a, 0 0 0 7px rgba(141, 31, 36, 0.72); }
+    50% { box-shadow: 0 0 0 5px #fff0ad, 0 0 0 11px rgba(141, 31, 36, 0.28); }
+}
+
+@keyframes watchtower-spin { to { transform: rotate(360deg); } }
+@keyframes watchtower-card-arrow {
+    0%, 100% { top: -38px; }
+    50% { top: -28px; }
+}
+
+@media (max-width: 560px) {
+    .watchtower-placement-guide {
+        top: max(8px, env(safe-area-inset-top));
+        grid-template-columns: 40px minmax(0, 1fr) 26px;
+        min-height: 65px;
+        padding: 8px 10px;
+        gap: 8px;
+    }
+    .watchtower-guide-seal { width: 34px; height: 34px; }
+    .watchtower-guide-words h2 { font-size: 11px; }
+    .watchtower-guide-words > span { font-size: 7px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .watchtower-guide-arrow,
+    .watchtower-guide-spinner,
+    .watchtower-tutorial-build-target,
+    .bshop-card.watchtower-tutorial-target { animation: none; }
+    .watchtower-tutorial-build-target::before,
+    .bshop-card.watchtower-tutorial-target::before { animation: none; }
+}
+
 /* --- the world atlas --- */
 .atlas-btn {
     width: 44px;

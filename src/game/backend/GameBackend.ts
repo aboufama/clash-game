@@ -302,6 +302,11 @@ export type IntroBattleCompletionResult = {
   introBattleRequired: false;
 };
 
+export type WatchtowerPlacementResult = {
+  world: SerializedWorld;
+  watchtowerPlacementRequired: false;
+};
+
 type RememberedBattle =
   | { kind: 'pvp'; attackId: string }
   | {
@@ -1232,9 +1237,16 @@ export class Backend {
     return Backend.saveSeq.get(userId) ?? 0;
   }
 
+  /** Ordinary layout persistence starts only after every authored onboarding gate. */
+  private static ordinaryLayoutSavesBlocked(userId: string): boolean {
+    const features = Auth.getFeatures();
+    if (features.introBattleRequired || features.watchtowerPlacementRequired) return true;
+    return !sanitizeVillageBanner(Backend.getCachedWorld(userId)?.banner);
+  }
+
   /** Debounced save: rapid edits (wall drags, redesigns) collapse into one request. */
   private static scheduleSave(userId: string) {
-    if (!Auth.isOnlineMode()) return;
+    if (!Auth.isOnlineMode() || Backend.ordinaryLayoutSavesBlocked(userId)) return;
     const existing = Backend.saveTimers.get(userId);
     if (existing) window.clearTimeout(existing);
     Backend.saveTimers.set(userId, window.setTimeout(() => {
@@ -1246,7 +1258,7 @@ export class Backend {
   }
 
   private static scheduleSaveRetry(userId: string) {
-    if (!Auth.isOnlineMode() || Backend.saveTimers.has(userId)) return;
+    if (!Auth.isOnlineMode() || Backend.ordinaryLayoutSavesBlocked(userId) || Backend.saveTimers.has(userId)) return;
     const attempt = (Backend.saveRetryAttempts.get(userId) ?? 0) + 1;
     Backend.saveRetryAttempts.set(userId, attempt);
     const delay = Math.min(SAVE_RETRY_MAX_MS, SAVE_RETRY_BASE_MS * 2 ** Math.min(4, attempt - 1));
@@ -1259,8 +1271,9 @@ export class Backend {
   }
 
   /** Serialize layout saves, then serialize them with every other account mutation. */
-  private static saveNow(userId: string): Promise<void> {
+  private static saveNow(userId: string, tutorialWatchtower = false): Promise<void> {
     if (!Auth.isOnlineMode()) return Promise.resolve();
+    if (!tutorialWatchtower && Backend.ordinaryLayoutSavesBlocked(userId)) return Promise.resolve();
     const timer = Backend.saveTimers.get(userId);
     if (timer) {
       window.clearTimeout(timer);
@@ -1270,7 +1283,7 @@ export class Backend {
     const task = queued.catch(() => undefined).then(async () => {
       const targetSeq = Backend.saveSeq.get(userId) ?? 0;
       if (targetSeq <= (Backend.committedSaveSeq.get(userId) ?? 0)) return;
-      await Backend.enqueueMutation(userId, () => Backend.saveWorldDirect(userId, targetSeq));
+      await Backend.enqueueMutation(userId, () => Backend.saveWorldDirect(userId, targetSeq, tutorialWatchtower));
     });
     Backend.inFlightSaves.set(userId, task);
     return task.finally(() => {
@@ -1286,7 +1299,11 @@ export class Backend {
     return response.world ? { world: response.world, requestSeq } : null;
   }
 
-  private static async saveWorldDirect(userId: string, targetSeq: number): Promise<void> {
+  private static async saveWorldDirect(
+    userId: string,
+    targetSeq: number,
+    tutorialWatchtower = false
+  ): Promise<void> {
     if (!Backend.getCachedWorld(userId) || !Auth.isOnlineMode()) return;
     let requestId = '';
     let requestIdSeq = -1;
@@ -1308,15 +1325,20 @@ export class Backend {
       const sentWorld = cloneWorld(world);
       const requestSeq = Backend.nextAuthorityRequest(userId);
       try {
-        const data = await Backend.apiPost<{ world?: SerializedWorld }>('/api/world/save', {
+        const data = await Backend.apiPost<{ world?: SerializedWorld; watchtowerPlacementRequired?: boolean }>(
+          tutorialWatchtower ? '/api/watchtower-tutorial/place' : '/api/world/save', {
           world: sentWorld,
           expectedRevision: sentWorld.revision,
           requestId
-        });
+          }
+        );
         Backend.saveRetryAttempts.delete(userId);
         if (data.world) {
           const merged = Backend.mergeServerResponse(userId, data.world, attemptedSeq, sentWorld, requestSeq);
           if (merged) Backend.announceWorldSync(merged);
+        }
+        if (tutorialWatchtower && data.watchtowerPlacementRequired === false) {
+          Auth.resolveWatchtowerPlacement();
         }
         return;
       } catch (rawError) {
@@ -1327,7 +1349,7 @@ export class Backend {
             ? { world: error.world, requestSeq }
             : await Backend.fetchOwnWorldForReconcile(userId);
           if (!suppliedTruth) {
-            Backend.scheduleSaveRetry(userId);
+            if (!tutorialWatchtower) Backend.scheduleSaveRetry(userId);
             throw new Error('Server truth was unavailable after a stale layout save');
           }
           const rebased = Backend.adoptRemoteWorld(userId, suppliedTruth.world, suppliedTruth.requestSeq, true);
@@ -1341,7 +1363,9 @@ export class Backend {
           || (error.status === 409 && /army.*(over|exceed|capacity|housing)/i.test(error.message));
         const isIncomingAttackLock = error.code === 'BASE_UNDER_ATTACK';
         const isUpgradeLock = error.code === 'UPGRADE_IN_PROGRESS';
-        const isDeterministicLayoutRejection = isAffordability || isArmyCapacityRejection || isIncomingAttackLock || isUpgradeLock || error.status === 400;
+        const isDeterministicLayoutRejection = isAffordability || isArmyCapacityRejection
+          || isIncomingAttackLock || isUpgradeLock || error.status === 400
+          || (tutorialWatchtower && error.status === 409);
         if (isDeterministicLayoutRejection) {
           console.warn('Save rejected, reverting the rejected layout delta:', error);
           try {
@@ -1390,7 +1414,7 @@ export class Backend {
               }));
             }
           } catch (reconcileError) {
-            Backend.scheduleSaveRetry(userId);
+            if (!tutorialWatchtower) Backend.scheduleSaveRetry(userId);
             throw reconcileError;
           }
           Backend.saveRetryAttempts.delete(userId);
@@ -1398,13 +1422,21 @@ export class Backend {
         }
 
         console.warn('Save failed:', error);
-        if (error.status !== 401) Backend.scheduleSaveRetry(userId);
+        if (!tutorialWatchtower && error.status !== 401) Backend.scheduleSaveRetry(userId);
         throw error;
       }
     }
 
-    Backend.scheduleSaveRetry(userId);
+    if (!tutorialWatchtower) Backend.scheduleSaveRetry(userId);
     throw new Error('Layout changed repeatedly while saving; retry scheduled');
+  }
+
+  /** Commit the one pre-banner layout mutation through its narrow server route. */
+  static async completeWatchtowerPlacement(userId: string): Promise<void> {
+    await Backend.saveNow(userId, true);
+    if (Auth.getFeatures().watchtowerPlacementRequired) {
+      throw new Error('Watchtower placement returned without authoritative completion');
+    }
   }
 
   /** Tell the React shell a server-authoritative world state just arrived. */

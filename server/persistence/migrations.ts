@@ -694,6 +694,11 @@ ALTER TABLE accounts
   );
 `
 
+const WATCHTOWER_PLACEMENT_ONBOARDING_SQL = String.raw`
+ALTER TABLE accounts
+  ADD COLUMN watchtower_placement_completed boolean NOT NULL DEFAULT true;
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -716,7 +721,8 @@ export const MIGRATIONS: readonly Migration[] = [
     version: 18,
     name: 'account_onboarding_and_test_mode_announcements',
     sql: ACCOUNT_ONBOARDING_AND_TEST_MODE_ANNOUNCEMENTS_SQL
-  }
+  },
+  { version: 19, name: 'watchtower_placement_onboarding', sql: WATCHTOWER_PLACEMENT_ONBOARDING_SQL }
 ]
 
 function checksum(sql: string): string {
