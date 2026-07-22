@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { createApiMiddleware } from '../server/node-adapter'
 import {
   PostgresPersistence,
+  migrate,
   postgresFromEnvironment
 } from '../server/persistence'
 import { createPersistenceAttackService } from '../server/runtime/attack-service'
@@ -26,6 +27,12 @@ async function createServerlessRuntime(): Promise<ServerlessRuntime> {
   })
 
   try {
+    // Vercel has no release phase between a successful build and the first
+    // request. Gate repository construction on the shared advisory-lock
+    // migration runner so a newly deployed bundle can never query columns
+    // that its production database has not committed yet. Concurrent cold
+    // starts serialize here; checksum or connectivity failures fail closed.
+    await migrate(database)
     const persistence = new PostgresPersistence(database)
     const attacks = createPersistenceAttackService(persistence)
     const service = new PersistenceGameService(persistence, { attacks })

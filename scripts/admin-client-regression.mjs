@@ -39,4 +39,26 @@ const playerDetail = portal.slice(
 assert.match(playerDetail, /onComplete=\{message => \{ setAction\(null\); setNotice\(message\); reload\(\); onChanged\(\) \}\}/,
   'A successful player action must revalidate both detail and directory state')
 
-console.log('admin client regression: resource payload and stale-while-revalidate checks passed')
+assert.match(portal, /type PlayerAction = [^\n]*'set_test_mode'/,
+  'Test mode must remain an explicit audited player action')
+assert.match(portal, /body\.override = testModeOverride === 'inherit' \? null : testModeOverride === 'enabled'/,
+  'The player test-mode selector must preserve enabled, disabled, and inherited states')
+assert.match(portal, /id="player-test-mode-override"[\s\S]*?Inherit realm setting[\s\S]*?Enabled for this player[\s\S]*?Disabled for this player/,
+  'The player dialog must expose the complete tri-state policy')
+assert.match(portal, /adminApi\.post\(`players\/\$\{encodeURIComponent\(playerId\)\}\/actions`, body\)/,
+  'Player test-mode changes must use the authenticated player-action route')
+
+assert.match(portal, /type OperationType = [^\n]*'set_test_mode'/,
+  'Realm test mode must remain an explicit audited global operation')
+assert.match(portal, /id="global-test-mode-enabled"/,
+  'The realm test-mode switch must expose a stable accessible control id')
+assert.match(portal, /operation === 'set_test_mode' \? \{ enabled \} : \{\}/,
+  'The global operation must submit the selected enabled state')
+assert.match(portal, /adminApi\.post\('operations', \{[\s\S]*?type: operation/,
+  'Realm test-mode changes must use the authenticated operations route')
+assert.match(portal, /data-testid="global-test-mode-card"/,
+  'Live operations must display the authoritative realm test-mode state')
+assert.match(portal, /function TestModePill\([\s\S]*?data-test-mode-effective[\s\S]*?data-test-mode-source/,
+  'Player surfaces must distinguish effective test mode from its inheritance source')
+
+console.log('admin client regression: resource, refresh, and test-mode wiring checks passed')

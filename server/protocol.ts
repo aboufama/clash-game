@@ -168,6 +168,8 @@ export interface SessionResponse {
   unread: number
   features: {
     infiniteResources: boolean
+    /** Server-authoritative operator entitlement for instant upgrades and unlocked troops. */
+    testMode: boolean
   }
 }
 

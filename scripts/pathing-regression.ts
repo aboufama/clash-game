@@ -222,6 +222,87 @@ const golem = troop('golem-priority', 'golem', 4, 4);
 const golemSelection = CombatNavigationSystem.selectTargetAndPlan(golem, [storage, cannon], [golem], 1, 0);
 assert.equal(golemSelection.strategicTarget?.id, cannon.id, 'defense-priority troop ignored its target tier');
 
+// A high-level melee unit can stand in a conceptual goal cell while its live
+// sub-cell position is still out of range. Replanning must not send it backward
+// to that cell's center before appending the real continuous approach: a slow
+// Golem otherwise recreates the backward waypoint forever.
+const assertRepeatedGolemApproach = (
+    id: string,
+    target: PlacedBuilding,
+    start: { x: number; y: number }
+) => {
+    const unit = troop(id, 'golem', start.x, start.y);
+    unit.level = 3;
+    const stats = getTroopStats('golem', unit.level);
+    const acceptance = stats.range + 0.08;
+    // Stress-refresh faster than production so this remains a planner invariant
+    // even when future speed tuning lets the direct approach finish quickly.
+    const replanCadenceMs = 64;
+    let path: Array<{ x: number; y: number }> = [];
+    let nextReplanAt = 0;
+    let replanCount = 0;
+    const frameMs = 16;
+    for (let now = 0; now <= 25_000; now += frameMs) {
+        if (CombatNavigationSystem.edgeDistance(unit.gridX, unit.gridY, target) <= acceptance) break;
+        if (now >= nextReplanAt) {
+            const refreshed = CombatNavigationSystem.planToBuilding(unit, target, [target], [unit], 1, now);
+            assert(refreshed, `${id} lost its route during repeated replanning`);
+            path = refreshed.waypoints.map(point => ({ ...point }));
+            const firstWaypoint = path[0];
+            assert(firstWaypoint, `${id} produced no continuous approach while out of range`);
+            assert(
+                CombatNavigationSystem.edgeDistance(firstWaypoint.x, firstWaypoint.y, target)
+                    < CombatNavigationSystem.edgeDistance(unit.gridX, unit.gridY, target),
+                `${id} replan moved away from its target: ${JSON.stringify(refreshed.waypoints)}`
+            );
+            replanCount++;
+            nextReplanAt = now + replanCadenceMs;
+        }
+
+        while (path.length > 0
+            && Math.hypot(path[0].x - unit.gridX, path[0].y - unit.gridY) < 0.04) {
+            path.shift();
+        }
+        const waypoint = path[0];
+        if (!waypoint) continue;
+        const dx = waypoint.x - unit.gridX;
+        const dy = waypoint.y - unit.gridY;
+        const distance = Math.hypot(dx, dy);
+        const step = Math.min(distance, stats.speed * frameMs * 1.12);
+        const stepX = (dx / distance) * step;
+        const stepY = (dy / distance) * step;
+        const movement = CombatNavigationSystem.resolveMovement(
+            unit, stepX, stepY, stepX, stepY, [target], 25
+        );
+        unit.gridX = movement.x;
+        unit.gridY = movement.y;
+    }
+
+    assert(replanCount >= 2, `${id} regression did not exercise repeated replanning`);
+    assert(
+        CombatNavigationSystem.edgeDistance(unit.gridX, unit.gridY, target) <= acceptance,
+        `${id} failed to reach attack range after repeated replanning: ${unit.gridX},${unit.gridY}`
+    );
+    assert(CombatNavigationSystem.isPositionWalkable(unit, unit.gridX, unit.gridY, [target], 25),
+        `${id} reached attack range inside the target footprint`);
+    const stopped = CombatNavigationSystem.planToBuilding(unit, target, [target], [unit], 1, 25_001);
+    assert(stopped && stopped.waypoints.length === 0,
+        `${id} did not settle after reaching attack range`);
+    assert.deepEqual(stopped.goal, { x: unit.gridX, y: unit.gridY },
+        `${id} stop plan moved its settled goal`);
+};
+
+assertRepeatedGolemApproach(
+    'golem-xbow-approach',
+    building('golem-xbow-target', 'xbow', 7, 14),
+    { x: 7.5, y: 12.65 }
+);
+assertRepeatedGolemApproach(
+    'golem-dragons-breath-approach',
+    building('golem-dragons-breath-target', 'dragons_breath', 14, 7),
+    { x: 17.5, y: 12.36 }
+);
+
 const ram = troop('ram-priority', 'ram', 4.5, 11.5);
 const ramSelection = CombatNavigationSystem.selectTargetAndPlan(ram, closed, [ram], 1, 0);
 assert.equal(ramSelection.strategicTarget?.id, inside.id, 'ram must retain Town Hall as strategic objective');

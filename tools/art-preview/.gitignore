@@ -2,3 +2,5 @@ node_modules/
 shots/
 package-lock.json
 .shared-device-token.json
+# Local one-off browser probes may contain disposable device identities.
+hud-gap-tmp.mjs

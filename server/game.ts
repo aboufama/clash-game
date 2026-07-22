@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { BUILDING_DEFINITIONS, GENERATED_ONLY, STARTER_VILLAGE, TROOP_DEFINITIONS, createStarterVillage, getTroopStats, isTrainableTroopType, normalizeTroopLevel, troopFoodCostOf, troopTrainingRequirement, type BuildingType, type TroopType } from '../src/game/config/GameDefinitions'
+import { BUILDING_DEFINITIONS, GENERATED_ONLY, STARTER_VILLAGE, TROOP_DEFINITIONS, createStarterVillage, getTroopStats, isTrainableTroopType, normalizeTroopLevel, troopFoodCostOf, troopTrainingRequirement, type BuildingType, type StarterVillageConfig, type TroopType } from '../src/game/config/GameDefinitions'
 import {
   BOT_RAID_COOLDOWN_MS,
   RAIDABLE_SHARE,
@@ -89,6 +89,17 @@ import {
   withoutCollidingObstacles,
   workersNeeded
 } from './domain/village'
+import {
+  ADMIN_STARTER_LIMITS,
+  adminStarterBuildingCatalog,
+  adminStarterVillageConfig,
+  effectiveStarterVillageConfig
+} from './domain/village/starter-config'
+import {
+  normalizeTestModeOverrides,
+  testModeEnabled,
+  testModeOverride
+} from './domain/test-mode'
 import {
   InMemoryAuthRateLimiter,
   guestSessionsAllowed,
@@ -342,6 +353,9 @@ interface AdminModerationRecord {
 interface AdminRuntimeConfigRecord {
   maintenanceEnabled: boolean
   maintenanceMessage: string | null
+  testModeEnabled: boolean
+  testModeOverrides: Record<string, boolean>
+  starterVillage: StarterVillageConfig | null
   updatedAt: number
   revision: number
 }
@@ -358,6 +372,8 @@ interface LegacyBaseResetJournal {
   revisionEpoch: number
   /** Bot cache fence pinned before any persisted bot row is deleted. */
   botRevisionEpoch?: number
+  /** Exact defaults chosen before the crash-recoverable reset begins. */
+  starterVillage?: StarterVillageConfig
   summary: AdminBaseResetSummary
 }
 
@@ -854,6 +870,9 @@ export class GameService implements AdminApiService {
       this.adminRuntimeConfig.set(ADMIN_CONFIG_KEY, {
         maintenanceEnabled: false,
         maintenanceMessage: null,
+        testModeEnabled: false,
+        testModeOverrides: {},
+        starterVillage: null,
         updatedAt: Date.now(),
         revision: 1
       })
@@ -1417,15 +1436,72 @@ export class GameService implements AdminApiService {
 
   private currentAdminConfig(): AdminRuntimeConfigRecord {
     const stored = this.adminRuntimeConfig.get(ADMIN_CONFIG_KEY)
-    if (stored) return stored
+    if (stored) {
+      let normalized = false
+      if (typeof stored.testModeEnabled !== 'boolean') {
+        stored.testModeEnabled = false
+        normalized = true
+      }
+      const overrides = normalizeTestModeOverrides(stored.testModeOverrides)
+      if (!Object.prototype.hasOwnProperty.call(stored, 'testModeOverrides')
+        || JSON.stringify(overrides) !== JSON.stringify(stored.testModeOverrides ?? {})) {
+        stored.testModeOverrides = overrides
+        normalized = true
+      }
+      if (!Object.prototype.hasOwnProperty.call(stored, 'starterVillage')) {
+        stored.starterVillage = null
+        normalized = true
+      } else if (stored.starterVillage !== null) {
+        try {
+          effectiveStarterVillageConfig(stored.starterVillage)
+        } catch {
+          stored.starterVillage = null
+          normalized = true
+        }
+      }
+      if (normalized) this.adminRuntimeConfig.markDirty(ADMIN_CONFIG_KEY)
+      return stored
+    }
     const created: AdminRuntimeConfigRecord = {
       maintenanceEnabled: false,
       maintenanceMessage: null,
+      testModeEnabled: false,
+      testModeOverrides: {},
+      starterVillage: null,
       updatedAt: Date.now(),
       revision: 1
     }
     this.adminRuntimeConfig.set(ADMIN_CONFIG_KEY, created)
     return created
+  }
+
+  private testModeFor(playerId: string): boolean {
+    return testModeEnabled(this.currentAdminConfig(), playerId)
+  }
+
+  /** The environment escape hatch remains available, but ordinary local testing is admin-controlled. */
+  private infiniteResourcesFor(playerId: string): boolean {
+    return infiniteResourcesEnabled() || this.testModeFor(playerId)
+  }
+
+  private upgradePolicyFor(playerId: string): { fixedDurationMs?: number; timeScale: number } {
+    if (this.testModeFor(playerId)) return { fixedDurationMs: 0, timeScale: 0 }
+    return {
+      ...(FIXED_UPGRADE_DURATION_MS !== undefined ? { fixedDurationMs: FIXED_UPGRADE_DURATION_MS } : {}),
+      timeScale: UPGRADE_TIME_SCALE
+    }
+  }
+
+  /** Turning test mode on also completes timers that were already running. */
+  private expediteUpgradesForTestMode(player: PlayerRecord, now: number): void {
+    if (!this.testModeFor(player.id)) return
+    let changed = false
+    for (const building of player.buildings) {
+      if (!building.upgradingTo || (building.upgradeEndsAt ?? 0) <= now) continue
+      building.upgradeEndsAt = now
+      changed = true
+    }
+    if (changed) this.players.markDirty(player.id)
   }
 
   private effectiveModeration(playerId: string, now = Date.now()): {
@@ -1484,13 +1560,14 @@ export class GameService implements AdminApiService {
   }
 
   private sessionFor(player: PlayerRecord, token: string, created: boolean): SessionResponse {
+    const testMode = this.testModeFor(player.id)
     return {
       token,
       player: this.profileOf(player),
       world: this.worldOf(player),
       created,
       unread: this.unreadCount(player.id),
-      features: { infiniteResources: infiniteResourcesEnabled() }
+      features: { infiniteResources: this.infiniteResourcesFor(player.id), testMode }
     }
   }
 
@@ -1979,7 +2056,10 @@ export class GameService implements AdminApiService {
     identity: { username: string; usernameKey?: string; passwordHash?: string }
   ): PlayerRecord {
     const registered = Boolean(identity.passwordHash)
-    const starter = createStarterVillage(() => `b_${randomHex(6)}`)
+    const starter = createStarterVillage(
+      () => `b_${randomHex(6)}`,
+      effectiveStarterVillageConfig(this.currentAdminConfig().starterVillage)
+    )
     const player: PlayerRecord = {
       id: `p_${randomHex(8)}`,
       tokenHashes,
@@ -2331,7 +2411,9 @@ export class GameService implements AdminApiService {
   }
 
   worldOf(player: PlayerRecord): SerializedWorld {
-    this.advancePlayer(player)
+    const now = Date.now()
+    this.expediteUpgradesForTestMode(player, now)
+    this.advancePlayer(player, now)
     return {
       id: `world_${player.id}`,
       ownerId: player.id,
@@ -2353,10 +2435,7 @@ export class GameService implements AdminApiService {
       trophies: player.trophies,
       // The effective upgrade clock, so client-advertised durations can never
       // drift from what this server will actually bill.
-      upgradePolicy: {
-        ...(FIXED_UPGRADE_DURATION_MS !== undefined ? { fixedDurationMs: FIXED_UPGRADE_DURATION_MS } : {}),
-        timeScale: UPGRADE_TIME_SCALE
-      },
+      upgradePolicy: this.upgradePolicyFor(player.id),
       wallLevel: player.wallLevel,
       // Real change time, so the client's "is the remote newer than my local?" check stays meaningful.
       lastSaveTime: player.lastMutationAt || player.lastAccrualAt,
@@ -2377,15 +2456,20 @@ export class GameService implements AdminApiService {
   }
 
   homeSync(player: PlayerRecord) {
-    this.advancePlayer(player)
+    const now = Date.now()
+    this.expediteUpgradesForTestMode(player, now)
+    this.advancePlayer(player, now)
     const incoming = this.incomingAttacks(player)[0] ?? null
+    const testMode = this.testModeFor(player.id)
     return {
-      serverNow: Date.now(),
+      serverNow: now,
       world: {
         revision: player.revision,
         lastSaveTime: player.lastMutationAt || player.lastAccrualAt
       },
       shieldUntil: player.shieldUntil ?? 0,
+      features: { infiniteResources: this.infiniteResourcesFor(player.id), testMode },
+      upgradePolicy: this.upgradePolicyFor(player.id),
       incomingAttack: incoming ? {
         attackId: incoming.attackId,
         attackerId: incoming.attackerId,
@@ -2504,11 +2588,11 @@ export class GameService implements AdminApiService {
       proposedObstacles: proposal.obstacles,
       now: Date.now(),
       upgradeTimeScale: UPGRADE_TIME_SCALE,
-      fixedUpgradeDurationMs: FIXED_UPGRADE_DURATION_MS
+      fixedUpgradeDurationMs: this.testModeFor(player.id) ? 0 : FIXED_UPGRADE_DURATION_MS
     }))
     const { buildings, charges, refundGold, obstacleRewards, bill } = pricing
     const obstacles = proposal.obstacles
-    const infiniteResources = infiniteResourcesEnabled()
+    const infiniteResources = this.infiniteResourcesFor(player.id)
 
     // ---- settle or refuse (before any mutation, so a refusal changes nothing) ----
     if (!infiniteResources && bill.gold > 0 && Math.floor(player.balance) < bill.gold) {
@@ -2602,7 +2686,7 @@ export class GameService implements AdminApiService {
       window.granted[reason] = soFar + delta
     }
 
-    const infiniteSpend = delta < 0 && infiniteResourcesEnabled()
+    const infiniteSpend = delta < 0 && this.infiniteResourcesFor(player.id)
     // Reject overdrafts WITHOUT recording the key, so the client can retry after earning more.
     const current = resource === 'gold' ? Math.floor(player.balance) : player[resource]
     if (!infiniteSpend && delta < 0 && current + delta < 0) {
@@ -2652,21 +2736,24 @@ export class GameService implements AdminApiService {
     this.assertBaseEconomyUnlocked(player)
 
     this.accrue(player)
+    const testMode = this.testModeFor(player.id)
     const trainingRequirement = troopTrainingRequirement(type)
     if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
-    if (trainingRequirement.kind === 'core') {
-      if (maxCompletedArmyCampLevel(player.buildings) < trainingRequirement.unlockLevel) {
-        throw new ApiError(403, `${def.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+    if (!testMode) {
+      if (trainingRequirement.kind === 'core') {
+        if (maxCompletedArmyCampLevel(player.buildings) < trainingRequirement.unlockLevel) {
+          throw new ApiError(403, `${def.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+        }
+      } else if (barracksLevelForTroop(player.buildings, type) < trainingRequirement.unlockLevel) {
+        throw new ApiError(403, `${def.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
       }
-    } else if (barracksLevelForTroop(player.buildings, type) < trainingRequirement.unlockLevel) {
-      throw new ApiError(403, `${def.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
     }
     if (armySpaceUsed(player.army) + def.space * count > campCapacityOf(player.buildings)) {
       throw new ApiError(409, 'Not enough housing space in the camps')
     }
     const goldCost = def.cost * count
     const foodCost = troopFoodCostOf(type) * count
-    const infiniteResources = infiniteResourcesEnabled()
+    const infiniteResources = this.infiniteResourcesFor(player.id)
     if (!infiniteResources && Math.floor(player.balance) < goldCost) throw new ApiError(409, `Not enough gold (need ${goldCost})`)
     if (!infiniteResources && player.food < foodCost) throw new ApiError(409, `Not enough food (need ${foodCost})`)
 
@@ -2707,7 +2794,7 @@ export class GameService implements AdminApiService {
     this.accrue(player)
     if (have - count <= 0) delete player.army[type]
     else player.army[type] = have - count
-    if (!infiniteResourcesEnabled()) {
+    if (!this.infiniteResourcesFor(player.id)) {
       player.balance = clamp(player.balance + def.cost * count, 0, MAX_BALANCE)
       const caps = resourceCapacity(player.buildings)
       player.food = storedResourceAfterDelta(
@@ -2741,7 +2828,8 @@ export class GameService implements AdminApiService {
     let food = player.food
     const housing = campCapacityOf(player.buildings)
     const storage = resourceCapacity(player.buildings)
-    const infiniteResources = infiniteResourcesEnabled()
+    const testMode = this.testModeFor(player.id)
+    const infiniteResources = this.infiniteResourcesFor(player.id)
     let trainingGold = 0
     let trainingFood = 0
     let refundGold = 0
@@ -2752,12 +2840,14 @@ export class GameService implements AdminApiService {
       if (operation.kind === 'train') {
         const trainingRequirement = troopTrainingRequirement(operation.type)
         if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
-        if (trainingRequirement.kind === 'core') {
-          if (maxCompletedArmyCampLevel(player.buildings) < trainingRequirement.unlockLevel) {
-            throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+        if (!testMode) {
+          if (trainingRequirement.kind === 'core') {
+            if (maxCompletedArmyCampLevel(player.buildings) < trainingRequirement.unlockLevel) {
+              throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+            }
+          } else if (barracksLevelForTroop(player.buildings, operation.type) < trainingRequirement.unlockLevel) {
+            throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
           }
-        } else if (barracksLevelForTroop(player.buildings, operation.type) < trainingRequirement.unlockLevel) {
-          throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
         }
         if (armySpaceUsed(army) + definition.space * operation.count > housing) {
           throw new ApiError(409, 'Not enough housing space in the camps')
@@ -2860,7 +2950,7 @@ export class GameService implements AdminApiService {
 
     this.accrue(player)
     const have = offer.give.kind === 'gold' ? Math.floor(player.balance) : player[offer.give.kind]
-    const infiniteResources = infiniteResourcesEnabled()
+    const infiniteResources = this.infiniteResourcesFor(player.id)
     if (!infiniteResources && have < offer.give.amount) {
       return { applied: false, offerId: offer.id, ...balances() }
     }
@@ -5076,6 +5166,7 @@ export class GameService implements AdminApiService {
 
   private adminPlayerSummaryOf(player: PlayerRecord, now = Date.now()): AdminPlayerSummary {
     const moderation = this.effectiveModeration(player.id, now)
+    const testModeConfig = this.currentAdminConfig()
     const hasPlot = Number.isInteger(player.plotX) && Number.isInteger(player.plotY)
     return {
       id: player.id,
@@ -5088,6 +5179,10 @@ export class GameService implements AdminApiService {
       online: player.lastSeen >= now - ONLINE_WINDOW_MS,
       access: moderation.state,
       accessUntil: moderation.until,
+      testMode: {
+        override: testModeOverride(testModeConfig, player.id),
+        effective: testModeEnabled(testModeConfig, player.id)
+      },
       world: hasPlot
         ? {
             worldId: LEGACY_WORLD_ID,
@@ -5190,7 +5285,7 @@ export class GameService implements AdminApiService {
         .digest('hex')
         .slice(0, 24)
       return `b_${digest}`
-    })
+    }, journal.starterVillage ?? effectiveStarterVillageConfig(this.currentAdminConfig().starterVillage))
     player.trophies = 0
     player.shieldUntil = journal.starterShieldUntil
     player.revengeRights = {}
@@ -5582,6 +5677,10 @@ export class GameService implements AdminApiService {
         enabled: config.maintenanceEnabled,
         message: config.maintenanceMessage
       },
+      testMode: {
+        enabled: config.testModeEnabled,
+        overrideCount: Object.keys(config.testModeOverrides).length
+      },
       accessPolicy: {
         suspendedSessionsRevoked: true,
         bannedSessionsRevoked: true
@@ -5593,6 +5692,9 @@ export class GameService implements AdminApiService {
         auditList: ADMIN_AUDIT_LIMIT,
         botRadius: ADMIN_BOT_RADIUS
       },
+      starterVillage: effectiveStarterVillageConfig(config.starterVillage),
+      buildingCatalog: adminStarterBuildingCatalog(),
+      starterLimits: { ...ADMIN_STARTER_LIMITS },
       updatedAt: config.updatedAt,
       revision: config.revision
     }
@@ -5719,6 +5821,30 @@ export class GameService implements AdminApiService {
       affected = this.revokeAllSessions(player)
       changed = affected > 0
       details = { reason, revoked: affected }
+    } else if (type === 'set_test_mode') {
+      const input = rawAction as Extract<AdminPlayerActionRequest, { type: 'set_test_mode' }>
+      if (input.override !== null && typeof input.override !== 'boolean') {
+        throw new ApiError(400, 'Test mode override must be true, false, or null', 'ADMIN_INVALID_INPUT')
+      }
+      const config = this.currentAdminConfig()
+      const before = testModeOverride(config, id)
+      changed = before !== input.override
+      if (changed) {
+        const overrides = { ...config.testModeOverrides }
+        if (input.override === null) delete overrides[id]
+        else overrides[id] = input.override
+        config.testModeOverrides = normalizeTestModeOverrides(overrides)
+        config.updatedAt = now
+        config.revision += 1
+        this.adminRuntimeConfig.markDirty(ADMIN_CONFIG_KEY)
+        affected = 1
+      }
+      details = {
+        reason,
+        before,
+        after: input.override,
+        effective: testModeEnabled(config, id)
+      }
     } else if (type === 'set_access') {
       const input = rawAction as Extract<AdminPlayerActionRequest, { type: 'set_access' }>
       const state = String(input.state ?? '')
@@ -5839,6 +5965,49 @@ export class GameService implements AdminApiService {
         after: input.enabled,
         message: nextMessage
       }
+    } else if (type === 'set_test_mode') {
+      const input = rawAction as Extract<AdminOperationRequest, { type: 'set_test_mode' }>
+      if (typeof input.enabled !== 'boolean') {
+        throw new ApiError(400, 'Test mode enabled must be a boolean', 'ADMIN_INVALID_INPUT')
+      }
+      const current = this.currentAdminConfig()
+      const before = current.testModeEnabled
+      changed = before !== input.enabled
+      if (changed) {
+        current.testModeEnabled = input.enabled
+        current.updatedAt = now
+        current.revision += 1
+        this.adminRuntimeConfig.markDirty(ADMIN_CONFIG_KEY)
+        affected = 1
+      }
+      details = {
+        reason,
+        before,
+        after: input.enabled,
+        overrideCount: Object.keys(current.testModeOverrides).length
+      }
+    } else if (type === 'set_starter_village') {
+      const input = rawAction as Extract<AdminOperationRequest, { type: 'set_starter_village' }>
+      const expectedRevision = adminInteger(input.expectedRevision, 'expected config revision', 1, Number.MAX_SAFE_INTEGER)
+      const starterVillage = adminStarterVillageConfig(input.starterVillage)
+      const current = this.currentAdminConfig()
+      if (current.revision !== expectedRevision) {
+        throw new ApiError(
+          409,
+          'Admin configuration changed; reload the current defaults before saving',
+          'ADMIN_CONFIG_STALE'
+        )
+      }
+      const before = effectiveStarterVillageConfig(current.starterVillage)
+      changed = JSON.stringify(before) !== JSON.stringify(starterVillage)
+      if (changed) {
+        current.starterVillage = starterVillage
+        current.updatedAt = now
+        current.revision += 1
+        this.adminRuntimeConfig.markDirty(ADMIN_CONFIG_KEY)
+        affected = 1
+      }
+      details = { reason, expectedRevision, before, after: starterVillage }
     } else if (type === 'reset_all_bases') {
       const input = rawAction as Extract<AdminOperationRequest, { type: 'reset_all_bases' }>
       if (reason.length < 12) {
@@ -5910,6 +6079,7 @@ export class GameService implements AdminApiService {
         starterShieldUntil: now + STARTER_SHIELD_MS,
         revisionEpoch,
         botRevisionEpoch: revisionEpoch,
+        starterVillage: effectiveStarterVillageConfig(this.currentAdminConfig().starterVillage),
         summary: resetSummary
       }
       this.allocationState.baseResetJournal = journal

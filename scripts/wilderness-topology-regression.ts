@@ -41,6 +41,16 @@ assert(!isKnownWildernessPlot(centerOccupied, 0, 0));
 assert(!isJoinedWildernessVerticalEdge(centerOccupied, 1, 0));
 assert(!isJoinedWildernessVerticalEdge(centerOccupied, 0, 0));
 
+// Full-atlas renderers can explicitly classify a genuinely wild center.
+const centerWilderness = buildWildernessTopology({ x: 0, y: 0 }, 1, [
+    plot(0, 0, 'empty', false),
+    plot(1, 0, 'empty', true),
+    plot(-1, 0, 'empty', true)
+], { centerOccupied: false });
+assert(isKnownWildernessPlot(centerWilderness, 0, 0));
+assert(isJoinedWildernessVerticalEdge(centerWilderness, 1, 0));
+assert(isJoinedWildernessVerticalEdge(centerWilderness, 0, 0));
+
 // Occupied and unknown neighbors fail closed: no road may disappear beside a base.
 const occupiedAndUnknown = buildWildernessTopology({ x: 0, y: 0 }, 2, [
     plot(-2, 1, 'empty'),

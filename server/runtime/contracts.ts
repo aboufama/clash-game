@@ -74,6 +74,14 @@ export interface HomeSyncResponse {
   serverNow: number
   world: { revision: number; lastSaveTime: number }
   shieldUntil: number
+  features: {
+    infiniteResources: boolean
+    testMode: boolean
+  }
+  upgradePolicy: {
+    fixedDurationMs?: number
+    timeScale?: number
+  }
   incomingAttack: null | {
     attackId: string
     attackerId: string

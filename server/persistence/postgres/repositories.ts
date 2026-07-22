@@ -82,6 +82,7 @@ import {
   attackRecordWithAuthority
 } from '../attack-authority'
 import { allocationOrdinalOf } from '../../domain/world/allocation'
+import { normalizeTestModeOverrides } from '../../domain/test-mode'
 
 function date(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value)
@@ -2698,10 +2699,14 @@ class PgAdmin implements AdminRepository {
     const result = await this.sql.query<{
       maintenance_enabled: boolean
       maintenance_message: string | null
+      test_mode_enabled: boolean
+      test_mode_overrides: unknown
+      starter_village: AdminRuntimeConfigRecord['starterVillage']
       updated_at: Date | string
       revision: string | number
     }>(String.raw`
-      SELECT maintenance_enabled, maintenance_message, updated_at, revision
+      SELECT maintenance_enabled, maintenance_message, test_mode_enabled,
+        test_mode_overrides, starter_village, updated_at, revision
       FROM admin_runtime_config WHERE singleton = true${lock}
     `)
     const row = result.rows[0]
@@ -2709,6 +2714,9 @@ class PgAdmin implements AdminRepository {
     return {
       maintenanceEnabled: row.maintenance_enabled,
       maintenanceMessage: row.maintenance_message,
+      testModeEnabled: row.test_mode_enabled,
+      testModeOverrides: normalizeTestModeOverrides(row.test_mode_overrides),
+      starterVillage: row.starter_village,
       updatedAt: date(row.updated_at),
       revision: Number(row.revision)
     }
@@ -2718,11 +2726,15 @@ class PgAdmin implements AdminRepository {
     if (record.revision !== expectedRevision + 1) throw new Error('Admin config revision must advance by one')
     return (await this.sql.query(String.raw`
       UPDATE admin_runtime_config SET maintenance_enabled = $1, maintenance_message = $2,
-        updated_at = $3, revision = $4
-      WHERE singleton = true AND revision = $5
+        test_mode_enabled = $3, test_mode_overrides = $4::jsonb,
+        starter_village = $5::jsonb, updated_at = $6, revision = $7
+      WHERE singleton = true AND revision = $8
     `, [
       record.maintenanceEnabled,
       record.maintenanceMessage,
+      record.testModeEnabled,
+      JSON.stringify(normalizeTestModeOverrides(record.testModeOverrides)),
+      record.starterVillage === null ? null : JSON.stringify(record.starterVillage),
       record.updatedAt,
       record.revision,
       expectedRevision

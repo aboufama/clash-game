@@ -28,8 +28,18 @@ function makeService() {
   let lastPlayerAction: AdminPlayerActionRequest | null = null
   const config = (): AdminConfig => ({
     maintenance: { enabled: maintenance, message: maintenance ? 'Upgrading the keep' : null },
+    testMode: { enabled: false, overrideCount: 0 },
     accessPolicy: { suspendedSessionsRevoked: true, bannedSessionsRevoked: true },
     safeLimits: { playerList: 100, botList: 100, attackList: 100, auditList: 200, botRadius: 12 },
+    starterVillage: {
+      resources: { gold: 100_000, ore: 100_000, food: 100_000 },
+      buildings: [{ type: 'town_hall', level: 1, gridX: 11, gridY: 11 }],
+      wallLevel: 1
+    },
+    buildingCatalog: [{
+      type: 'town_hall', name: 'Town Hall', category: 'army', width: 3, height: 3, maxLevel: 4, maxCount: 1
+    }],
+    starterLimits: { mapSize: 25, maxBalance: 1_000_000_000, maxBuildings: 600 },
     updatedAt: now,
     revision: maintenance ? 2 : 1
   })

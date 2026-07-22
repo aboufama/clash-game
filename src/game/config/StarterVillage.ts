@@ -30,23 +30,35 @@ export const STARTER_VILLAGE: StarterVillageConfig = {
         { type: 'mine', gridX: 8, gridY: 11, level: 1 }
     ],
     resources: {
-        gold: 2_000,
-        ore: 100,
-        food: 100
+        gold: 100_000,
+        ore: 100_000,
+        food: 100_000
     },
     wallLevel: 1
 };
 
-/** Materialize mutable per-player state from the shared tuning template. */
-export function createStarterVillage(buildingId: () => string) {
+/** Return a detached configuration snapshot safe to persist or hand to editors. */
+export function copyStarterVillageConfig(config: StarterVillageConfig = STARTER_VILLAGE): StarterVillageConfig {
     return {
-        buildings: STARTER_VILLAGE.buildings.map(building => ({
+        buildings: config.buildings.map(building => ({ ...building })),
+        resources: { ...config.resources },
+        wallLevel: config.wallLevel
+    };
+}
+
+/** Materialize mutable per-player state from the shared tuning template. */
+export function createStarterVillage(
+    buildingId: () => string,
+    config: StarterVillageConfig = STARTER_VILLAGE
+) {
+    return {
+        buildings: config.buildings.map(building => ({
             id: buildingId(),
             ...building
         })),
         obstacles: [],
         army: {} as Record<string, number>,
-        wallLevel: STARTER_VILLAGE.wallLevel,
-        resources: { ...STARTER_VILLAGE.resources }
+        wallLevel: config.wallLevel,
+        resources: { ...config.resources }
     };
 }

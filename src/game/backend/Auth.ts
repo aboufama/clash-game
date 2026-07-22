@@ -11,6 +11,8 @@ export interface AuthUser {
 export interface SessionFeatures {
   /** The authoritative game server will accept purchases without consuming resources. */
   infiniteResources: boolean;
+  /** Operator-controlled entitlement for instant upgrades and unrestricted troop access. */
+  testMode: boolean;
 }
 
 interface SessionResponse {
@@ -135,7 +137,7 @@ export class Auth {
   private static current: AuthUser | null = null;
   private static online = false;
   private static token: string | null = null;
-  private static features: SessionFeatures = { infiniteResources: false };
+  private static features: SessionFeatures = { infiniteResources: false, testMode: false };
   private static ensureInFlight: Promise<EnsuredSession> | null = null;
 
   static getCurrentUser() {
@@ -150,6 +152,21 @@ export class Auth {
     return Auth.features;
   }
 
+  /**
+   * Adopt the server's effective entitlements. Home-sync calls use this to
+   * apply live operator changes without minting any authority in the client.
+   */
+  static adoptFeatures(features?: Partial<SessionFeatures> | null): Readonly<SessionFeatures> {
+    const testMode = features?.testMode === true;
+    Auth.features = {
+      // Test mode always includes the infinite wallet. Keeping the standalone
+      // flag also preserves the legacy development-only entitlement.
+      infiniteResources: testMode || features?.infiniteResources === true,
+      testMode
+    };
+    return Auth.features;
+  }
+
   static getToken(): string | null {
     if (Auth.token) return Auth.token;
     Auth.token = readStorage(TOKEN_KEY);
@@ -160,9 +177,7 @@ export class Auth {
     Auth.token = session.token;
     Auth.current = session.player;
     Auth.online = true;
-    Auth.features = {
-      infiniteResources: session.features?.infiniteResources === true
-    };
+    Auth.adoptFeatures(session.features);
     writeStorage(TOKEN_KEY, session.token);
     writeStorage(USER_KEY, JSON.stringify(session.player));
   }
@@ -205,7 +220,7 @@ export class Auth {
         Auth.token = null;
         Auth.current = null;
         Auth.online = true;
-        Auth.features = { infiniteResources: false };
+        Auth.adoptFeatures();
         removeStorage(TOKEN_KEY);
         removeStorage(USER_KEY);
         return { user: null, online: true, world: null, registrationRequired: true };
@@ -216,7 +231,7 @@ export class Auth {
     } catch (error) {
       console.warn('Game server unreachable, entering offline mode:', error);
       Auth.online = false;
-      Auth.features = { infiniteResources: false };
+      Auth.adoptFeatures();
       return { user: Auth.current, online: false, world: null };
     }
   }
@@ -299,7 +314,7 @@ export class Auth {
     Auth.token = null;
     Auth.current = null;
     Auth.online = false;
-    Auth.features = { infiniteResources: false };
+    Auth.adoptFeatures();
     removeStorage(TOKEN_KEY);
     removeStorage(USER_KEY);
   }

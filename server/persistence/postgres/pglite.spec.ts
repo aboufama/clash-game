@@ -89,6 +89,7 @@ test('PostgreSQL maintenance fence emits shared/update row locks and rejects amb
         rows: [{
           maintenance_enabled: false,
           maintenance_message: null,
+          starter_village: null,
           updated_at: NOW,
           revision: 1
         }] as unknown as Row[],
@@ -342,6 +343,27 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
     let now = new Date(NOW)
     const service = new PersistenceGameService(persistence, { now: () => new Date(now) })
     assert.equal((await service.adminPlayers('PgAdmin', 5))[0]?.id, account.id)
+    const initialAdminConfig = await service.adminConfig()
+    const postgresStarter = {
+      resources: { gold: 310_000, ore: 320_000, food: 330_000 },
+      buildings: [
+        { type: 'town_hall', level: 1, gridX: 2, gridY: 2 },
+        { type: 'army_camp', level: 2, gridX: 10, gridY: 10 }
+      ],
+      wallLevel: 1
+    }
+    await service.adminOperation({
+      type: 'set_starter_village',
+      starterVillage: postgresStarter,
+      expectedRevision: initialAdminConfig.revision,
+      reason: 'Persist PostgreSQL starter defaults'
+    })
+    const postgresCreated = await service.register(null, 'PgStarterChief', 'valid-password-123', 'pg-starter')
+    assert.ok('token' in postgresCreated)
+    if (!('token' in postgresCreated)) return
+    assert.deepEqual(postgresCreated.world.resources, postgresStarter.resources)
+    assert.deepEqual((await service.adminConfig()).starterVillage, postgresStarter,
+      'the JSONB config round-trips through the production repository')
     const resourceAdjustment = await service.adminPlayerAction(account.id, {
       type: 'adjust_resources', gold: 90, ore: 100_001, food: 999_979, reason: 'postgres parity'
     })
@@ -371,6 +393,12 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
       { ore: saved.resources.ore, food: saved.resources.food },
       { ore: 100_021, food: 1_000_000 }
     )
+    await service.adminOperation({
+      type: 'set_test_mode', enabled: true, reason: 'PostgreSQL global test mode parity'
+    })
+    await service.adminPlayerAction(account.id, {
+      type: 'set_test_mode', override: false, reason: 'PostgreSQL test mode override parity'
+    })
     await service.adminPlayerAction(account.id, {
       type: 'set_access', state: 'banned', reason: 'postgres parity'
     })
@@ -381,9 +409,12 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
     const player = await service.adminPlayer(account.id)
     assert.deepEqual(player.resources, { gold: 100, ore: 100_021, food: 1_000_000 })
     assert.equal(player.access, 'banned')
+    assert.deepEqual(player.testMode, { override: false, effective: false })
     assert.equal(player.activeSessions, 0)
-    assert.equal((await service.adminConfig()).maintenance.enabled, true)
-    assert.equal((await service.adminAudit(10)).length, 3)
+    const adminConfig = await service.adminConfig()
+    assert.equal(adminConfig.maintenance.enabled, true)
+    assert.deepEqual(adminConfig.testMode, { enabled: true, overrideCount: 1 })
+    assert.equal((await service.adminAudit(10)).length, 6)
     assert.equal(JSON.stringify(player).includes('private-test-hash'), false)
 
     const resourceLedger = await database.query<{
@@ -410,7 +441,7 @@ test('embedded PostgreSQL admin authority matches memory semantics and audit row
       database.query('DELETE FROM admin_audit_log WHERE target_id = $1', [account.id]),
       /append-only/i
     )
-    assert.equal((await service.adminAudit(10)).length, 3)
+    assert.equal((await service.adminAudit(10)).length, 6)
   } finally {
     await database.close()
   }

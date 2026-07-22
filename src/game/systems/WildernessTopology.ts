@@ -213,14 +213,15 @@ function assertTopologyRadius(radius: number) {
  * Build the wilderness joins visible inside one map window.
  *
  * `empty` is wilderness whether it is settleable or protected. Player, bot,
- * malformed, conflicting, and missing records all retain roads. The local
- * center is always occupied because it hosts the live village/battlefield and
- * is intentionally absent from the postcard view collection.
+ * malformed, conflicting, and missing records all retain roads. Normal map
+ * windows treat their omitted local center as the live village/battlefield;
+ * full-atlas callers may explicitly classify a supplied empty center as wild.
  */
 export function buildWildernessTopology(
     center: WildernessTopologyCoordinate,
     radius: number,
-    knownPlots: readonly WildernessTopologyPlot[]
+    knownPlots: readonly WildernessTopologyPlot[],
+    options: { readonly centerOccupied?: boolean } = {}
 ): WildernessTopology {
     assertTopologyCoordinate(center);
     assertTopologyRadius(radius);
@@ -245,7 +246,10 @@ export function buildWildernessTopology(
         // the next authoritative response is safer than joining through a base.
         cells.set(key, previous && previous !== next ? 'occupied' : next);
     }
-    cells.set(localPlotKey(0, 0), 'occupied');
+    // Ordinary world-map windows omit the live center village, so it must
+    // fail closed to occupied. Full-atlas/cinematic callers can supply the
+    // center explicitly and opt out when it is genuine wilderness.
+    if (options.centerOccupied !== false) cells.set(localPlotKey(0, 0), 'occupied');
 
     const isWild = (x: number, y: number): boolean => cells.get(localPlotKey(x, y)) === 'wild';
     const cellState = (x: number, y: number): WildernessJunctionCellState =>

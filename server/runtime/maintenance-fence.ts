@@ -1,4 +1,5 @@
 import { ApiError } from '../errors'
+import type { AdminRuntimeConfigRecord } from '../persistence/model'
 import type { UnitOfWork } from '../persistence'
 
 /**
@@ -10,9 +11,9 @@ import type { UnitOfWork } from '../persistence'
  * the lock through the destructive reset transaction. MemoryPersistence is
  * transaction-serialized and therefore gets the same ordering semantics.
  */
-export async function assertGameplayMutationAllowed(tx: UnitOfWork): Promise<void> {
+export async function assertGameplayMutationAllowed(tx: UnitOfWork): Promise<AdminRuntimeConfigRecord> {
   const config = await tx.admin.getConfig({ forShare: true })
-  if (!config.maintenanceEnabled) return
+  if (!config.maintenanceEnabled) return config
   throw new ApiError(
     503,
     config.maintenanceMessage || 'The game is temporarily under maintenance',

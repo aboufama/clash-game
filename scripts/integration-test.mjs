@@ -129,9 +129,9 @@ function hasExpectedStarterVillage(world) {
     .map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY }))
     .sort((left, right) => left.type.localeCompare(right.type))
   return JSON.stringify(buildings) === JSON.stringify(EXPECTED_STARTER_BUILDINGS)
-    && world.resources?.gold === 2_000
-    && world.resources?.ore === 100
-    && world.resources?.food === 100
+    && world.resources?.gold === 100_000
+    && world.resources?.ore === 100_000
+    && world.resources?.food === 100_000
 }
 
 async function armWarriors(token, count, requestId) {
@@ -1484,20 +1484,34 @@ async function main() {
   console.log('\nEconomy transactions:')
   const eco = (await api('POST', '/auth/session')).json
   const ecoGold = () => api('GET', '/world', { token: eco.token }).then(r => r.json.world.resources)
+  const ecoLowGold = (await api('POST', '/resources/apply', {
+    token: eco.token,
+    body: { delta: 2_000 - eco.world.resources.gold, requestId: 'eco-low-wallet-gold' }
+  })).json
+  await api('POST', '/resources/apply', {
+    token: eco.token,
+    body: { delta: 100 - ecoLowGold.ore, resource: 'ore', requestId: 'eco-low-wallet-ore' }
+  })
+  const ecoLowOre = await ecoGold()
+  await api('POST', '/resources/apply', {
+    token: eco.token,
+    body: { delta: 100 - ecoLowOre.food, resource: 'food', requestId: 'eco-low-wallet-food' }
+  })
+  const ecoBaseline = (await api('GET', '/world', { token: eco.token })).json.world
 
   const forgedWall = {
-    ...eco.world,
+    ...ecoBaseline,
     wallLevel: 4,
-    buildings: [...eco.world.buildings, { id: 'forged_wall_l4', type: 'wall', gridX: 0, gridY: 0, level: 4 }]
+    buildings: [...ecoBaseline.buildings, { id: 'forged_wall_l4', type: 'wall', gridX: 0, gridY: 0, level: 4 }]
   }
   const wallRefusal = await api('POST', '/world/save', { token: eco.token, body: { world: forgedWall, requestId: 'wall-ladder-forge' } })
   ok(wallRefusal.status === 409 && wallRefusal.json.code === 'INSUFFICIENT_RESOURCES' && wallRefusal.json.resource === 'ore',
     'an unaffordable L4 wall returns a structured resource error after full ladder pricing')
   const mixedWalls = {
-    ...eco.world,
+    ...ecoBaseline,
     wallLevel: 2,
     buildings: [
-      ...eco.world.buildings,
+      ...ecoBaseline.buildings,
       { id: 'mixed_wall_1', type: 'wall', gridX: 0, gridY: 0, level: 1 },
       { id: 'mixed_wall_2', type: 'wall', gridX: 1, gridY: 0, level: 2 }
     ]
@@ -1507,13 +1521,13 @@ async function main() {
 
   // The free-levels exploit is dead: a forged high-level save is priced and refused.
   const ecoForged = {
-    ...eco.world,
-    buildings: [...eco.world.buildings, { id: 'forged_mine', type: 'mine', gridX: 2, gridY: 18, level: 3 }]
+    ...ecoBaseline,
+    buildings: [...ecoBaseline.buildings, { id: 'forged_mine', type: 'mine', gridX: 2, gridY: 18, level: 3 }]
   }
   const refusal = await api('POST', '/world/save', { token: eco.token, body: { world: ecoForged, requestId: 'eco-forge-1' } })
   ok(refusal.status === 409, `a forged max-level save is refused, not granted (${refusal.status})`)
   const afterRefusal = await ecoGold()
-  ok(afterRefusal.gold === 2000 && !((await api('GET', '/world', { token: eco.token })).json.world.buildings.some(bl => bl.id === 'forged_mine')),
+  ok(afterRefusal.gold === 2_000 && !((await api('GET', '/world', { token: eco.token })).json.world.buildings.some(bl => bl.id === 'forged_mine')),
     'a refused save changes nothing (balance intact, building absent)')
 
   // Fund and buy honestly: a level-1 mine costs 350 gold + 35 ore.
@@ -1887,6 +1901,22 @@ async function main() {
   // Raidable stocks: ore/food join the loot table, storehouses shield a share.
   const stockVictim = (await api('POST', '/auth/session')).json
   const stockRaider = (await api('POST', '/auth/session')).json
+  await api('POST', '/resources/apply', {
+    token: stockVictim.token,
+    body: { delta: 20 - stockVictim.world.resources.ore, resource: 'ore', requestId: 'sv-low-ore' }
+  })
+  await api('POST', '/resources/apply', {
+    token: stockVictim.token,
+    body: { delta: 50 - stockVictim.world.resources.food, resource: 'food', requestId: 'sv-low-food' }
+  })
+  await api('POST', '/resources/apply', {
+    token: stockRaider.token,
+    body: { delta: -stockRaider.world.resources.ore, resource: 'ore', requestId: 'sr-empty-ore' }
+  })
+  await api('POST', '/resources/apply', {
+    token: stockRaider.token,
+    body: { delta: -stockRaider.world.resources.food, resource: 'food', requestId: 'sr-empty-food' }
+  })
   // Give the victim visible stocks and a storehouse (20% protection at L1).
   await api('POST', '/resources/apply', { token: stockVictim.token, body: { delta: 5000, reason: 'debug_grant', requestId: 'sv-g' } })
   await api('POST', '/resources/apply', { token: stockVictim.token, body: { delta: 100, resource: 'ore', reason: 'debug_grant', requestId: 'sv-o' } })
@@ -2102,7 +2132,7 @@ async function main() {
   const infiniteInitial = { ...infinite.world.resources }
   ok(infinite.features?.infiniteResources === true,
     'the authenticated session advertises server-authorized infinite resources')
-  ok(infiniteInitial.gold === 2000 && infiniteInitial.ore === 100 && infiniteInitial.food === 100,
+  ok(infiniteInitial.gold === 100_000 && infiniteInitial.ore === 100_000 && infiniteInitial.food === 100_000,
     'infinite mode keeps ordinary finite balances instead of persisting a sentinel')
   ok((await api('POST', '/resources/apply', {
     token: infinite.token,
@@ -2224,6 +2254,15 @@ async function main() {
   })).json
   ok(finiteSpend.gold === infiniteInitial.gold - 10,
     'the same direct spend debits normally after infinite mode is disabled')
+  await api('POST', '/resources/apply', {
+    token: infinite.token,
+    body: {
+      delta: 100 - finiteSpend.ore,
+      resource: 'ore',
+      reason: 'client_spend',
+      requestId: 'finite-low-ore-control'
+    }
+  })
   const finiteWorld = (await api('GET', '/world', { token: infinite.token })).json.world
   const finiteSpikeLauncher = await api('POST', '/world/save', {
     token: infinite.token,
@@ -2239,7 +2278,7 @@ async function main() {
     }
   })
   ok(finiteSpikeLauncher.status === 409 && finiteSpikeLauncher.json?.code === 'INSUFFICIENT_RESOURCES',
-    'finite mode again rejects a 145-ore Spike Launcher at the stored 100 ore balance')
+    'finite mode again rejects a 145-ore Spike Launcher at an explicit 100 ore balance')
 
   // --- FIND MATCH: real players first, NEXT cycling, bot-fallback signal ---
   console.log('\nMatchmaking pool (fresh worlds):')

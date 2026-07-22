@@ -82,6 +82,7 @@ import {
   attackRecordWithAuthority
 } from './attack-authority'
 import { allocationOrdinalOf } from '../domain/world/allocation'
+import { normalizeTestModeOverrides } from '../domain/test-mode'
 
 interface MemoryState {
   accounts: Map<string, AccountRecord>
@@ -141,6 +142,9 @@ function emptyState(): MemoryState {
     adminConfig: {
       maintenanceEnabled: false,
       maintenanceMessage: null,
+      testModeEnabled: false,
+      testModeOverrides: {},
+      starterVillage: null,
       updatedAt: new Date(0),
       revision: 1
     },
@@ -1568,13 +1572,20 @@ class MemoryAdmin implements AdminRepository {
   }
 
   async getConfig(): Promise<AdminRuntimeConfigRecord> {
-    return copy(this.state.adminConfig)
+    return copy({
+      ...this.state.adminConfig,
+      testModeEnabled: this.state.adminConfig.testModeEnabled === true,
+      testModeOverrides: normalizeTestModeOverrides(this.state.adminConfig.testModeOverrides)
+    })
   }
 
   async updateConfig(record: AdminRuntimeConfigRecord, expectedRevision: number): Promise<boolean> {
     if (this.state.adminConfig.revision !== expectedRevision) return false
     if (record.revision !== expectedRevision + 1) throw new Error('Admin config revision must advance by one')
-    this.state.adminConfig = copy(record)
+    this.state.adminConfig = copy({
+      ...record,
+      testModeOverrides: normalizeTestModeOverrides(record.testModeOverrides)
+    })
     return true
   }
 

@@ -157,6 +157,95 @@ test('normalized admin service keeps reads bounded/secret-free and audits every 
   await service.close()
 })
 
+test('normalized starter defaults are audited, revision-fenced, and snapshotted by new accounts', async () => {
+  const persistence = new MemoryPersistence()
+  const service = new PersistenceGameService(persistence, {
+    now: () => new Date(NOW),
+    starterShieldMs: 0
+  })
+  const existing = await service.register(null, 'BeforeDefaults', 'strong-password-before', 'starter-before')
+  assert.ok('token' in existing)
+  if (!('token' in existing)) return
+  const existingBefore = await service.getWorld({ playerId: existing.player.id })
+
+  const initialConfig = await service.adminConfig()
+  assert.deepEqual(initialConfig.starterVillage.resources, {
+    gold: 100_000,
+    ore: 100_000,
+    food: 100_000
+  })
+  assert(initialConfig.buildingCatalog.some(building => building.type === 'town_hall'))
+  assert.equal(initialConfig.starterLimits.maxBalance, 1_000_000_000)
+
+  await assert.rejects(service.adminOperation({
+    type: 'set_starter_village',
+    starterVillage: {
+      resources: { gold: 100_000, ore: 100_000, food: 100_000 },
+      buildings: [
+        { type: 'town_hall', level: 1, gridX: 2, gridY: 2 },
+        { type: 'army_camp', level: 1, gridX: 2, gridY: 2 }
+      ],
+      wallLevel: 1
+    },
+    expectedRevision: initialConfig.revision,
+    reason: 'Reject an overlapping starter layout'
+  }), (error: unknown) => error instanceof Error && 'code' in error && error.code === 'ADMIN_INVALID_INPUT')
+
+  const configuredStarter = {
+    resources: { gold: 234_567, ore: 345_678, food: 456_789 },
+    buildings: [
+      { type: 'town_hall', level: 1, gridX: 2, gridY: 2 },
+      { type: 'army_camp', level: 2, gridX: 10, gridY: 10 },
+      { type: 'farm', level: 1, gridX: 18, gridY: 18 }
+    ],
+    wallLevel: 1
+  }
+  const updated = await service.adminOperation({
+    type: 'set_starter_village',
+    starterVillage: configuredStarter,
+    expectedRevision: initialConfig.revision,
+    reason: 'Configure showcase account defaults'
+  })
+  assert.equal(updated.changed, true)
+  assert.equal(updated.affected, 1)
+
+  await assert.rejects(service.adminOperation({
+    type: 'set_starter_village',
+    starterVillage: configuredStarter,
+    expectedRevision: initialConfig.revision,
+    reason: 'Reject a stale operator draft'
+  }), (error: unknown) => error instanceof Error && 'code' in error && error.code === 'ADMIN_CONFIG_STALE')
+
+  assert.deepEqual(
+    (await service.getWorld({ playerId: existing.player.id })).resources,
+    existingBefore.resources,
+    'saving defaults does not mutate an existing village'
+  )
+  const created = await service.register(null, 'AfterDefaults', 'strong-password-after', 'starter-after')
+  assert.ok('token' in created)
+  if (!('token' in created)) return
+  assert.deepEqual(created.world.resources, configuredStarter.resources,
+    'server-issued starter resources may intentionally exceed storage capacity')
+  assert.deepEqual(created.world.buildings.map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY })),
+    configuredStarter.buildings)
+
+  await service.adminOperation({
+    type: 'set_maintenance', enabled: true, reason: 'Prepare configured starter reset'
+  })
+  await service.adminOperation({
+    type: 'reset_all_bases', confirmation: 'RESET ALL BASES', reason: 'Apply configured defaults to full reset'
+  })
+  assert.deepEqual(
+    (await service.adminPlayer(existing.player.id)).resources,
+    configuredStarter.resources,
+    'the explicit full-reset tool consumes the current configured defaults'
+  )
+
+  const audit = await service.adminAudit(10)
+  assert(audit.some(entry => entry.action === 'set_starter_village'))
+  await service.close()
+})
+
 test('normalized admin resource deltas apply after pending producer income is materialized', async () => {
   const persistence = new MemoryPersistence()
   const stale = village()
@@ -669,5 +758,121 @@ test('normalized authentication rejects durable bans and suspensions and revokes
   await assert.rejects(service.ensureSession(resumeGuest.token), (error: unknown) => (
     error instanceof Error && 'code' in error && error.code === 'ACCOUNT_SUSPENDED'
   ))
+  await service.close()
+})
+
+test('normalized admin test mode supports global state and tri-state player overrides', async () => {
+  const persistence = new MemoryPersistence()
+  await persistence.transaction(async tx => {
+    await tx.accounts.insert(account())
+    await tx.villages.insert(village())
+  })
+  const service = new PersistenceGameService(persistence, { now: () => new Date(NOW) })
+
+  assert.deepEqual((await service.adminConfig()).testMode, { enabled: false, overrideCount: 0 })
+  assert.deepEqual((await service.adminPlayer('player_admin_test')).testMode, {
+    override: null,
+    effective: false
+  })
+
+  await service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'Enable realm testing' })
+  assert.deepEqual((await service.adminPlayer('player_admin_test')).testMode, {
+    override: null,
+    effective: true
+  })
+
+  await service.adminPlayerAction('player_admin_test', {
+    type: 'set_test_mode', override: false, reason: 'Exclude this account'
+  })
+  assert.deepEqual((await service.adminConfig()).testMode, { enabled: true, overrideCount: 1 })
+  assert.deepEqual((await service.adminPlayer('player_admin_test')).testMode, {
+    override: false,
+    effective: false
+  })
+
+  await service.adminPlayerAction('player_admin_test', {
+    type: 'set_test_mode', override: null, reason: 'Restore realm inheritance'
+  })
+  assert.deepEqual((await service.adminConfig()).testMode, { enabled: true, overrideCount: 0 })
+  assert.deepEqual((await service.adminPlayer('player_admin_test')).testMode, {
+    override: null,
+    effective: true
+  })
+  await service.close()
+})
+
+test('normalized test mode is authoritative for sessions, spending, upgrades, and troop unlocks', async () => {
+  const service = new PersistenceGameService(new MemoryPersistence(), {
+    now: () => new Date(NOW),
+    starterShieldMs: 0
+  })
+  const session = await service.register(null, 'TestModeRuntime', 'strong-password-runtime', 'test-mode-runtime')
+  assert.ok('token' in session)
+  if (!('token' in session)) return
+  const principal = { playerId: session.player.id }
+
+  const ordinaryWorld = await service.getWorld(principal)
+  const ordinaryMine = ordinaryWorld.buildings.find(building => building.type === 'mine')
+  assert.ok(ordinaryMine)
+  const timedProposal = structuredClone(ordinaryWorld)
+  timedProposal.buildings.find(building => building.id === ordinaryMine.id)!.level += 1
+  const pending = await service.saveWorld(principal, {
+    world: timedProposal,
+    requestId: 'test-mode-existing-timer'
+  })
+  assert.equal(pending.buildings.find(building => building.id === ordinaryMine.id)?.upgradingTo, ordinaryMine.level + 1)
+
+  await service.adminOperation({
+    type: 'set_test_mode', enabled: true, reason: 'Exercise every test-mode entitlement'
+  })
+  const heartbeat = await service.homeSync(principal)
+  assert.deepEqual(heartbeat.features, { infiniteResources: true, testMode: true })
+  assert.deepEqual(heartbeat.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
+  const enabled = await service.ensureSession(session.token)
+  assert.ok('token' in enabled)
+  if (!('token' in enabled)) return
+  assert.deepEqual(enabled.features, { infiniteResources: true, testMode: true })
+  assert.deepEqual(enabled.world.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
+
+  const before = await service.getWorld(principal)
+  const expeditedMine = before.buildings.find(building => building.id === ordinaryMine.id)!
+  assert.equal(expeditedMine.level, ordinaryMine.level + 1, 'enabling test mode completes an existing timer')
+  assert.equal(expeditedMine.upgradingTo, undefined)
+  const mine = before.buildings.find(building => building.type === 'mine')
+  assert.ok(mine, 'starter village supplies an upgradeable mine')
+  const proposal = structuredClone(before)
+  const proposedMine = proposal.buildings.find(building => building.id === mine.id)!
+  proposedMine.level += 1
+  const upgraded = await service.saveWorld(principal, {
+    world: proposal,
+    requestId: 'test-mode-instant-upgrade'
+  })
+  const completedMine = upgraded.buildings.find(building => building.id === mine.id)!
+  assert.equal(completedMine.level, proposedMine.level)
+  assert.equal(completedMine.upgradingTo, undefined)
+  assert.equal(completedMine.upgradeEndsAt, undefined)
+  assert.deepEqual(upgraded.resources, before.resources, 'upgrades do not consume the test wallet')
+
+  const trained = await service.trainTroop(principal, {
+    type: 'archer', count: 1, requestId: 'test-mode-locked-troop'
+  }) as { army: Record<string, number>; gold: number; food: number }
+  assert.equal(trained.army.archer, 1, 'a level-two Army Camp unlock is bypassed')
+  assert.equal(trained.gold, upgraded.resources.gold)
+  assert.equal(trained.food, upgraded.resources.food)
+
+  const spent = await service.applyResources(principal, {
+    resource: 'gold', delta: -1_000_000, requestId: 'test-mode-infinite-spend'
+  }) as { applied: boolean; gold: number }
+  assert.equal(spent.applied, true)
+  assert.equal(spent.gold, upgraded.resources.gold)
+
+  await service.adminPlayerAction(session.player.id, {
+    type: 'set_test_mode', override: false, reason: 'Verify a player-specific exclusion'
+  })
+  const disabled = await service.ensureSession(session.token)
+  assert.ok('token' in disabled)
+  if ('token' in disabled) {
+    assert.deepEqual(disabled.features, { infiniteResources: false, testMode: false })
+  }
   await service.close()
 })

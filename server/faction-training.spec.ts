@@ -369,7 +369,13 @@ test('normalized army batch is mixed, atomic, idempotent, and returns its author
   try {
     const session = grantedSession(await service.ensureSession('', 'army-batch-runtime'))
     const principal: RuntimePrincipal = { playerId: session.player.id }
-    const initialRevision = session.world.revision ?? 0
+    await service.applyResources(principal, {
+      resource: 'food',
+      delta: 100 - (session.world.resources.food ?? 0),
+      requestId: 'army-batch-low-food-control'
+    })
+    const baseline = await service.getWorld(principal)
+    const initialRevision = baseline.revision ?? 0
     const result = await service.armyBatch(principal, {
       operations: [
         { kind: 'train', type: 'warrior', count: 3 },
@@ -384,8 +390,8 @@ test('normalized army batch is mixed, atomic, idempotent, and returns its author
       world: { army?: Record<string, number>; resources: { gold: number; food?: number }; revision?: number }
     }
     assert.equal(result.army.warrior, 2)
-    assert.equal(result.gold, session.world.resources.gold - TROOP_DEFINITIONS.warrior.cost * 2)
-    assert.equal(result.food, (session.world.resources.food ?? 0) - 4)
+    assert.equal(result.gold, baseline.resources.gold - TROOP_DEFINITIONS.warrior.cost * 2)
+    assert.equal(result.food, (baseline.resources.food ?? 0) - 4)
     assert.equal(result.revision, initialRevision + 1, 'the complete burst advances authority once')
     assert.deepEqual(result.world.army, result.army)
     assert.equal(result.world.resources.gold, result.gold)
@@ -471,6 +477,11 @@ test('legacy army batch commits mixed orders once and rolls back a rejected suff
     game = new GameService(dataRoot)
     const session = grantedSession(game.ensureSession(undefined, 'army-batch-legacy'))
     const player = game.authenticate(session.token)
+    game.applyResources(player, {
+      resource: 'food',
+      delta: 100 - player.food,
+      requestId: 'army-batch-low-food-control'
+    })
     const initialRevision = player.revision
     const initialGold = Math.floor(player.balance)
     const initialFood = player.food

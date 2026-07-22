@@ -1,5 +1,6 @@
 import type { Awaitable } from './runtime/contracts'
 import type { PublicWorldSnapshot } from './protocol'
+import type { BuildingType, StarterVillageConfig } from '../src/game/config/GameDefinitions'
 
 /** Shared, secret-free transport contract for the operator portal. */
 export type AdminAccessState = 'active' | 'suspended' | 'banned'
@@ -46,6 +47,11 @@ export interface AdminPlayerSummary {
   online: boolean
   access: AdminAccessState
   accessUntil: number | null
+  testMode: {
+    /** Null inherits the realm-wide switch. */
+    override: boolean | null
+    effective: boolean
+  }
   world: { worldId: string; x: number; y: number; plotVersion: number } | null
 }
 
@@ -125,6 +131,10 @@ export interface AdminConfig {
     enabled: boolean
     message: string | null
   }
+  testMode: {
+    enabled: boolean
+    overrideCount: number
+  }
   accessPolicy: {
     suspendedSessionsRevoked: true
     bannedSessionsRevoked: true
@@ -135,6 +145,22 @@ export interface AdminConfig {
     attackList: number
     auditList: number
     botRadius: number
+  }
+  /** Effective defaults snapshotted only when a new player village is created. */
+  starterVillage: StarterVillageConfig
+  buildingCatalog: Array<{
+    type: BuildingType
+    name: string
+    category: string
+    width: number
+    height: number
+    maxLevel: number
+    maxCount: number
+  }>
+  starterLimits: {
+    mapSize: number
+    maxBalance: number
+    maxBuildings: number
   }
   updatedAt: number
   revision: number
@@ -160,6 +186,7 @@ export type AdminPlayerActionRequest =
   | { type: 'set_shield'; until?: unknown; reason?: unknown }
   | { type: 'rename'; username?: unknown; reason?: unknown }
   | { type: 'revoke_sessions'; reason?: unknown }
+  | { type: 'set_test_mode'; override?: unknown; reason?: unknown }
   | {
       type: 'set_access'
       state?: unknown
@@ -177,6 +204,13 @@ export type AdminPlayerActionRequest =
 export type AdminOperationRequest =
   | { type: 'clear_shields'; reason?: unknown }
   | { type: 'set_maintenance'; enabled?: unknown; message?: unknown; reason?: unknown }
+  | { type: 'set_test_mode'; enabled?: unknown; reason?: unknown }
+  | {
+      type: 'set_starter_village'
+      starterVillage?: unknown
+      expectedRevision?: unknown
+      reason?: unknown
+    }
   | { type: 'reset_all_bases'; confirmation?: unknown; reason?: unknown }
 
 export interface AdminBaseResetSummary {

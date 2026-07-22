@@ -159,6 +159,66 @@ test('legacy JSON runtime provides durable, audited admin parity', () => {
   }
 })
 
+test('legacy starter defaults persist and apply only at creation unless a full reset is requested', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'clash-admin-starter-legacy-'))
+  try {
+    const service = new GameService(root)
+    const existing = service.register(null, 'LegacyBefore', 'valid-password-123')
+    assert.ok('token' in existing)
+    if (!('token' in existing)) return
+    const existingBefore = service.getWorld(service.authenticate(existing.token))
+    const initialConfig = service.adminConfig()
+    const starterVillage = {
+      resources: { gold: 210_000, ore: 220_000, food: 230_000 },
+      buildings: [
+        { type: 'town_hall', level: 1, gridX: 2, gridY: 2 },
+        { type: 'army_camp', level: 2, gridX: 10, gridY: 10 },
+        { type: 'mine', level: 1, gridX: 18, gridY: 18 }
+      ],
+      wallLevel: 1
+    }
+    const changed = service.adminOperation({
+      type: 'set_starter_village',
+      starterVillage,
+      expectedRevision: initialConfig.revision,
+      reason: 'Configure durable legacy starter defaults'
+    })
+    assert.equal(changed.changed, true)
+    assert.deepEqual(service.getWorld(service.authenticate(existing.token)).resources, existingBefore.resources,
+      'changing defaults never re-grants an existing account')
+
+    const created = service.register(null, 'LegacyAfter', 'valid-password-456')
+    assert.ok('token' in created)
+    if (!('token' in created)) return
+    assert.deepEqual(created.world.resources, starterVillage.resources)
+    assert.deepEqual(created.world.buildings.map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY })),
+      starterVillage.buildings)
+    assert.ok(service.flush())
+
+    const restarted = new GameService(root)
+    assert.deepEqual(restarted.adminConfig().starterVillage, starterVillage,
+      'the configured template survives a JSON runtime restart')
+    const afterRestart = restarted.register(null, 'LegacyRestart', 'valid-password-789')
+    assert.ok('token' in afterRestart)
+    if (!('token' in afterRestart)) return
+    assert.deepEqual(afterRestart.world.resources, starterVillage.resources,
+      'post-restart creation still uses the persisted template')
+
+    restarted.adminOperation({
+      type: 'set_maintenance', enabled: true, reason: 'Prepare configured legacy reset'
+    })
+    restarted.adminOperation({
+      type: 'reset_all_bases', confirmation: 'RESET ALL BASES', reason: 'Apply configured legacy starter defaults'
+    })
+    assert.deepEqual(restarted.adminPlayer(existing.player.id).resources, starterVillage.resources,
+      'the explicit full reset consumes the configured starter snapshot')
+    assert.ok(restarted.adminAudit(50).some(entry => entry.action === 'set_starter_village'))
+    assert.ok(restarted.flush())
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('legacy admin overflow survives world loads, debits, saves, and restart without earning past cap', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'clash-admin-overflow-legacy-'))
   try {
@@ -340,6 +400,113 @@ test('legacy JSON runtime deterministically recovers a pending base reset journa
     assert.ok(secondRestart.flush())
     const twiceRestartedWorldState = JSON.parse(readFileSync(worldStatePath, 'utf8')) as Record<string, unknown>
     assert.equal(twiceRestartedWorldState.botRevisionEpoch, revisionEpoch)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('legacy admin test mode persists global state and explicit player exclusions', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'clash-admin-test-mode-'))
+  try {
+    const service = new GameService(root)
+    const session = service.register(null, 'TestModeChief', 'valid-password-123')
+    assert.ok('token' in session)
+    if (!('token' in session)) return
+    const playerId = session.player.id
+
+    assert.deepEqual(service.adminConfig().testMode, { enabled: false, overrideCount: 0 })
+    service.adminOperation({ type: 'set_test_mode', enabled: true, reason: 'Enable realm testing' })
+    service.adminPlayerAction(playerId, {
+      type: 'set_test_mode', override: false, reason: 'Exclude this account'
+    })
+    assert.deepEqual(service.adminPlayer(playerId).testMode, { override: false, effective: false })
+    assert.ok(service.flush())
+
+    const restarted = new GameService(root)
+    assert.deepEqual(restarted.adminConfig().testMode, { enabled: true, overrideCount: 1 })
+    assert.deepEqual(restarted.adminPlayer(playerId).testMode, { override: false, effective: false })
+    restarted.adminPlayerAction(playerId, {
+      type: 'set_test_mode', override: null, reason: 'Restore realm inheritance'
+    })
+    assert.deepEqual(restarted.adminPlayer(playerId).testMode, { override: null, effective: true })
+    assert.deepEqual(restarted.adminConfig().testMode, { enabled: true, overrideCount: 0 })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('legacy test mode is authoritative for sessions, spending, upgrades, and troop unlocks', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'clash-admin-test-mode-gameplay-'))
+  try {
+    const service = new GameService(root)
+    const session = service.register(null, 'TestModeLegacy', 'valid-password-123')
+    assert.ok('token' in session)
+    if (!('token' in session)) return
+    const player = service.authenticate(session.token)
+
+    const ordinaryWorld = service.getWorld(player)
+    const ordinaryMine = ordinaryWorld.buildings.find(building => building.type === 'mine')
+    assert.ok(ordinaryMine)
+    const timedProposal = structuredClone(ordinaryWorld)
+    timedProposal.buildings.find(building => building.id === ordinaryMine.id)!.level += 1
+    const pending = service.saveWorld(player, {
+      world: timedProposal,
+      requestId: 'legacy-test-mode-existing-timer'
+    })
+    assert.equal(pending.buildings.find(building => building.id === ordinaryMine.id)?.upgradingTo, ordinaryMine.level + 1)
+
+    service.adminOperation({
+      type: 'set_test_mode', enabled: true, reason: 'Exercise every legacy test entitlement'
+    })
+    const heartbeat = service.homeSync(player)
+    assert.deepEqual(heartbeat.features, { infiniteResources: true, testMode: true })
+    assert.deepEqual(heartbeat.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
+    const enabled = service.ensureSession(session.token, 'test-mode-legacy')
+    assert.ok('token' in enabled)
+    if (!('token' in enabled)) return
+    assert.deepEqual(enabled.features, { infiniteResources: true, testMode: true })
+    assert.deepEqual(enabled.world.upgradePolicy, { fixedDurationMs: 0, timeScale: 0 })
+
+    const before = service.getWorld(player)
+    const expeditedMine = before.buildings.find(building => building.id === ordinaryMine.id)!
+    assert.equal(expeditedMine.level, ordinaryMine.level + 1, 'enabling test mode completes an existing timer')
+    assert.equal(expeditedMine.upgradingTo, undefined)
+    const mine = before.buildings.find(building => building.type === 'mine')
+    assert.ok(mine, 'starter village supplies an upgradeable mine')
+    const proposal = structuredClone(before)
+    const proposedMine = proposal.buildings.find(building => building.id === mine.id)!
+    proposedMine.level += 1
+    const upgraded = service.saveWorld(player, {
+      world: proposal,
+      requestId: 'legacy-test-mode-instant-upgrade'
+    })
+    const completedMine = upgraded.buildings.find(building => building.id === mine.id)!
+    assert.equal(completedMine.level, proposedMine.level)
+    assert.equal(completedMine.upgradingTo, undefined)
+    assert.equal(completedMine.upgradeEndsAt, undefined)
+    assert.deepEqual(upgraded.resources, before.resources, 'upgrades do not consume the test wallet')
+
+    const trained = service.trainTroop(player, {
+      type: 'archer', count: 1, requestId: 'legacy-test-mode-locked-troop'
+    })
+    assert.equal(trained.army.archer, 1, 'a level-two Army Camp unlock is bypassed')
+    assert.equal(trained.gold, upgraded.resources.gold)
+    assert.equal(trained.food, upgraded.resources.food)
+
+    const spent = service.applyResources(player, {
+      resource: 'gold', delta: -1_000_000, requestId: 'legacy-test-mode-infinite-spend'
+    })
+    assert.equal(spent.applied, true)
+    assert.equal(spent.gold, upgraded.resources.gold)
+
+    service.adminPlayerAction(session.player.id, {
+      type: 'set_test_mode', override: false, reason: 'Verify a legacy player exclusion'
+    })
+    const disabled = service.ensureSession(session.token, 'test-mode-legacy-disabled')
+    assert.ok('token' in disabled)
+    if ('token' in disabled) {
+      assert.deepEqual(disabled.features, { infiniteResources: false, testMode: false })
+    }
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

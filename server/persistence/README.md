@@ -118,9 +118,8 @@ limit, but reject invalid cursors, trophy ranges, or atlas spans before SQL runs
 
 ## Vercel release migrations
 
-Vercel request handlers never run schema migrations. Apply migrations once,
-before promoting a deployment, with the production `DATABASE_URL` explicitly
-loaded into the release shell:
+Apply migrations once before promoting a deployment, with the production
+`DATABASE_URL` explicitly loaded into the release shell:
 
 ```sh
 npm run db:migrate:release -- --confirm=APPLY_RELEASE_MIGRATIONS
@@ -133,6 +132,13 @@ CLI already uses a database advisory lock, checks every applied checksum, and
 fails before deployment if production schema authority cannot be reached. The
 release variant also preprovisions a bounded central bot pool so cloud bot
 matching does not have to synthesize its first opponent on a player request.
+
+The Vercel function also awaits that same idempotent, advisory-lock migration
+runner during each cold runtime's initialization as a deployment safety net.
+It constructs no repositories and handles no game request until the schema is
+current. This prevents a new bundle from querying an additive column before a
+missed release migration has committed; the explicit release command remains
+preferred because it keeps migration latency off the first live request.
 
 Set `CRON_SECRET` in the production Vercel environment. `vercel.json` invokes
 the authenticated `/api/internal/maintenance` job once daily (compatible with

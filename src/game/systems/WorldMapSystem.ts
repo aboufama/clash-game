@@ -2819,13 +2819,17 @@ export class WorldMapSystem {
     /** Replace road strips only where both adjoining authoritative plots are
      * empty. The base road atlas remains cached underneath; these opaque grass
      * tiles remove its surface, ruts, cobbles, and furniture in one pass. */
-    private rebuildWildernessLinks(center = this.focusPlot ?? this.myPlot) {
+    private rebuildWildernessLinks(
+        center = this.focusPlot ?? this.myPlot,
+        centerOccupied = true
+    ) {
         const topology = buildWildernessTopology(
             center,
             // Same clamp as computeViewRadius: a battle frame owns exactly
             // the prepared one-ring context, whatever sight home has earned.
             this.focusPlot ? 1 : this.viewRadiusValue,
-            [...this.views.values()].map(view => view.plot)
+            [...this.views.values()].map(view => view.plot),
+            { centerOccupied }
         );
         // cornercover: bump when the joined-seam cover geometry changes so
         // an already-built links/gap-surface graphic regenerates in place.
@@ -3190,11 +3194,13 @@ export class WorldMapSystem {
         }
     }
 
-    private ensureWilderness() {
+    private ensureWilderness(radius = 2) {
         if (this.wilderness) return;
         const g = this.scene.add.graphics();
         g.setDepth(-450); // above the void backdrop (-500), below everything else
-        const r = 2; // draw for the widest possible sight, cheap either way
+        // Production sight tops out at r=2. Offline full-atlas renderers use
+        // the same painter at a larger radius instead of approximating roads.
+        const r = Number.isFinite(radius) ? Math.max(2, Math.min(8, Math.floor(radius))) : 2;
         const min = -r * PLOT_PITCH - PLOT_GAP;
         const max = (r + 1) * PLOT_PITCH;
         const P = (x: number, y: number) => IsoUtils.cartToIso(x, y);

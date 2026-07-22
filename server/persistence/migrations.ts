@@ -628,6 +628,32 @@ ALTER TABLE world_allocation_state
   CHECK (bot_revision_epoch > 0);
 `
 
+const ADMIN_STARTER_VILLAGE_SQL = String.raw`
+ALTER TABLE admin_runtime_config
+  ADD COLUMN starter_village jsonb;
+
+ALTER TABLE admin_runtime_config
+  ADD CONSTRAINT admin_runtime_config_starter_village_object CHECK (
+    starter_village IS NULL OR (
+      jsonb_typeof(starter_village) = 'object'
+      AND jsonb_typeof(starter_village->'resources') = 'object'
+      AND jsonb_typeof(starter_village->'buildings') = 'array'
+      AND jsonb_typeof(starter_village->'wallLevel') = 'number'
+    )
+  );
+`
+
+const ADMIN_TEST_MODE_SQL = String.raw`
+ALTER TABLE admin_runtime_config
+  ADD COLUMN test_mode_enabled boolean NOT NULL DEFAULT false,
+  ADD COLUMN test_mode_overrides jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE admin_runtime_config
+  ADD CONSTRAINT admin_runtime_config_test_mode_overrides_object CHECK (
+    jsonb_typeof(test_mode_overrides) = 'object'
+  );
+`
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: 'core_authority', sql: CORE_SQL },
   { version: 2, name: 'battle_authority', sql: BATTLES_SQL },
@@ -643,7 +669,9 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 12, name: 'village_banner', sql: VILLAGE_BANNER_SQL },
   { version: 13, name: 'persistent_bot_villages', sql: PERSISTENT_BOT_VILLAGES_SQL },
   { version: 14, name: 'admin_authority', sql: ADMIN_AUTHORITY_SQL },
-  { version: 15, name: 'bot_revision_epoch', sql: BOT_REVISION_EPOCH_SQL }
+  { version: 15, name: 'bot_revision_epoch', sql: BOT_REVISION_EPOCH_SQL },
+  { version: 16, name: 'admin_starter_village', sql: ADMIN_STARTER_VILLAGE_SQL },
+  { version: 17, name: 'admin_test_mode', sql: ADMIN_TEST_MODE_SQL }
 ]
 
 function checksum(sql: string): string {

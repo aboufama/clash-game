@@ -655,6 +655,248 @@ button:disabled {
     pointer-events: auto;
 }
 
+/* Test-mode proclamation — a royal/arcane proving-ground notice using the
+   same generated pixel chrome as the rest of the game. It sits above ordinary
+   modals but below clouds and the session lockout. */
+.test-mode-overlay {
+    z-index: 1400;
+    padding: 18px;
+    box-sizing: border-box;
+    background:
+        radial-gradient(circle at 50% 38%, rgba(91, 181, 188, 0.2), transparent 42%),
+        rgba(7, 8, 15, 0.92);
+}
+
+.test-mode-popup {
+    position: relative;
+    width: min(520px, calc(100vw - 36px));
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 28px 30px 24px;
+    color: #fff5d8;
+    text-align: center;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 5);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 5) stretch;
+    image-rendering: pixelated;
+    box-shadow: 0 0 0 4px #171020, 0 18px 50px rgba(0, 0, 0, 0.72);
+    animation: test-mode-arrive 260ms steps(4, end);
+}
+
+.test-mode-popup::before,
+.test-mode-popup::after {
+    content: '';
+    position: absolute;
+    top: 19px;
+    width: 70px;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #67d7d0, #f4cf62);
+    box-shadow: 0 6px 0 rgba(103, 215, 208, 0.35);
+}
+
+.test-mode-popup::before {
+    left: 18px;
+}
+
+.test-mode-popup::after {
+    right: 18px;
+    transform: scaleX(-1);
+}
+
+.test-mode-sigil {
+    position: relative;
+    width: 72px;
+    height: 66px;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff1a8;
+    background: #24193b;
+    border: 4px solid #67d7d0;
+    box-shadow:
+        0 0 0 3px #100b1a,
+        0 0 22px rgba(103, 215, 208, 0.38),
+        inset 0 0 0 3px #493269;
+}
+
+.test-mode-sigil strong {
+    font-size: 42px;
+    line-height: 1;
+    text-shadow: 3px 3px 0 #100b1a;
+}
+
+.test-mode-sigil-crown {
+    position: absolute;
+    top: -13px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #f4cf62;
+    font-size: 16px;
+    text-shadow: 2px 2px 0 #100b1a;
+}
+
+.test-mode-kicker {
+    margin: 0 0 5px;
+    color: #67d7d0;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 2px 2px 0 #100b1a;
+}
+
+.test-mode-popup h2 {
+    margin: 0;
+    color: #f4cf62;
+    font-size: 22px;
+    line-height: 1.1;
+    letter-spacing: 1px;
+    text-shadow: 3px 3px 0 #100b1a;
+}
+
+.test-mode-description {
+    max-width: 390px;
+    margin: 10px auto 17px;
+    color: #d8cfbe;
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.test-mode-benefits {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.test-mode-benefit {
+    min-width: 0;
+    min-height: 104px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 11px 8px 9px;
+    box-sizing: border-box;
+    background: rgba(23, 16, 36, 0.82);
+    border: 3px solid #493269;
+    box-shadow: inset 0 0 0 2px rgba(103, 215, 208, 0.12), 3px 3px 0 #100b1a;
+}
+
+.test-mode-feature-mark {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #f4cf62;
+    font-size: 25px;
+    line-height: 30px;
+    filter: drop-shadow(2px 2px 0 #100b1a);
+}
+
+.test-mode-feature-mark.sym {
+    transform: scale(1.35);
+    transform-origin: center;
+}
+
+.test-mode-benefit strong,
+.test-mode-benefit small {
+    display: block;
+}
+
+.test-mode-benefit strong {
+    color: #fff5d8;
+    font-size: 9px;
+    line-height: 1.2;
+}
+
+.test-mode-benefit small {
+    margin-top: 5px;
+    color: #aaa0b8;
+    font-size: 7px;
+    line-height: 1.35;
+}
+
+.test-mode-enter {
+    min-width: min(280px, 100%);
+    padding: 10px 18px;
+    color: #fff8dc;
+    font-family: var(--ui-font);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-shadow: 2px 2px 0 #000;
+    cursor: pointer;
+    background: none;
+    border-style: solid;
+    border-width: calc(var(--px) * 4);
+    border-image: var(--pxf-gold) 5 fill / calc(var(--px) * 4) stretch;
+    image-rendering: pixelated;
+}
+
+.test-mode-enter:hover,
+.test-mode-enter:focus-visible {
+    filter: brightness(1.16);
+    outline: 3px solid #67d7d0;
+    outline-offset: 3px;
+}
+
+.test-mode-enter:active {
+    border-image-source: var(--pxf-btn-down);
+    transform: translate(2px, 2px);
+}
+
+.test-mode-footnote {
+    display: block;
+    margin-top: 10px;
+    color: #887f94;
+    font-size: 7px;
+    line-height: 1.35;
+}
+
+@keyframes test-mode-arrive {
+    from { opacity: 0; transform: translateY(18px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 560px) {
+    .test-mode-popup {
+        padding: 23px 18px 19px;
+    }
+
+    .test-mode-popup::before,
+    .test-mode-popup::after {
+        width: 38px;
+    }
+
+    .test-mode-popup h2 {
+        font-size: 17px;
+    }
+
+    .test-mode-benefits {
+        grid-template-columns: 1fr;
+    }
+
+    .test-mode-benefit {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        text-align: left;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .test-mode-popup {
+        animation: none;
+    }
+}
+
 .training-modal {
     background: var(--panel-bg);
     border: 6px solid var(--panel-border);
@@ -779,6 +1021,11 @@ button:disabled {
     background: none;
 }
 
+.core-troop-access.test-mode {
+    color: #67d7d0;
+    text-shadow: 1px 1px 0 #100b1a;
+}
+
 .core-troop-description {
     margin: 5px 0 8px;
     color: #d5c9b2;
@@ -854,6 +1101,12 @@ button:disabled {
     font-size: 7px;
     font-weight: 900;
     box-shadow: 2px 2px 0 #000;
+}
+
+.troop-faction-level.test-mode {
+    color: #fff5d8;
+    background: #493269;
+    border-color: #67d7d0;
 }
 
 .faction-lock-popup {

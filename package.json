@@ -7,8 +7,8 @@
     "node": ">=20 <25"
   },
   "scripts": {
-    "dev": "CLASH_ALLOW_GUESTS=1 CLASH_ALLOW_DEBUG_GRANTS=1 CLASH_ALLOW_WORLD_RESEED=1 CLASH_INFINITE_RESOURCES=1 CLASH_UPGRADE_DURATION_MS=1000 vite --host 127.0.0.1 --port 5173 --strictPort",
-    "dev:game": "CLASH_ALLOW_GUESTS=1 CLASH_ALLOW_DEBUG_GRANTS=1 CLASH_ALLOW_WORLD_RESEED=1 CLASH_INFINITE_RESOURCES=1 CLASH_UPGRADE_DURATION_MS=1000 vite --host 127.0.0.1 --port 5173 --strictPort --open /game",
+    "dev": "CLASH_ALLOW_GUESTS=1 CLASH_ALLOW_DEBUG_GRANTS=1 CLASH_ALLOW_WORLD_RESEED=1 vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:game": "CLASH_ALLOW_GUESTS=1 CLASH_ALLOW_DEBUG_GRANTS=1 CLASH_ALLOW_WORLD_RESEED=1 vite --host 127.0.0.1 --port 5173 --strictPort --open /game",
     "build": "tsc -b && vite build && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/index.mjs",
     "build:vercel": "npm run build && npm run build:vercel-api",

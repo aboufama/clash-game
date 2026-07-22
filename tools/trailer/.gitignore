@@ -1,4 +1,6 @@
 clips/
 node_modules
 .trailer-device-token.json
+# Every capture harness identity is local-only, regardless of its scenario tag.
+.*-token.json
 *.mp4

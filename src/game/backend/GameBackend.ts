@@ -1,9 +1,9 @@
 import { BUILDING_DEFINITIONS, MAP_SIZE, TROOP_DEFINITIONS, createStarterVillage, troopFoodCostOf, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
 import { resourceCapacity } from '../config/Economy';
-import { adoptUpgradePolicy } from '../config/UpgradePolicy';
+import { adoptUpgradePolicy, type ServerUpgradePolicy } from '../config/UpgradePolicy';
 import { sanitizeVillageBanner, type SerializedBuilding, type SerializedObstacle, type SerializedWorld, type VillageBanner, type VillageLifeManifest } from '../data/Models';
 export type { VillageBanner, VillageLifeManifest } from '../data/Models';
-import { Auth } from './Auth';
+import { Auth, type SessionFeatures } from './Auth';
 
 const CACHE_PREFIX = 'clash.base.';
 export interface WorldMapPlot {
@@ -288,6 +288,8 @@ export type HomeSyncResponse = {
   world: { revision: number; lastSaveTime: number };
   shieldUntil: number;
   incomingAttack: IncomingAttackSession | null;
+  features: SessionFeatures;
+  upgradePolicy: ServerUpgradePolicy;
 };
 
 type RememberedBattle =
@@ -1503,7 +1505,12 @@ export class Backend {
   static async fetchHomeSync(): Promise<HomeSyncResponse | null> {
     if (!Auth.isOnlineMode() || !Auth.getCurrentUser()) return null;
     try {
-      return await Backend.apiGet<HomeSyncResponse>('/api/home/sync');
+      const response = await Backend.apiGet<HomeSyncResponse>('/api/home/sync');
+      // These are effective, per-player server facts. Adopt them before any
+      // queued economy/layout work can consult the old session entitlements.
+      if (response.features) Auth.adoptFeatures(response.features);
+      if (response.upgradePolicy) adoptUpgradePolicy(response.upgradePolicy);
+      return response;
     } catch (error) {
       console.warn('Home sync failed:', error);
       return null;

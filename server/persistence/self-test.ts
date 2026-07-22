@@ -352,6 +352,9 @@ test('persistent bot villages are idempotent, bounded, CAS-safe, and survive pla
   const epochMigration = MIGRATIONS.find(item => item.name === 'bot_revision_epoch')
   assert.equal(epochMigration?.version, 15)
   assert.match(epochMigration?.sql ?? '', /bot_revision_epoch bigint NOT NULL DEFAULT 1/)
+  const starterMigration = MIGRATIONS.find(item => item.name === 'admin_starter_village')
+  assert.equal(starterMigration?.version, 16)
+  assert.match(starterMigration?.sql ?? '', /ADD COLUMN starter_village jsonb/)
 
   const persistence = new MemoryPersistence()
   const stored = botVillage()

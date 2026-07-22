@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { createStarterVillage } from '../../src/game/config/GameDefinitions'
+import { createStarterVillage, type StarterVillageConfig } from '../../src/game/config/GameDefinitions'
 import {
   InMemoryAuthRateLimiter,
   createOpaqueSessionToken,
@@ -15,6 +15,8 @@ import {
   type RegistrationRequiredResponse
 } from '../domain/auth'
 import { STARTING_POPULATION, VILLAGE_SIMULATION_VERSION } from '../domain/village'
+import { effectiveStarterVillageConfig } from '../domain/village/starter-config'
+import { testModeEnabled } from '../domain/test-mode'
 import { DEFAULT_GUEST_PLOT_TTL_MS } from '../domain/world'
 import { ApiError } from '../errors'
 import type {
@@ -34,7 +36,7 @@ import {
   acquireMaintenanceMutationFence,
   assertGameplayMutationAllowed
 } from './maintenance-fence'
-import { profileOf, serializedWorldOf, type AdvertisedUpgradePolicy } from './village-state'
+import { profileOf, serializedWorldOf, villageBuildings, type AdvertisedUpgradePolicy } from './village-state'
 import { VillageAuthority, type OwnedState } from './village-authority'
 import {
   allocatePlayerPlot,
@@ -69,9 +71,10 @@ export interface AuthSessionOptions {
 export function createStarterVillageRecord(
   playerId: string,
   now: Date,
-  revision = 1
+  revision = 1,
+  config?: StarterVillageConfig
 ): VillageRecord {
-  const starter = createStarterVillage(() => randomId('b', 6))
+  const starter = createStarterVillage(() => randomId('b', 6), config)
   return {
     playerId,
     buildings: starter.buildings as unknown as JsonValue[],
@@ -186,6 +189,23 @@ export class AuthSessionService {
     )
   }
 
+  private upgradePolicyFor(testMode: boolean): AdvertisedUpgradePolicy | undefined {
+    return testMode ? { fixedDurationMs: 0, timeScale: 0 } : this.upgradePolicy
+  }
+
+  private expediteUpgradesForTestMode(village: VillageRecord, now: Date, testMode: boolean): boolean {
+    if (!testMode) return false
+    const buildings = villageBuildings(village)
+    let changed = false
+    for (const building of buildings) {
+      if (!building.upgradingTo || (building.upgradeEndsAt ?? 0) <= now.getTime()) continue
+      building.upgradeEndsAt = now.getTime()
+      changed = true
+    }
+    if (changed) village.buildings = buildings as unknown as JsonValue[]
+    return changed
+  }
+
   private async sessionResponse(
     tx: UnitOfWork,
     state: OwnedState,
@@ -193,12 +213,16 @@ export class AuthSessionService {
     created: boolean,
     now: Date
   ): Promise<SessionResponse> {
-    await this.authority.materializeOwned(
-      tx,
-      state.village,
-      now,
-      await this.authority.hasActiveIncoming(tx, state.account.id)
-    )
+    const runtimeConfig = await tx.admin.getConfig()
+    const testMode = testModeEnabled(runtimeConfig, state.account.id)
+    const populationLocked = await this.authority.hasActiveIncoming(tx, state.account.id)
+    if (this.expediteUpgradesForTestMode(state.village, now, testMode)) {
+      const expected = state.village.economyRevision
+      await this.authority.materializeWithAudit(tx, state.village, now, populationLocked)
+      await this.authority.updateVillage(tx, state.village, expected)
+    } else {
+      await this.authority.materializeOwned(tx, state.village, now, populationLocked)
+    }
     const unread = (await tx.notifications.listForPlayer({
       playerId: state.account.id,
       unreadOnly: true,
@@ -207,10 +231,12 @@ export class AuthSessionService {
     return {
       token,
       player: profileOf(state.account, state.plot),
-      world: serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy }),
+      world: serializedWorldOf(state.account, state.village, now, {
+        upgradePolicy: this.upgradePolicyFor(testMode)
+      }),
       created,
       unread,
-      features: { infiniteResources: this.infiniteResources }
+      features: { infiniteResources: this.infiniteResources || testMode, testMode }
     }
   }
 
@@ -304,12 +330,13 @@ export class AuthSessionService {
   ): Promise<SessionResponse> {
     const registered = identity.passwordHash !== null
     return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
+      const runtimeConfig = await assertGameplayMutationAllowed(tx)
       if (identity.usernameKey) {
         const existing = await tx.accounts.getByUsernameKey(identity.usernameKey, { forUpdate: true })
         if (existing) throw new ApiError(409, 'That username is already taken — use LOG IN instead', 'USERNAME_TAKEN')
       }
       const playerId = randomId('p')
+      const testMode = testModeEnabled(runtimeConfig, playerId)
       const account: AccountRecord = {
         id: playerId,
         username: identity.username,
@@ -325,7 +352,12 @@ export class AuthSessionService {
         botRaidCooldowns: {}
       }
       await tx.accounts.insert(account)
-      const village = createStarterVillageRecord(playerId, now)
+      const village = createStarterVillageRecord(
+        playerId,
+        now,
+        1,
+        effectiveStarterVillageConfig(runtimeConfig.starterVillage)
+      )
       await tx.villages.insert(village)
       await tx.sessions.insert({
         tokenHash: hashSessionToken(newToken),
@@ -351,10 +383,12 @@ export class AuthSessionService {
       return {
         token: newToken,
         player: profileOf(account, plot),
-        world: serializedWorldOf(account, village, now, { upgradePolicy: this.upgradePolicy }),
+        world: serializedWorldOf(account, village, now, {
+          upgradePolicy: this.upgradePolicyFor(testMode)
+        }),
         created: true,
         unread: 0,
-        features: { infiniteResources: this.infiniteResources }
+        features: { infiniteResources: this.infiniteResources || testMode, testMode }
       }
     })
   }

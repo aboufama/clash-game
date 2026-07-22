@@ -17,11 +17,13 @@ import {
   ArrowRight,
   Ban,
   Bot,
+  Building2,
   CheckCircle2,
   CircleDollarSign,
   Coins,
   Command,
   DatabaseZap,
+  FlaskConical,
   Gauge,
   LayoutDashboard,
   LoaderCircle,
@@ -29,13 +31,16 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
+  Plus,
   RadioTower,
   RefreshCw,
+  Save,
   ScrollText,
   Search,
   ShieldAlert,
   ShieldCheck,
   Swords,
+  Trash2,
   UserCog,
   Users,
   type LucideIcon,
@@ -56,6 +61,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from './ui/card'
@@ -79,7 +85,9 @@ import { ScrollArea } from './ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from './ui/select'
@@ -389,6 +397,41 @@ function StatusPill({ value, goodWhen = true }: { value: unknown; goodWhen?: boo
   )
 }
 
+interface TestModeState {
+  override: boolean | null
+  effective: boolean
+}
+
+function testModeStateOf(value: unknown): TestModeState {
+  const state = asRecord(value)
+  return {
+    override: typeof state.override === 'boolean' ? state.override : null,
+    effective: state.effective === true,
+  }
+}
+
+function TestModePill({ value, testId }: { value: unknown; testId?: string }) {
+  const state = testModeStateOf(value)
+  const source = state.override === null ? 'Inherited' : 'Override'
+  return (
+    <Badge
+      variant="outline"
+      data-testid={testId}
+      data-test-mode-effective={state.effective ? 'enabled' : 'disabled'}
+      data-test-mode-source={source.toLowerCase()}
+      aria-label={`Test mode ${state.effective ? 'enabled' : 'disabled'}, ${source.toLowerCase()}`}
+      className={cn(
+        state.effective
+          ? 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+          : 'bg-muted/40 text-muted-foreground',
+      )}
+    >
+      <FlaskConical />
+      {state.effective ? 'Enabled' : 'Disabled'} · {source}
+    </Badge>
+  )
+}
+
 function MetricCard({ label, value, detail, tone = 'gold' }: {
   label: string
   value: unknown
@@ -503,7 +546,7 @@ function OverviewView({ onUnauthorized, goTo }: { onUnauthorized: () => void; go
   )
 }
 
-type PlayerAction = 'adjust_resources' | 'set_trophies' | 'set_shield' | 'rename' | 'revoke_sessions' | 'set_access' | 'send_notice'
+type PlayerAction = 'adjust_resources' | 'set_trophies' | 'set_shield' | 'rename' | 'revoke_sessions' | 'set_access' | 'send_notice' | 'set_test_mode'
 
 const PLAYER_ACTIONS: readonly { type: PlayerAction; label: string; detail: string; icon: LucideIcon; danger?: boolean }[] = [
   { type: 'adjust_resources', label: 'Adjust resources', detail: 'Apply explicit gold, ore, and food deltas.', icon: Coins },
@@ -511,6 +554,7 @@ const PLAYER_ACTIONS: readonly { type: PlayerAction; label: string; detail: stri
   { type: 'set_shield', label: 'Set shield', detail: 'Grant or remove attack protection.', icon: ShieldCheck },
   { type: 'rename', label: 'Rename player', detail: 'Change the public village username.', icon: UserCog },
   { type: 'send_notice', label: 'Send notice', detail: 'Deliver a support or moderation message.', icon: MessageSquareText },
+  { type: 'set_test_mode', label: 'Configure test mode', detail: 'Inherit the realm setting or override it for this player.', icon: FlaskConical },
   { type: 'revoke_sessions', label: 'Revoke sessions', detail: 'Sign the player out of every device.', icon: LogOut, danger: true },
   { type: 'set_access', label: 'Change access', detail: 'Activate, suspend, or ban the account.', icon: Ban, danger: true },
 ]
@@ -580,6 +624,10 @@ function PlayerActionDialog({ action, player, onClose, onComplete, onUnauthorize
   const [noticeSeverity, setNoticeSeverity] = useState('info')
   const [access, setAccess] = useState(String(player.access ?? 'active'))
   const [accessUntil, setAccessUntil] = useState('')
+  const currentTestMode = testModeStateOf(player.testMode)
+  const [testModeOverride, setTestModeOverride] = useState<'inherit' | 'enabled' | 'disabled'>(
+    currentTestMode.override === null ? 'inherit' : currentTestMode.override ? 'enabled' : 'disabled',
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const reasonRef = useRef<HTMLTextAreaElement>(null)
@@ -599,6 +647,9 @@ function PlayerActionDialog({ action, player, onClose, onComplete, onUnauthorize
       const minutes = Math.max(0, Number(shieldMinutes))
       body.until = minutes === 0 ? null : Date.now() + minutes * 60_000
     } else if (action === 'rename') body.username = newUsername.trim()
+    else if (action === 'set_test_mode') {
+      body.override = testModeOverride === 'inherit' ? null : testModeOverride === 'enabled'
+    }
     else if (action === 'send_notice') {
       body.title = noticeTitle.trim()
       body.message = message.trim()
@@ -635,6 +686,21 @@ function PlayerActionDialog({ action, player, onClose, onComplete, onUnauthorize
         {action === 'set_trophies' ? <FormField id="trophy-count" label="Authoritative trophy count"><Input id="trophy-count" type="number" min="0" value={trophies} onChange={event => setTrophies(event.target.value)} /></FormField> : null}
         {action === 'set_shield' ? <FormField id="shield-minutes" label="Shield duration in minutes" hint="Set 0 to remove the shield immediately."><Input id="shield-minutes" type="number" min="0" value={shieldMinutes} onChange={event => setShieldMinutes(event.target.value)} /></FormField> : null}
         {action === 'rename' ? <FormField id="new-username" label="New username"><Input id="new-username" minLength={3} maxLength={18} value={newUsername} onChange={event => setNewUsername(event.target.value)} /></FormField> : null}
+        {action === 'set_test_mode' ? <>
+          <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] p-4">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div><strong className="block text-sm">Player test-mode policy</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Inheritance follows the realm-wide setting. An override remains in effect when the global setting changes.</p></div>
+              <TestModePill value={player.testMode} testId="player-test-mode-current" />
+            </div>
+            <FormField id="player-test-mode-override" label="Policy">
+              <Select value={testModeOverride} onValueChange={value => setTestModeOverride(String(value) as 'inherit' | 'enabled' | 'disabled')}>
+                <SelectTrigger id="player-test-mode-override" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="inherit">Inherit realm setting</SelectItem><SelectItem value="enabled">Enabled for this player</SelectItem><SelectItem value="disabled">Disabled for this player</SelectItem></SelectContent>
+              </Select>
+            </FormField>
+          </div>
+          <Alert className="border-amber-500/25 bg-amber-500/[0.04]"><FlaskConical className="text-amber-700 dark:text-amber-300" /><AlertTitle>Testing privileges</AlertTitle><AlertDescription>When effective, this player receives infinite resources, instant upgrades, and access to every trainable troop.</AlertDescription></Alert>
+        </> : null}
         {action === 'send_notice' ? <>
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField id="notice-title" label="Notice title"><Input id="notice-title" maxLength={80} value={noticeTitle} onChange={event => setNoticeTitle(event.target.value)} /></FormField>
@@ -727,6 +793,7 @@ function PlayerDetail({ playerId, fallback, onClose, onUnauthorized, onChanged }
               <CardHeader className="border-b"><CardTitle>Account state</CardTitle><CardDescription>Authoritative profile and world metadata</CardDescription></CardHeader>
               <CardContent><dl className="divide-y">
                 <div className="flex items-center justify-between gap-4 py-2.5 first:pt-0"><dt className="text-muted-foreground">Access</dt><dd><StatusPill value={data.access ?? profile.access ?? data.status ?? 'active'} /></dd></div>
+                <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-muted-foreground">Test mode</dt><dd><TestModePill value={data.testMode} testId="player-detail-test-mode" /></dd></div>
                 <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-muted-foreground">Registered</dt><dd className="text-right">{formatDate(data.createdAt ?? profile.createdAt)}</dd></div>
                 <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-muted-foreground">Last seen</dt><dd className="text-right">{formatDate(data.lastSeenAt ?? profile.lastSeenAt ?? data.updatedAt)}</dd></div>
                 <div className="flex items-center justify-between gap-4 py-2.5"><dt className="text-muted-foreground">Plot</dt><dd className="text-right">{world.worldId ? `${textValue(world, ['worldId'], '?')} · ` : ''}{textValue(world, ['x'], textValue(data, ['plotX'], '?'))}, {textValue(world, ['y'], textValue(data, ['plotY'], '?'))}</dd></div>
@@ -784,12 +851,12 @@ function PlayersView({ onUnauthorized }: { onUnauthorized: () => void }) {
           const playerRows = rowsFrom(data, ['players', 'items', 'results']).filter(player => status === 'all' || String(player.access ?? 'active') === status)
           if (!playerRows.length) return <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-10 text-center text-muted-foreground">No players match these filters.</div>
           return (
-            <div className="overflow-hidden rounded-lg border"><Table><TableCaption className="sr-only">Player accounts and authoritative status</TableCaption><TableHeader><TableRow><TableHead>Player</TableHead><TableHead>Access</TableHead><TableHead>Trophies</TableHead><TableHead>Resources</TableHead><TableHead>Plot</TableHead><TableHead>Last seen</TableHead><TableHead><span className="sr-only">Open</span></TableHead></TableRow></TableHeader><TableBody>
+            <div className="overflow-hidden rounded-lg border"><Table><TableCaption className="sr-only">Player accounts and authoritative status</TableCaption><TableHeader><TableRow><TableHead>Player</TableHead><TableHead>Access</TableHead><TableHead>Test mode</TableHead><TableHead>Trophies</TableHead><TableHead>Resources</TableHead><TableHead>Plot</TableHead><TableHead>Last seen</TableHead><TableHead><span className="sr-only">Open</span></TableHead></TableRow></TableHeader><TableBody>
               {playerRows.map((player, index) => {
                 const resources = asRecord(player.resources)
                 const playerId = idOf(player)
                 const world = asRecord(player.world)
-                return <TableRow key={playerId || index}><TableCell><strong className="block font-medium">{textValue(player, ['username', 'name'], 'Unnamed')}</strong><code className="block text-[0.6875rem] text-muted-foreground">{playerId || 'no id'}</code></TableCell><TableCell><StatusPill value={player.access ?? player.status ?? 'active'} /></TableCell><TableCell className="tabular-nums">{formatMetric(player.trophies, false)}</TableCell><TableCell className="text-muted-foreground">{Object.keys(resources).length ? `G ${formatMetric(resources.gold)} · O ${formatMetric(resources.ore)} · F ${formatMetric(resources.food)}` : 'Inspect for balances'}</TableCell><TableCell>{world.worldId ? `${textValue(world, ['worldId'], '?')} · ` : ''}{textValue(world, ['x'], '?')}, {textValue(world, ['y'], '?')}</TableCell><TableCell>{formatDate(player.lastSeenAt ?? player.updatedAt)}</TableCell><TableCell><Button variant="ghost" size="sm" type="button" onClick={() => setSelected(player)} disabled={!playerId}>Inspect<ArrowRight data-icon="inline-end" /></Button></TableCell></TableRow>
+                return <TableRow key={playerId || index}><TableCell><strong className="block font-medium">{textValue(player, ['username', 'name'], 'Unnamed')}</strong><code className="block text-[0.6875rem] text-muted-foreground">{playerId || 'no id'}</code></TableCell><TableCell><StatusPill value={player.access ?? player.status ?? 'active'} /></TableCell><TableCell><TestModePill value={player.testMode} testId={playerId ? `player-test-mode-${playerId}` : undefined} /></TableCell><TableCell className="tabular-nums">{formatMetric(player.trophies, false)}</TableCell><TableCell className="text-muted-foreground">{Object.keys(resources).length ? `G ${formatMetric(resources.gold)} · O ${formatMetric(resources.ore)} · F ${formatMetric(resources.food)}` : 'Inspect for balances'}</TableCell><TableCell>{world.worldId ? `${textValue(world, ['worldId'], '?')} · ` : ''}{textValue(world, ['x'], '?')}, {textValue(world, ['y'], '?')}</TableCell><TableCell>{formatDate(player.lastSeenAt ?? player.updatedAt)}</TableCell><TableCell><Button variant="ghost" size="sm" type="button" onClick={() => setSelected(player)} disabled={!playerId}>Inspect<ArrowRight data-icon="inline-end" /></Button></TableCell></TableRow>
               })}
             </TableBody></Table></div>
           )
@@ -909,28 +976,37 @@ function WorldView({ onUnauthorized }: { onUnauthorized: () => void }) {
   )
 }
 
-type OperationType = 'clear_shields' | 'set_maintenance'
+type OperationType = 'clear_shields' | 'set_maintenance' | 'set_test_mode'
 
-function OperationDialog({ operation, onClose, onComplete, onUnauthorized }: {
+function OperationDialog({ operation, initialEnabled = true, onClose, onComplete, onUnauthorized }: {
   operation: OperationType
+  initialEnabled?: boolean
   onClose: () => void
   onComplete: (message: string) => void
   onUnauthorized: () => void
 }) {
   const [reason, setReason] = useState('')
   const [confirmation, setConfirmation] = useState('')
-  const [enabled, setEnabled] = useState(true)
+  const [enabled, setEnabled] = useState(initialEnabled)
   const [message, setMessage] = useState('Scheduled maintenance is in progress. Please try again shortly.')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const label = operation === 'clear_shields' ? 'Clear every player shield' : 'Set maintenance mode'
+  const label = operation === 'clear_shields'
+    ? 'Clear every player shield'
+    : operation === 'set_test_mode' ? 'Set realm test mode' : 'Set maintenance mode'
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (reason.trim().length < 8 || confirmation !== 'CONFIRM') return
     setBusy(true)
     setError(null)
     try {
-      await adminApi.post('operations', { type: operation, reason: reason.trim(), ...(operation === 'set_maintenance' ? { enabled, message: enabled ? message.trim() : '' } : {}) })
+      await adminApi.post('operations', {
+        type: operation,
+        reason: reason.trim(),
+        ...(operation === 'set_maintenance'
+          ? { enabled, message: enabled ? message.trim() : '' }
+          : operation === 'set_test_mode' ? { enabled } : {}),
+      })
       onComplete(`${label} completed.`)
     } catch (caught) {
       if (caught instanceof AdminApiError && caught.unauthorized) onUnauthorized()
@@ -941,12 +1017,18 @@ function OperationDialog({ operation, onClose, onComplete, onUnauthorized }: {
     {operation === 'set_maintenance' ? <>
       <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 p-3"><div><Label htmlFor="maintenance-enabled" className="font-medium">Maintenance enabled</Label><p className="mt-0.5 text-xs text-muted-foreground">Blocks normal game traffic while preserving the admin route.</p></div><Switch id="maintenance-enabled" checked={enabled} onCheckedChange={setEnabled} /></div>
       {enabled ? <FormField id="maintenance-message" label="Player-facing message"><Textarea id="maintenance-message" rows={3} maxLength={300} value={message} onChange={event => setMessage(event.target.value)} /></FormField> : null}
+    </> : operation === 'set_test_mode' ? <>
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] p-4">
+        <div><Label htmlFor="global-test-mode-enabled" className="font-medium">Realm-wide test mode</Label><p className="mt-1 text-xs leading-5 text-muted-foreground">Applies to every player who does not have an individual override.</p></div>
+        <Switch id="global-test-mode-enabled" checked={enabled} onCheckedChange={setEnabled} aria-label="Realm-wide test mode" />
+      </div>
+      <Alert className="border-amber-500/25 bg-amber-500/[0.04]"><FlaskConical className="text-amber-700 dark:text-amber-300" /><AlertTitle>{enabled ? 'Enable testing privileges realm-wide' : 'Return inherited players to normal rules'}</AlertTitle><AlertDescription>Individual player overrides remain unchanged. Enabled players receive infinite resources, instant upgrades, and every trainable troop.</AlertDescription></Alert>
     </> : <Alert variant="destructive"><AlertTriangle /><AlertTitle>All active shields will be removed</AlertTitle><AlertDescription>Players can become attackable immediately. This operation cannot be scoped or undone automatically.</AlertDescription></Alert>}
     <Separator />
     <FormField id="operation-reason" label="Required reason" hint="Written permanently to the audit trail. Minimum 8 characters."><Textarea id="operation-reason" rows={3} minLength={8} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Explain the incident, release, or support need…" required /></FormField>
     <FormField id="operation-confirmation" label="Type CONFIRM to authorize"><Input id="operation-confirmation" autoComplete="off" value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder="CONFIRM" /></FormField>
     {error ? <Alert variant="destructive" role="alert"><AlertCircle /><AlertTitle>Operation failed</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-    <DialogFooter><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button variant="destructive" type="submit" disabled={busy || reason.trim().length < 8 || confirmation !== 'CONFIRM'}>{busy ? <LoaderCircle className="animate-spin" /> : <ShieldAlert />}{busy ? 'Applying…' : 'Authorize globally'}</Button></DialogFooter>
+    <DialogFooter><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button variant={operation === 'set_test_mode' ? 'default' : 'destructive'} type="submit" disabled={busy || reason.trim().length < 8 || confirmation !== 'CONFIRM'}>{busy ? <LoaderCircle className="animate-spin" /> : operation === 'set_test_mode' ? <FlaskConical /> : <ShieldAlert />}{busy ? 'Applying…' : operation === 'set_test_mode' ? `${enabled ? 'Enable' : 'Disable'} globally` : 'Authorize globally'}</Button></DialogFooter>
   </form></DialogFrame>
 }
 
@@ -1091,9 +1173,15 @@ function ResetAllBasesDialog({ onClose, onReset, onUnauthorized }: {
 }
 
 function LiveOpsView({ onUnauthorized }: { onUnauthorized: () => void }) {
+  const { state: configState } = useAdminData('config', onUnauthorized)
   const [operation, setOperation] = useState<OperationType | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const config = configState.kind === 'ready' ? asRecord(configState.data) : {}
+  const testMode = asRecord(config.testMode)
+  const testModeReady = configState.kind === 'ready'
+  const testModeEnabled = testMode.enabled === true
+  const testModeOverrideCount = Math.max(0, Number(testMode.overrideCount) || 0)
   const capabilities = [
     ['Player support', 'Search, balances, trophies, names, shields, access, notices', 'Available'],
     ['Session control', 'Revoke every session belonging to one player', 'Available'],
@@ -1101,6 +1189,7 @@ function LiveOpsView({ onUnauthorized }: { onUnauthorized: () => void }) {
     ['World observability', 'Persistent bot provenance, revisions, plots, resources', 'Read only'],
     ['Combat investigation', 'Attack lifecycle, simulation version, loot, replay references', 'Read only'],
     ['Maintenance mode', 'Enable or disable the player-facing maintenance gate', 'Available'],
+    ['Test mode', 'Global testing privileges with explicit per-player overrides', 'Available'],
     ['Global shield clear', 'Remove active protection from all accounts', 'Available'],
     ['Full base reset', 'Rebuild every player village and purge base-scoped realm data', 'Available'],
     ['Audit & configuration', 'Operator history plus safely redacted runtime config', 'Available'],
@@ -1108,10 +1197,21 @@ function LiveOpsView({ onUnauthorized }: { onUnauthorized: () => void }) {
   return <>
     <SectionHeading eyebrow="Live operations" title="Global controls">High-impact runtime tools. Every mutation requires an explicit reason and typed confirmation.</SectionHeading>
     {notice ? <Alert role="status" className="border-emerald-500/30 bg-emerald-500/5"><CheckCircle2 className="text-emerald-600" /><AlertTitle>Operation complete</AlertTitle><AlertDescription>{notice}</AlertDescription></Alert> : null}
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
       <Card className="shadow-xs"><CardHeader><div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"><RadioTower className="size-4" /></div><CardTitle>Maintenance mode</CardTitle><CardDescription>Open or close the game to player traffic with a clear player-facing status message.</CardDescription></CardHeader><CardContent><Button type="button" onClick={() => setOperation('set_maintenance')}>Configure maintenance<ArrowRight data-icon="inline-end" /></Button></CardContent></Card>
+      <Card data-testid="global-test-mode-card" className={cn('shadow-xs', testModeEnabled && 'border-amber-500/40 bg-amber-500/[0.045]')}>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3"><div className={cn('flex size-9 items-center justify-center rounded-lg', testModeEnabled ? 'bg-amber-500 text-amber-950' : 'bg-amber-500/10 text-amber-800 dark:text-amber-200')}><FlaskConical className="size-4" /></div><Badge variant="outline" className={cn(testModeEnabled && 'border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-200')}>{testModeReady ? testModeEnabled ? 'Enabled globally' : 'Disabled globally' : 'Loading status…'}</Badge></div>
+          <CardTitle>Test mode</CardTitle>
+          <CardDescription>Grant infinite resources, instant upgrades, and every trainable troop to inherited players.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-start gap-3">
+          <p className="text-xs text-muted-foreground">{testModeOverrideCount === 0 ? 'No individual player overrides.' : `${testModeOverrideCount.toLocaleString()} individual player override${testModeOverrideCount === 1 ? '' : 's'} active.`}</p>
+          <Button type="button" disabled={!testModeReady} onClick={() => setOperation('set_test_mode')}>Configure test mode<ArrowRight data-icon="inline-end" /></Button>
+        </CardContent>
+      </Card>
       <Card className="border-destructive/20 bg-destructive/[0.025] shadow-xs"><CardHeader><div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive"><ShieldAlert className="size-4" /></div><CardTitle>Clear all shields</CardTitle><CardDescription>Remove attack protection globally. Reserved for incident recovery and controlled testing.</CardDescription></CardHeader><CardContent><Button variant="destructive" type="button" onClick={() => setOperation('clear_shields')}>Clear every shield<ArrowRight data-icon="inline-end" /></Button></CardContent></Card>
-      <Card className="border-destructive/50 bg-destructive/[0.04] shadow-sm lg:col-span-2">
+      <Card className="border-destructive/50 bg-destructive/[0.04] shadow-sm lg:col-span-2 xl:col-span-3">
         <CardHeader className="gap-3 border-b border-destructive/15 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-destructive text-white"><DatabaseZap className="size-4" /></div>
@@ -1129,7 +1229,7 @@ function LiveOpsView({ onUnauthorized }: { onUnauthorized: () => void }) {
       <div className="grid gap-px overflow-hidden rounded-lg border bg-border md:grid-cols-2">{capabilities.map(([name, detail, status]) => <div className="flex items-start justify-between gap-4 bg-card p-3" key={name}><div><strong className="font-medium">{name}</strong><p className="mt-0.5 text-xs leading-4 text-muted-foreground">{detail}</p></div><StatusPill value={status === 'Available' ? 'ready' : status} /></div>)}</div>
     </Panel>
     <Alert><ShieldCheck /><AlertTitle>Deliberate safety boundary</AlertTitle><AlertDescription>Database consoles, arbitrary JSON writes, user impersonation, and secret display remain intentionally absent. The full reset is a single audited server operation with an exact scope and maintenance prerequisite.</AlertDescription></Alert>
-    {operation ? <OperationDialog operation={operation} onClose={() => setOperation(null)} onUnauthorized={onUnauthorized} onComplete={message => { setOperation(null); setNotice(message) }} /> : null}
+    {operation ? <OperationDialog operation={operation} initialEnabled={operation === 'set_test_mode' ? testModeEnabled : true} onClose={() => setOperation(null)} onUnauthorized={onUnauthorized} onComplete={message => { setOperation(null); setNotice(message); refreshAdminData() }} /> : null}
     {resetOpen ? <ResetAllBasesDialog onClose={() => setResetOpen(false)} onUnauthorized={onUnauthorized} onReset={setNotice} /> : null}
   </>
 }
@@ -1156,10 +1256,534 @@ function ConfigTree({ value, depth = 0 }: { value: unknown; depth?: number }) {
   return <div className="divide-y">{Object.entries(value).map(([key, child]) => <div className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0" key={key}><strong className="font-medium capitalize">{key.replaceAll('_', ' ')}</strong><ConfigTree value={child} depth={depth + 1} /></div>)}</div>
 }
 
+type StarterResource = 'gold' | 'ore' | 'food'
+
+interface StarterBuildingCatalogItem {
+  type: string
+  name: string
+  category: string
+  width: number
+  height: number
+  maxLevel: number
+  maxCount: number
+}
+
+interface StarterLimits {
+  mapSize: number
+  maxBalance: number
+  maxBuildings: number
+}
+
+interface StarterBuildingDraft {
+  key: string
+  type: string
+  level: string
+  gridX: string
+  gridY: string
+}
+
+interface StarterVillageDraft {
+  resources: Record<StarterResource, string>
+  buildings: StarterBuildingDraft[]
+  wallLevel: string
+}
+
+interface ValidatedStarterVillage {
+  resources: Record<StarterResource, number>
+  buildings: { type: string; level: number; gridX: number; gridY: number }[]
+  wallLevel: number
+}
+
+interface StarterValidation {
+  valid: boolean
+  value: ValidatedStarterVillage | null
+  issues: string[]
+  resourceErrors: Partial<Record<StarterResource, string>>
+  wallError: string | null
+  rowErrors: Record<string, string[]>
+}
+
+const STARTER_RESOURCES: readonly { id: StarterResource; label: string }[] = [
+  { id: 'gold', label: 'Starting gold' },
+  { id: 'ore', label: 'Starting ore' },
+  { id: 'food', label: 'Starting food' },
+]
+
+function positiveInteger(value: unknown, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function integerString(value: unknown, fallback: number): string {
+  const parsed = Number(value)
+  return String(Number.isSafeInteger(parsed) ? parsed : fallback)
+}
+
+function parseDraftInteger(value: string): number | null {
+  const normalized = value.trim()
+  if (!/^-?\d+$/.test(normalized)) return null
+  const parsed = Number(normalized)
+  return Number.isSafeInteger(parsed) ? parsed : null
+}
+
+function starterCatalogFrom(config: JsonRecord): StarterBuildingCatalogItem[] {
+  if (!Array.isArray(config.buildingCatalog)) return []
+  const seen = new Set<string>()
+  const catalog: StarterBuildingCatalogItem[] = []
+  for (const raw of config.buildingCatalog) {
+    const item = asRecord(raw)
+    const type = String(item.type ?? '').trim()
+    if (!type || seen.has(type)) continue
+    seen.add(type)
+    catalog.push({
+      type,
+      name: String(item.name ?? type).trim() || type,
+      category: String(item.category ?? 'other').trim() || 'other',
+      width: positiveInteger(item.width, 1),
+      height: positiveInteger(item.height, 1),
+      maxLevel: positiveInteger(item.maxLevel, 1),
+      maxCount: positiveInteger(item.maxCount, 1),
+    })
+  }
+  return catalog
+}
+
+function starterLimitsFrom(config: JsonRecord): StarterLimits {
+  const limits = asRecord(config.starterLimits)
+  return {
+    mapSize: positiveInteger(limits.mapSize, 25),
+    maxBalance: positiveInteger(limits.maxBalance, 1_000_000_000),
+    maxBuildings: positiveInteger(limits.maxBuildings, 600),
+  }
+}
+
+function starterDraftFrom(config: JsonRecord, revision: number): StarterVillageDraft {
+  const starterVillage = asRecord(config.starterVillage)
+  const resources = asRecord(starterVillage.resources)
+  const buildings = Array.isArray(starterVillage.buildings) ? starterVillage.buildings : []
+  return {
+    resources: {
+      gold: integerString(resources.gold, 0),
+      ore: integerString(resources.ore, 0),
+      food: integerString(resources.food, 0),
+    },
+    buildings: buildings.map((raw, index) => {
+      const building = asRecord(raw)
+      return {
+        key: `starter-${revision}-${index}`,
+        type: String(building.type ?? ''),
+        level: integerString(building.level, 1),
+        gridX: integerString(building.gridX, 0),
+        gridY: integerString(building.gridY, 0),
+      }
+    }),
+    wallLevel: integerString(starterVillage.wallLevel, 1),
+  }
+}
+
+function comparableStarterDraft(draft: StarterVillageDraft) {
+  return {
+    resources: draft.resources,
+    buildings: draft.buildings.map(({ type, level, gridX, gridY }) => ({ type, level, gridX, gridY })),
+    wallLevel: draft.wallLevel,
+  }
+}
+
+function validateStarterVillage(
+  draft: StarterVillageDraft,
+  catalog: readonly StarterBuildingCatalogItem[],
+  limits: StarterLimits,
+): StarterValidation {
+  const resourceErrors: Partial<Record<StarterResource, string>> = {}
+  const parsedResources = {} as Record<StarterResource, number>
+  for (const resource of STARTER_RESOURCES) {
+    const value = parseDraftInteger(draft.resources[resource.id])
+    if (value === null) resourceErrors[resource.id] = 'Enter a whole number.'
+    else if (value < 0 || value > limits.maxBalance) resourceErrors[resource.id] = `Use 0–${limits.maxBalance.toLocaleString()}.`
+    else parsedResources[resource.id] = value
+  }
+
+  const catalogByType = new Map(catalog.map(item => [item.type, item]))
+  const wallDefinition = catalogByType.get('wall')
+  const wallLevel = parseDraftInteger(draft.wallLevel)
+  const wallLevelMax = wallDefinition?.maxLevel ?? 1
+  const wallError = wallLevel === null
+    ? 'Enter a whole-number wall level.'
+    : wallLevel < 1 || wallLevel > wallLevelMax
+      ? `Wall level must be between 1 and ${wallLevelMax}.`
+      : null
+
+  const issues: string[] = []
+  if (draft.buildings.length > limits.maxBuildings) issues.push(`Starter villages can contain at most ${limits.maxBuildings.toLocaleString()} buildings.`)
+  const townHallCount = draft.buildings.filter(building => building.type === 'town_hall').length
+  if (townHallCount !== 1) issues.push('A starter village must contain exactly one Town Hall.')
+
+  const rowErrors: Record<string, string[]> = {}
+  const addRowError = (key: string, message: string) => {
+    const errors = rowErrors[key] ?? []
+    if (!errors.includes(message)) errors.push(message)
+    rowErrors[key] = errors
+  }
+  const parsedRows = draft.buildings.map((building, index) => {
+    const definition = catalogByType.get(building.type)
+    const level = parseDraftInteger(building.level)
+    const gridX = parseDraftInteger(building.gridX)
+    const gridY = parseDraftInteger(building.gridY)
+    if (!definition) addRowError(building.key, 'Choose a supported building type.')
+    if (definition && (level === null || level < 1 || level > definition.maxLevel)) {
+      addRowError(building.key, `Level must be between 1 and ${definition.maxLevel}.`)
+    }
+    if (definition && building.type === 'wall' && wallLevel !== null && level !== wallLevel) {
+      addRowError(building.key, `Wall rows must use the shared wall level (${wallLevel}).`)
+    }
+    if (definition) {
+      const maxX = limits.mapSize - definition.width
+      const maxY = limits.mapSize - definition.height
+      if (gridX === null || gridX < 0 || gridX > maxX) addRowError(building.key, `X must be between 0 and ${Math.max(0, maxX)}.`)
+      if (gridY === null || gridY < 0 || gridY > maxY) addRowError(building.key, `Y must be between 0 and ${Math.max(0, maxY)}.`)
+    }
+    return { building, index, definition, level, gridX, gridY }
+  })
+
+  const rowsByType = new Map<string, typeof parsedRows>()
+  for (const row of parsedRows) {
+    if (!row.definition) continue
+    const rows = rowsByType.get(row.building.type) ?? []
+    rows.push(row)
+    rowsByType.set(row.building.type, rows)
+  }
+  for (const [type, rows] of rowsByType) {
+    const definition = catalogByType.get(type)
+    if (!definition || rows.length <= definition.maxCount) continue
+    for (const row of rows) addRowError(row.building.key, `${definition.name} allows at most ${definition.maxCount} in a starter village.`)
+  }
+
+  for (let left = 0; left < parsedRows.length; left++) {
+    const a = parsedRows[left]
+    if (!a.definition || a.gridX === null || a.gridY === null) continue
+    for (let right = left + 1; right < parsedRows.length; right++) {
+      const b = parsedRows[right]
+      if (!b.definition || b.gridX === null || b.gridY === null) continue
+      const overlaps = a.gridX < b.gridX + b.definition.width
+        && a.gridX + a.definition.width > b.gridX
+        && a.gridY < b.gridY + b.definition.height
+        && a.gridY + a.definition.height > b.gridY
+      if (!overlaps) continue
+      addRowError(a.building.key, `Overlaps building ${right + 1} (${b.definition.name}).`)
+      addRowError(b.building.key, `Overlaps building ${left + 1} (${a.definition.name}).`)
+    }
+  }
+
+  const valid = issues.length === 0
+    && Object.keys(resourceErrors).length === 0
+    && wallError === null
+    && Object.keys(rowErrors).length === 0
+  return {
+    valid,
+    issues,
+    resourceErrors,
+    wallError,
+    rowErrors,
+    value: valid ? {
+      resources: parsedResources,
+      buildings: parsedRows.map(row => ({
+        type: row.building.type,
+        level: row.level as number,
+        gridX: row.gridX as number,
+        gridY: row.gridY as number,
+      })),
+      wallLevel: wallLevel as number,
+    } : null,
+  }
+}
+
+function rectanglesOverlap(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number },
+) {
+  return left.x < right.x + right.width
+    && left.x + left.width > right.x
+    && left.y < right.y + right.height
+    && left.y + left.height > right.y
+}
+
+function openStarterPosition(
+  definition: StarterBuildingCatalogItem,
+  draft: StarterVillageDraft,
+  catalog: readonly StarterBuildingCatalogItem[],
+  mapSize: number,
+) {
+  const catalogByType = new Map(catalog.map(item => [item.type, item]))
+  const occupied = draft.buildings.flatMap(building => {
+    const item = catalogByType.get(building.type)
+    const x = parseDraftInteger(building.gridX)
+    const y = parseDraftInteger(building.gridY)
+    return item && x !== null && y !== null ? [{ x, y, width: item.width, height: item.height }] : []
+  })
+  for (let y = 0; y <= mapSize - definition.height; y++) {
+    for (let x = 0; x <= mapSize - definition.width; x++) {
+      const candidate = { x, y, width: definition.width, height: definition.height }
+      if (!occupied.some(rectangle => rectanglesOverlap(candidate, rectangle))) return { x, y }
+    }
+  }
+  return { x: 0, y: 0 }
+}
+
+function StarterVillageEditor({ config, reload, onUnauthorized }: {
+  config: JsonRecord
+  reload: () => void
+  onUnauthorized: () => void
+}) {
+  const revision = Number.isSafeInteger(Number(config.revision)) ? Number(config.revision) : 0
+  const catalog = useMemo(() => starterCatalogFrom(config), [config])
+  const limits = useMemo(() => starterLimitsFrom(config), [config])
+  const initialDraft = useMemo(() => starterDraftFrom(config, revision), [config, revision])
+  const initialSignature = useMemo(() => JSON.stringify(comparableStarterDraft(initialDraft)), [initialDraft])
+  const [draft, setDraft] = useState<StarterVillageDraft>(initialDraft)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [mutationError, setMutationError] = useState<string | null>(null)
+  const [stale, setStale] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const nextRow = useRef(0)
+
+  useEffect(() => {
+    setDraft(initialDraft)
+    setConfirmOpen(false)
+    setReason('')
+    setConfirmation('')
+    setMutationError(null)
+    setStale(false)
+  }, [initialDraft, initialSignature])
+
+  const validation = useMemo(() => validateStarterVillage(draft, catalog, limits), [catalog, draft, limits])
+  const dirty = JSON.stringify(comparableStarterDraft(draft)) !== initialSignature
+  const counts = useMemo(() => {
+    const result = new Map<string, number>()
+    for (const building of draft.buildings) result.set(building.type, (result.get(building.type) ?? 0) + 1)
+    return result
+  }, [draft.buildings])
+  const catalogGroups = useMemo(() => {
+    const groups = new Map<string, StarterBuildingCatalogItem[]>()
+    for (const item of catalog) {
+      const category = item.category || 'other'
+      const entries = groups.get(category) ?? []
+      entries.push(item)
+      groups.set(category, entries)
+    }
+    return [...groups.entries()]
+  }, [catalog])
+  const nextDefinition = catalog.find(item => (counts.get(item.type) ?? 0) < item.maxCount)
+
+  if (!config.starterVillage || catalog.length === 0) {
+    return <Alert><AlertCircle /><AlertTitle>Starter configuration unavailable</AlertTitle><AlertDescription>The server has not published the starter-village catalog yet. Refresh after the current deployment completes.</AlertDescription></Alert>
+  }
+
+  const setResource = (resource: StarterResource, value: string) => {
+    setDraft(current => ({ ...current, resources: { ...current.resources, [resource]: value } }))
+  }
+  const updateBuilding = (key: string, field: 'type' | 'level' | 'gridX' | 'gridY', value: string) => {
+    setDraft(current => ({
+      ...current,
+      buildings: current.buildings.map(building => {
+        if (building.key !== key) return building
+        if (field !== 'type') return { ...building, [field]: value }
+        const definition = catalog.find(item => item.type === value)
+        const currentLevel = parseDraftInteger(building.level) ?? 1
+        return {
+          ...building,
+          type: value,
+          level: value === 'wall'
+            ? current.wallLevel
+            : String(Math.max(1, Math.min(currentLevel, definition?.maxLevel ?? 1))),
+        }
+      }),
+    }))
+  }
+  const setWallLevel = (value: string) => {
+    setDraft(current => ({
+      ...current,
+      wallLevel: value,
+      buildings: current.buildings.map(building => building.type === 'wall' ? { ...building, level: value } : building),
+    }))
+  }
+  const addBuilding = () => {
+    if (!nextDefinition) return
+    const position = openStarterPosition(nextDefinition, draft, catalog, limits.mapSize)
+    setDraft(current => ({
+      ...current,
+      buildings: [...current.buildings, {
+        key: `starter-new-${revision}-${nextRow.current++}`,
+        type: nextDefinition.type,
+        level: nextDefinition.type === 'wall' ? current.wallLevel : '1',
+        gridX: String(position.x),
+        gridY: String(position.y),
+      }],
+    }))
+  }
+  const removeBuilding = (key: string) => {
+    setDraft(current => ({ ...current, buildings: current.buildings.filter(building => building.key !== key) }))
+  }
+  const beginSave = () => {
+    if (!dirty || !validation.valid) return
+    setReason('')
+    setConfirmation('')
+    setMutationError(null)
+    setStale(false)
+    setConfirmOpen(true)
+  }
+  const save = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!validation.value || reason.trim().length < 8 || confirmation !== 'CONFIRM') return
+    setSaving(true)
+    setMutationError(null)
+    setStale(false)
+    try {
+      const payload = await adminApi.post('operations', {
+        type: 'set_starter_village',
+        starterVillage: validation.value,
+        expectedRevision: revision,
+        reason: reason.trim(),
+      })
+      const result = asRecord(unwrapData(payload))
+      const auditId = typeof result.auditId === 'string' ? ` Audit ${result.auditId}.` : ''
+      setNotice(`Starter defaults saved. They apply to accounts created from now on.${auditId}`)
+      setConfirmOpen(false)
+      refreshAdminData()
+    } catch (caught) {
+      if (caught instanceof AdminApiError && caught.unauthorized) {
+        onUnauthorized()
+        return
+      }
+      const staleConfig = caught instanceof AdminApiError
+        && (caught.status === 409 || /STALE|REVISION/i.test(caught.code ?? ''))
+      setStale(staleConfig)
+      setMutationError(staleConfig
+        ? 'Another operator changed this configuration. Reload the latest revision and review your edits before saving again.'
+        : caught instanceof Error ? caught.message : 'The starter configuration could not be saved.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const invalidRowCount = Object.keys(validation.rowErrors).length
+  const resourceErrorCount = Object.keys(validation.resourceErrors).length
+  const issueCount = validation.issues.length + invalidRowCount + resourceErrorCount + (validation.wallError ? 1 : 0)
+  return <>
+    {notice ? <Alert role="status" className="border-emerald-500/30 bg-emerald-500/5"><CheckCircle2 className="text-emerald-600" /><AlertTitle>Defaults updated</AlertTitle><AlertDescription>{notice}</AlertDescription></Alert> : null}
+    <Card className="shadow-xs">
+      <CardHeader className="gap-3 border-b sm:flex sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-700 dark:text-sky-300"><Building2 className="size-4" /></div>
+          <div><CardTitle>New-village defaults</CardTitle><CardDescription className="mt-1 max-w-3xl">Set the authoritative wallet and layout copied into every newly created player village.</CardDescription></div>
+        </div>
+        <Badge variant="outline" className="shrink-0 border-sky-500/30 text-sky-700 dark:text-sky-300">Future accounts only</Badge>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <Alert><ShieldCheck /><AlertTitle>Server-issued starting state</AlertTitle><AlertDescription>Starting balances may exceed the village’s storage capacity because the server grants them directly. Saving does not change an existing village. The separate Reset All Bases operation uses the latest saved defaults.</AlertDescription></Alert>
+
+        <section className="space-y-3" aria-labelledby="starter-resources-title">
+          <div><h3 id="starter-resources-title" className="text-sm font-medium">Starting resources</h3><p className="mt-1 text-xs text-muted-foreground">Whole numbers from 0 to {limits.maxBalance.toLocaleString()}; building storage limits are not applied.</p></div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {STARTER_RESOURCES.map(resource => {
+              const id = `starter-${resource.id}`
+              const error = validation.resourceErrors[resource.id]
+              return <div key={resource.id}>
+                <FormField id={id} label={resource.label}>
+                  <Input id={id} type="number" inputMode="numeric" min={0} max={limits.maxBalance} step={1} value={draft.resources[resource.id]} onChange={event => setResource(resource.id, event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
+                </FormField>
+                {error ? <p id={`${id}-error`} className="mt-1 text-[0.6875rem] leading-4 text-destructive">{error}</p> : null}
+              </div>
+            })}
+          </div>
+          <div className="max-w-xs">
+            <FormField id="starter-wall-level" label="Shared wall level" hint="Every starting wall uses one cohort level.">
+              <Input id="starter-wall-level" type="number" inputMode="numeric" min={1} max={catalog.find(item => item.type === 'wall')?.maxLevel ?? 1} step={1} value={draft.wallLevel} onChange={event => setWallLevel(event.target.value)} aria-invalid={Boolean(validation.wallError)} aria-describedby={validation.wallError ? 'starter-wall-level-error' : undefined} />
+            </FormField>
+            {validation.wallError ? <p id="starter-wall-level-error" className="mt-1 text-[0.6875rem] leading-4 text-destructive">{validation.wallError}</p> : null}
+          </div>
+        </section>
+
+        <Separator />
+
+        <section className="space-y-3" aria-labelledby="starter-buildings-title">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
+            <div><h3 id="starter-buildings-title" className="text-sm font-medium">Starting buildings</h3><p className="mt-1 text-xs text-muted-foreground">The map is {limits.mapSize}×{limits.mapSize}. Footprints cannot overlap, and every village needs exactly one Town Hall.</p></div>
+            <Button variant="outline" type="button" onClick={addBuilding} disabled={!nextDefinition || draft.buildings.length >= limits.maxBuildings}><Plus />Add building</Button>
+          </div>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table className="min-w-[52rem]">
+              <TableCaption className="sr-only">Buildings copied into each new player village</TableCaption>
+              <TableHeader><TableRow><TableHead className="w-[32%]">Type</TableHead><TableHead>Level</TableHead><TableHead>Grid X</TableHead><TableHead>Grid Y</TableHead><TableHead>Footprint</TableHead><TableHead><span className="sr-only">Remove</span></TableHead></TableRow></TableHeader>
+              <TableBody>
+                {draft.buildings.map((building, index) => {
+                  const definition = catalog.find(item => item.type === building.type)
+                  const errors = validation.rowErrors[building.key] ?? []
+                  const errorId = errors.length ? `starter-building-${building.key}-errors` : undefined
+                  return <TableRow key={building.key} className={cn(errors.length && 'bg-destructive/[0.025]')}>
+                    <TableCell className="min-w-64 align-top">
+                      <Label className="sr-only" htmlFor={`starter-building-${building.key}-type`}>Building {index + 1} type</Label>
+                      <Select value={building.type} onValueChange={value => updateBuilding(building.key, 'type', String(value))}>
+                        <SelectTrigger id={`starter-building-${building.key}-type`} className="w-full" aria-invalid={errors.length > 0} aria-describedby={errorId}><SelectValue placeholder="Choose a building">{value => catalog.find(item => item.type === value)?.name ?? String(value ?? '')}</SelectValue></SelectTrigger>
+                        <SelectContent>
+                          {!definition && building.type ? <SelectItem value={building.type} disabled>Unknown: {building.type}</SelectItem> : null}
+                          {catalogGroups.map(([category, entries]) => <SelectGroup key={category}>
+                            <SelectLabel className="capitalize">{category.replaceAll('_', ' ')}</SelectLabel>
+                            {entries.map(item => <SelectItem key={item.type} value={item.type} disabled={item.type !== building.type && (counts.get(item.type) ?? 0) >= item.maxCount}>{item.name} · max {item.maxCount}</SelectItem>)}
+                          </SelectGroup>)}
+                        </SelectContent>
+                      </Select>
+                      {errors.length ? <ul id={errorId} className="mt-1 list-disc space-y-0.5 pl-4 text-[0.6875rem] leading-4 text-destructive">{errors.map(error => <li key={error}>{error}</li>)}</ul> : null}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Label className="sr-only" htmlFor={`starter-building-${building.key}-level`}>Building {index + 1} level</Label>
+                      <Input id={`starter-building-${building.key}-level`} className="w-20" type="number" inputMode="numeric" min={1} max={definition?.maxLevel ?? 1} step={1} value={building.level} onChange={event => updateBuilding(building.key, 'level', event.target.value)} disabled={building.type === 'wall'} aria-invalid={errors.length > 0} aria-describedby={errorId} />
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Label className="sr-only" htmlFor={`starter-building-${building.key}-x`}>Building {index + 1} grid X</Label>
+                      <Input id={`starter-building-${building.key}-x`} className="w-20" type="number" inputMode="numeric" min={0} max={definition ? limits.mapSize - definition.width : limits.mapSize - 1} step={1} value={building.gridX} onChange={event => updateBuilding(building.key, 'gridX', event.target.value)} aria-invalid={errors.length > 0} aria-describedby={errorId} />
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Label className="sr-only" htmlFor={`starter-building-${building.key}-y`}>Building {index + 1} grid Y</Label>
+                      <Input id={`starter-building-${building.key}-y`} className="w-20" type="number" inputMode="numeric" min={0} max={definition ? limits.mapSize - definition.height : limits.mapSize - 1} step={1} value={building.gridY} onChange={event => updateBuilding(building.key, 'gridY', event.target.value)} aria-invalid={errors.length > 0} aria-describedby={errorId} />
+                    </TableCell>
+                    <TableCell className="align-top"><Badge variant="outline" className="tabular-nums">{definition ? `${definition.width}×${definition.height}` : '—'}</Badge></TableCell>
+                    <TableCell className="text-right align-top"><Button variant="ghost" size="icon-sm" type="button" aria-label={`Remove building ${index + 1}${definition ? `, ${definition.name}` : ''}`} onClick={() => removeBuilding(building.key)}><Trash2 /></Button></TableCell>
+                  </TableRow>
+                })}
+                {!draft.buildings.length ? <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No starting buildings. Add a Town Hall to create a valid starter village.</TableCell></TableRow> : null}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[0.6875rem] text-muted-foreground"><Badge variant="outline">{draft.buildings.length} / {limits.maxBuildings.toLocaleString()} buildings</Badge><span>Coordinates identify each footprint’s top-left grid tile.</span></div>
+        </section>
+
+        {dirty && issueCount > 0 ? <Alert variant="destructive" role="alert"><AlertTriangle /><AlertTitle>Fix {issueCount} configuration {issueCount === 1 ? 'issue' : 'issues'} before saving</AlertTitle><AlertDescription>{validation.issues.length ? <ul className="list-disc space-y-1 pl-4">{validation.issues.map(issue => <li key={issue}>{issue}</li>)}</ul> : 'Review the highlighted resource and building fields.'}</AlertDescription></Alert> : null}
+      </CardContent>
+      <CardFooter className="flex-col items-stretch justify-between gap-3 border-t sm:flex-row sm:items-center">
+        <div className="text-xs text-muted-foreground"><strong className="font-medium text-foreground">Revision {revision}</strong><span className="mx-1.5">·</span>{dirty ? validation.valid ? 'Valid unsaved changes' : 'Unsaved changes need attention' : 'No unsaved changes'}</div>
+        <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" type="button" disabled={!dirty || saving} onClick={() => setDraft(initialDraft)}>Discard changes</Button><Button type="button" disabled={!dirty || !validation.valid || saving} onClick={beginSave}><Save />Review & save</Button></div>
+      </CardFooter>
+    </Card>
+
+    {confirmOpen && validation.value ? <DialogFrame title="Save new-village defaults" subtitle={`Publish revision ${revision + 1} for all accounts created afterward.`} onClose={() => { if (!saving) setConfirmOpen(false) }}>
+      <form className="grid gap-4" onSubmit={save}>
+        <Alert><Building2 /><AlertTitle>Future accounts only</AlertTitle><AlertDescription>This saves {validation.value.buildings.length} starting buildings and G {validation.value.resources.gold.toLocaleString()} · O {validation.value.resources.ore.toLocaleString()} · F {validation.value.resources.food.toLocaleString()}. Existing villages remain unchanged.</AlertDescription></Alert>
+        <FormField id="starter-config-reason" label="Required audit reason" hint="Written permanently to the admin audit trail. Minimum 8 characters."><Textarea id="starter-config-reason" rows={3} minLength={8} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Explain why new-player defaults are changing…" required /></FormField>
+        <FormField id="starter-config-confirmation" label="Type CONFIRM to publish"><Input id="starter-config-confirmation" autoComplete="off" spellCheck={false} value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder="CONFIRM" required /></FormField>
+        {mutationError ? <Alert variant="destructive" role="alert"><AlertCircle /><AlertTitle>{stale ? 'Configuration changed' : 'Save failed'}</AlertTitle><AlertDescription className="space-y-3"><p>{mutationError}</p>{stale ? <Button variant="outline" size="sm" type="button" onClick={() => { setConfirmOpen(false); reload() }}><RefreshCw />Reload latest revision</Button> : null}</AlertDescription></Alert> : null}
+        <DialogFooter><Button variant="outline" type="button" disabled={saving} onClick={() => setConfirmOpen(false)}>Cancel</Button><Button type="submit" disabled={saving || reason.trim().length < 8 || confirmation !== 'CONFIRM'}>{saving ? <LoaderCircle className="animate-spin" /> : <Save />}{saving ? 'Publishing…' : 'Publish defaults'}</Button></DialogFooter>
+      </form>
+    </DialogFrame> : null}
+  </>
+}
+
 function SecurityView({ onUnauthorized }: { onUnauthorized: () => void }) {
   const { state, reload } = useAdminData('config', onUnauthorized)
   return <>
-    <SectionHeading eyebrow="Security posture" title="Runtime configuration" actions={<RefreshButton onClick={reload} loading={state.kind === 'loading'} />}>Read-only deployment controls and security posture. Sensitive-looking fields are redacted again in the browser.</SectionHeading>
+    <SectionHeading eyebrow="Realm configuration" title="Runtime & village defaults" actions={<RefreshButton onClick={reload} loading={state.kind === 'loading'} />}>Manage audited defaults for future accounts and inspect the server’s read-only security posture.</SectionHeading>
     <StateSurface state={state} onRetry={reload}>{data => {
       const root = asRecord(data)
       const maintenance = asRecord(redactSecrets(root.maintenance))
@@ -1172,6 +1796,7 @@ function SecurityView({ onUnauthorized }: { onUnauthorized: () => void }) {
           <MetricCard label="Config revision" value={root.revision} detail="Authoritative mutation version" tone="blue" />
           <MetricCard label="Updated" value={formatDate(root.updatedAt)} detail="Latest config change" />
         </div>
+        <StarterVillageEditor config={root} reload={reload} onUnauthorized={onUnauthorized} />
         <div className="grid gap-4 xl:grid-cols-2">
           <Panel title="Access enforcement" eyebrow="Moderation boundary"><ConfigTree value={accessPolicy} /></Panel>
           <Panel title="Safe query limits" eyebrow="Abuse protection"><ConfigTree value={safeLimits} /></Panel>

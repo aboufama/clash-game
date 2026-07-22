@@ -465,7 +465,7 @@ test('MemoryPersistence serves the async core routes without global scans or che
   const token = session.token
   const principal: RuntimePrincipal = { playerId: session.player.id }
   assert.equal(session.created, true)
-  assert.deepEqual(session.world.resources, { gold: 2_000, ore: 100, food: 100 })
+  assert.deepEqual(session.world.resources, { gold: 100_000, ore: 100_000, food: 100_000 })
   assert.deepEqual(starterBuildingPlacements(session.world), EXPECTED_STARTER_BUILDINGS)
   const chosenBanner = { palette: 1, emblem: 4, pattern: 3 }
   assert.equal((await call('POST', '/player/banner', {
@@ -886,7 +886,7 @@ test('explicit infinite resources waive every player spend without weakening gam
   const principal: RuntimePrincipal = { playerId: session.player.id }
   const initial = { ...session.world.resources }
   assert.equal(session.features.infiniteResources, true)
-  assert.deepEqual(initial, { gold: 2_000, ore: 100, food: 100 })
+  assert.deepEqual(initial, { gold: 100_000, ore: 100_000, food: 100_000 })
 
   const freeSpend = record(await service.applyResources(principal, {
     resource: 'gold',
@@ -1004,11 +1004,22 @@ test('finite persistence mode still rejects unaffordable layouts and charges spe
   const principal: RuntimePrincipal = { playerId: session.player.id }
   assert.equal(session.features.infiniteResources, false)
 
+  // This control exercises low-wallet rejection semantics explicitly. Starter
+  // balances are live-ops tuning and may intentionally begin above capacity.
+  for (const [resource, target] of [['gold', 2_000], ['ore', 100], ['food', 100]] as const) {
+    await service.applyResources(principal, {
+      resource,
+      delta: target - (session.world.resources[resource] ?? 0),
+      requestId: `finite-control-${resource}`
+    })
+  }
+  const lowWalletWorld = await service.getWorld(principal)
+
   await assert.rejects(service.saveWorld(principal, {
     world: {
-      ...session.world,
+      ...lowWalletWorld,
       buildings: [
-        ...session.world.buildings,
+        ...lowWalletWorld.buildings,
         { id: 'finite-prism', type: 'prism', gridX: 2, gridY: 18, level: 1 }
       ]
     },
@@ -1018,7 +1029,7 @@ test('finite persistence mode still rejects unaffordable layouts and charges spe
       && error.status === 409
       && error.code === 'INSUFFICIENT_RESOURCES'
       && error.details?.resource === 'ore'
-  ), 'the same prism is rejected at the starter ore balance')
+  ), 'the same prism is rejected at an explicit low ore balance')
 
   const trained = record(await service.trainTroop(principal, {
     type: 'warrior',
@@ -1151,7 +1162,7 @@ test('production registration wall: no guest villages, registration creates acco
     assert.equal(session.player.registered, true)
     assert.equal(session.player.username, 'WallChief')
     assert.equal(Number.isFinite(session.player.plotX) && Number.isFinite(session.player.plotY), true)
-    assert.deepEqual(session.world.resources, { gold: 2_000, ore: 100, food: 100 })
+    assert.deepEqual(session.world.resources, { gold: 100_000, ore: 100_000, food: 100_000 })
     assert.deepEqual(starterBuildingPlacements(session.world), EXPECTED_STARTER_BUILDINGS)
     await persistence.transaction(async tx => {
       const plot = await tx.world.getPlayerPlot(session.player.id)

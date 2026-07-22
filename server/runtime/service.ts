@@ -33,6 +33,18 @@ import {
   validateVillageLayout
 } from '../domain/village'
 import {
+  ADMIN_STARTER_LIMITS,
+  adminStarterBuildingCatalog,
+  adminStarterVillageConfig,
+  effectiveStarterVillageConfig
+} from '../domain/village/starter-config'
+import {
+  normalizeTestModeOverrides,
+  testModeEnabled,
+  testModeOverride,
+  type TestModeConfig
+} from '../domain/test-mode'
+import {
   CURRENT_WORLD_GENERATION_VERSION,
   MAX_WORLD_COORDINATE,
   WORLD_PLOT_RADIUS,
@@ -402,7 +414,7 @@ function adminReason(raw: unknown): string {
   return reason
 }
 
-function adminPlayerSummaryOf(row: AdminPlayerRecord, now: Date): AdminPlayerSummary {
+function adminPlayerSummaryOf(row: AdminPlayerRecord, now: Date, config: TestModeConfig): AdminPlayerSummary {
   return {
     id: row.id,
     username: row.username,
@@ -414,6 +426,10 @@ function adminPlayerSummaryOf(row: AdminPlayerRecord, now: Date): AdminPlayerSum
     online: row.lastSeenAt.getTime() >= now.getTime() - ONLINE_WINDOW_MS,
     access: row.accessState,
     accessUntil: row.accessUntil?.getTime() ?? null,
+    testMode: {
+      override: testModeOverride(config, row.id),
+      effective: testModeEnabled(config, row.id)
+    },
     world: row.worldId !== null && row.x !== null && row.y !== null && row.plotVersion !== null
       ? { worldId: row.worldId, x: row.x, y: row.y, plotVersion: row.plotVersion }
       : null
@@ -434,9 +450,10 @@ function adminVillageSnapshotOf(
 function adminPlayerDetailOf(
   row: AdminPlayerRecord,
   now: Date,
-  village: AdminVillageSnapshot | null
+  village: AdminVillageSnapshot | null,
+  config: TestModeConfig
 ): AdminPlayerDetail {
-  const summary = adminPlayerSummaryOf(row, now)
+  const summary = adminPlayerSummaryOf(row, now, config)
   const army: Record<string, number> = {}
   for (const [type, count] of Object.entries(row.army)) {
     if (typeof count === 'number' && Number.isFinite(count)) army[type] = count
@@ -510,6 +527,38 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       upgradePolicy: this.upgradePolicy,
       allowGuestSessions: options.allowGuestSessions
     })
+  }
+
+  private testModeFor(
+    config: { testModeEnabled?: unknown; testModeOverrides?: unknown },
+    playerId: string
+  ): boolean {
+    return testModeEnabled(config, playerId)
+  }
+
+  private infiniteResourcesFor(
+    config: { testModeEnabled?: unknown; testModeOverrides?: unknown },
+    playerId: string
+  ): boolean {
+    return this.infiniteResources || this.testModeFor(config, playerId)
+  }
+
+  private upgradePolicyFor(testMode: boolean): AdvertisedUpgradePolicy {
+    return testMode ? { fixedDurationMs: 0, timeScale: 0 } : this.upgradePolicy
+  }
+
+  /** Existing in-flight timers become due as soon as the player's test mode is enabled. */
+  private expediteUpgradesForTestMode(village: VillageRecord, now: Date, testMode: boolean): boolean {
+    if (!testMode) return false
+    const buildings = villageBuildings(village)
+    let changed = false
+    for (const building of buildings) {
+      if (!building.upgradingTo || (building.upgradeEndsAt ?? 0) <= now.getTime()) continue
+      building.upgradeEndsAt = now.getTime()
+      changed = true
+    }
+    if (changed) village.buildings = buildings as unknown as JsonValue[]
+    return changed
   }
 
   async close(): Promise<void> {
@@ -749,23 +798,40 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
   async getWorld(principal: RuntimePrincipal): Promise<SerializedWorld> {
     const now = this.clock()
     return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
+      const runtimeConfig = await assertGameplayMutationAllowed(tx)
+      const testMode = this.testModeFor(runtimeConfig, principal.playerId)
       const state = await this.authority.owned(tx, principal.playerId, true)
-      await this.authority.materializeOwned(
-        tx,
-        state.village,
-        now,
-        await this.authority.hasActiveIncoming(tx, principal.playerId)
-      )
-      return serializedWorldOf(state.account, state.village, now, { stoneMaturity: true, upgradePolicy: this.upgradePolicy })
+      const populationLocked = await this.authority.hasActiveIncoming(tx, principal.playerId)
+      if (this.expediteUpgradesForTestMode(state.village, now, testMode)) {
+        const expected = state.village.economyRevision
+        await this.authority.materializeWithAudit(tx, state.village, now, populationLocked)
+        await this.authority.updateVillage(tx, state.village, expected)
+      } else {
+        await this.authority.materializeOwned(tx, state.village, now, populationLocked)
+      }
+      return serializedWorldOf(state.account, state.village, now, {
+        stoneMaturity: true,
+        upgradePolicy: this.upgradePolicyFor(testMode)
+      })
     })
   }
 
   async homeSync(principal: RuntimePrincipal) {
     const now = this.clock()
     return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
-      const state = await this.authority.owned(tx, principal.playerId)
+      const runtimeConfig = await assertGameplayMutationAllowed(tx)
+      const testMode = this.testModeFor(runtimeConfig, principal.playerId)
+      const state = await this.authority.owned(tx, principal.playerId, true)
+      if (this.expediteUpgradesForTestMode(state.village, now, testMode)) {
+        const expected = state.village.economyRevision
+        await this.authority.materializeWithAudit(
+          tx,
+          state.village,
+          now,
+          await this.authority.hasActiveIncoming(tx, principal.playerId)
+        )
+        await this.authority.updateVillage(tx, state.village, expected)
+      }
       const incoming = (await this.authority.leasedIncomingForPlayers(tx, [principal.playerId]))
         .find(attack => attack.deadlineAt > now && attack.authority !== null)
       return {
@@ -775,6 +841,11 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           lastSaveTime: state.village.lastMutationAt.getTime()
         },
         shieldUntil: state.account.shieldUntil?.getTime() ?? 0,
+        features: {
+          infiniteResources: this.infiniteResourcesFor(runtimeConfig, principal.playerId),
+          testMode
+        },
+        upgradePolicy: this.upgradePolicyFor(testMode),
         incomingAttack: incoming ? {
           attackId: incoming.id,
           attackerId: incoming.attackerId,
@@ -792,7 +863,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
+      const runtimeConfig = await assertGameplayMutationAllowed(tx)
+      const testMode = this.testModeFor(runtimeConfig, principal.playerId)
+      const infiniteResources = this.infiniteResourcesFor(runtimeConfig, principal.playerId)
       const claim = await this.claimRequest(tx, principal, 'world.save', id, now)
       if (claim.replayed) return claim.response as unknown as SerializedWorld
       const state = await this.authority.owned(tx, principal.playerId, true)
@@ -808,7 +881,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         materializeVillage(current, now)
         throw new ApiError(409, `Stale world revision (expected ${state.village.economyRevision})`, 'STALE_REVISION', {
           currentRevision: state.village.economyRevision,
-          world: serializedWorldOf(state.account, current, now, { upgradePolicy: this.upgradePolicy })
+          world: serializedWorldOf(state.account, current, now, {
+            upgradePolicy: this.upgradePolicyFor(testMode)
+          })
         })
       }
       const beforeSimulation = villageMaterialFingerprint(state.village)
@@ -840,22 +915,22 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           proposedObstacles: proposal.obstacles,
           now: now.getTime(),
           upgradeTimeScale: this.upgradeTimeScale,
-          fixedUpgradeDurationMs: this.fixedUpgradeDurationMs
+          fixedUpgradeDurationMs: testMode ? 0 : this.fixedUpgradeDurationMs
         }))
-        if (!this.infiniteResources && pricing.bill.gold > 0 && Math.floor(state.village.gold) < pricing.bill.gold) {
+        if (!infiniteResources && pricing.bill.gold > 0 && Math.floor(state.village.gold) < pricing.bill.gold) {
           throw new ApiError(409, `Not enough gold for these changes (need ${pricing.bill.gold})`, 'INSUFFICIENT_RESOURCES', { resource: 'gold' })
         }
-        if (!this.infiniteResources && pricing.bill.ore > 0 && state.village.ore < pricing.bill.ore) {
+        if (!infiniteResources && pricing.bill.ore > 0 && state.village.ore < pricing.bill.ore) {
           throw new ApiError(409, `Not enough ore for these changes (need ${pricing.bill.ore})`, 'INSUFFICIENT_RESOURCES', { resource: 'ore' })
         }
-        if (!this.infiniteResources) {
+        if (!infiniteResources) {
           state.village.gold = clamp(state.village.gold - pricing.bill.gold, 0, MAX_PLAYER_GOLD)
         }
         state.village.buildings = pricing.buildings as unknown as JsonValue[]
         state.village.obstacles = proposal.obstacles as unknown as JsonValue[]
         state.village.wallLevel = proposal.wallLevel
         const capacity = resourceCapacity(pricing.buildings)
-        if (!this.infiniteResources) {
+        if (!infiniteResources) {
           state.village.ore = storedResourceAfterDelta(
             state.village.ore, -pricing.bill.ore, capacity.ore
           )
@@ -871,6 +946,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         state.village.layoutRevision += 1
         state.village.appearanceRevision += 1
         state.village.lastMutationAt = now
+        if (testMode) materializeVillage(state.village, now)
         pricingSummary = {
           chargesGold: pricing.charges.gold,
           chargesOre: pricing.charges.ore,
@@ -879,12 +955,16 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         }
       }
       if (!proposal.changed && !simulationChanged) {
-        const response = serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy })
+        const response = serializedWorldOf(state.account, state.village, now, {
+          upgradePolicy: this.upgradePolicyFor(testMode)
+        })
         await this.completeRequest(tx, principal, 'world.save', id, response)
         return response
       }
       await this.authority.updateVillage(tx, state.village, expectedRevision)
-      const response = serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy })
+      const response = serializedWorldOf(state.account, state.village, now, {
+        upgradePolicy: this.upgradePolicyFor(testMode)
+      })
       await this.completeRequest(tx, principal, 'world.save', id, response)
       if (proposal.changed) {
         const auditId = id || randomId('world-save')
@@ -929,7 +1009,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const now = this.clock()
     try {
       return await this.persistence.transaction(async tx => {
-        await assertGameplayMutationAllowed(tx)
+        const runtimeConfig = await assertGameplayMutationAllowed(tx)
         const claim = await this.claimRequest(tx, principal, 'resources.apply', id, now)
         if (claim.replayed) return claim.response
         const state = await this.authority.owned(tx, principal.playerId, true)
@@ -959,7 +1039,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
             throw new NoCommitResponse({ applied: false, ...this.balances(state.village) })
           }
         }
-        const infiniteSpend = delta < 0 && this.infiniteResources
+        const infiniteSpend = delta < 0 && this.infiniteResourcesFor(runtimeConfig, principal.playerId)
         const current = resource === 'gold' ? Math.floor(state.village.gold) : state.village[resource]
         if (!infiniteSpend && delta < 0 && current + delta < 0) {
           throw new NoCommitResponse({ applied: false, ...this.balances(state.village) })
@@ -1008,7 +1088,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
+      const runtimeConfig = await assertGameplayMutationAllowed(tx)
+      const testMode = this.testModeFor(runtimeConfig, principal.playerId)
+      const infiniteResources = this.infiniteResourcesFor(runtimeConfig, principal.playerId)
       const claim = await this.claimRequest(tx, principal, 'army.train', id, now)
       if (claim.replayed) return claim.response
       const state = await this.authority.owned(tx, principal.playerId, true)
@@ -1019,22 +1101,24 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       const army = villageArmy(state.village)
       const trainingRequirement = troopTrainingRequirement(type)
       if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
-      if (trainingRequirement.kind === 'core') {
-        if (maxCompletedArmyCampLevel(buildings) < trainingRequirement.unlockLevel) {
-          throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+      if (!testMode) {
+        if (trainingRequirement.kind === 'core') {
+          if (maxCompletedArmyCampLevel(buildings) < trainingRequirement.unlockLevel) {
+            throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+          }
+        } else if (barracksLevelForTroop(buildings, type) < trainingRequirement.unlockLevel) {
+          throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
         }
-      } else if (barracksLevelForTroop(buildings, type) < trainingRequirement.unlockLevel) {
-        throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
       }
       if (armySpaceUsed(army) + definition.space * count > campCapacityOf(buildings)) {
         throw new ApiError(409, 'Not enough housing space in the camps')
       }
       const goldCost = definition.cost * count
       const foodCost = troopFoodCostOf(type) * count
-      if (!this.infiniteResources && Math.floor(state.village.gold) < goldCost) throw new ApiError(409, `Not enough gold (need ${goldCost})`)
-      if (!this.infiniteResources && state.village.food < foodCost) throw new ApiError(409, `Not enough food (need ${foodCost})`)
+      if (!infiniteResources && Math.floor(state.village.gold) < goldCost) throw new ApiError(409, `Not enough gold (need ${goldCost})`)
+      if (!infiniteResources && state.village.food < foodCost) throw new ApiError(409, `Not enough food (need ${foodCost})`)
       const beforeTraining = { gold: state.village.gold, food: state.village.food }
-      if (!this.infiniteResources) {
+      if (!infiniteResources) {
         state.village.gold -= goldCost
         state.village.food -= foodCost
       }
@@ -1068,7 +1152,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
+      const runtimeConfig = await assertGameplayMutationAllowed(tx)
+      const infiniteResources = this.infiniteResourcesFor(runtimeConfig, principal.playerId)
       const claim = await this.claimRequest(tx, principal, 'army.untrain', id, now)
       if (claim.replayed) return claim.response
       const state = await this.authority.owned(tx, principal.playerId, true)
@@ -1084,7 +1169,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       const beforeRefund = { gold: state.village.gold, food: state.village.food }
       if ((army[type] ?? 0) === count) delete army[type]
       else army[type] -= count
-      if (!this.infiniteResources) {
+      if (!infiniteResources) {
         state.village.gold = clamp(state.village.gold + definition.cost * count, 0, MAX_PLAYER_GOLD)
         const capacity = resourceCapacity(villageBuildings(state.village))
         state.village.food = storedResourceAfterDelta(
@@ -1124,7 +1209,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     const now = this.clock()
     return this.persistence.transaction(async tx => {
-      await assertGameplayMutationAllowed(tx)
+      const runtimeConfig = await assertGameplayMutationAllowed(tx)
+      const testMode = this.testModeFor(runtimeConfig, principal.playerId)
+      const infiniteResources = this.infiniteResourcesFor(runtimeConfig, principal.playerId)
       const claim = await this.claimRequest(tx, principal, 'army.batch', id, now)
       if (claim.replayed) return claim.response
 
@@ -1152,25 +1239,27 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         if (operation.kind === 'train') {
           const trainingRequirement = troopTrainingRequirement(operation.type)
           if (!trainingRequirement) throw new ApiError(404, 'Unknown troop type')
-          if (trainingRequirement.kind === 'core') {
-            if (maxCompletedArmyCampLevel(buildings) < trainingRequirement.unlockLevel) {
-              throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+          if (!testMode) {
+            if (trainingRequirement.kind === 'core') {
+              if (maxCompletedArmyCampLevel(buildings) < trainingRequirement.unlockLevel) {
+                throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.campName}`)
+              }
+            } else if (barracksLevelForTroop(buildings, operation.type) < trainingRequirement.unlockLevel) {
+              throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
             }
-          } else if (barracksLevelForTroop(buildings, operation.type) < trainingRequirement.unlockLevel) {
-            throw new ApiError(403, `${definition.name} needs a level ${trainingRequirement.unlockLevel} ${trainingRequirement.barracksName}`)
           }
           if (armySpaceUsed(army) + definition.space * operation.count > capacity) {
             throw new ApiError(409, 'Not enough housing space in the camps')
           }
           const goldCost = definition.cost * operation.count
           const foodCost = troopFoodCostOf(operation.type) * operation.count
-          if (!this.infiniteResources && Math.floor(state.village.gold) < goldCost) {
+          if (!infiniteResources && Math.floor(state.village.gold) < goldCost) {
             throw new ApiError(409, `Not enough gold (need ${goldCost})`)
           }
-          if (!this.infiniteResources && state.village.food < foodCost) {
+          if (!infiniteResources && state.village.food < foodCost) {
             throw new ApiError(409, `Not enough food (need ${foodCost})`)
           }
-          if (!this.infiniteResources) {
+          if (!infiniteResources) {
             state.village.gold -= goldCost
             state.village.food -= foodCost
             audit.train.gold -= goldCost
@@ -1185,7 +1274,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         if (have < operation.count) throw new ApiError(409, 'Not that many troops in camp')
         if (have === operation.count) delete army[operation.type]
         else army[operation.type] = have - operation.count
-        if (!this.infiniteResources) {
+        if (!infiniteResources) {
           const beforeGold = state.village.gold
           const beforeFood = state.village.food
           state.village.gold = clamp(
@@ -1209,7 +1298,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       state.village.lastMutationAt = now
       const expected = state.village.economyRevision
       await this.authority.updateVillage(tx, state.village, expected)
-      const world = serializedWorldOf(state.account, state.village, now, { upgradePolicy: this.upgradePolicy })
+      const world = serializedWorldOf(state.account, state.village, now, {
+        upgradePolicy: this.upgradePolicyFor(testMode)
+      })
       const response = { army: { ...army }, ...this.balances(state.village), world }
       await this.completeRequest(tx, principal, 'army.batch', id, response)
 
@@ -1250,7 +1341,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const id = requestId(body.requestId)
     try {
       return await this.persistence.transaction(async tx => {
-        await assertGameplayMutationAllowed(tx)
+        const runtimeConfig = await assertGameplayMutationAllowed(tx)
+        const infiniteResources = this.infiniteResourcesFor(runtimeConfig, principal.playerId)
         const claim = await this.claimRequest(tx, principal, 'merchant.trade', id, now)
         if (claim.replayed) return claim.response
         const state = await this.authority.owned(tx, principal.playerId, true)
@@ -1263,7 +1355,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         }
         await this.authority.materializeWithAudit(tx, state.village, now)
         const have = offer.give.kind === 'gold' ? Math.floor(state.village.gold) : state.village[offer.give.kind]
-        if (!this.infiniteResources && have < offer.give.amount) {
+        if (!infiniteResources && have < offer.give.amount) {
           throw new NoCommitResponse({ applied: false, offerId: offer.id, ...this.balances(state.village) })
         }
         const beforeTrade = {
@@ -1271,7 +1363,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           ore: state.village.ore,
           food: state.village.food
         }
-        if (!this.infiniteResources) {
+        if (!infiniteResources) {
           const capacity = resourceCapacity(villageBuildings(state.village))
           const apply = (kind: 'gold' | 'ore' | 'food', delta: number) => {
             if (kind === 'gold') state.village.gold = clamp(state.village.gold + delta, 0, MAX_PLAYER_GOLD)
@@ -1764,14 +1856,16 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       ? 50
       : adminInteger(rawLimit, 'limit', 1, QUERY_LIMITS.adminPlayers)
     const now = this.clock()
-    return this.persistence.transaction(async tx => (
-      await tx.admin.listPlayers({
+    return this.persistence.transaction(async tx => {
+      const config = await tx.admin.getConfig()
+      const players = await tx.admin.listPlayers({
         search,
         limit,
         now,
         onlineSince: new Date(now.getTime() - ONLINE_WINDOW_MS)
       })
-    ).map(row => adminPlayerSummaryOf(row, now)), { isolation: 'read committed' })
+      return players.map(row => adminPlayerSummaryOf(row, now, config))
+    }, { isolation: 'read committed' })
   }
 
   async adminPlayer(rawId: unknown): Promise<AdminPlayerDetail> {
@@ -1786,6 +1880,7 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       // Only publicWorldOf crosses the transport boundary; hashes, sessions,
       // private economy state and other account internals remain server-only.
       const account = await tx.accounts.getById(id)
+      const config = await tx.admin.getConfig()
       const village = account ? await tx.villages.get(id) : null
       const previewVillage = village ? cloneJson(village) : null
       if (account && previewVillage && (
@@ -1801,7 +1896,8 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
       return adminPlayerDetailOf(
         player,
         now,
-        account && previewVillage ? adminVillageSnapshotOf(account, previewVillage, now) : null
+        account && previewVillage ? adminVillageSnapshotOf(account, previewVillage, now) : null,
+        config
       )
     }, { isolation: 'repeatable read' })
   }
@@ -1923,6 +2019,10 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           enabled: config.maintenanceEnabled,
           message: config.maintenanceMessage
         },
+        testMode: {
+          enabled: config.testModeEnabled,
+          overrideCount: Object.keys(config.testModeOverrides).length
+        },
         accessPolicy: {
           suspendedSessionsRevoked: true,
           bannedSessionsRevoked: true
@@ -1934,6 +2034,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           auditList: QUERY_LIMITS.adminAudit,
           botRadius: QUERY_LIMITS.adminBotRadius
         },
+        starterVillage: effectiveStarterVillageConfig(config.starterVillage),
+        buildingCatalog: adminStarterBuildingCatalog(),
+        starterLimits: { ...ADMIN_STARTER_LIMITS },
         updatedAt: config.updatedAt.getTime(),
         revision: config.revision
       }
@@ -1953,6 +2056,11 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
     const reason = adminReason(action.reason)
 
     return this.persistence.transaction(async tx => {
+      // Test-mode overrides live in the singleton config row. Lock it before
+      // the account root, matching gameplay's config -> account lock order.
+      const testModeConfig = type === 'set_test_mode'
+        ? await tx.admin.getConfig({ forUpdate: true })
+        : null
       const account = await tx.accounts.getById(id, { forUpdate: true })
       if (!account) throw new ApiError(404, 'Player not found', 'ADMIN_PLAYER_NOT_FOUND')
       let changed = false
@@ -2079,6 +2187,33 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
         affected = await tx.sessions.deleteForPlayer(id)
         changed = affected > 0
         details = { reason, revoked: affected }
+      } else if (type === 'set_test_mode') {
+        const input = action as Extract<AdminPlayerActionRequest, { type: 'set_test_mode' }>
+        if (input.override !== null && typeof input.override !== 'boolean') {
+          throw new ApiError(400, 'Test mode override must be true, false, or null', 'ADMIN_INVALID_INPUT')
+        }
+        const config = testModeConfig!
+        const before = testModeOverride(config, id)
+        changed = before !== input.override
+        if (changed) {
+          const overrides = { ...config.testModeOverrides }
+          if (input.override === null) delete overrides[id]
+          else overrides[id] = input.override
+          config.testModeOverrides = normalizeTestModeOverrides(overrides)
+          const updated = await tx.admin.updateConfig({
+            ...config,
+            updatedAt: now,
+            revision: config.revision + 1
+          }, config.revision)
+          if (!updated) throw new ApiError(409, 'Admin config changed concurrently')
+          affected = 1
+        }
+        details = {
+          reason,
+          before,
+          after: input.override,
+          effective: testModeEnabled(config, id)
+        }
       } else if (type === 'set_access') {
         const input = action as Extract<AdminPlayerActionRequest, { type: 'set_access' }>
         const state = String(input.state ?? '')
@@ -2188,6 +2323,9 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           const updated = await tx.admin.updateConfig({
             maintenanceEnabled: input.enabled,
             maintenanceMessage: input.enabled ? message : null,
+            testModeEnabled: current.testModeEnabled,
+            testModeOverrides: current.testModeOverrides,
+            starterVillage: current.starterVillage,
             updatedAt: now,
             revision: current.revision + 1
           }, current.revision)
@@ -2199,6 +2337,62 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
           before: current.maintenanceEnabled,
           after: input.enabled,
           message: input.enabled ? message : null
+        }
+      } else if (type === 'set_test_mode') {
+        const input = rawAction as Extract<AdminOperationRequest, { type: 'set_test_mode' }>
+        if (typeof input.enabled !== 'boolean') {
+          throw new ApiError(400, 'Test mode enabled must be a boolean', 'ADMIN_INVALID_INPUT')
+        }
+        const current = await tx.admin.getConfig({ forUpdate: true })
+        changed = current.testModeEnabled !== input.enabled
+        if (changed) {
+          const updated = await tx.admin.updateConfig({
+            ...current,
+            testModeEnabled: input.enabled,
+            updatedAt: now,
+            revision: current.revision + 1
+          }, current.revision)
+          if (!updated) throw new ApiError(409, 'Admin config changed concurrently')
+          affected = 1
+        }
+        details = {
+          reason,
+          before: current.testModeEnabled,
+          after: input.enabled,
+          overrideCount: Object.keys(current.testModeOverrides).length
+        }
+      } else if (type === 'set_starter_village') {
+        const input = rawAction as Extract<AdminOperationRequest, { type: 'set_starter_village' }>
+        const expectedRevision = adminInteger(input.expectedRevision, 'expected config revision', 1, Number.MAX_SAFE_INTEGER)
+        const starterVillage = adminStarterVillageConfig(input.starterVillage)
+        const current = await tx.admin.getConfig({ forUpdate: true })
+        if (current.revision !== expectedRevision) {
+          throw new ApiError(
+            409,
+            'Admin configuration changed; reload the current defaults before saving',
+            'ADMIN_CONFIG_STALE'
+          )
+        }
+        const before = effectiveStarterVillageConfig(current.starterVillage)
+        changed = JSON.stringify(before) !== JSON.stringify(starterVillage)
+        if (changed) {
+          const updated = await tx.admin.updateConfig({
+            maintenanceEnabled: current.maintenanceEnabled,
+            maintenanceMessage: current.maintenanceMessage,
+            testModeEnabled: current.testModeEnabled,
+            testModeOverrides: current.testModeOverrides,
+            starterVillage,
+            updatedAt: now,
+            revision: current.revision + 1
+          }, current.revision)
+          if (!updated) throw new ApiError(409, 'Admin config changed concurrently', 'ADMIN_CONFIG_STALE')
+          affected = 1
+        }
+        details = {
+          reason,
+          expectedRevision,
+          before: before as unknown as JsonValue,
+          after: starterVillage as unknown as JsonValue
         }
       } else if (type === 'reset_all_bases') {
         const input = rawAction as Extract<AdminOperationRequest, { type: 'reset_all_bases' }>
@@ -2220,7 +2414,12 @@ export class PersistenceGameService implements ApiService<RuntimePrincipal>, Adm
             'ADMIN_MAINTENANCE_REQUIRED'
           )
         }
-        const starter = createStarterVillageRecord(auditId, now)
+        const starter = createStarterVillageRecord(
+          auditId,
+          now,
+          1,
+          effectiveStarterVillageConfig(config.starterVillage)
+        )
         try {
           resetSummary = await tx.admin.resetAllBases(
             starter,

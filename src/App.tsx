@@ -95,6 +95,49 @@ function playerArmySnapshot(source: Record<string, number> | null | undefined): 
   ])) as Record<PlayerTroopType, number>;
 }
 
+function TestModePopup({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-overlay test-mode-overlay" onClick={onClose} role="presentation">
+      <section
+        className="test-mode-popup pixel-cut"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="test-mode-title"
+        aria-describedby="test-mode-description"
+        onClick={event => event.stopPropagation()}
+      >
+        <div className="test-mode-sigil" aria-hidden="true">
+          <span className="test-mode-sigil-crown">◆</span>
+          <strong>∞</strong>
+        </div>
+        <p className="test-mode-kicker">Royal Proving Grounds</p>
+        <h2 id="test-mode-title">TEST MODE ENABLED</h2>
+        <p id="test-mode-description" className="test-mode-description">
+          The realm keeper has opened every workshop and war room for testing.
+        </p>
+        <div className="test-mode-benefits" aria-label="Test mode benefits">
+          <div className="test-mode-benefit">
+            <span className="test-mode-feature-mark" aria-hidden="true">∞</span>
+            <span><strong>Infinite resources</strong><small>Build and train without spending</small></span>
+          </div>
+          <div className="test-mode-benefit">
+            <span className="test-mode-feature-mark sym sym-castle" aria-hidden="true" />
+            <span><strong>Instant upgrades</strong><small>Every level completes immediately</small></span>
+          </div>
+          <div className="test-mode-benefit">
+            <span className="test-mode-feature-mark sym sym-swords" aria-hidden="true" />
+            <span><strong>All troops unlocked</strong><small>Train from the complete roster</small></span>
+          </div>
+        </div>
+        <button className="test-mode-enter" type="button" onClick={onClose} autoFocus>
+          ENTER THE VILLAGE
+        </button>
+        <small className="test-mode-footnote">Test access is controlled by the realm administrator.</small>
+      </section>
+    </div>
+  );
+}
+
 
 function App() {
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -112,6 +155,9 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [infiniteResources, setInfiniteResources] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [isTestModePopupOpen, setIsTestModePopupOpen] = useState(false);
+  const testModeAnnouncementShownRef = useRef(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   // Production registration wall: the server granted no identity, so the
   // account gate (username + password) is all this device may see.
@@ -156,6 +202,25 @@ function App() {
   }, [cloudTransitionReward]);
   const cloudOpenTimerRef = useRef<number | null>(null);
   const cloudHideTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!testMode) {
+      // A later false -> true transition is a new enablement and deserves a
+      // fresh announcement. Repeated home heartbeats while true stay silent.
+      testModeAnnouncementShownRef.current = false;
+      setIsTestModePopupOpen(false);
+      return;
+    }
+    if (
+      testModeAnnouncementShownRef.current
+      || !worldReady
+      || showCloudOverlay
+      || isLockedOut
+      || isBannerRequired
+      || isBannerPickerOpen
+    ) return;
+    testModeAnnouncementShownRef.current = true;
+    setIsTestModePopupOpen(true);
+  }, [testMode, worldReady, showCloudOverlay, isLockedOut, isBannerRequired, isBannerPickerOpen]);
   const [resources, setResources] = useState({ gold: 0, ore: 0, food: 0 });
   // Server-authoritative village population — a core mechanic later; display-only today.
   const [population, setPopulation] = useState({ count: 0, capacity: 0, workersNeeded: 0, staffing: 1 });
@@ -201,7 +266,9 @@ function App() {
         } else {
           setUser(null);
         }
-        setInfiniteResources(online && Auth.getFeatures().infiniteResources);
+        const features = Auth.getFeatures();
+        setInfiniteResources(online && features.infiniteResources);
+        setTestMode(online && features.testMode);
         setIsOnline(online);
       })
       .catch(error => {
@@ -210,6 +277,7 @@ function App() {
           setUser(null);
           setIsOnline(false);
           setInfiniteResources(false);
+          setTestMode(false);
           setNeedsAccount(false);
         }
       })
@@ -746,6 +814,8 @@ function App() {
       // Stop the writable-looking game immediately. Keeping an expired token
       // alive lets optimistic layout edits accumulate even though none can save.
       setSessionExpired(true);
+      setInfiniteResources(false);
+      setTestMode(false);
       setWorldReady(false);
       setShowCloudOverlay(false);
       setPlotPanel(null);
@@ -836,6 +906,9 @@ function App() {
         const sync = await Backend.fetchHomeSync();
         if (cancelled || !sync) return;
 
+        const features = Auth.getFeatures();
+        setInfiniteResources(features.infiniteResources);
+        setTestMode(features.testMode);
         gameManager.syncHomeStatus(sync.serverNow, sync.shieldUntil);
 
         const latest: IncomingAttackSession | null = sync.incomingAttack
@@ -950,7 +1023,9 @@ function App() {
       console.warn('Interrupted battle reconciliation is still pending:', error);
     });
     setNeedsAccount(false);
-    setInfiniteResources(Auth.getFeatures().infiniteResources);
+    const features = Auth.getFeatures();
+    setInfiniteResources(features.infiniteResources);
+    setTestMode(features.testMode);
     setUser({
       id: authUser.id,
       username: authUser.username,
@@ -2035,6 +2110,7 @@ function App() {
         armyCampLevel={armyCampProgress.completedLevel}
         armyCampUpgrading={armyCampProgress.upgrading}
         armyCampUpgradingToLevel={armyCampProgress.upgradingToLevel}
+        testMode={testMode}
         onClose={() => setIsTrainingOpen(false)}
         onStartPractice={handleStartPractice}
         onFindMatch={handleFindMatch}
@@ -2052,6 +2128,15 @@ function App() {
         onClose={() => setIsBuildingOpen(false)}
         onSelect={handleSelect}
       />
+
+      {isTestModePopupOpen && (
+        <TestModePopup
+          onClose={() => {
+            soundSystem.play('confirm');
+            setIsTestModePopupOpen(false);
+          }}
+        />
+      )}
 
       <CloudOverlay
         show={showCloudOverlay}

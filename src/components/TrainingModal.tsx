@@ -46,6 +46,8 @@ interface TrainingModalProps {
   armyCampUpgrading: boolean;
   /** Highest in-flight Army Camp target level, when an upgrade is running. */
   armyCampUpgradingToLevel: number | null;
+  /** Server-authoritative test entitlement; bypasses visual unlock gates only. */
+  testMode?: boolean;
   onClose: () => void;
   onStartPractice: () => void;
   onFindMatch: () => void;
@@ -73,6 +75,7 @@ export function TrainingModal({
   armyCampLevel,
   armyCampUpgrading,
   armyCampUpgradingToLevel,
+  testMode = false,
   onClose,
   onStartPractice,
   onFindMatch,
@@ -230,8 +233,10 @@ export function TrainingModal({
               <div>
                 <span className="troop-faction-kicker" id="core-troops-heading">Core Troops</span>
               </div>
-              <span className={`core-troop-access ${armyCampLevel === 0 ? 'offline' : ''}`}>
-                {armyCampUpgrading
+              <span className={`core-troop-access ${testMode ? 'test-mode' : armyCampLevel === 0 ? 'offline' : ''}`}>
+                {testMode
+                  ? 'TEST MODE · ALL UNLOCKED'
+                  : armyCampUpgrading
                   ? armyCampUpgradingToLevel !== null && armyCampUpgradingToLevel > armyCampLevel
                     ? `CAMP LV ${armyCampLevel} → ${armyCampUpgradingToLevel}`
                     : armyCampLevel > 0 ? `CAMP LV ${armyCampLevel} · UPGRADING` : 'CAMP UPGRADING'
@@ -244,7 +249,7 @@ export function TrainingModal({
             <div className="core-troop-grid">
               {CORE_TROOP_TYPES.map(troopId => {
                 const unlockLevel = getCoreTroopUnlockLevel(troopId);
-                const isLocked = unlockLevel > armyCampLevel;
+                const isLocked = !testMode && unlockLevel > armyCampLevel;
                 const unlockingWithCurrentUpgrade = armyCampUpgradingToLevel !== null
                   && unlockLevel <= armyCampUpgradingToLevel;
                 const lockText = unlockingWithCurrentUpgrade
@@ -280,13 +285,15 @@ export function TrainingModal({
                         {meta.name} <span>- {meta.description}</span>
                       </strong>
                     </div>
-                    {branchUpgrading && <span className="troop-faction-level">UPGRADING</span>}
+                    {testMode
+                      ? <span className="troop-faction-level test-mode">TEST ACCESS</span>
+                      : branchUpgrading && <span className="troop-faction-level">UPGRADING</span>}
                   </header>
 
                   <div className="troop-tech-lane">
                     {TROOP_TECH_TREES[faction].map((troopId, tierIndex) => {
                       const unlockLevel = getTroopUnlockLevel(troopId);
-                      const isLocked = unlockLevel > branchLevel;
+                      const isLocked = !testMode && unlockLevel > branchLevel;
                       const isFlagship = tierIndex === TROOP_TECH_TREES[faction].length - 1;
                       const lockText = branchUpgrading
                         ? 'BARRACKS UPGRADING'

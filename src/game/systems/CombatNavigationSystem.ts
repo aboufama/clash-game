@@ -896,9 +896,19 @@ export class CombatNavigationSystem {
         // need one short approach waypoint instead of an empty route.
         const startCenterX = startCellX + 0.5;
         const startCenterY = startCellY + 0.5;
+        const startCenterInRange = blocker
+            ? this.edgeDistance(startCenterX, startCenterY, blocker) <= stats.range + 0.08
+            : this.distanceToRect(
+                startCenterX,
+                startCenterY,
+                region.minX,
+                region.minY,
+                region.maxX,
+                region.maxY
+            ) <= stats.range + 0.08;
         if (movementNodes.length === 0
             && Math.hypot(troop.gridX - startCenterX, troop.gridY - startCenterY) > 0.04
-            && (!blocker || this.edgeDistance(startCenterX, startCenterY, blocker) <= stats.range + 0.08)) {
+            && startCenterInRange) {
             movementNodes = [startIndex];
         }
 

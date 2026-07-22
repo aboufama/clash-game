@@ -5,6 +5,7 @@
  * a domain boundary, not a serialized copy of a scene graph.
  */
 import type { AttackAggregate } from '../attack-domain/types'
+import type { StarterVillageConfig } from '../../src/game/config/StarterVillage'
 import type { SerializedWorld, VillageBanner } from '../../src/game/data/Models'
 
 export type JsonPrimitive = string | number | boolean | null
@@ -509,6 +510,11 @@ export interface AdminAuditRecord {
 export interface AdminRuntimeConfigRecord {
   maintenanceEnabled: boolean
   maintenanceMessage: string | null
+  testModeEnabled: boolean
+  /** Player id -> explicit enabled/disabled; absence inherits the global flag. */
+  testModeOverrides: Record<string, boolean>
+  /** Null means use the shipped STARTER_VILLAGE template. */
+  starterVillage: StarterVillageConfig | null
   updatedAt: Date
   revision: number
 }
