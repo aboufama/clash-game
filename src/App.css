@@ -5122,6 +5122,10 @@ body {
         transform: scale(1.35);
         transform-origin: bottom center;
     }
+
+    .hud:not(.mobile) .build-menu .btn-label {
+        font-size: 8px;
+    }
 }
 
 @media (min-width: 2400px) and (min-height: 1200px) {
