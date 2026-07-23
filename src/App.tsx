@@ -791,7 +791,7 @@ function App() {
   }, [resources, army, user, userId, loading, worldReady, introBattleRequired, introBattleActive, watchtowerPlacementRequired]);
 
   const [capacity, setCapacity] = useState({ current: 0, max: 30 });
-  const [selectedTroopType, setSelectedTroopType] = useState<PlayerTroopType>('warrior');
+  const [selectedTroopType, setSelectedTroopType] = useState<PlayerTroopType | null>(null);
   const [visibleTroops, setVisibleTroops] = useState<string[]>([]);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [pendingTargetAttack, setPendingTargetAttack] = useState<PendingTargetAttack | null>(null);
@@ -1334,13 +1334,13 @@ function App() {
           setBattleStats({ destruction: 0, goldLooted: 0, oreLooted: 0, foodLooted: 0 });
           setBattleStarted(false); // Reset when entering attack mode
 
-          // Auto-select first available troop
+          // NO troop selected on entry (owner request 2026-07-23): during
+          // the searching phase a drag must pan the map, never deploy. The
+          // input controller already treats a null selection as pan-only;
+          // the first tap on a troop card arms deployment.
           const availableTroops = PLAYER_TROOP_TYPES;
           const currentArmy = gameManager.getArmy();
-          const firstAvailable = availableTroops.find(type => currentArmy[type] > 0);
-          if (firstAvailable) {
-            setSelectedTroopType(firstAvailable);
-          }
+          setSelectedTroopType(null);
           // Snapshot troops for Battle Bar stability
           const battleTroops = availableTroops.filter(t => currentArmy[t] > 0);
           setVisibleTroops(battleTroops);

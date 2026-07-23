@@ -28,7 +28,7 @@ interface HudProps {
   battleStats: BattleStats;
   battleStarted: boolean;
   visibleTroops: string[];
-  selectedTroopType: string;
+  selectedTroopType: string | null;
   army: Record<string, number>;
   armyCapacity: number;
   selectedBuildingInfo: { id: string; type: BuildingType; level: number; gridX?: number; gridY?: number; upgradeEndsAt?: number } | null;

@@ -2531,7 +2531,13 @@ export class WorldMapSystem {
         // pure samples.
         if (SNAP >= 1) SpriteBank.quantizeRenderTexture(this.scene, rt, Math.max(1, 1.35 * SNAP));
         const dz = dx + dy;
-        rt.setDepth(dz < 0 ? 420 + dz : dz === 0 ? 780 : 26_000 + dz);
+        // South-east postcards out-depth the whole battle plot (26k) on the
+        // HOME quilt. During a battle they must stay UNDER every battle body
+        // (live bodies ~15..4200 in the root list, replay bodies in the
+        // playback layer at ~780.5) or edge-deployed troops clip beneath the
+        // neighbour's lawn — 500+dz keeps them above the NW band instead.
+        const southeastDepth = this.scene.mode === 'HOME' ? 26_000 + dz : 500 + dz;
+        rt.setDepth(dz < 0 ? 420 + dz : dz === 0 ? 780 : southeastDepth);
         view.rt = rt;
         view.contentKind = 'nature';
     }
@@ -2648,7 +2654,13 @@ export class WorldMapSystem {
 
         // Painter seams: NW neighbours behind the live village, SE in front.
         const dz = dx + dy;
-        rt.setDepth(dz < 0 ? 420 + dz : dz === 0 ? 780 : 26_000 + dz);
+        // South-east postcards out-depth the whole battle plot (26k) on the
+        // HOME quilt. During a battle they must stay UNDER every battle body
+        // (live bodies ~15..4200 in the root list, replay bodies in the
+        // playback layer at ~780.5) or edge-deployed troops clip beneath the
+        // neighbour's lawn — 500+dz keeps them above the NW band instead.
+        const southeastDepth = this.scene.mode === 'HOME' ? 26_000 + dz : 500 + dz;
+        rt.setDepth(dz < 0 ? 420 + dz : dz === 0 ? 780 : southeastDepth);
         view.rt = rt;
         view.contentKind = 'village';
         this.textureMaterializations += 1;
