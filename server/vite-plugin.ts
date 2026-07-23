@@ -10,6 +10,13 @@ export function gameServerPlugin(): PluginOption {
   return {
     name: 'clash-game-server',
     configureServer(server) {
+      // A dev server IS a dev environment: every login gets unlimited
+      // resources by default, however vite was launched (npm run dev, bare
+      // `npx vite`, harness servers on other ports). Explicitly exporting
+      // CLASH_INFINITE_RESOURCES=0 restores real balances for economy work.
+      // Production (server/index.ts) never runs through this plugin and is
+      // untouched.
+      process.env.CLASH_INFINITE_RESOURCES ??= '1'
       const { middleware, close } = createGameServer()
       server.httpServer?.once('close', close)
       // Vite doesn't always emit httpServer 'close' on Ctrl+C, so persist on the

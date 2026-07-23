@@ -2,7 +2,7 @@
 import Phaser from 'phaser';
 import { Backend, type AttackEndResult, type AttackReplayState, type MatchmakingOptions, type ReplayBuildingSnapshot, type ReplayFrameSnapshot, type ReplayTroopSnapshot } from '../backend/GameBackend';
 import { sanitizeVillageBanner, type SerializedBuilding, type SerializedWorld, type VillageBanner } from '../data/Models';
-import { bannerDesignFor, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
+import { bannerDesignFor, drawFallenVillageFlag, drawVillageFlag, type FlagDesign } from '../renderers/VillageFlagRenderer';
 import { BUILDING_DEFINITIONS, GENERATED_ONLY, OBSTACLE_DEFINITIONS, TROOP_DEFINITIONS, getBuildingStats, getTroopStats, type BuildingType, type ObstacleType, type TroopType } from '../config/GameDefinitions';
 import { LootSystem } from '../systems/LootSystem';
 import type { PlacedBuilding, Troop, PlacedObstacle } from '../types/GameTypes';
@@ -1453,12 +1453,14 @@ export class MainScene extends Phaser.Scene {
      * (owner request 2026-07): pole 32, cloth 30 × 19, amp 2 — the ripple
      * period itself is untouched. One depth step above the hall keeps the
      * cloth over its own roof without crossing the next iso row.
-     * A destroyed hall drops its standard.
+     * A TORN-DOWN hall doesn't lose its standard: the pole falls from the
+     * roof and stays stabbed into the lawn by the rubble — leaning, cloth
+     * soot-dulled and ragged (drawFallenVillageFlag), heraldry still legible.
      */
     private updateHallBanner(time: number) {
         const meta = this.villageBannerMeta;
         const explicitBanner = sanitizeVillageBanner(meta?.banner);
-        const hall = meta ? this.buildings.find(b => b.type === 'town_hall' && b.health > 0) : undefined;
+        const hall = meta ? this.buildings.find(b => b.type === 'town_hall') : undefined;
         if (!meta || !hall || (!explicitBanner && !meta.allowFallback)) {
             if (this.hallBannerGfx) {
                 this.hallBannerGfx.destroy();
@@ -1475,15 +1477,26 @@ export class MainScene extends Phaser.Scene {
         }
         if (!this.hallBannerGfx) this.hallBannerGfx = this.add.graphics();
         const def = BUILDINGS[hall.type];
-        const apex = IsoUtils.cartToIso(
-            hall.gridX + (def?.width ?? 3) / 2,
-            hall.gridY + (def?.height ?? 3) / 2
-        );
         const g = this.hallBannerGfx;
         g.clear();
         g.setDepth(depthForBuilding(hall.gridX, hall.gridY, 'town_hall') + 1);
-        drawVillageFlag(g, apex.x, apex.y - townHallApexLift(hall.level ?? 1), time,
-            this.hallBannerDesign, 1, { poleH: 32, clothW: 30, clothH: 19, amp: 2 });
+        if (hall.health > 0) {
+            const apex = IsoUtils.cartToIso(
+                hall.gridX + (def?.width ?? 3) / 2,
+                hall.gridY + (def?.height ?? 3) / 2
+            );
+            drawVillageFlag(g, apex.x, apex.y - townHallApexLift(hall.level ?? 1), time,
+                this.hallBannerDesign, 1, { poleH: 32, clothW: 30, clothH: 19, amp: 2 });
+        } else {
+            // Fallen: planted on the lawn just inside the plot's south
+            // corner — outside the hall's 0.62 inset AND its 0.76 stone
+            // border, clear of the wreck rubble.
+            const foot = IsoUtils.cartToIso(
+                hall.gridX + (def?.width ?? 3) * 0.94,
+                hall.gridY + (def?.height ?? 3) * 0.94
+            );
+            drawFallenVillageFlag(g, foot.x, foot.y, time, this.hallBannerDesign, 1);
+        }
     }
 
     /**

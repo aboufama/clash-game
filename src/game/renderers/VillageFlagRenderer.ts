@@ -284,6 +284,106 @@ export function drawVillageFlag(
     }
 }
 
+/** Deaden a dye toward soot — the fallen standard's whole palette. */
+function dulled(color: number, k: number): number {
+    const r = Math.round(((color >> 16) & 0xff) * k);
+    const gr = Math.round(((color >> 8) & 0xff) * k);
+    const b = Math.round((color & 0xff) * k);
+    return (r << 16) | (gr << 8) | b;
+}
+
+/**
+ * The dropped standard. When the hall it flew from is torn down, the pole
+ * falls from the roof and stabs into the lawn at a hard lean — still
+ * standing, only just. The cloth hangs dead along the upper pole, dyes
+ * deadened, the fly edge torn to rags; the gold finial lies thrown clear in
+ * the grass. Every tear and every sway is deterministic (`design` + `time`),
+ * and the heraldry still reads through the soot — same field/emblem code
+ * path as the flying banner.
+ */
+export function drawFallenVillageFlag(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    groundY: number,
+    time: number,
+    design: FlagDesign,
+    facing = 1,
+    opts: { poleH?: number; clothW?: number; clothH?: number } = {}
+) {
+    const poleH = opts.poleH ?? 30;
+    const clothW = opts.clothW ?? 22;
+    const clothH = opts.clothH ?? 14;
+    const worn: FlagDesign = {
+        ...design,
+        field: dulled(design.field, 0.72),
+        field2: dulled(design.field2, 0.72),
+        metal: dulled(design.metal, 0.82)
+    };
+
+    // The lean: ~41 degrees off vertical, tip toward the fly side — felled
+    // hard, standing only just.
+    const lean = { x: facing * 0.66, y: -0.75 };
+    const at = (d: number): [number, number] => [x + lean.x * d, groundY + lean.y * d];
+    const [tipX, tipY] = at(poleH);
+
+    // Stab scar where it hit, and the finial ball thrown clear, gone dull.
+    pixelEllipse(g, x, groundY + 1, 5.2, 2.3, 0x241c10, 0.3);
+    pixelRect(g, x - 2.4, groundY - 0.5, 1.4, 1.1, 0x4a3a22, 0.9);
+    pixelRect(g, x + 1.1, groundY + 0.7, 1.6, 1, 0x3c2f1c, 0.9);
+    pixelEllipse(g, x - facing * 6.6, groundY + 1.6, 2, 1.4, 0x8a7430, 1);
+    pixelEllipse(g, x - facing * 7.1, groundY + 1.1, 0.7, 0.6, 0xb59a54, 1);
+
+    // The cloth: slid down the leaning pole and hung dead along it. Columns
+    // are one pixel cell wide, marching from the tip back toward the foot;
+    // each hangs straight down from the pole line. Tears deepen toward the
+    // loose end — torn once per design, never per frame.
+    const spanX = Math.min(clothW, Math.abs(tipX - x) * 0.85);
+    const cols = Math.max(4, Math.round(spanX / PIXEL_CELL));
+    const rows = Math.max(3, Math.round(clothH / PIXEL_CELL));
+    const rag = mulberry32(hashString(`${design.phase.toFixed(4)}:rags`));
+    for (let col = 0; col < cols; col++) {
+        const u = cols > 1 ? col / (cols - 1) : 0;
+        const xc = tipX - facing * (col + 0.5) * PIXEL_CELL;
+        const t = (xc - x) / (tipX - x || 1);
+        const topY = groundY + (tipY - groundY) * t;
+        const sway = Math.sin(time * 0.0016 + design.phase + u * 1.7) * (0.35 + u * 0.55);
+        const torn = rag() * 0.62 * u + (rag() < 0.16 ? 0.3 : 0);
+        const len = clothH * (0.94 - 0.22 * u) * (1 - torn);
+        const colX = Math.min(xc, xc - facing * PIXEL_CELL) + (facing > 0 ? 0 : PIXEL_CELL);
+        let runStart = 0;
+        let runColor: number | null = null;
+        const flush = (endRow: number) => {
+            if (runColor === null || endRow <= runStart) return;
+            pixelRect(g, colX, topY + sway + (runStart / rows) * clothH, PIXEL_CELL,
+                ((endRow - runStart) / rows) * clothH, runColor, 1);
+        };
+        for (let row = 0; row < rows; row++) {
+            const v = (row + 0.5) / rows;
+            const within = (row / rows) * clothH <= len;
+            const hole = within && row > 0 && rag() < 0.06;
+            const color = within && !hole ? fieldAt(worn, u, v) : null;
+            if (color !== runColor) {
+                flush(row);
+                runStart = row;
+                runColor = color;
+            }
+        }
+        flush(rows);
+    }
+
+    // The charge, dulled but legible, where the cloth still holds together.
+    const emblemX = tipX - facing * spanX * 0.3;
+    const emblemT = (emblemX - x) / (tipX - x || 1);
+    drawEmblem(g, worn, emblemX, groundY + (tipY - groundY) * emblemT + clothH * 0.52, clothH * 0.58);
+
+    // The pole over the cloth: ash gone grey, tip splintered where the
+    // finial tore away.
+    pixelLine(g, x, groundY, tipX, tipY, 2, 0x3a2e1e, 1);
+    pixelLine(g, x - 0.7, groundY, tipX - 0.7, tipY, 1, 0x55422b, 1);
+    const [splinterX, splinterY] = at(poleH + 2);
+    pixelRect(g, splinterX - 0.7, splinterY - 0.6, 1.3, 1.3, 0x55422b, 1);
+}
+
 /**
  * Minimal Graphics stand-in for DOM canvas previews. The PixelDraw
  * primitives the flag is built from only ever call `fillStyle` + `fillRect`,
