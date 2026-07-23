@@ -1623,4 +1623,7 @@ try {
 } finally {
   await browser.close()
 }
+// Content-stamp the index so ?v= cache busting sees this bake (see the
+// stamp script header for the production immutable-cache incident).
+await import('./stamp-index-revisions.mjs')
 console.log('done')

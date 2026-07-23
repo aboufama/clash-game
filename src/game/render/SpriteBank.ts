@@ -131,6 +131,11 @@ interface SpriteIndexUnit {
     atlas: string;
     frames: string;
     manifest: string;
+    /** Per-unit content stamp (stamp-index-revisions.mjs). Not read directly:
+     *  its presence in the index TEXT flips indexRevision — and therefore
+     *  every `?v=` asset URL — whenever a rebake changes this unit, which is
+     *  what busts the one-year immutable CDN/browser cache in production. */
+    rev?: string;
 }
 
 interface SpriteIndex {

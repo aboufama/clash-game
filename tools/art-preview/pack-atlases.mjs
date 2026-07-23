@@ -79,3 +79,6 @@ try {
 } finally {
   await browser.close()
 }
+
+// Content-stamp the index so ?v= cache busting sees this pack.
+await import('./stamp-index-revisions.mjs')

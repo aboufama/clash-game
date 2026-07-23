@@ -6,700 +6,800 @@
       "unit": "army_camp",
       "atlas": "buildings/army_camp/atlas.png",
       "frames": "buildings/army_camp/atlas.json",
-      "manifest": "buildings/army_camp/manifest.json"
+      "manifest": "buildings/army_camp/manifest.json",
+      "rev": "9e63114ab1"
     },
     {
       "kind": "buildings",
       "unit": "ballista",
       "atlas": "buildings/ballista/atlas.png",
       "frames": "buildings/ballista/atlas.json",
-      "manifest": "buildings/ballista/manifest.json"
+      "manifest": "buildings/ballista/manifest.json",
+      "rev": "3a5361d3b5"
     },
     {
       "kind": "buildings",
       "unit": "barracks",
       "atlas": "buildings/barracks/atlas.png",
       "frames": "buildings/barracks/atlas.json",
-      "manifest": "buildings/barracks/manifest.json"
+      "manifest": "buildings/barracks/manifest.json",
+      "rev": "642c44e37a"
     },
     {
       "kind": "buildings",
       "unit": "cannon",
       "atlas": "buildings/cannon/atlas.png",
       "frames": "buildings/cannon/atlas.json",
-      "manifest": "buildings/cannon/manifest.json"
+      "manifest": "buildings/cannon/manifest.json",
+      "rev": "808377f128"
     },
     {
       "kind": "buildings",
       "unit": "dragons_breath",
       "atlas": "buildings/dragons_breath/atlas.png",
       "frames": "buildings/dragons_breath/atlas.json",
-      "manifest": "buildings/dragons_breath/manifest.json"
+      "manifest": "buildings/dragons_breath/manifest.json",
+      "rev": "2072793ee9"
     },
     {
       "kind": "buildings",
       "unit": "farm",
       "atlas": "buildings/farm/atlas.png",
       "frames": "buildings/farm/atlas.json",
-      "manifest": "buildings/farm/manifest.json"
+      "manifest": "buildings/farm/manifest.json",
+      "rev": "2fc46d2c70"
     },
     {
       "kind": "buildings",
       "unit": "jukebox",
       "atlas": "buildings/jukebox/atlas.png",
       "frames": "buildings/jukebox/atlas.json",
-      "manifest": "buildings/jukebox/manifest.json"
+      "manifest": "buildings/jukebox/manifest.json",
+      "rev": "897704124c"
     },
     {
       "kind": "buildings",
       "unit": "lab",
       "atlas": "buildings/lab/atlas.png",
       "frames": "buildings/lab/atlas.json",
-      "manifest": "buildings/lab/manifest.json"
+      "manifest": "buildings/lab/manifest.json",
+      "rev": "15de032df3"
     },
     {
       "kind": "buildings",
       "unit": "mine",
       "atlas": "buildings/mine/atlas.png",
       "frames": "buildings/mine/atlas.json",
-      "manifest": "buildings/mine/manifest.json"
+      "manifest": "buildings/mine/manifest.json",
+      "rev": "e69e660847"
     },
     {
       "kind": "buildings",
       "unit": "mortar",
       "atlas": "buildings/mortar/atlas.png",
       "frames": "buildings/mortar/atlas.json",
-      "manifest": "buildings/mortar/manifest.json"
+      "manifest": "buildings/mortar/manifest.json",
+      "rev": "f73cc0f5aa"
     },
     {
       "kind": "buildings",
       "unit": "mystic_barracks",
       "atlas": "buildings/mystic_barracks/atlas.png",
       "frames": "buildings/mystic_barracks/atlas.json",
-      "manifest": "buildings/mystic_barracks/manifest.json"
+      "manifest": "buildings/mystic_barracks/manifest.json",
+      "rev": "cab7cdf745"
     },
     {
       "kind": "buildings",
       "unit": "prism",
       "atlas": "buildings/prism/atlas.png",
       "frames": "buildings/prism/atlas.json",
-      "manifest": "buildings/prism/manifest.json"
+      "manifest": "buildings/prism/manifest.json",
+      "rev": "c3fa28e4eb"
     },
     {
       "kind": "buildings",
       "unit": "spike_launcher",
       "atlas": "buildings/spike_launcher/atlas.png",
       "frames": "buildings/spike_launcher/atlas.json",
-      "manifest": "buildings/spike_launcher/manifest.json"
+      "manifest": "buildings/spike_launcher/manifest.json",
+      "rev": "29fcc81d1d"
     },
     {
       "kind": "buildings",
       "unit": "storage",
       "atlas": "buildings/storage/atlas.png",
       "frames": "buildings/storage/atlas.json",
-      "manifest": "buildings/storage/manifest.json"
+      "manifest": "buildings/storage/manifest.json",
+      "rev": "6035f505f0"
     },
     {
       "kind": "buildings",
       "unit": "tesla",
       "atlas": "buildings/tesla/atlas.png",
       "frames": "buildings/tesla/atlas.json",
-      "manifest": "buildings/tesla/manifest.json"
+      "manifest": "buildings/tesla/manifest.json",
+      "rev": "3f76ea9489"
     },
     {
       "kind": "buildings",
       "unit": "town_hall",
       "atlas": "buildings/town_hall/atlas.png",
       "frames": "buildings/town_hall/atlas.json",
-      "manifest": "buildings/town_hall/manifest.json"
+      "manifest": "buildings/town_hall/manifest.json",
+      "rev": "a92862364e"
     },
     {
       "kind": "buildings",
       "unit": "wall",
       "atlas": "buildings/wall/atlas.png",
       "frames": "buildings/wall/atlas.json",
-      "manifest": "buildings/wall/manifest.json"
+      "manifest": "buildings/wall/manifest.json",
+      "rev": "3126b4a696"
     },
     {
       "kind": "buildings",
       "unit": "watchtower",
       "atlas": "buildings/watchtower/atlas.png",
       "frames": "buildings/watchtower/atlas.json",
-      "manifest": "buildings/watchtower/manifest.json"
+      "manifest": "buildings/watchtower/manifest.json",
+      "rev": "b6d970dd7f"
     },
     {
       "kind": "buildings",
       "unit": "xbow",
       "atlas": "buildings/xbow/atlas.png",
       "frames": "buildings/xbow/atlas.json",
-      "manifest": "buildings/xbow/manifest.json"
+      "manifest": "buildings/xbow/manifest.json",
+      "rev": "fd89611839"
     },
     {
       "kind": "troops",
       "unit": "archer",
       "atlas": "troops/archer/atlas.png",
       "frames": "troops/archer/atlas.json",
-      "manifest": "troops/archer/manifest.json"
+      "manifest": "troops/archer/manifest.json",
+      "rev": "1e794758f6"
     },
     {
       "kind": "troops",
       "unit": "clockworkbeetle",
       "atlas": "troops/clockworkbeetle/atlas.png",
       "frames": "troops/clockworkbeetle/atlas.json",
-      "manifest": "troops/clockworkbeetle/manifest.json"
+      "manifest": "troops/clockworkbeetle/manifest.json",
+      "rev": "2a48330de9"
     },
     {
       "kind": "troops",
       "unit": "davincitank",
       "atlas": "troops/davincitank/atlas.png",
       "frames": "troops/davincitank/atlas.json",
-      "manifest": "troops/davincitank/manifest.json"
+      "manifest": "troops/davincitank/manifest.json",
+      "rev": "1181c5d768"
     },
     {
       "kind": "troops",
       "unit": "goblinplunderer",
       "atlas": "troops/goblinplunderer/atlas.png",
       "frames": "troops/goblinplunderer/atlas.json",
-      "manifest": "troops/goblinplunderer/manifest.json"
+      "manifest": "troops/goblinplunderer/manifest.json",
+      "rev": "b9d40988fb"
     },
     {
       "kind": "troops",
       "unit": "golem",
       "atlas": "troops/golem/atlas.png",
       "frames": "troops/golem/atlas.json",
-      "manifest": "troops/golem/manifest.json"
+      "manifest": "troops/golem/manifest.json",
+      "rev": "50524ec09a"
     },
     {
       "kind": "troops",
       "unit": "icegolem",
       "atlas": "troops/icegolem/atlas.png",
       "frames": "troops/icegolem/atlas.json",
-      "manifest": "troops/icegolem/manifest.json"
+      "manifest": "troops/icegolem/manifest.json",
+      "rev": "e56cac318c"
     },
     {
       "kind": "troops",
       "unit": "mobilemortar",
       "atlas": "troops/mobilemortar/atlas.png",
       "frames": "troops/mobilemortar/atlas.json",
-      "manifest": "troops/mobilemortar/manifest.json"
+      "manifest": "troops/mobilemortar/manifest.json",
+      "rev": "54bf767264"
     },
     {
       "kind": "troops",
       "unit": "necromancer",
       "atlas": "troops/necromancer/atlas.png",
       "frames": "troops/necromancer/atlas.json",
-      "manifest": "troops/necromancer/manifest.json"
+      "manifest": "troops/necromancer/manifest.json",
+      "rev": "7617233a0a"
     },
     {
       "kind": "troops",
       "unit": "ornithopter",
       "atlas": "troops/ornithopter/atlas.png",
       "frames": "troops/ornithopter/atlas.json",
-      "manifest": "troops/ornithopter/manifest.json"
+      "manifest": "troops/ornithopter/manifest.json",
+      "rev": "2555b1e42c"
     },
     {
       "kind": "troops",
       "unit": "phalanx",
       "atlas": "troops/phalanx/atlas.png",
       "frames": "troops/phalanx/atlas.json",
-      "manifest": "troops/phalanx/manifest.json"
+      "manifest": "troops/phalanx/manifest.json",
+      "rev": "93bad45bdd"
     },
     {
       "kind": "troops",
       "unit": "physicianscart",
       "atlas": "troops/physicianscart/atlas.png",
       "frames": "troops/physicianscart/atlas.json",
-      "manifest": "troops/physicianscart/manifest.json"
+      "manifest": "troops/physicianscart/manifest.json",
+      "rev": "eefe9dab0a"
     },
     {
       "kind": "troops",
       "unit": "ram",
       "atlas": "troops/ram/atlas.png",
       "frames": "troops/ram/atlas.json",
-      "manifest": "troops/ram/manifest.json"
+      "manifest": "troops/ram/manifest.json",
+      "rev": "f989f6de2f"
     },
     {
       "kind": "troops",
       "unit": "romanwarrior",
       "atlas": "troops/romanwarrior/atlas.png",
       "frames": "troops/romanwarrior/atlas.json",
-      "manifest": "troops/romanwarrior/manifest.json"
+      "manifest": "troops/romanwarrior/manifest.json",
+      "rev": "723def9d7c"
     },
     {
       "kind": "troops",
       "unit": "siegetower",
       "atlas": "troops/siegetower/atlas.png",
       "frames": "troops/siegetower/atlas.json",
-      "manifest": "troops/siegetower/manifest.json"
+      "manifest": "troops/siegetower/manifest.json",
+      "rev": "deb2548bb5"
     },
     {
       "kind": "troops",
       "unit": "skeleton",
       "atlas": "troops/skeleton/atlas.png",
       "frames": "troops/skeleton/atlas.json",
-      "manifest": "troops/skeleton/manifest.json"
+      "manifest": "troops/skeleton/manifest.json",
+      "rev": "d937449378"
     },
     {
       "kind": "troops",
       "unit": "stormmage",
       "atlas": "troops/stormmage/atlas.png",
       "frames": "troops/stormmage/atlas.json",
-      "manifest": "troops/stormmage/manifest.json"
+      "manifest": "troops/stormmage/manifest.json",
+      "rev": "62cfabd286"
     },
     {
       "kind": "troops",
       "unit": "trebuchet",
       "atlas": "troops/trebuchet/atlas.png",
       "frames": "troops/trebuchet/atlas.json",
-      "manifest": "troops/trebuchet/manifest.json"
+      "manifest": "troops/trebuchet/manifest.json",
+      "rev": "95f4b4abdc"
     },
     {
       "kind": "troops",
       "unit": "wallbreaker",
       "atlas": "troops/wallbreaker/atlas.png",
       "frames": "troops/wallbreaker/atlas.json",
-      "manifest": "troops/wallbreaker/manifest.json"
+      "manifest": "troops/wallbreaker/manifest.json",
+      "rev": "589299397f"
     },
     {
       "kind": "troops",
       "unit": "warelephant",
       "atlas": "troops/warelephant/atlas.png",
       "frames": "troops/warelephant/atlas.json",
-      "manifest": "troops/warelephant/manifest.json"
+      "manifest": "troops/warelephant/manifest.json",
+      "rev": "3ee588f101"
     },
     {
       "kind": "troops",
       "unit": "warrior",
       "atlas": "troops/warrior/atlas.png",
       "frames": "troops/warrior/atlas.json",
-      "manifest": "troops/warrior/manifest.json"
+      "manifest": "troops/warrior/manifest.json",
+      "rev": "56d2c4379b"
     },
     {
       "kind": "troop_deaths",
       "unit": "davincitank",
       "atlas": "troop_deaths/davincitank/atlas.png",
       "frames": "troop_deaths/davincitank/atlas.json",
-      "manifest": "troop_deaths/davincitank/manifest.json"
+      "manifest": "troop_deaths/davincitank/manifest.json",
+      "rev": "892095f4f1"
     },
     {
       "kind": "troop_deaths",
       "unit": "golem",
       "atlas": "troop_deaths/golem/atlas.png",
       "frames": "troop_deaths/golem/atlas.json",
-      "manifest": "troop_deaths/golem/manifest.json"
+      "manifest": "troop_deaths/golem/manifest.json",
+      "rev": "cc5c42d0c5"
     },
     {
       "kind": "troop_deaths",
       "unit": "icegolem",
       "atlas": "troop_deaths/icegolem/atlas.png",
       "frames": "troop_deaths/icegolem/atlas.json",
-      "manifest": "troop_deaths/icegolem/manifest.json"
+      "manifest": "troop_deaths/icegolem/manifest.json",
+      "rev": "070d127b10"
     },
     {
       "kind": "troop_deaths",
       "unit": "siegetower",
       "atlas": "troop_deaths/siegetower/atlas.png",
       "frames": "troop_deaths/siegetower/atlas.json",
-      "manifest": "troop_deaths/siegetower/manifest.json"
+      "manifest": "troop_deaths/siegetower/manifest.json",
+      "rev": "37d1b1153e"
     },
     {
       "kind": "troop_deaths",
       "unit": "trebuchet",
       "atlas": "troop_deaths/trebuchet/atlas.png",
       "frames": "troop_deaths/trebuchet/atlas.json",
-      "manifest": "troop_deaths/trebuchet/manifest.json"
+      "manifest": "troop_deaths/trebuchet/manifest.json",
+      "rev": "516367e427"
     },
     {
       "kind": "troop_deaths",
       "unit": "warelephant",
       "atlas": "troop_deaths/warelephant/atlas.png",
       "frames": "troop_deaths/warelephant/atlas.json",
-      "manifest": "troop_deaths/warelephant/manifest.json"
+      "manifest": "troop_deaths/warelephant/manifest.json",
+      "rev": "be808b6658"
     },
     {
       "kind": "wrecks",
       "unit": "army_camp",
       "atlas": "wrecks/army_camp/atlas.png",
       "frames": "wrecks/army_camp/atlas.json",
-      "manifest": "wrecks/army_camp/manifest.json"
+      "manifest": "wrecks/army_camp/manifest.json",
+      "rev": "f8ecc7b4e2"
     },
     {
       "kind": "wrecks",
       "unit": "ballista",
       "atlas": "wrecks/ballista/atlas.png",
       "frames": "wrecks/ballista/atlas.json",
-      "manifest": "wrecks/ballista/manifest.json"
+      "manifest": "wrecks/ballista/manifest.json",
+      "rev": "f35b61a86d"
     },
     {
       "kind": "wrecks",
       "unit": "barracks",
       "atlas": "wrecks/barracks/atlas.png",
       "frames": "wrecks/barracks/atlas.json",
-      "manifest": "wrecks/barracks/manifest.json"
+      "manifest": "wrecks/barracks/manifest.json",
+      "rev": "d0ee76b068"
     },
     {
       "kind": "wrecks",
       "unit": "cannon",
       "atlas": "wrecks/cannon/atlas.png",
       "frames": "wrecks/cannon/atlas.json",
-      "manifest": "wrecks/cannon/manifest.json"
+      "manifest": "wrecks/cannon/manifest.json",
+      "rev": "58dfea592c"
     },
     {
       "kind": "wrecks",
       "unit": "dragons_breath",
       "atlas": "wrecks/dragons_breath/atlas.png",
       "frames": "wrecks/dragons_breath/atlas.json",
-      "manifest": "wrecks/dragons_breath/manifest.json"
+      "manifest": "wrecks/dragons_breath/manifest.json",
+      "rev": "d8c7f50bf3"
     },
     {
       "kind": "wrecks",
       "unit": "farm",
       "atlas": "wrecks/farm/atlas.png",
       "frames": "wrecks/farm/atlas.json",
-      "manifest": "wrecks/farm/manifest.json"
+      "manifest": "wrecks/farm/manifest.json",
+      "rev": "8a3776236f"
     },
     {
       "kind": "wrecks",
       "unit": "jukebox",
       "atlas": "wrecks/jukebox/atlas.png",
       "frames": "wrecks/jukebox/atlas.json",
-      "manifest": "wrecks/jukebox/manifest.json"
+      "manifest": "wrecks/jukebox/manifest.json",
+      "rev": "6769ebdf7d"
     },
     {
       "kind": "wrecks",
       "unit": "lab",
       "atlas": "wrecks/lab/atlas.png",
       "frames": "wrecks/lab/atlas.json",
-      "manifest": "wrecks/lab/manifest.json"
+      "manifest": "wrecks/lab/manifest.json",
+      "rev": "5c958ad617"
     },
     {
       "kind": "wrecks",
       "unit": "mine",
       "atlas": "wrecks/mine/atlas.png",
       "frames": "wrecks/mine/atlas.json",
-      "manifest": "wrecks/mine/manifest.json"
+      "manifest": "wrecks/mine/manifest.json",
+      "rev": "b0ba357206"
     },
     {
       "kind": "wrecks",
       "unit": "mortar",
       "atlas": "wrecks/mortar/atlas.png",
       "frames": "wrecks/mortar/atlas.json",
-      "manifest": "wrecks/mortar/manifest.json"
+      "manifest": "wrecks/mortar/manifest.json",
+      "rev": "3c680587e0"
     },
     {
       "kind": "wrecks",
       "unit": "mystic_barracks",
       "atlas": "wrecks/mystic_barracks/atlas.png",
       "frames": "wrecks/mystic_barracks/atlas.json",
-      "manifest": "wrecks/mystic_barracks/manifest.json"
+      "manifest": "wrecks/mystic_barracks/manifest.json",
+      "rev": "62d8495210"
     },
     {
       "kind": "wrecks",
       "unit": "prism",
       "atlas": "wrecks/prism/atlas.png",
       "frames": "wrecks/prism/atlas.json",
-      "manifest": "wrecks/prism/manifest.json"
+      "manifest": "wrecks/prism/manifest.json",
+      "rev": "457878d0ab"
     },
     {
       "kind": "wrecks",
       "unit": "spike_launcher",
       "atlas": "wrecks/spike_launcher/atlas.png",
       "frames": "wrecks/spike_launcher/atlas.json",
-      "manifest": "wrecks/spike_launcher/manifest.json"
+      "manifest": "wrecks/spike_launcher/manifest.json",
+      "rev": "ad255efecb"
     },
     {
       "kind": "wrecks",
       "unit": "storage",
       "atlas": "wrecks/storage/atlas.png",
       "frames": "wrecks/storage/atlas.json",
-      "manifest": "wrecks/storage/manifest.json"
+      "manifest": "wrecks/storage/manifest.json",
+      "rev": "17d35c9251"
     },
     {
       "kind": "wrecks",
       "unit": "tesla",
       "atlas": "wrecks/tesla/atlas.png",
       "frames": "wrecks/tesla/atlas.json",
-      "manifest": "wrecks/tesla/manifest.json"
+      "manifest": "wrecks/tesla/manifest.json",
+      "rev": "412b25333c"
     },
     {
       "kind": "wrecks",
       "unit": "town_hall",
       "atlas": "wrecks/town_hall/atlas.png",
       "frames": "wrecks/town_hall/atlas.json",
-      "manifest": "wrecks/town_hall/manifest.json"
+      "manifest": "wrecks/town_hall/manifest.json",
+      "rev": "3837ea89cb"
     },
     {
       "kind": "wrecks",
       "unit": "wall",
       "atlas": "wrecks/wall/atlas.png",
       "frames": "wrecks/wall/atlas.json",
-      "manifest": "wrecks/wall/manifest.json"
+      "manifest": "wrecks/wall/manifest.json",
+      "rev": "7d2476d152"
     },
     {
       "kind": "wrecks",
       "unit": "watchtower",
       "atlas": "wrecks/watchtower/atlas.png",
       "frames": "wrecks/watchtower/atlas.json",
-      "manifest": "wrecks/watchtower/manifest.json"
+      "manifest": "wrecks/watchtower/manifest.json",
+      "rev": "9d3544f8d4"
     },
     {
       "kind": "wrecks",
       "unit": "xbow",
       "atlas": "wrecks/xbow/atlas.png",
       "frames": "wrecks/xbow/atlas.json",
-      "manifest": "wrecks/xbow/manifest.json"
+      "manifest": "wrecks/xbow/manifest.json",
+      "rev": "a7e6ec272f"
     },
     {
       "kind": "obstacles",
       "unit": "grass_patch",
       "atlas": "obstacles/grass_patch/atlas.png",
       "frames": "obstacles/grass_patch/atlas.json",
-      "manifest": "obstacles/grass_patch/manifest.json"
+      "manifest": "obstacles/grass_patch/manifest.json",
+      "rev": "5c224e918a"
     },
     {
       "kind": "obstacles",
       "unit": "rock_large",
       "atlas": "obstacles/rock_large/atlas.png",
       "frames": "obstacles/rock_large/atlas.json",
-      "manifest": "obstacles/rock_large/manifest.json"
+      "manifest": "obstacles/rock_large/manifest.json",
+      "rev": "cd845573bf"
     },
     {
       "kind": "obstacles",
       "unit": "rock_small",
       "atlas": "obstacles/rock_small/atlas.png",
       "frames": "obstacles/rock_small/atlas.json",
-      "manifest": "obstacles/rock_small/manifest.json"
+      "manifest": "obstacles/rock_small/manifest.json",
+      "rev": "bef4fa3fa9"
     },
     {
       "kind": "obstacles",
       "unit": "tree_oak",
       "atlas": "obstacles/tree_oak/atlas.png",
       "frames": "obstacles/tree_oak/atlas.json",
-      "manifest": "obstacles/tree_oak/manifest.json"
+      "manifest": "obstacles/tree_oak/manifest.json",
+      "rev": "414b6ebd40"
     },
     {
       "kind": "obstacles",
       "unit": "tree_pine",
       "atlas": "obstacles/tree_pine/atlas.png",
       "frames": "obstacles/tree_pine/atlas.json",
-      "manifest": "obstacles/tree_pine/manifest.json"
+      "manifest": "obstacles/tree_pine/manifest.json",
+      "rev": "3cb2eca725"
     },
     {
       "kind": "villagers",
       "unit": "bird_dove",
       "atlas": "villagers/bird_dove/atlas.png",
       "frames": "villagers/bird_dove/atlas.json",
-      "manifest": "villagers/bird_dove/manifest.json"
+      "manifest": "villagers/bird_dove/manifest.json",
+      "rev": "a9816f2b88"
     },
     {
       "kind": "villagers",
       "unit": "bird_heron",
       "atlas": "villagers/bird_heron/atlas.png",
       "frames": "villagers/bird_heron/atlas.json",
-      "manifest": "villagers/bird_heron/manifest.json"
+      "manifest": "villagers/bird_heron/manifest.json",
+      "rev": "9c14237dde"
     },
     {
       "kind": "villagers",
       "unit": "bird_sparrow",
       "atlas": "villagers/bird_sparrow/atlas.png",
       "frames": "villagers/bird_sparrow/atlas.json",
-      "manifest": "villagers/bird_sparrow/manifest.json"
+      "manifest": "villagers/bird_sparrow/manifest.json",
+      "rev": "e52f5f46d2"
     },
     {
       "kind": "villagers",
       "unit": "chicken",
       "atlas": "villagers/chicken/atlas.png",
       "frames": "villagers/chicken/atlas.json",
-      "manifest": "villagers/chicken/manifest.json"
+      "manifest": "villagers/chicken/manifest.json",
+      "rev": "6f1e99cb38"
     },
     {
       "kind": "villagers",
       "unit": "dog",
       "atlas": "villagers/dog/atlas.png",
       "frames": "villagers/dog/atlas.json",
-      "manifest": "villagers/dog/manifest.json"
+      "manifest": "villagers/dog/manifest.json",
+      "rev": "645d4b8089"
     },
     {
       "kind": "villagers",
       "unit": "dragon",
       "atlas": "villagers/dragon/atlas.png",
       "frames": "villagers/dragon/atlas.json",
-      "manifest": "villagers/dragon/manifest.json"
+      "manifest": "villagers/dragon/manifest.json",
+      "rev": "ba717adaf5"
     },
     {
       "kind": "villagers",
       "unit": "merchant",
       "atlas": "villagers/merchant/atlas.png",
       "frames": "villagers/merchant/atlas.json",
-      "manifest": "villagers/merchant/manifest.json"
+      "manifest": "villagers/merchant/manifest.json",
+      "rev": "d98de9cee4"
     },
     {
       "kind": "villagers",
       "unit": "owl",
       "atlas": "villagers/owl/atlas.png",
       "frames": "villagers/owl/atlas.json",
-      "manifest": "villagers/owl/manifest.json"
+      "manifest": "villagers/owl/manifest.json",
+      "rev": "69dcc5928e"
     },
     {
       "kind": "villagers",
       "unit": "stall",
       "atlas": "villagers/stall/atlas.png",
       "frames": "villagers/stall/atlas.json",
-      "manifest": "villagers/stall/manifest.json"
+      "manifest": "villagers/stall/manifest.json",
+      "rev": "eae7815b40"
     },
     {
       "kind": "villagers",
       "unit": "thief",
       "atlas": "villagers/thief/atlas.png",
       "frames": "villagers/thief/atlas.json",
-      "manifest": "villagers/thief/manifest.json"
+      "manifest": "villagers/thief/manifest.json",
+      "rev": "05d08ab301"
     },
     {
       "kind": "villagers",
       "unit": "villager",
       "atlas": "villagers/villager/atlas.png",
       "frames": "villagers/villager/atlas.json",
-      "manifest": "villagers/villager/manifest.json"
+      "manifest": "villagers/villager/manifest.json",
+      "rev": "9d81b1cdb5"
     },
     {
       "kind": "figures",
       "unit": "caravan_soldier",
       "atlas": "figures/caravan_soldier/atlas.png",
       "frames": "figures/caravan_soldier/atlas.json",
-      "manifest": "figures/caravan_soldier/manifest.json"
+      "manifest": "figures/caravan_soldier/manifest.json",
+      "rev": "b52b49c3ef"
     },
     {
       "kind": "figures",
       "unit": "fish",
       "atlas": "figures/fish/atlas.png",
       "frames": "figures/fish/atlas.json",
-      "manifest": "figures/fish/manifest.json"
+      "manifest": "figures/fish/manifest.json",
+      "rev": "e1ea165677"
     },
     {
       "kind": "figures",
       "unit": "traveller_courier",
       "atlas": "figures/traveller_courier/atlas.png",
       "frames": "figures/traveller_courier/atlas.json",
-      "manifest": "figures/traveller_courier/manifest.json"
+      "manifest": "figures/traveller_courier/manifest.json",
+      "rev": "3f167e0c4e"
     },
     {
       "kind": "figures",
       "unit": "traveller_hunter",
       "atlas": "figures/traveller_hunter/atlas.png",
       "frames": "figures/traveller_hunter/atlas.json",
-      "manifest": "figures/traveller_hunter/manifest.json"
+      "manifest": "figures/traveller_hunter/manifest.json",
+      "rev": "b1ded80047"
     },
     {
       "kind": "figures",
       "unit": "traveller_marketgoer",
       "atlas": "figures/traveller_marketgoer/atlas.png",
       "frames": "figures/traveller_marketgoer/atlas.json",
-      "manifest": "figures/traveller_marketgoer/manifest.json"
+      "manifest": "figures/traveller_marketgoer/manifest.json",
+      "rev": "1b056eb74a"
     },
     {
       "kind": "figures",
       "unit": "traveller_monk",
       "atlas": "figures/traveller_monk/atlas.png",
       "frames": "figures/traveller_monk/atlas.json",
-      "manifest": "figures/traveller_monk/manifest.json"
+      "manifest": "figures/traveller_monk/manifest.json",
+      "rev": "ba40dd6858"
     },
     {
       "kind": "figures",
       "unit": "traveller_patrol",
       "atlas": "figures/traveller_patrol/atlas.png",
       "frames": "figures/traveller_patrol/atlas.json",
-      "manifest": "figures/traveller_patrol/manifest.json"
+      "manifest": "figures/traveller_patrol/manifest.json",
+      "rev": "e8e01d1c4e"
     },
     {
       "kind": "figures",
       "unit": "traveller_shepherd",
       "atlas": "figures/traveller_shepherd/atlas.png",
       "frames": "figures/traveller_shepherd/atlas.json",
-      "manifest": "figures/traveller_shepherd/manifest.json"
+      "manifest": "figures/traveller_shepherd/manifest.json",
+      "rev": "3c72f5ce9a"
     },
     {
       "kind": "figures",
       "unit": "traveller_wanderer",
       "atlas": "figures/traveller_wanderer/atlas.png",
       "frames": "figures/traveller_wanderer/atlas.json",
-      "manifest": "figures/traveller_wanderer/manifest.json"
+      "manifest": "figures/traveller_wanderer/manifest.json",
+      "rev": "16361ad3a4"
     },
     {
       "kind": "figures",
       "unit": "traveller_woodcutter",
       "atlas": "figures/traveller_woodcutter/atlas.png",
       "frames": "figures/traveller_woodcutter/atlas.json",
-      "manifest": "figures/traveller_woodcutter/manifest.json"
+      "manifest": "figures/traveller_woodcutter/manifest.json",
+      "rev": "36201b16e4"
     },
     {
       "kind": "projectiles",
       "unit": "arrow",
       "atlas": "projectiles/arrow/atlas.png",
       "frames": "projectiles/arrow/atlas.json",
-      "manifest": "projectiles/arrow/manifest.json"
+      "manifest": "projectiles/arrow/manifest.json",
+      "rev": "d91b6b7f91"
     },
     {
       "kind": "projectiles",
       "unit": "ballista_bolt",
       "atlas": "projectiles/ballista_bolt/atlas.png",
       "frames": "projectiles/ballista_bolt/atlas.json",
-      "manifest": "projectiles/ballista_bolt/manifest.json"
+      "manifest": "projectiles/ballista_bolt/manifest.json",
+      "rev": "a693326941"
     },
     {
       "kind": "projectiles",
       "unit": "cannonball",
       "atlas": "projectiles/cannonball/atlas.png",
       "frames": "projectiles/cannonball/atlas.json",
-      "manifest": "projectiles/cannonball/manifest.json"
+      "manifest": "projectiles/cannonball/manifest.json",
+      "rev": "202a039100"
     },
     {
       "kind": "projectiles",
       "unit": "dragon_rocket",
       "atlas": "projectiles/dragon_rocket/atlas.png",
       "frames": "projectiles/dragon_rocket/atlas.json",
-      "manifest": "projectiles/dragon_rocket/manifest.json"
+      "manifest": "projectiles/dragon_rocket/manifest.json",
+      "rev": "b6f2ea4dea"
     },
     {
       "kind": "projectiles",
       "unit": "mm_shell",
       "atlas": "projectiles/mm_shell/atlas.png",
       "frames": "projectiles/mm_shell/atlas.json",
-      "manifest": "projectiles/mm_shell/manifest.json"
+      "manifest": "projectiles/mm_shell/manifest.json",
+      "rev": "6339fb0f32"
     },
     {
       "kind": "projectiles",
       "unit": "mortar_shell",
       "atlas": "projectiles/mortar_shell/atlas.png",
       "frames": "projectiles/mortar_shell/atlas.json",
-      "manifest": "projectiles/mortar_shell/manifest.json"
+      "manifest": "projectiles/mortar_shell/manifest.json",
+      "rev": "6f0602b9ee"
     },
     {
       "kind": "projectiles",
       "unit": "ornithopter_bomb",
       "atlas": "projectiles/ornithopter_bomb/atlas.png",
       "frames": "projectiles/ornithopter_bomb/atlas.json",
-      "manifest": "projectiles/ornithopter_bomb/manifest.json"
+      "manifest": "projectiles/ornithopter_bomb/manifest.json",
+      "rev": "d98ae18cae"
     },
     {
       "kind": "projectiles",
       "unit": "spike_ball",
       "atlas": "projectiles/spike_ball/atlas.png",
       "frames": "projectiles/spike_ball/atlas.json",
-      "manifest": "projectiles/spike_ball/manifest.json"
+      "manifest": "projectiles/spike_ball/manifest.json",
+      "rev": "0be8f55a89"
     },
     {
       "kind": "projectiles",
       "unit": "trebuchet_stone",
       "atlas": "projectiles/trebuchet_stone/atlas.png",
       "frames": "projectiles/trebuchet_stone/atlas.json",
-      "manifest": "projectiles/trebuchet_stone/manifest.json"
+      "manifest": "projectiles/trebuchet_stone/manifest.json",
+      "rev": "318d6ada49"
     },
     {
       "kind": "projectiles",
       "unit": "xbow_bolt",
       "atlas": "projectiles/xbow_bolt/atlas.png",
       "frames": "projectiles/xbow_bolt/atlas.json",
-      "manifest": "projectiles/xbow_bolt/manifest.json"
+      "manifest": "projectiles/xbow_bolt/manifest.json",
+      "rev": "a095362fb2"
     }
   ]
 }
