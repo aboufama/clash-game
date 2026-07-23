@@ -11,6 +11,7 @@ import type {
     ReplayStatusPayload
 } from './ReplayPresentationEvents';
 import { createReplayPresentationRandom } from './ReplayPresentationStream';
+import { DRAGON_POD_DURATION_RND_MS, dragonPodBearing, planDragonPodFlight } from './DragonPodFlightPlan';
 
 export interface WorldBattleTeslaCharge {
     defense: ReplayEntityRef;
@@ -633,20 +634,46 @@ export class WorldBattlePresentationModel {
                 );
                 if (targets.length === 0) break;
                 const rng = createReplayPresentationRandom(seed);
+                // MIRROR — MainScene volley aim: the battery faces its
+                // primary victim (targets[0] on the replay path) at volley
+                // start; each pod departs on the shared fan bearing.
+                const baseFacing = Math.atan2(
+                    targets[0].worldY - payload.at.worldY,
+                    targets[0].worldX - payload.at.worldX
+                );
                 for (let index = 0; index < payload.salvoSize; index++) {
                     const target = targets[index % targets.length];
                     const jittered = shiftedPoint(target, (rng() - 0.5) * 2, (rng() - 0.5) * 2);
                     const launchT = eventT + index * payload.staggerMs;
-                    const distance = Math.hypot(
-                        jittered.worldX - payload.at.worldX,
-                        jittered.worldY - (payload.at.worldY - 52)
-                    );
+                    // Mirrors MainScene's CONSTANT-SPEED pod clock
+                    // (2026-07-22): the SHARED flight plan re-times the
+                    // waypoint path by arc length and cruises the whole
+                    // flight at DRAGON_POD_SPEED_PX_MS, so the clock is
+                    // boost + total-arc-length time plus the same slim rnd
+                    // fold — same rng draw count/order per pod as before
+                    // (jitterX, jitterY, duration). The start point is the
+                    // battery footprint center (the model's established
+                    // mouth approximation).
+                    const flightPlan = planDragonPodFlight({
+                        volleySeed: seed,
+                        podIndex: index,
+                        bearing: dragonPodBearing(seed, index, payload.salvoSize, baseFacing),
+                        startX: payload.at.worldX,
+                        startY: payload.at.worldY,
+                        endX: jittered.worldX,
+                        endY: jittered.worldY,
+                        targetDistTiles: Math.hypot(
+                            jittered.gridX - payload.at.gridX,
+                            jittered.gridY - payload.at.gridY
+                        )
+                    });
                     this.dragonRockets.push({
                         id: `${eventId}:${index}`,
                         source: payload.at,
                         target: jittered,
                         startT: launchT,
-                        endT: launchT + 230 + distance / 0.4 + rng() * 100,
+                        endT: launchT + flightPlan.boostMs + flightPlan.arcMs
+                            + rng() * DRAGON_POD_DURATION_RND_MS,
                         seed: (seed + index * 0x9e3779b9) >>> 0
                     });
                 }

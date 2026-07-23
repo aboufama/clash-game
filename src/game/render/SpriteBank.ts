@@ -254,11 +254,52 @@ interface ShadowBinding {
 interface ShadowRec {
     body?: Phaser.GameObjects.Image;
     ground?: Phaser.GameObjects.Image;
+    /** Layered dragons_breath surfaces: holder-back under / holder-front
+     *  over the body ('box') stamp, so the crate can kick inside its mount. */
+    back?: Phaser.GameObjects.Image;
+    front?: Phaser.GameObjects.Image;
     bodyBind?: ShadowBinding;
     groundBind?: ShadowBinding;
+    backBind?: ShadowBinding;
+    frontBind?: ShadowBinding;
     /** Carrier-level status tint (chill etc.) — Graphics has no setTint, so
      *  effects plumb theirs through setCarrierTint; sticky across stamps. */
     tint?: number | null;
+}
+
+/** Dragon's Breath runtime box motion (the LAYERED battery): a SHARP lurch
+ *  opposite the aim axis at every 50 ms serpentine launch — full deflection
+ *  the instant the pod leaves, then a quadratic spring home over
+ *  KICK_RETURN_MS — plus the CoC exit-power scale pop (fast attack, quick
+ *  settle). Both apply to the BOX stamp only; the holder layers and the
+ *  ground pad never move. Pure deterministic f(time − lastFireTime,
+ *  ballistaAngle): live and replay derive the identical motion, and outside
+ *  the volley window the box rests at EXACTLY (0, 0, scale 1). */
+const DRAGONS_KICK_PX = 3.6;
+const DRAGONS_KICK_RETURN_MS = 140;
+const DRAGONS_POP_ATTACK_MS = 40;
+const DRAGONS_POP_RETURN_MS = 110;
+const DRAGONS_POP_MAX = 0.06;
+const DRAGONS_KICK_REST = { dx: 0, dy: 0, scale: 1 };
+function dragonsBoxKick(
+    building: { lastFireTime?: number; ballistaAngle?: number } | undefined,
+    time: number
+): { dx: number; dy: number; scale: number } {
+    const lastFire = building?.lastFireTime;
+    const el = lastFire !== undefined ? time - lastFire : Number.POSITIVE_INFINITY;
+    if (!(el >= 0) || el >= 750 + DRAGONS_KICK_RETURN_MS) return DRAGONS_KICK_REST;
+    const age = el - Math.min(15, Math.floor(el / 50)) * 50;
+    const spring = Math.max(0, 1 - age / DRAGONS_KICK_RETURN_MS);
+    const kick = DRAGONS_KICK_PX * spring * spring;
+    const env = age < DRAGONS_POP_ATTACK_MS
+        ? age / DRAGONS_POP_ATTACK_MS
+        : Math.max(0, 1 - (age - DRAGONS_POP_ATTACK_MS) / DRAGONS_POP_RETURN_MS);
+    const aim = building?.ballistaAngle ?? 0;
+    return {
+        dx: -Math.cos(aim) * kick,
+        dy: -Math.sin(aim) * 0.5 * kick,
+        scale: 1 + DRAGONS_POP_MAX * env
+    };
 }
 
 class SpriteBankImpl {
@@ -613,7 +654,7 @@ class SpriteBankImpl {
 
     // ------------------------------------------------------------ shadows --
 
-    private shadowFor(scene: Phaser.Scene, carrier: Phaser.GameObjects.Graphics, atlasKey: string, slot: 'body' | 'ground'): Phaser.GameObjects.Image {
+    private shadowFor(scene: Phaser.Scene, carrier: Phaser.GameObjects.Graphics, atlasKey: string, slot: 'body' | 'ground' | 'back' | 'front'): Phaser.GameObjects.Image {
         let rec = this.shadows.get(carrier);
         if (!rec) {
             rec = {};
@@ -652,6 +693,8 @@ class SpriteBankImpl {
             if (!carrier.scene || !carrier.active) {
                 rec.body?.destroy();
                 rec.ground?.destroy();
+                rec.back?.destroy();
+                rec.front?.destroy();
                 this.shadows.delete(carrier);
             }
         }
@@ -663,8 +706,23 @@ class SpriteBankImpl {
         if (rec) {
             rec.body?.destroy();
             rec.ground?.destroy();
+            rec.back?.destroy();
+            rec.front?.destroy();
             this.shadows.delete(carrier);
         }
+    }
+
+    /** Retire the layered holder stamps when a carrier returns to a
+     *  single-surface pick (dormant/deploy states reuse the same carrier). */
+    private releaseHolderStamps(carrier: Phaser.GameObjects.Graphics) {
+        const rec = this.shadows.get(carrier);
+        if (!rec) return;
+        rec.back?.destroy();
+        rec.front?.destroy();
+        rec.back = undefined;
+        rec.front = undefined;
+        rec.backBind = undefined;
+        rec.frontBind = undefined;
     }
 
     private stamp(
@@ -674,7 +732,7 @@ class SpriteBankImpl {
         meta: FrameMeta,
         x: number,
         y: number,
-        opts: { alpha?: number; tint?: number | null; depth?: number; slot?: 'body' | 'ground'; scaleMul?: number; flipX?: boolean; followRotation?: boolean; snapCell?: number } = {}
+        opts: { alpha?: number; tint?: number | null; depth?: number; slot?: 'body' | 'ground' | 'back' | 'front'; scaleMul?: number; flipX?: boolean; followRotation?: boolean; snapCell?: number } = {}
     ) {
         const slot = opts.slot ?? 'body';
         const img = this.shadowFor(scene, carrier, atlasKey, slot);
@@ -696,9 +754,11 @@ class SpriteBankImpl {
             originX: meta.originX,
             originY: meta.originY
         };
-        rec[slot === 'body' ? 'bodyBind' : 'groundBind'] = bind;
-        // Status tint (chill) is carrier-level and sticky; a per-stamp tint wins.
-        const tint = opts.tint ?? (slot === 'body' ? rec.tint : null) ?? null;
+        rec[slot === 'body' ? 'bodyBind' : slot === 'ground' ? 'groundBind'
+            : slot === 'back' ? 'backBind' : 'frontBind'] = bind;
+        // Status tint (chill) is carrier-level and sticky; a per-stamp tint
+        // wins. Every non-ground surface (body + layered holders) tints.
+        const tint = opts.tint ?? (slot !== 'ground' ? rec.tint : null) ?? null;
         if (tint != null) img.setTint(tint);
         else img.clearTint();
         this.apply(carrier, img, bind);
@@ -767,6 +827,8 @@ class SpriteBankImpl {
             if (!carrier.scene || !carrier.active) continue; // reaped by sweep below
             if (rec.body?.scene && rec.bodyBind) this.apply(carrier, rec.body, rec.bodyBind);
             if (rec.ground?.scene && rec.groundBind) this.apply(carrier, rec.ground, rec.groundBind);
+            if (rec.back?.scene && rec.backBind) this.apply(carrier, rec.back, rec.backBind);
+            if (rec.front?.scene && rec.frontBind) this.apply(carrier, rec.front, rec.frontBind);
         }
         this.sweep(time);
     }
@@ -778,9 +840,10 @@ class SpriteBankImpl {
         const rec = this.shadows.get(carrier);
         if (!rec) return;
         rec.tint = tint;
-        if (rec.body?.scene) {
-            if (tint != null) rec.body.setTint(tint);
-            else rec.body.clearTint();
+        for (const img of [rec.body, rec.back, rec.front]) {
+            if (!img?.scene) continue;
+            if (tint != null) img.setTint(tint);
+            else img.clearTint();
         }
     }
 
@@ -837,11 +900,27 @@ class SpriteBankImpl {
         } | undefined,
         time: number,
         opts: { wallTag?: string; jukeboxPlaying?: boolean } = {}
-    ): { meta: FrameMeta; atlasKey: string; ground?: FrameMeta } | null {
+    ): { meta: FrameMeta; atlasKey: string; ground?: FrameMeta; back?: FrameMeta; front?: FrameMeta } | null {
         const found = this.buildingEntry(type, level, opts.wallTag);
         if (!found?.entry.states?.idle) return null;
         const { entry, atlasKey } = found;
         const st = entry.states as Record<string, BuildingStateEntry>;
+        // Layered risen battery (dragons_breath): the manifest bakes sibling
+        // holder states (`<state>_hb` / `<state>_hf`) on the exact same
+        // angle × frame grid as the box state — attach them by index so
+        // syncBuilding can stamp holder-back / box / holder-front. States
+        // without siblings (dormant/deploy, every other building) return
+        // the plain single-surface pick.
+        const withSurfaces = (
+            state: string, aIdx2: number, k: number, meta: FrameMeta
+        ): { meta: FrameMeta; atlasKey: string; ground?: FrameMeta; back?: FrameMeta; front?: FrameMeta } => {
+            const back = st[`${state}_hb`]?.frames[aIdx2]?.[k];
+            const front = st[`${state}_hf`]?.frames[aIdx2]?.[k];
+            return {
+                meta, atlasKey, ground: entry.ground,
+                ...(back && front ? { back, front } : {})
+            };
+        };
         const nAngles = st.idle.angles;
         const angle = building?.ballistaAngle ?? 0;
         const TAU = Math.PI * 2;
@@ -920,7 +999,10 @@ class SpriteBankImpl {
             }
             const maxAge = Number(frames[frames.length - 1]?.ov?.fireAge ?? 0) + 180;
             if (el >= 0 && el < maxAge) {
-                return { meta: nearest(frames, 'fireAge', el), atlasKey, ground: entry.ground };
+                const picked = nearest(frames, 'fireAge', el);
+                return withSurfaces('fire',
+                    angleIdx(st.fire.angles || st.fire.frames.length),
+                    frames.indexOf(picked), picked);
             }
         }
         // Tesla charge cycle.
@@ -951,9 +1033,9 @@ class SpriteBankImpl {
         if (st.idle.loopMs && idle.length > 1) {
             const tOff = building?.id ? fnv(building.id) : 0;
             const k = Math.floor((((time + tOff) % st.idle.loopMs) / st.idle.loopMs) * idle.length) % idle.length;
-            return { meta: idle[k], atlasKey, ground: entry.ground };
+            return withSurfaces('idle', aIdx, k, idle[k]);
         }
-        return { meta: idle[0], atlasKey, ground: entry.ground };
+        return withSurfaces('idle', aIdx, 0, idle[0]);
     }
 
     /** Shadow-stamp a building body; returns false → caller draws vector. */
@@ -979,7 +1061,25 @@ class SpriteBankImpl {
         const cy = (gridX + (def?.width ?? 1) / 2 + (gridY + (def?.height ?? 1) / 2)) * (TILE_HEIGHT / 2);
         // A hair below the carrier: overlays drawn INTO the carrier (patina)
         // must win the equal-depth tie the later-created image would take.
-        this.stamp(scene, carrier, pick.atlasKey, pick.meta, cx, cy, { alpha, tint, depth: carrier.depth - 0.05 });
+        if (pick.back && pick.front) {
+            // LAYERED risen battery: holder-back under the box under
+            // holder-front (micro depth offsets inside the building band —
+            // the front prong overlaps the crate so it sits IN the mount).
+            // The runtime kick + CoC scale pop apply to the BOX stamp only;
+            // the holders and the ground-baked pad never move, and at rest
+            // the kick is exactly (0, 0, 1) so the three stamps recompose
+            // the original composite pixel-for-pixel.
+            const kick = dragonsBoxKick(building, time);
+            this.stamp(scene, carrier, pick.atlasKey, pick.back, cx, cy,
+                { alpha, tint, depth: carrier.depth - 0.07, slot: 'back' });
+            this.stamp(scene, carrier, pick.atlasKey, pick.meta, cx + kick.dx, cy + kick.dy,
+                { alpha, tint, depth: carrier.depth - 0.05, scaleMul: kick.scale });
+            this.stamp(scene, carrier, pick.atlasKey, pick.front, cx, cy,
+                { alpha, tint, depth: carrier.depth - 0.03, slot: 'front' });
+        } else {
+            this.releaseHolderStamps(carrier);
+            this.stamp(scene, carrier, pick.atlasKey, pick.meta, cx, cy, { alpha, tint, depth: carrier.depth - 0.05 });
+        }
         // Walls never go through the ground bake (fully dynamic), so their
         // baked ground decal rides along as a second shadow just underneath.
         if (type === 'wall' && pick.ground) {

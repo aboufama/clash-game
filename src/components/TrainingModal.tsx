@@ -11,7 +11,7 @@ const TROOP_FLAVOR: Record<string, string> = {
     archer: 'A ranged fighter who attacks safely from behind the line.',
     physicianscart: "A mobile healer that restores nearby allies from a physician's cart.",
     phalanx: 'A runic shield formation that releases nine Bound Spirits on death.',
-    wallbreaker: 'Volatile Emberling that races to walls and erupts on impact.',
+    wallbreaker: 'Volatile Wall Breaker that races to walls and erupts on impact.',
     goblinplunderer: 'Greedy sprinter that hits resource buildings 3x harder. Terrible in a fight.',
     clockworkbeetle: 'Wind-up bomb that scuttles to the nearest building and pops.',
     stormmage: 'Chain lightning hits up to 4 targets per strike.',

@@ -319,7 +319,10 @@ try {
           teslaCharged: ov.charged === true,
           fillLevel: ov.fillLevel ?? 1,
           doorOpen: ov.doorOpen ?? 0,
-          deploy01: ov.deploy01 ?? 0
+          deploy01: ov.deploy01 ?? 0,
+          // Layered-surface filter (dragons_breath risen states): the design
+          // fn draws only the requested surface; undefined = full composite.
+          bakeSurface: ov.surface
         }
         const g = scene.make.graphics({ x: 0, y: 0 }, false)
         B.drawBuildingVisual({
@@ -534,7 +537,8 @@ try {
     fireAge: 'lastFireTime', tension: 'ballistaStringTension', bolt: 'ballistaBoltLoaded',
     recoil: 'cannonRecoilOffset', chargeAge: 'teslaCharging', charged: 'teslaCharged',
     fillLevel: 'fillLevel',
-    doorOpen: 'doorOpen', deploy01: 'deploy01', jukeboxPlaying: null, timeAt: null
+    doorOpen: 'doorOpen', deploy01: 'deploy01', surface: 'bakeSurface',
+    jukeboxPlaying: null, timeAt: null
   }
   // Fields that are deliberately NOT swept (identity, sim bookkeeping, or
   // runtime-overlay drivers like the mine's visiting-crew flag).
@@ -594,6 +598,9 @@ try {
     const covered = new Set([
       ...(nAngles > 1 ? ['ballistaAngle'] : []),
       ...(deployable ? ['deploy01'] : []),
+      // The layered-surface filter is swept at JOB level (surfaceJobs in the
+      // job builder below), not in the BAKE_PARAMS plan the audit reads.
+      ...(type === 'dragons_breath' ? ['bakeSurface'] : []),
       ...Object.values(plan).flatMap(seq => seq.flatMap(ov => Object.keys(ov).map(k => OV_FIELD[k]).filter(Boolean)))
     ])
     const uncovered = reads.filter(k => !covered.has(k) && !AUDIT_IGNORE.has(k))
@@ -642,19 +649,32 @@ try {
         // explicit deploy01 (the dormant/deploy strips below) always wins.
         // The ground pass stays unpinned: it bakes the home-canonical pad.
         const risenPin = deployable ? { deploy01: 1 } : {}
+        // LAYERED SURFACES (dragons_breath): every risen per-angle state
+        // (idle + fire) bakes THREE times — the box (plain state name) and
+        // the two holder layers as sibling states '<state>_hb'/'<state>_hf'
+        // on the identical angle × frame grid, sharing the one world anchor
+        // so the three stamps recompose pixel-exact. Dormant/deploy strips
+        // and every other building stay single-surface composites.
+        const surfaceJobs = type === 'dragons_breath'
+          ? [['box', ''], ['holderBack', '_hb'], ['holderFront', '_hf']]
+          : [[null, '']]
         const jobs = [{ pass: 'ground', angle: angleList[0], ov: {} }]
         const index = [] // parallel to jobs[1:]: {state, angleIdx, frameIdx, ov}
         for (let a = 0; a < nAngles; a++) {
           idleTimes.forEach((t, k) => {
-            const ov = { ...risenPin, timeAt: t }
-            jobs.push({ pass: 'body', angle: angleList[a], ov })
-            index.push({ state: 'idle', a, k, ov })
+            for (const [surf, tag] of surfaceJobs) {
+              const ov = { ...risenPin, timeAt: t, ...(surf ? { surface: surf } : {}) }
+              jobs.push({ pass: 'body', angle: angleList[a], ov })
+              index.push({ state: `idle${tag}`, a, k, ov })
+            }
           })
           for (const [state, seq] of Object.entries(plan)) {
             seq.forEach((ov, k) => {
-              const merged = { ...risenPin, ...ov }
-              jobs.push({ pass: 'body', angle: angleList[a], ov: merged })
-              index.push({ state, a, k, ov: merged })
+              for (const [surf, tag] of surfaceJobs) {
+                const merged = { ...risenPin, ...ov, ...(surf ? { surface: surf } : {}) }
+                jobs.push({ pass: 'body', angle: angleList[a], ov: merged })
+                index.push({ state: `${state}${tag}`, a, k, ov: merged })
+              }
             })
           }
         }
@@ -699,8 +719,9 @@ try {
           entry.states[ix.state] = entry.states[ix.state] ?? {
             angles: stAngles, frames: Array.from({ length: stAngles }, () => []),
             // Ambient loops replay at the probed period — the risen per-angle
-            // 'idle' and the buried 'dormant' share the one authored P.
-            ...((ix.state === 'idle' || ix.state === 'dormant') && loopMs ? { loopMs, loopExact: false } : {}),
+            // 'idle' (all surfaces) and the buried 'dormant' share the one
+            // authored P.
+            ...((ix.state.startsWith('idle') || ix.state === 'dormant') && loopMs ? { loopMs, loopExact: false } : {}),
             // Deploy-sweep provenance: the runtime receives deploy01 already
             // eased and picks by nearest ov.deploy01; these document the
             // curve (MainScene cubic-out over riseMs) and the baked bearing.

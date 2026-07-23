@@ -39,7 +39,7 @@
       "atlas": "buildings/dragons_breath/atlas.png",
       "frames": "buildings/dragons_breath/atlas.json",
       "manifest": "buildings/dragons_breath/manifest.json",
-      "rev": "2072793ee9"
+      "rev": "7d196fa76b"
     },
     {
       "kind": "buildings",
@@ -751,7 +751,7 @@
       "atlas": "projectiles/dragon_rocket/atlas.png",
       "frames": "projectiles/dragon_rocket/atlas.json",
       "manifest": "projectiles/dragon_rocket/manifest.json",
-      "rev": "b6f2ea4dea"
+      "rev": "42eb80ba6f"
     },
     {
       "kind": "projectiles",

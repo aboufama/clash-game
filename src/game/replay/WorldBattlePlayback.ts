@@ -1878,13 +1878,17 @@ export class WorldBattlePlayback {
             }
             const duration = Math.max(1, rocket.endT - rocket.startT);
             const age = replayT - rocket.startT;
-            const lift01 = Math.min(1, age / 230);
+            // Stylized lift split ≈ the live boost clock; the constant-speed
+            // clock (2026-07-22) makes point-blank flights shorter than the
+            // old fixed 230 ms, so cap the lift at 40% of the flight.
+            const liftMs = Math.min(230, duration * 0.4);
+            const lift01 = Math.min(1, age / liftMs);
             let x: number;
             let y: number;
             let previousX: number;
             let previousY: number;
             let groundProgress = 0;
-            if (age <= 230) {
+            if (age <= liftMs) {
                 const lift = lift01 * lift01;
                 const lean = (this.replayNoise(rocket.seed, 0) - 0.5) * 18;
                 x = source.x + lean * lift;
@@ -1893,7 +1897,7 @@ export class WorldBattlePlayback {
                 previousY = source.y - 52 * Math.max(0, lift - 0.12);
             } else {
                 groundProgress = Math.max(0, Math.min(1,
-                    (age - 230) / Math.max(1, duration - 230)));
+                    (age - liftMs) / Math.max(1, duration - liftMs)));
                 const startX = source.x + (this.replayNoise(rocket.seed, 0) - 0.5) * 18;
                 const startY = source.y - 52;
                 const wobble = Math.sin(groundProgress * Math.PI * 5

@@ -154,38 +154,39 @@ export class ProjectileRenderer {
 
         // Ember-Wyrm Reliquary language (Dragons_breathB palette): a
         // charred-oak firework tube with a lacquer-red nose and a gilt
-        // band. Deliberately SMALL — a fat arrow, not a log: total run
-        // −9..+12 (~21 px, ~15 texels baked; the old rocket was 25).
+        // band. Deliberately SMALL and SLIM — a fat arrow, not a log:
+        // total run −9..+12 (~21 px, ~15 texels baked), body 5 px wide
+        // (2026-07-22 slimming, ~17% off the 6 px tube; length kept).
 
         // Charred-oak body with a lit flank and a scorched seam
         g.fillStyle(level >= 2 ? 0x38291c : 0x33261b, 1); // OAK
-        g.fillRect(-3, -4, 6, 11);
+        g.fillRect(-2.5, -4, 5, 11);
         g.fillStyle(level >= 2 ? 0x46331f : 0x41301e, 1); // OAK_LIT
-        g.fillRect(-3, -4, 2.4, 11);
+        g.fillRect(-2.5, -4, 2, 11);
         g.fillStyle(0x160e08, 1); // SEAM
-        g.fillRect(1.8, -4, 1.2, 11);
+        g.fillRect(1.4, -4, 1.1, 11);
 
         // Gilt reliquary band (plain bronze at L1) + glint at max level
         g.fillStyle(level >= 2 ? 0xd8b25a : 0x7a6234, 1); // GILT / BRONZE
-        g.fillRect(-3, 3.4, 6, 1.9);
+        g.fillRect(-2.5, 3.4, 5, 1.9);
         if (level >= 2) {
             g.fillStyle(0xffe9b0, 0.95); // FLASH_CORE
-            g.fillRect(-2.1, 3.7, 1.3, 1.3);
+            g.fillRect(-1.8, 3.7, 1.2, 1.3);
         }
 
         // Lacquer-red nose cone with a lit edge
         g.fillStyle(level >= 2 ? 0xb0342a : 0x9c3026, 1); // RED
         g.beginPath();
         g.moveTo(0, -9);
-        g.lineTo(-3, -4);
-        g.lineTo(3, -4);
+        g.lineTo(-2.5, -4);
+        g.lineTo(2.5, -4);
         g.closePath();
         g.fillPath();
         g.fillStyle(0xd8564a, 1); // RED_LIT
         g.beginPath();
         g.moveTo(0, -9);
-        g.lineTo(-3, -4);
-        g.lineTo(-0.7, -4);
+        g.lineTo(-2.5, -4);
+        g.lineTo(-0.6, -4);
         g.closePath();
         g.fillPath();
 
@@ -193,15 +194,15 @@ export class ProjectileRenderer {
         if (level >= 2) {
             g.fillStyle(0x51401f, 1); // BRONZE_DK
             g.beginPath();
-            g.moveTo(-3, 4.6);
-            g.lineTo(-5, 8);
-            g.lineTo(-3, 7.6);
+            g.moveTo(-2.5, 4.6);
+            g.lineTo(-4.2, 8);
+            g.lineTo(-2.5, 7.6);
             g.closePath();
             g.fillPath();
             g.beginPath();
-            g.moveTo(3, 4.6);
-            g.lineTo(5, 8);
-            g.lineTo(3, 7.6);
+            g.moveTo(2.5, 4.6);
+            g.lineTo(4.2, 8);
+            g.lineTo(2.5, 7.6);
             g.closePath();
             g.fillPath();
         }
@@ -209,16 +210,16 @@ export class ProjectileRenderer {
         // Ember exhaust
         g.fillStyle(0xe06818, 0.95); // EMBER
         g.beginPath();
-        g.moveTo(-2, 7);
+        g.moveTo(-1.6, 7);
         g.lineTo(0, 12);
-        g.lineTo(2, 7);
+        g.lineTo(1.6, 7);
         g.closePath();
         g.fillPath();
         g.fillStyle(0xffa040, 0.9); // EMBER_HI
         g.beginPath();
-        g.moveTo(-1.1, 7);
+        g.moveTo(-0.9, 7);
         g.lineTo(0, 10.2);
-        g.lineTo(1.1, 7);
+        g.lineTo(0.9, 7);
         g.closePath();
         g.fillPath();
     }

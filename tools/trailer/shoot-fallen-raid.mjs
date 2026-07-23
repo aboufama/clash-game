@@ -35,17 +35,48 @@ await page.waitForSelector('.cloud-overlay', { hidden: true, timeout: 25000 }).c
 await page.addStyleTag({ content: `.app-container > :not(#game-container) { opacity: 0 !important; pointer-events: none !important; }` })
 page.on('console', msg => { const t = msg.text(); if (/toast|raid|attack|battle|fail|error/i.test(t)) console.log('[page]', t.slice(0, 200)) })
 await sleep(1000)
-// Onboarding: the first watchtower must be placed before any raid.
+// Onboarding: the first watchtower goes through its tutorial endpoint.
 const uid = session.player?.id ?? session.user?.id
-await page.evaluate(async userId => {
+const placed = await page.evaluate(async userId => {
   const { Backend } = await import('/src/game/backend/GameBackend.ts')
+  const world = Backend.getCachedWorld(userId)
+  if (!world) return 'no world'
+  if (world.buildings.some(b => b.type === 'watchtower')) return 'already'
   for (const [x, y] of [[18, 4], [4, 18], [20, 20], [2, 2], [12, 20]]) {
-    const done = await Backend.placeBuilding(userId, 'watchtower', x, y)
-    if (done) break
+    const occupied = world.buildings.some(b => {
+      const w = { town_hall: 3, army_camp: 3, farm: 3 }[b.type] ?? 2
+      return x < b.gridX + w && x + 2 > b.gridX && y < b.gridY + w && y + 2 > b.gridY
+    })
+    if (occupied) continue
+    world.buildings.push({ id: `wt_probe_${x}_${y}`, type: 'watchtower', gridX: x, gridY: y, level: 1 })
+    Backend.setCachedWorld(userId, world)
+    const response = await Backend.apiPost('/api/watchtower-tutorial/place', {
+      world: JSON.parse(JSON.stringify(world)), requestId: `wtp-${x}-${y}`
+    }).catch(e => ({ error: String(e) }))
+    return JSON.stringify(response).slice(0, 120)
   }
-  await Backend.saveNow(userId)
-  await window.__clashGM.loadBase()
+  return 'no spot'
 }, uid)
+console.log('watchtower:', placed)
+const bannerAgain = await api('POST', '/player/banner', { banner: { palette: 0, emblem: 3, pattern: 1 } })
+console.log('banner:', JSON.stringify(bannerAgain).slice(0, 80))
+// The raid gate also wants a trained army: camp + barracks, then warriors.
+const campResult = await page.evaluate(async userId => {
+  const { Backend } = await import('/src/game/backend/GameBackend.ts')
+  let ok = []
+  for (const [type, spots] of [['army_camp', [[20, 8], [8, 20], [1, 8]]], ['barracks', [[20, 12], [12, 20], [1, 12]]]]) {
+    for (const [x, y] of spots) {
+      const done = await Backend.placeBuilding(userId, type, x, y)
+      if (done) { ok.push(type); break }
+    }
+  }
+  await Backend.saveNow(userId).catch(e => { ok.push(String(e)) })
+  return ok.join(',')
+}, uid)
+console.log('military:', campResult)
+const trained = await api('POST', '/army/train', { type: 'warrior', count: 6, requestId: `ffr-train-${Date.now()}` })
+console.log('train:', JSON.stringify(trained).slice(0, 100))
+await page.evaluate(() => window.__clashGM.loadBase())
 await sleep(1500)
 await page.evaluate(() => {
   const gm = window.__clashGM
@@ -69,10 +100,11 @@ const hallAt = await page.evaluate(() => {
   scene.dayNight?.setPhaseOverride(0.3)
   const hall = scene.buildings.find(b => b.type === 'town_hall')
   if (!hall) return null
-  // A stampede of elephants straight onto the keep.
-  for (const [dx, dy] of [[-2, 0], [0, -2], [2, 3], [3, 1], [-1, 3], [3, -1]]) {
-    scene.spawnTroop(hall.gridX + 1 + dx, hall.gridY + 1 + dy, 'warelephant', 'PLAYER', 3)
-  }
+  // The exact combat path: health hits zero, destroyBuilding runs (rubble,
+  // splice, fallen standard) — surgically triggered instead of balancing an
+  // army against an unknown opponent.
+  hall.health = 0
+  scene.destroyBuilding(hall)
   return { x: hall.gridX, y: hall.gridY }
 })
 console.log('hall at', JSON.stringify(hallAt))
@@ -84,12 +116,39 @@ await page.evaluate(async at => {
   cam.setZoom(2.6)
   cam.centerOn(p.x, p.y)
 }, hallAt)
-const gone = await page.waitForFunction(() => {
-  const scene = window.__clashGame.scene.keys.MainScene
-  return !scene.buildings.some(b => b.type === 'town_hall')
-}, { timeout: 90000, polling: 500 }).then(() => true).catch(() => false)
+const gone = await page.evaluate(() => !window.__clashGame.scene.keys.MainScene.buildings.some(b => b.type === 'town_hall'))
 console.log('hall destroyed:', gone)
-await sleep(1600)
+for (const [name, delay] of [['f00', 60], ['f02', 180], ['f04', 200], ['f06', 200], ['f08', 200], ['f10', 240], ['f20', 900]]) {
+  await sleep(delay)
+  await page.screenshot({ path: `${OUT}-${name}.png` })
+}
+const diag = await page.evaluate(() => {
+  const scene = window.__clashGame.scene.keys.MainScene
+  return {
+    site: scene.fallenHallSite ?? null,
+    meta: scene.villageBannerMeta ? { identity: scene.villageBannerMeta.identity, allowFallback: scene.villageBannerMeta.allowFallback, banner: scene.villageBannerMeta.banner ?? null } : null,
+    gfx: Boolean(scene.hallBannerGfx),
+    design: Boolean(scene.hallBannerDesign),
+    mode: scene.mode
+  }
+})
+console.log('diag:', JSON.stringify(diag))
+const render = await page.evaluate(async () => {
+  const scene = window.__clashGame.scene.keys.MainScene
+  const g = scene.hallBannerGfx
+  const { IsoUtils } = await import('/src/game/utils/IsoUtils.ts')
+  const site = scene.fallenHallSite
+  const foot = site ? IsoUtils.cartToIso(site.gridX + 3 * 0.94, site.gridY + 3 * 0.94) : null
+  const cam = scene.cameras.main
+  const rubble = scene.children.list.filter(c => c.depth > (g?.depth ?? 0) && Math.abs((c.x ?? 0) - (foot?.x ?? 0)) < 80 && Math.abs((c.y ?? 0) - (foot?.y ?? 0)) < 80).length
+  return {
+    depth: g?.depth, visible: g?.visible, alpha: g?.alpha,
+    commands: g?.commandBuffer?.length ?? null,
+    foot, view: { x: Math.round(cam.worldView.x), y: Math.round(cam.worldView.y), w: Math.round(cam.worldView.width), h: Math.round(cam.worldView.height) },
+    overlapping: rubble
+  }
+})
+console.log('render:', JSON.stringify(render))
 await page.screenshot({ path: `${OUT}-after.png` })
 await browser.close()
 const act2 = await api('GET', '/attacks/active')

@@ -146,15 +146,15 @@ function bottomH(d: number): number {
  * sim-side mirror of drawBattery's own maw-face math (fsq edge-on squash,
  * FD/FH shear, PT projection), so MainScene's pods depart from the exact
  * red noses the fire frames empty, at every one of the 16 bearings. Sampled
- * at full deploy (drop = 0) ON THE KICKED BOX: at each launch instant
- * el = k·50 the recoil kick is at its 2.6 px peak (tk = 0 — and the baked
- * fire keyframes land on those same multiples of 50, so they show the
- * identical kick), which PT applies as an axis shift of −2.6; folded with
- * drawBattery's +2 / −1 muzzle-flare nudge the net anchor is (d − 0.6,
- * h − 1) — the tube's exit on the just-fired maw, dot-true. `behind`
- * mirrors the draw's breech-visibility pick (sinA < 0.05): the maw faces
- * up-screen, so the departing rocket should depth-sort BEHIND the battery
- * until clear.
+ * at full deploy (drop = 0) on the REST-geometry box — every baked frame
+ * is rest geometry now; the launch recoil is a RUNTIME translate of the
+ * box sprite surface (SpriteBank.dragonsBoxKick), which displaces the maw
+ * a few px for a beat around each launch (accepted sliver: the flare and
+ * boost separation hide it). The +2 / −1 nudge is drawBattery's
+ * muzzle-flare anchor — the tube's exit rather than the recessed nose
+ * disc. `behind` mirrors the draw's breech-visibility pick (sinA < 0.05):
+ * the maw faces up-screen, so the departing rocket should depth-sort
+ * BEHIND the battery until clear.
  */
 export function dragonsBreathTubeOrigin(
     podIndex: number,
@@ -163,7 +163,7 @@ export function dragonsBreathTubeOrigin(
     const cosA = Math.cos(ballistaAngle), sinA = Math.sin(ballistaAngle);
     const fsq = mix(0.45, 1, smooth01((sinA + 0.5) / 0.65));
     const { row, col } = tubeCell(podIndex & 15);
-    const d = 12 + (mix(9.5, 14.5, row / 3) - 12) * fsq + 2 - 2.6;
+    const d = 12 + (mix(9.5, 14.5, row / 3) - 12) * fsq + 2;
     const h = -30 + (mix(-21.8, -38.2, row / 3) + 30) * fsq - 1;
     const w = (col - 1.5) * 9.6;
     return {
@@ -263,6 +263,22 @@ export function drawDragonsBreathB(
     // Painter order: far collar → shaft hole → skull-lid (north) → jaw apron
     // (south) → riser drum → box + trunnions → near collar → flare (in box).
 
+    // LAYERED SURFACES (2026-07-22): the RISEN battery bakes as three sprite
+    // surfaces so the runtime can kick/scale-pop the crate INSIDE its planted
+    // mount — `building.bakeSurface` ('holderBack' | 'box' | 'holderFront',
+    // a bake-only state field like doorOpen/deploy01) filters the elevated
+    // pass; undefined draws today's full composite (runtime vector fallback,
+    // dormant/deploy states and the ground pass are always composite).
+    //   holderBack  = far collar, shaft + furnace, skull lid, jaw apron,
+    //                 riser drum, FAR trunnion arm
+    //   box         = the crate: faces, crest, roundels, maw, tubes, flares
+    //   holderFront = NEAR trunnion arm + near collar half (draws OVER the
+    //                 box so it visibly sits inside the mount)
+    const surface = (building as { bakeSurface?: 'holderBack' | 'box' | 'holderFront' } | undefined)?.bakeSurface;
+    const wantBack = surface === undefined || surface === 'holderBack';
+    const wantBox = surface === undefined || surface === 'box';
+    const wantFront = surface === undefined || surface === 'holderFront';
+
     const jawT = smooth01(deploy / JAW_DONE);
     const skullT = smooth01((deploy - SKULL_START) / (SKULL_DONE - SKULL_START));
     const sinkT = smooth01((deploy - SINK_START) / (1 - SINK_START));
@@ -294,10 +310,10 @@ export function drawDragonsBreathB(
             );
         }
     };
-    collarHalf(Math.PI, Math.PI * 2); // far (north) half — behind everything
+    if (wantBack) collarHalf(Math.PI, Math.PI * 2); // far (north) half — behind everything
 
     // ---- shaft mouth + furnace glow (hidden under the shut mouth) --------
-    if (deploy > 0.02) {
+    if (wantBack && deploy > 0.02) {
         graphics.fillStyle(0x100b07, alpha);
         graphics.fillEllipse(cx, cy - 6, 40, 20.8);
         graphics.fillStyle(0x070503, alpha);
@@ -308,8 +324,10 @@ export function drawDragonsBreathB(
     }
 
     // ---- THE COVER — skull-lid + fanged jaw apron ------------------------
-    drawSkullLid(graphics, cx, cy, alpha, skullT, sinkT, bob, eyeB, noseB, volleyGlow, time);
-    drawJawApron(graphics, cx, cy, alpha, jawT, seamB, volleyGlow);
+    if (wantBack) {
+        drawSkullLid(graphics, cx, cy, alpha, skullT, sinkT, bob, eyeB, noseB, volleyGlow, time);
+        drawJawApron(graphics, cx, cy, alpha, jawT, seamB, volleyGlow);
+    }
 
     // ---- riser drum (bronze turntable column, rises with the box) --------
     const aimRaw = building?.ballistaAngle ?? 0;
@@ -321,15 +339,15 @@ export function drawDragonsBreathB(
         while (d < -Math.PI) d += Math.PI * 2;
         A = RISE_BEARING + d * smooth01((deploy - AIM_BLEND) / (1 - AIM_BLEND));
     }
-    if (riseProg > 0.04) {
+    if (wantBack && riseProg > 0.04) {
         drawRiserDrum(graphics, cx, cy, alpha, drop, rising ? CLAMP_Y : null, A);
     }
     if (riseProg > 0.02) {
         drawBattery(graphics, cx, cy, alpha, A, drop, rising ? CLAMP_Y : null,
-            el, time, mawB, b, volleyGlow);
+            el, time, mawB, b, volleyGlow, wantBack, wantBox, wantFront);
     }
 
-    collarHalf(0, Math.PI); // near (south) half — masks the rise seam
+    if (wantFront) collarHalf(0, Math.PI); // near (south) half — masks the rise seam
 }
 
 // ==========================================================================
@@ -591,20 +609,18 @@ function drawBattery(
     graphics: G, cx: number, cy: number, alpha: number,
     A: number, drop: number, clampY: number | null,
     el: number, time: number, mawB: number,
-    b: (ph: number) => number, volleyGlow: number
+    b: (ph: number) => number, volleyGlow: number,
+    wantBack: boolean, wantBox: boolean, wantFront: boolean
 ): void {
     const cosA = Math.cos(A), sinA = Math.sin(A);
-    // Recoil shudder — one mechanical kick per 50 ms pod launch.
-    let kx = 0, ky = 0;
-    if (el < 800) {
-        const tk = (el % 50) / 50;
-        const kick = 2.6 * (1 - tk) * (1 - tk);
-        kx = -cosA * kick;
-        ky = -sinA * 0.5 * kick;
-    }
+    // No authored recoil: every frame bakes the box at its REST geometry.
+    // The launch kick is a RUNTIME translate of the baked BOX surface
+    // (SpriteBank.dragonsBoxKick) between the planted holder surfaces —
+    // in-frame motion here would double-kick the crate and shake the
+    // trunnions that must stay planted.
     const PT = (d: number, w: number, h: number): number[] => {
-        const x = cx + cosA * d - sinA * w + kx;
-        const y = cy + drop + h + sinA * 0.5 * d + cosA * 0.5 * w + ky;
+        const x = cx + cosA * d - sinA * w;
+        const y = cy + drop + h + sinA * 0.5 * d + cosA * 0.5 * w;
         return clampY !== null ? [x, Math.min(y, clampY)] : [x, y];
     };
     // Muzzle face squashes toward edge-on when aiming up-screen.
@@ -628,8 +644,9 @@ function drawBattery(
         graphics.fillCircle(boss[0], boss[1], 1.6);
     };
     const nearSide: 1 | -1 = cosA >= 0 ? 1 : -1;
-    drawArm(-nearSide as 1 | -1, 0.8);
+    if (wantBack) drawArm(-nearSide as 1 | -1, 0.8);
 
+    if (wantBox) {
     // --- top face ----------------------------------------------------------
     fillPoly(graphics, [
         PT(FACE_D_HI, -HALF_W, FACE_H_HI), PT(FACE_D_HI, HALF_W, FACE_H_HI),
@@ -711,12 +728,13 @@ function drawBattery(
         graphics.fillStyle(lerpColor(EMBER_DEEP, EMBER_HI, b(0.6)), alpha * 0.95);
         graphics.fillCircle(rp[0], rp[1], 1.9);
     }
+    } // end wantBox (crate body)
 
     // Near trunnion arm over the flank.
-    drawArm(nearSide, 1);
+    if (wantFront) drawArm(nearSide, 1);
 
     // --- THE MAW FACE — gilt-fanged frame + 4×4 rocket grid ---------------
-    if (sinA > -0.38) {
+    if (wantBox && sinA > -0.38) {
         const FB1 = PT(FD(FACE_D_LO), -HALF_W, FH(FACE_H_LO));
         const FB2 = PT(FD(FACE_D_LO), HALF_W, FH(FACE_H_LO));
         const FT2 = PT(FD(FACE_D_HI), HALF_W, FH(FACE_H_HI));

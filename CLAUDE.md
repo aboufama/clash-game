@@ -179,17 +179,22 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   Quartermaster and Frostfall were removed end-to-end; the earlier
   ward/recursion/giant/sharpshooter, pavisebearer/hawkeyeassassin and
   musket_ball deletions remain self-cleaning for old saves/replays. The
-  packed normal bank is now exactly **34,869 frames / 94 manifests** (after
+  packed normal bank is now exactly **37,621 frames / 94 manifests** (after
   the promoted 'Foundry Bastion' barracks rebake, +36 frames, the mortar
   wreck redesign, +4, the promoted 'Ember-Wyrm Reliquary' dragons_breath
   rebake, +840 — its first 16-angle aiming bake with dormant/deploy states —
   its matching wreck redesign, +2: the fallen Ember-Wyrm now bakes a
-  surviving ground scorch per level, and the strict dot↔launch fire
-  densification, +544: the battery's fire states now bake the exact 50 ms
+  surviving ground scorch per level, the strict dot↔launch fire
+  densification, +544: the battery's fire states bake the exact 50 ms
   serpentine cadence — 23 keyframes × 16 angles × 2 levels — so every maw
-  dot goes dark within ±25 ms of its own rocket departing).
+  dot goes dark within ±25 ms of its own rocket departing, and the LAYERED
+  battery split, +2,752: every risen idle/fire frame bakes three surfaces —
+  holder-back / box / holder-front (`<state>_hb`/`<state>_hf` sibling
+  states) — so SpriteBank stamps the crate as its own sprite between the
+  planted mount layers and drives the launch recoil + CoC scale pop at
+  runtime on the box stamp alone).
   The death bank contributes another 3,888 frames /
-  6 manifests, bringing the strict full gate to **38,757 / 100**.
+  6 manifests, bringing the strict full gate to **41,509 / 100**.
 - **DONE — Army Camp Core + two troop paths (2026-07-18):** the trainable
   roster is **18 troops**. Core unlocks from the highest completed online Army
   Camp: `warrior` (displayed as Barbarian) L1, `archer` L2,

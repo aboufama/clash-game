@@ -10,10 +10,10 @@
             {
               "file": "dragon_rocket_l1_a00_idle0.png",
               "texelW": 4,
-              "texelH": 14,
+              "texelH": 13,
               "cellWorldPx": 1.35,
               "originX": 0.4629629629629629,
-              "originY": 0.41798941798941786
+              "originY": 0.45014245014245
             }
           ]
         }
@@ -213,10 +213,10 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a12_idle0.png",
-              "texelW": 14,
+              "texelW": 13,
               "texelH": 4,
               "cellWorldPx": 1.35,
-              "originX": 0.41798941798941786,
+              "originX": 0.45014245014245,
               "originY": 0.4629629629629629
             }
           ]
@@ -281,11 +281,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a00_idle0.png",
-              "texelW": 8,
-              "texelH": 14,
+              "texelW": 6,
+              "texelH": 13,
               "cellWorldPx": 1.35,
-              "originX": 0.4814814814814804,
-              "originY": 0.41798941798941786
+              "originX": 0.47530864197530787,
+              "originY": 0.45014245014245
             }
           ]
         }
@@ -315,10 +315,10 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a02_idle0.png",
-              "texelW": 11,
+              "texelW": 10,
               "texelH": 11,
               "cellWorldPx": 1.35,
-              "originX": 0.6228956228956224,
+              "originX": 0.585185185185185,
               "originY": 0.44107744107744085
             }
           ]
@@ -333,10 +333,10 @@
             {
               "file": "dragon_rocket_l2_a03_idle0.png",
               "texelW": 14,
-              "texelH": 8,
+              "texelH": 7,
               "cellWorldPx": 1.35,
               "originX": 0.5608465608465605,
-              "originY": 0.35648148148148096
+              "originY": 0.4074074074074068
             }
           ]
         }
@@ -350,10 +350,10 @@
             {
               "file": "dragon_rocket_l2_a04_idle0.png",
               "texelW": 14,
-              "texelH": 8,
+              "texelH": 6,
               "cellWorldPx": 1.35,
               "originX": 0.5608465608465605,
-              "originY": 0.4814814814814804
+              "originY": 0.47530864197530787
             }
           ]
         }
@@ -417,10 +417,10 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a08_idle0.png",
-              "texelW": 8,
+              "texelW": 6,
               "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.4814814814814804,
+              "originX": 0.47530864197530787,
               "originY": 0.5608465608465605
             }
           ]
@@ -434,10 +434,10 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a09_idle0.png",
-              "texelW": 8,
+              "texelW": 7,
               "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.35648148148148096,
+              "originX": 0.4074074074074068,
               "originY": 0.5608465608465605
             }
           ]
@@ -452,10 +452,10 @@
             {
               "file": "dragon_rocket_l2_a10_idle0.png",
               "texelW": 11,
-              "texelH": 11,
+              "texelH": 10,
               "cellWorldPx": 1.35,
               "originX": 0.44107744107744085,
-              "originY": 0.6228956228956224
+              "originY": 0.585185185185185
             }
           ]
         }
@@ -469,10 +469,10 @@
             {
               "file": "dragon_rocket_l2_a11_idle0.png",
               "texelW": 13,
-              "texelH": 8,
+              "texelH": 7,
               "cellWorldPx": 1.35,
               "originX": 0.45014245014245,
-              "originY": 0.6064814814814812
+              "originY": 0.550264550264549
             }
           ]
         }
@@ -485,11 +485,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a12_idle0.png",
-              "texelW": 14,
-              "texelH": 8,
+              "texelW": 13,
+              "texelH": 6,
               "cellWorldPx": 1.35,
-              "originX": 0.41798941798941786,
-              "originY": 0.4814814814814804
+              "originX": 0.45014245014245,
+              "originY": 0.47530864197530787
             }
           ]
         }
@@ -520,10 +520,10 @@
             {
               "file": "dragon_rocket_l2_a14_idle0.png",
               "texelW": 11,
-              "texelH": 12,
+              "texelH": 11,
               "cellWorldPx": 1.35,
               "originX": 0.44107744107744085,
-              "originY": 0.40432098765432073
+              "originY": 0.44107744107744085
             }
           ]
         }

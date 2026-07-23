@@ -13,6 +13,7 @@ import { TroopDeathRenderer, isLargeTroopDeathType } from '../renderers/TroopDea
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
 import { dragonsBreathTubeOrigin } from '../renderers/redesign/Dragons_breathB';
+import { DRAGON_POD_DURATION_RND_MS, dragonPodBearing, planDragonPodFlight } from '../replay/DragonPodFlightPlan';
 import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
 import { DefenseSystem, peekDefenseTarget, type DefenseChargePhase } from '../systems/DefenseSystem';
 import { TargetingSystem } from '../systems/TargetingSystem';
@@ -1888,9 +1889,30 @@ export class MainScene extends Phaser.Scene {
                         // dragons_breath aim state still tracks (harmless) —
                         // the tournament art keeps its cover/riser visuals
                         // independent of aim until the battery is risen.
-                        b.ballistaTargetAngle = b.type === 'cannon'
+                        const bearing = b.type === 'cannon'
                             ? Math.atan2(end.y - (start.y - 14), end.x - start.x)
                             : Math.atan2(end.y - start.y, end.x - start.x);
+                        if (b.type === 'dragons_breath') {
+                            // The battery holds a 120° firing cone (owner
+                            // rule): while the victim's bearing stays within
+                            // ±60° of the DISPLAYED facing, the box does not
+                            // move — its rockets fan/home anywhere in the
+                            // cone, so a lone slow walker no longer drags the
+                            // whole machine around. Only when the victim
+                            // exits the cone does it re-lay, slewing fully
+                            // onto the new bearing (which becomes the next
+                            // hold center).
+                            const facing = b.ballistaAngle ?? bearing;
+                            const diff = Math.atan2(
+                                Math.sin(bearing - facing), Math.cos(bearing - facing));
+                            if (Math.abs(diff) > Math.PI / 3) {
+                                b.ballistaTargetAngle = bearing;
+                            } else {
+                                b.ballistaTargetAngle = facing;
+                            }
+                        } else {
+                            b.ballistaTargetAngle = bearing;
+                        }
                     }
                 }
 
@@ -2052,33 +2074,16 @@ export class MainScene extends Phaser.Scene {
                         b.deployTarget = undefined;
                     }
 
-                    // KICKBACK: the box physically kicks ~2 px opposite each
-                    // pod's launch bearing, snapping back over ~150 ms —
-                    // restarted by every 50 ms launch (a sustained shudder
-                    // that settles to EXACT rest after the last pod). It's a
-                    // carrier translate: the baked body stamp reconciles off
-                    // the carrier every frame while the pad + contact shadow
-                    // live in the ground bake, so the BOX kicks and the
-                    // ground stays put — additive with the baked in-frame
-                    // recoil. Deterministic f(el) on the anim clock; the
-                    // direction is the displayed facing, which the launch
-                    // ratchet stamps to each pod's bearing at its tick.
-                    // Absolute assignment each frame — never accumulates.
-                    const kickEl = b.lastFireTime !== undefined
-                        ? time - b.lastFireTime : Number.POSITIVE_INFINITY;
-                    let kickX = 0;
-                    let kickY = 0;
-                    if (kickEl >= 0 && kickEl < 750 + 160 && !b.isDestroyed && b.health > 0) {
-                        const latest = Math.min(15, Math.floor(kickEl / 50));
-                        const age = kickEl - latest * 50;
-                        const fall = Math.max(0, 1 - age / 150);
-                        const amp = 2.2 * fall * fall;
-                        const kA = b.ballistaAngle ?? 0;
-                        kickX = -Math.cos(kA) * amp;
-                        kickY = -Math.sin(kA) * 0.5 * amp;
-                    }
-                    if (b.graphics.x !== kickX || b.graphics.y !== kickY) {
-                        b.graphics.setPosition(kickX, kickY);
+                    // Launch recoil is NO LONGER a carrier translate (owner
+                    // supersede 2026-07-22): the LAYERED battery kicks its
+                    // baked BOX sprite between planted holder surfaces
+                    // inside SpriteBank (dragonsBoxKick — sharp lurch + CoC
+                    // scale pop on the box stamp only). The carrier itself
+                    // must sit at exact rest so all three stamps anchor
+                    // true; reset covers any stale offset from the retired
+                    // translate implementations.
+                    if (b.graphics.x !== 0 || b.graphics.y !== 0) {
+                        b.graphics.setPosition(0, 0);
                     }
                 }
 
@@ -2105,6 +2110,14 @@ export class MainScene extends Phaser.Scene {
                 }
                 const changed =
                     b.isFiring ||
+                    // Dragon's Breath volley window: the 23 baked fire
+                    // keyframes AND the runtime box kick/scale-pop
+                    // (SpriteBank.dragonsBoxKick) are both f(time −
+                    // lastFireTime) — restamp EVERY frame while the window
+                    // is hot. One baked building, three image stamps, no
+                    // vector tessellation: cheap.
+                    (b.type === 'dragons_breath' && b.lastFireTime !== undefined
+                        && time - b.lastFireTime >= 0 && time - b.lastFireTime < 1800) ||
                     this.selectedInWorld === b ||
                     alpha !== (b.lastDrawAlpha ?? 1) ||
                     b.health !== b.lastDrawHealth ||
@@ -7750,7 +7763,21 @@ export class MainScene extends Phaser.Scene {
             const rampAuthorizationInvalidated = removed.type === 'wall'
                 && troop.parked01 === undefined
                 && !!troop.navigationPlan?.rampWallId;
+            // A breach anywhere obsoletes every OTHER wall-chew in progress:
+            // the gap may reach this troop's objective without breaking
+            // through at all, and the target-lock hysteresis would otherwise
+            // keep it grinding its own segment (owner rule 2026-07-22).
+            const otherWallBreached = removed.type === 'wall'
+                && troop.health > 0
+                && troop.parked01 === undefined
+                && ((troop.target as { type?: string } | null)?.type === 'wall'
+                    || troop.strategicTarget?.type === 'wall')
+                && !intentDestroyed && !activeDestroyed;
 
+            if (otherWallBreached) {
+                troop.strategicTarget = null;
+                troop.target = null;
+            }
             if (intentDestroyed || rampAuthorizationInvalidated) {
                 // Losing the objective cancels its breach work; changing a
                 // authorized ray wall clears the intent so the tower selects
@@ -7762,7 +7789,7 @@ export class MainScene extends Phaser.Scene {
             }
 
             const urgent = intentDestroyed || activeDestroyed || routeBlockerDestroyed
-                || rampAuthorizationInvalidated;
+                || rampAuthorizationInvalidated || otherWallBreached;
             if (urgent) {
                 troop.navigationPlan = undefined;
                 troop.path = undefined;
@@ -13154,6 +13181,33 @@ export class MainScene extends Phaser.Scene {
         db.ballistaAngle = baseFacing;
         db.ballistaTargetAngle = baseFacing;
 
+        // === SPREAD-AWARE TRAVERSAL (owner 2026-07-22) ===
+        // One target (or a tight cluster): the box stays a frozen firing
+        // platform. A WIDE crowd: it swivels gently across the cluster over
+        // the volley — per-pod ballistaTargetAngle glides along the crowd's
+        // angular span (clamped to the ±60° cone) and the rotation lerp
+        // smooths it into one slow pan; ballistaAngle is never hard-stamped
+        // mid-volley, so there are no snaps. Bearings derive from the
+        // recorded targets, so live and replay traverse identically.
+        let sweepFromD = 0;
+        let sweepToD = 0;
+        if (potentialTargets.length > 1) {
+            let minD = Number.POSITIVE_INFINITY;
+            let maxD = Number.NEGATIVE_INFINITY;
+            for (const t of potentialTargets) {
+                const ti = IsoUtils.cartToIso(t.gridX, t.gridY);
+                const bTo = Math.atan2(ti.y - centerIso.y, ti.x - centerIso.x);
+                const d = Math.atan2(Math.sin(bTo - baseFacing), Math.cos(bTo - baseFacing));
+                if (d < minD) minD = d;
+                if (d > maxD) maxD = d;
+            }
+            const CONE = Math.PI / 3;
+            if (maxD - minD > 0.6) { // crowd wider than ~34° — worth a pan
+                sweepFromD = Math.max(-CONE, Math.min(CONE, minD));
+                sweepToD = Math.max(-CONE, Math.min(CONE, maxD));
+            }
+        }
+
         // === DETERMINISTIC VOLLEY THEATER SEED ===
         // recordReplayPresentation just installed this volley's event seed
         // (live capture), and the replay event apply installs the SAME seed
@@ -13165,23 +13219,18 @@ export class MainScene extends Phaser.Scene {
         // unrecorded battles (no capture), where no stream exists to match.
         const volleySeed = (this.activeReplayPresentationSeed
             ?? hashString(`${db.id}:dragons-volley:${db.lastFireTime ?? 0}`)) >>> 0;
-        const volleyHash01 = (tag: string) =>
-            (hashString(`${volleySeed}:dragons:${tag}`) >>> 0) / 0xffffffff;
 
         // === SALVO SWEEP: the box walks its barrage across a 150° cone ===
         // Pod i launches on an ordered fan bearing — a ±65° walk around the
         // volley-start facing plus ±8° per-pod jitter (max ±73°, inside the
-        // ±75° cone). As each pod launches, the DISPLAYED facing hard-steps
-        // onto its bearing: 16 mechanical ratchets across ~800 ms, not a
-        // lerp smear. Reload target-tracking is suppressed for exactly this
-        // window (see updateBuildingAnimations) and resumes right after.
-        const fanHalf = Math.PI * (65 / 180);
-        const sweepSign = volleyHash01('sweep-dir') < 0.5 ? -1 : 1;
-        const podBearing = (podIndex: number) => {
-            const walk01 = salvoSize > 1 ? podIndex / (salvoSize - 1) : 0.5;
-            const jitter = (volleyHash01(`fan:${podIndex}`) - 0.5) * Math.PI * (16 / 180);
-            return baseFacing + sweepSign * (walk01 * 2 - 1) * fanHalf + jitter;
-        };
+        // ±75° cone). The math is the SHARED dragonPodBearing (world-map
+        // spectate mirrors the same bearings). As each pod launches, the
+        // DISPLAYED facing hard-steps onto its bearing: 16 mechanical
+        // ratchets across ~800 ms, not a lerp smear. Reload target-tracking
+        // is suppressed for exactly this window (see
+        // updateBuildingAnimations) and resumes right after.
+        const podBearing = (podIndex: number) =>
+            dragonPodBearing(volleySeed, podIndex, salvoSize, baseFacing);
         db.salvoSweepUntil = this.animClockNow() + salvoSize * staggerMs + 150;
 
         for (let i = 0; i < salvoSize; i++) {
@@ -13196,24 +13245,38 @@ export class MainScene extends Phaser.Scene {
                 if (target && target.health > 0) {
                     const jitterX = (this.battleRandom() - 0.5) * 2.0;
                     const jitterY = (this.battleRandom() - 0.5) * 2.0;
-                    // The displayed facing ratchets onto this pod's bearing.
+                    // FIRING PLATFORM (owner 2026-07-22, final): against one
+                    // target or a tight cluster the box does not move at all
+                    // while shooting — the rockets' fan bearings alone carry
+                    // the spread. Against a WIDE crowd (sweep deltas set at
+                    // volley start) the box pans gently across the cluster:
+                    // only ballistaTargetAngle glides (the rotation lerp
+                    // smooths it), never a hard ballistaAngle stamp — no
+                    // snaps, no per-pod ratcheting. salvoSweepUntil keeps
+                    // reload tracking suppressed through the volley.
+                    if (sweepFromD !== sweepToD) {
+                        const u = salvoSize > 1 ? i / (salvoSize - 1) : 0;
+                        db.ballistaTargetAngle =
+                            baseFacing + sweepFromD + (sweepToD - sweepFromD) * u;
+                    }
                     const bearing = podBearing(i);
-                    db.ballistaAngle = bearing;
-                    db.ballistaTargetAngle = bearing;
+                    const facing = db.ballistaAngle ?? bearing;
                     // Launch from THIS pod's OWN red-nosed tube in the 4×4
                     // maw grid: dragonsBreathTubeOrigin mirrors the design's
                     // maw-face math (serpentine cell, edge-on squash), so
                     // pod i departs the exact tube the baked fire frames
                     // empty at el = i·50 ms — a 1:1 sprite/projectile
-                    // handoff. The old MOUTH constants are fallback-only.
-                    const tube = dragonsBreathTubeOrigin(i, bearing);
+                    // handoff. Origins use the LIVE DISPLAYED facing (the
+                    // hold center), so a held box means stable tube
+                    // positions. The old MOUTH constants are fallback-only.
+                    const tube = dragonsBreathTubeOrigin(i, facing);
                     const mouth = Number.isFinite(tube.x + tube.y) ? {
                         x: centerIso.x + tube.x,
                         y: centerIso.y + tube.y
                     } : {
-                        x: centerIso.x + Math.cos(bearing) * DRAGONS_BREATH_MOUTH_FORWARD_PX,
+                        x: centerIso.x + Math.cos(facing) * DRAGONS_BREATH_MOUTH_FORWARD_PX,
                         y: centerIso.y - DRAGONS_BREATH_MOUTH_RISE_PX
-                            + Math.sin(bearing) * 0.5 * DRAGONS_BREATH_MOUTH_FORWARD_PX
+                            + Math.sin(facing) * 0.5 * DRAGONS_BREATH_MOUTH_FORWARD_PX
                     };
                     this.shootDragonPod(
                         db, mouth, dbCenterX, dbCenterY,
@@ -13250,44 +13313,34 @@ export class MainScene extends Phaser.Scene {
         // live + replay derive the identical flight from the event seed.
         const h01 = (tag: string) =>
             (hashString(`${theater.volleySeed}:pod:${theater.podIndex}:${tag}`) >>> 0) / 0xffffffff;
-        const hSign = (tag: string) => (h01(tag) < 0.5 ? -1 : 1);
 
-        // PHASE 1 — BOOST: one CONSTANT screen direction (the bearing,
-        // iso-foreshortened 0.5, with a slight climb folded into the same
-        // line so the fan rises as it clears the box). Thrust builds u² —
-        // accelerating, nose locked on the track the whole burn.
+        // PHASE 1 — BOOST + the full waypoint script now come from the
+        // SHARED CONSTANT-SPEED flight plan (planDragonPodFlight): the same
+        // hash tags derive the same shapes as ever, but every waypoint t is
+        // re-timed by cumulative arc length and the whole flight cruises at
+        // DRAGON_POD_SPEED_PX_MS — equal clock = equal distance from tube
+        // to impact, with only a tiny hash-derived accel snap (~40-60 ms)
+        // ramping up out of the tube. World-map spectate builds the
+        // IDENTICAL plan from the recorded event seed
+        // (WorldBattlePresentationModel), so impact clocks stay in parity.
         //
-        // CLOSE-RANGE STRAIGHT SHOTS: inside ~4.5 tiles the firework detour
-        // reads absurd, so chaosScale fades the WHOLE detour continuously
-        // (0 at ≤4.5 tiles → 1 at ≥9): the boost bearing blends toward the
-        // landing line, and every arc waypoint later lerps onto the p0→end
-        // chord by the same factor — at 0 the rocket flies tube→landing in
-        // one straight line. Path shape only: clock, landing point, damage
-        // and draw order are untouched.
-        // Punchy exit: ~1.7× the original reach in the same 230 ms window,
-        // on a u^1.5 curve (harder off the line than u²) — the rocket SNAPS
-        // out of its tube. Only the drawn path changes; the flight clock
-        // formula below is byte-identical.
-        const boostLen = 78 + h01('boost-len') * 26;
-        const boostLift = 15 + h01('boost-lift') * 9;
-        const fanDX = Math.cos(theater.bearing) * boostLen;
-        const fanDY = Math.sin(theater.bearing) * 0.5 * boostLen - boostLift;
-        const fanAngle = Math.atan2(fanDY, fanDX);
-        const fanNorm = Math.hypot(fanDX, fanDY);
-        const targetDistTiles = Phaser.Math.Distance.Between(
-            launchGridX, launchGridY, targetGridX, targetGridY);
-        const chaosScale = Phaser.Math.Clamp((targetDistTiles - 4.5) / 4.5, 0, 1);
-        const lineAngle = Math.atan2(end.y - start.y, end.x - start.x);
-        const lineLen = Math.hypot(end.x - start.x, end.y - start.y);
-        let fanOff = fanAngle - lineAngle;
-        while (fanOff > Math.PI) fanOff -= Math.PI * 2;
-        while (fanOff < -Math.PI) fanOff += Math.PI * 2;
-        const boostAngle = lineAngle + fanOff * chaosScale;
-        // chaosScale 1 reproduces the fan vector exactly; 0 aims the burn
-        // at the landing point (capped so short lines keep room to fly).
-        const boostRun = fanNorm + (Math.min(fanNorm, lineLen * 0.45) - fanNorm) * (1 - chaosScale);
-        const boostDX = Math.cos(boostAngle) * boostRun;
-        const boostDY = Math.sin(boostAngle) * boostRun;
+        // CLOSE-RANGE STRAIGHT SHOTS keep their chaosScale fade inside the
+        // plan: the boost bearing blends toward the landing line and every
+        // arc waypoint lerps onto the p0→end chord — at 0 the rocket flies
+        // tube→landing in one straight line. Landing point, damage and
+        // recorded draw order are untouched.
+        const plan = planDragonPodFlight({
+            volleySeed: theater.volleySeed,
+            podIndex: theater.podIndex,
+            bearing: theater.bearing,
+            startX: start.x,
+            startY: start.y,
+            endX: end.x,
+            endY: end.y,
+            targetDistTiles: Phaser.Math.Distance.Between(
+                launchGridX, launchGridY, targetGridX, targetGridY)
+        });
+        const boostAngle = plan.boostAngle;
 
         // Create firecracker rocket graphics at the battery's elevated
         // mouth. Painter's-order depth from the launch tile now, along the
@@ -13344,16 +13397,10 @@ export class MainScene extends Phaser.Scene {
             shadow.setAlpha(Math.max(0.25, 1 - alt * 0.007));
         };
 
-        /** Boost path over u∈[0,1]: a straight line out of the tube along
-         *  the launch bearing, thrust building u^1.5 (snappier off the line
-         *  than u², same 1.0 endpoint) — never a curve. */
-        const boostAt = (u: number) => {
-            const w = u * Math.sqrt(u);
-            return {
-                x: startX + boostDX * w,
-                y: startY + boostDY * w
-            };
-        };
+        /** Boost sampler over u∈[0,1] of the boost clock: a straight line
+         *  out of the tube along the launch bearing — the plan's ~40-60 ms
+         *  accel snap, then EXACTLY the flight's constant cruise speed. */
+        const boostAt = plan.boostAt;
 
         // The in-flight munition is the canonical `dragon_rocket`. Its
         // shape lives in ProjectileRenderer (clears + redraws per call); the
@@ -13416,16 +13463,17 @@ export class MainScene extends Phaser.Scene {
             });
         }
 
-        // PHASE 1 — BOOST (230 ms): straight out of the mouth along the fan
-        // bearing. riseY stays the FLIGHT-TIME REFERENCE the arc duration
-        // is measured from (damage timing must not depend on the per-pod
-        // visual theater); the drawn position follows boostAt().
+        // PHASE 1 — BOOST (plan.boostMs, ≈150-200 ms): straight out of the
+        // mouth along the fan bearing at the flight's one cruise speed
+        // (after the tiny accel snap). The whole flight clock now derives
+        // from the plan's TOTAL ARC LENGTH; riseY only remains as the
+        // tween's nominal property target and the legacy rise reference.
         const riseY = startY - 52;
         let emittedLiftBlasts = 0;
         this.tweens.add({
             targets: pod,
             y: riseY,
-            duration: 230,
+            duration: plan.boostMs,
             ease: 'Quad.easeIn',
             onUpdate: this.replayPresentationCallback('dragon-liftoff-puffs', (tween: Phaser.Tweens.Tween) => {
                 const u = tween.progress;
@@ -13456,102 +13504,30 @@ export class MainScene extends Phaser.Scene {
         });
 
         const flyArc = () => {
-        // Flight TIME keeps the pre-rework formula, measured from the fixed
-        // reference point (the mouth column at riseY) — so the impact and
-        // applyLocalTroopDamage land on the same clock the sim always had.
-        // The VISIBLE path below is free theater between the eruption exit
-        // and that exact landing point.
-        const arcStartY = riseY;
-        const dist = Phaser.Math.Distance.Between(startX, arcStartY, end.x, end.y);
+        // CONSTANT-SPEED CLOCK (owner 2026-07-22): the arc tween covers the
+        // plan's TOTAL ARC LENGTH at the boost cruise speed — equal clock =
+        // equal distance through carry, veer and homing alike (the old
+        // formula paced the straight chord and dawdled through the detour).
+        // Still exactly ONE battleRandom draw from the same forked
+        // 'dragon-arc-start' stream — the slim ×40 fold — so live and
+        // replay derive the identical duration. Local applyLocalTroopDamage
+        // rides this tween's onComplete; AUTHORITATIVE damage is settled
+        // server-side by the credit/DPS model
+        // (server/attack-domain/simulation.ts), which never consumes client
+        // flight time.
         let emittedArcEmbers = 0;
-        const flightDuration = dist / 0.4 + this.battleRandom() * 100;
+        const flightDuration = plan.arcMs + this.battleRandom() * DRAGON_POD_DURATION_RND_MS;
         // Trail step (fraction of the arc clock) — per-rocket h01 phase so
         // the sixteen streaks don't strobe in lockstep.
         const dtTrail = 0.035 + h01('trail-dt') * 0.02;
 
-        // -- Waypoint script: hold the line, then veer, then find the target --
-        // PHASE 1 tail — STRAIGHT CARRY: the boost track continues
-        // unbroken into the arc for ~6-10% of the arc clock (~60-130 ms),
-        // so launch reads as ONE straight line (≈290-330 ms total with the
-        // 230 ms boost, ~25% of the full flight) before anything bends.
-        const p0 = boostAt(1);
-        const carry01 = 0.06 + h01('carry') * 0.04;
-        const carryLen = 30 + h01('carry-len') * 16;
-        const waypoints: { x: number; y: number; t: number }[] = [{ x: p0.x, y: p0.y, t: 0 }];
-        let wx = p0.x + Math.cos(boostAngle) * carryLen;
-        let wy = p0.y + Math.sin(boostAngle) * carryLen;
-        waypoints.push({ x: wx, y: wy, t: carry01 });
-        // PHASE 2 — the VEER: 1-2 kinks off the line. The wildness lives
-        // here now — but tamer than the old instant scatter: 20°-52° snaps
-        // (was 34°-86°) over a shorter reach.
-        const chaosEnd01 = carry01 + 0.14 + h01('chaos-end') * 0.12;
-        const chaosKinks = 1 + Math.floor(h01('chaos-kinks') * 2); // 1-2 veer kinks
-        const chaosReach = Math.min(64, 20 + dist * 0.08);
-        let wDir = boostAngle;
-        for (let k = 0; k < chaosKinks; k++) {
-            wDir += hSign(`ck-s:${k}`) * (0.35 + h01(`ck:${k}`) * 0.55); // 20°-52° snap
-            const seg = (chaosReach / chaosKinks) * (0.5 + h01(`cl:${k}`) * 0.5);
-            wx += Math.cos(wDir) * seg;
-            // Iso-foreshortened lateral, still climbing a touch — the veer
-            // happens in the air, not on the lawn.
-            wy += Math.sin(wDir) * 0.5 * seg - (6 + h01(`cc:${k}`) * 10);
-            waypoints.push({
-                x: wx, y: wy,
-                t: carry01 + (chaosEnd01 - carry01) * ((k + 1) / chaosKinks)
-            });
-        }
-        // Homing run-in: 2-3 decaying zigzag kinks, arriving EXACTLY at end
-        // (the damage point) — the swarm converging on the enemy.
-        const zigzagKinks = 2 + Math.floor(h01('zig-n') * 2);
-        const homeDX = end.x - wx;
-        const homeDY = end.y - wy;
-        const homeLen = Math.hypot(homeDX, homeDY) || 1;
-        const perpX = -homeDY / homeLen;
-        const perpY = homeDX / homeLen;
-        let zigSide = hSign('zig-s');
-        for (let k = 0; k < zigzagKinks; k++) {
-            const f = (k + 1) / (zigzagKinks + 1);
-            const amp = Math.min(34, 10 + homeLen * 0.10)
-                * (0.7 + h01(`za:${k}`) * 0.6) * (1 - f * 0.6);
-            waypoints.push({
-                x: wx + homeDX * f + perpX * amp * zigSide,
-                y: wy + homeDY * f + perpY * amp * zigSide,
-                t: chaosEnd01 + (1 - chaosEnd01) * f
-            });
-            zigSide = -zigSide;
-        }
-        waypoints.push({ x: end.x, y: end.y, t: 1 });
-
-        // CLOSE/MID-RANGE: fade the whole detour onto the p0→end chord by
-        // chaosScale (each waypoint lerps toward the chord point at its own
-        // clock fraction) — 0 flies dead straight tube→landing, mid-range
-        // veers mildly, far shots keep the full firework. p0 and end are
-        // already ON the chord, so phase seams stay continuous.
-        if (chaosScale < 1) {
-            for (const wp of waypoints) {
-                const lx = p0.x + (end.x - p0.x) * wp.t;
-                const ly = p0.y + (end.y - p0.y) * wp.t;
-                wp.x = lx + (wp.x - lx) * chaosScale;
-                wp.y = ly + (wp.y - ly) * chaosScale;
-            }
-        }
-
-        /** Piecewise-linear flight sampler — the sharp corners ARE the
-         *  firework read. Returns the active segment for nose rotation. */
-        const flightAt = (t: number): { x: number; y: number; seg: number } => {
-            if (t <= 0) return { x: waypoints[0].x, y: waypoints[0].y, seg: 1 };
-            for (let k = 1; k < waypoints.length; k++) {
-                if (t <= waypoints[k].t || k === waypoints.length - 1) {
-                    const a = waypoints[k - 1];
-                    const b = waypoints[k];
-                    const span = Math.max(1e-6, b.t - a.t);
-                    const f = Phaser.Math.Clamp((t - a.t) / span, 0, 1);
-                    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, seg: k };
-                }
-            }
-            const last = waypoints[waypoints.length - 1];
-            return { x: last.x, y: last.y, seg: waypoints.length - 1 };
-        };
+        // The waypoint script (straight carry → 1-2 veer kinks → decaying
+        // homing zigzag into the exact damage point), the chaosScale chord
+        // fade AND the arc-length re-time all live in the shared plan; the
+        // sharp corners ARE the firework read, and flightAt returns the
+        // active segment for nose rotation. veerEndT is the re-timed clock
+        // fraction where the veer ends (the behind-box depth gate below).
+        const { waypoints, flightAt, veerEndT } = plan;
 
         this.tweens.add({
             targets: pod,
@@ -13569,7 +13545,7 @@ export class MainScene extends Phaser.Scene {
                 const trackDepth = depthForProjectile(
                     launchGridX + (targetGridX - launchGridX) * t,
                     launchGridY + (targetGridY - launchGridY) * t);
-                pod.setDepth(theater.behindBox && t < chaosEnd01
+                pod.setDepth(theater.behindBox && t < veerEndT
                     ? Math.min(trackDepth, boxDepth)
                     : trackDepth);
                 // The rocket noses along its current leg, snapping at the
@@ -13585,7 +13561,7 @@ export class MainScene extends Phaser.Scene {
                 drawTrail(back => {
                     const tj = t - back * dtTrail;
                     if (tj >= 0) return flightAt(tj);
-                    const ub = 1 + (tj * flightDuration) / 230;
+                    const ub = 1 + (tj * flightDuration) / plan.boostMs;
                     return ub > 0.02 ? boostAt(ub) : null;
                 });
                 placeShadow(at.x, at.y, breechIso.y + (end.y - breechIso.y) * t);

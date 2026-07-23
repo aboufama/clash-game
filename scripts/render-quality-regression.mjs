@@ -735,16 +735,16 @@ assert.equal(emittedPngs.some(file => /^buildings\/wall\/.*_gate_/.test(file)), 
 const normalFramesByKind = { ...framesByKind };
 delete normalFramesByKind.troop_deaths;
 assert.deepEqual(normalFramesByKind,
-  { buildings: 9_333, figures: 168, obstacles: 872, projectiles: 326, troops: 21_168, villagers: 2_924, wrecks: 78 },
-  'the 34,869-frame normal sprite bank is incomplete');
+  { buildings: 12_085, figures: 168, obstacles: 872, projectiles: 326, troops: 21_168, villagers: 2_924, wrecks: 78 },
+  'the 37,621-frame normal sprite bank is incomplete');
 assert.equal(Object.entries(framesByKind)
   .filter(([kind]) => kind !== 'troop_deaths')
-  .reduce((total, [, frames]) => total + frames, 0), 34_869,
+  .reduce((total, [, frames]) => total + frames, 0), 37_621,
   'the packed normal sprite bank changed frame count');
 assert.equal(framesByKind.troop_deaths, 3_888,
   'death bank must include exactly the six canonical large-troop atlases');
-assert.equal(frameCount, 38_757,
-  '9,333 building + 21,168 troop + 3,888 death + 78 wreck + 872 obstacle + 2,924 villager + 168 figure + 326 projectile frames');
+assert.equal(frameCount, 41_509,
+  '12,085 building + 21,168 troop + 3,888 death + 78 wreck + 872 obstacle + 2,924 villager + 168 figure + 326 projectile frames');
 assert.deepEqual(emittedPngs.sort(), [...atlasPackedPngs].sort(),
   'every emitted sprite PNG must be packed into exactly one unit atlas');
 for (const png of referencedPngs) {
