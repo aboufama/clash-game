@@ -2032,6 +2032,35 @@ export class MainScene extends Phaser.Scene {
                         b.deployFrom = undefined;
                         b.deployTarget = undefined;
                     }
+
+                    // KICKBACK: the box physically kicks ~2 px opposite each
+                    // pod's launch bearing, snapping back over ~150 ms —
+                    // restarted by every 50 ms launch (a sustained shudder
+                    // that settles to EXACT rest after the last pod). It's a
+                    // carrier translate: the baked body stamp reconciles off
+                    // the carrier every frame while the pad + contact shadow
+                    // live in the ground bake, so the BOX kicks and the
+                    // ground stays put — additive with the baked in-frame
+                    // recoil. Deterministic f(el) on the anim clock; the
+                    // direction is the displayed facing, which the launch
+                    // ratchet stamps to each pod's bearing at its tick.
+                    // Absolute assignment each frame — never accumulates.
+                    const kickEl = b.lastFireTime !== undefined
+                        ? time - b.lastFireTime : Number.POSITIVE_INFINITY;
+                    let kickX = 0;
+                    let kickY = 0;
+                    if (kickEl >= 0 && kickEl < 750 + 160 && !b.isDestroyed && b.health > 0) {
+                        const latest = Math.min(15, Math.floor(kickEl / 50));
+                        const age = kickEl - latest * 50;
+                        const fall = Math.max(0, 1 - age / 150);
+                        const amp = 2.2 * fall * fall;
+                        const kA = b.ballistaAngle ?? 0;
+                        kickX = -Math.cos(kA) * amp;
+                        kickY = -Math.sin(kA) * 0.5 * amp;
+                    }
+                    if (b.graphics.x !== kickX || b.graphics.y !== kickY) {
+                        b.graphics.setPosition(kickX, kickY);
+                    }
                 }
 
                 // Full vector re-tessellation is the most expensive per-frame cost in the
@@ -13267,6 +13296,22 @@ export class MainScene extends Phaser.Scene {
             }
         };
 
+        // === GROUND SHADOW: one small soft blob per rocket tracking its
+        // ground projection — x directly under the rocket, y walking the
+        // launch→impact ground line — shrinking and fading with altitude.
+        // Spike-launcher bag-shadow precedent: 0x18220f ellipse at depth
+        // 950, under every entity so it never covers units. Updated in the
+        // same pass as the trail; deterministic, no RNG.
+        const shadow = this.trackBattleFx(this.add.graphics());
+        pixelEllipse(shadow, 0, 0, 5, 2.2, 0x18220f, 0.3);
+        shadow.setDepth(950);
+        const placeShadow = (px: number, py: number, groundY: number) => {
+            const alt = Math.max(0, groundY - py);
+            shadow.setPosition(px, groundY + 2);
+            shadow.setScale(Math.max(0.35, 1 - alt * 0.006));
+            shadow.setAlpha(Math.max(0.25, 1 - alt * 0.007));
+        };
+
         /** Boost path over u∈[0,1]: a straight line out of the tube along
          *  the launch bearing, thrust building u^1.5 (snappier off the line
          *  than u², same 1.0 endpoint) — never a curve. */
@@ -13363,6 +13408,7 @@ export class MainScene extends Phaser.Scene {
                     const uj = u - back * 0.13;
                     return uj > 0.02 ? boostAt(uj) : null;
                 });
+                placeShadow(at.x, at.y, breechIso.y);
                 const wanted = Math.floor(tween.progress * 5);
                 while (emittedLiftBlasts < wanted) {
                     emittedLiftBlasts++;
@@ -13510,6 +13556,7 @@ export class MainScene extends Phaser.Scene {
                     const ub = 1 + (tj * flightDuration) / 230;
                     return ub > 0.02 ? boostAt(ub) : null;
                 });
+                placeShadow(at.x, at.y, breechIso.y + (end.y - breechIso.y) * t);
 
                 // A tight ember ribbon — uniform glowing motes riding the
                 // actual zigzag track, no grey smog.
@@ -13538,6 +13585,7 @@ export class MainScene extends Phaser.Scene {
             onComplete: this.replayPresentationCallback('dragon-impact', () => {
                 pod.destroy();
                 trail.destroy();
+                shadow.destroy();
                 screenShake(this, 85, 0.0016);
                 // Impact layers sort with the world at the impact tile.
                 const fxDepth = depthForGroundEffect(targetGridX, targetGridY);
@@ -13561,25 +13609,29 @@ export class MainScene extends Phaser.Scene {
                 // exact draw ledger. The 50 ms launch cadence staggers 16
                 // bursts into a rolling finale; capped at 14 sparks + 1
                 // ring per burst.
+                // Dialed back (owner 2026-07-22): a pleasing festival pop,
+                // not a screen-filler — 9 sparks, 2 dimmer cores, shorter
+                // throw, smaller/quicker ring, earlier wink-outs. The
+                // rolling-finale character rides the 50 ms stagger.
                 this.trackBattleFx(PixelFx.ring(this, end.x, end.y - 6, {
-                    r0: 4, r1: 24 + h01('fw-ring') * 8, squash: 0.6, thick0: 2,
-                    color: 0xffe9b0, alpha: 0.9, life: 260,
+                    r0: 4, r1: 16 + h01('fw-ring') * 6, squash: 0.6, thick0: 2,
+                    color: 0xffe9b0, alpha: 0.75, life: 220,
                     ease: 'Quad.easeOut', depth: fxDepth + 6,
                     blend: Phaser.BlendModes.ADD
                 }));
-                const SPARKS = 14;
+                const SPARKS = 9;
                 for (let k = 0; k < SPARKS; k++) {
-                    const core = k < 3;
+                    const core = k < 2;
                     const sparkAngle = (k / SPARKS) * Math.PI * 2 + (h01(`fw-a:${k}`) - 0.5) * 0.5;
-                    const reach = 26 + h01(`fw-s:${k}`) * 26;
-                    const sparkLife = 520 + h01(`fw-l:${k}`) * 280;
+                    const reach = 18 + h01(`fw-s:${k}`) * 14;
+                    const sparkLife = 420 + h01(`fw-l:${k}`) * 200;
                     const gravity = 24 + h01(`fw-g:${k}`) * 12;
-                    const winkAt = 0.5 + h01(`fw-w:${k}`) * 0.35;
-                    const size = core ? 3.2 : 2.4 + h01(`fw-z:${k}`) * 0.8;
+                    const winkAt = 0.4 + h01(`fw-w:${k}`) * 0.3;
+                    const size = core ? 3 : 2.4 + h01(`fw-z:${k}`) * 0.8;
                     const sparkColor = core ? 0xffe9b0 : (k % 2 === 0 ? 0xd8b25a : 0xd8564a);
                     const spark = this.trackBattleFx(this.add.graphics()) as Phaser.GameObjects.Graphics & { fw01: number };
                     if (core) spark.setBlendMode(Phaser.BlendModes.ADD);
-                    pixelRect(spark, -size / 2, -size / 2, size, size, sparkColor, 1);
+                    pixelRect(spark, -size / 2, -size / 2, size, size, sparkColor, core ? 0.8 : 1);
                     spark.setPosition(end.x, end.y - 6);
                     spark.setDepth(fxDepth + 7);
                     spark.fw01 = 0;
