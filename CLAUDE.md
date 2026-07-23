@@ -179,10 +179,17 @@ defenses and troops become sprite sheets (one frame per angle + animation).
   Quartermaster and Frostfall were removed end-to-end; the earlier
   ward/recursion/giant/sharpshooter, pavisebearer/hawkeyeassassin and
   musket_ball deletions remain self-cleaning for old saves/replays. The
-  packed normal bank is now exactly **33,483 frames / 94 manifests** (after
-  the promoted 'Foundry Bastion' barracks rebake, +36 frames, and the mortar
-  wreck redesign, +4). The death bank contributes another 3,888 frames /
-  6 manifests, bringing the strict full gate to **37,371 / 100**.
+  packed normal bank is now exactly **34,869 frames / 94 manifests** (after
+  the promoted 'Foundry Bastion' barracks rebake, +36 frames, the mortar
+  wreck redesign, +4, the promoted 'Ember-Wyrm Reliquary' dragons_breath
+  rebake, +840 — its first 16-angle aiming bake with dormant/deploy states —
+  its matching wreck redesign, +2: the fallen Ember-Wyrm now bakes a
+  surviving ground scorch per level, and the strict dot↔launch fire
+  densification, +544: the battery's fire states now bake the exact 50 ms
+  serpentine cadence — 23 keyframes × 16 angles × 2 levels — so every maw
+  dot goes dark within ±25 ms of its own rocket departing).
+  The death bank contributes another 3,888 frames /
+  6 manifests, bringing the strict full gate to **38,757 / 100**.
 - **DONE — Army Camp Core + two troop paths (2026-07-18):** the trainable
   roster is **18 troops**. Core unlocks from the highest completed online Army
   Camp: `warrior` (displayed as Barbarian) L1, `archer` L2,

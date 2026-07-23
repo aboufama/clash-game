@@ -9,11 +9,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a00_idle0.png",
-              "texelW": 8,
-              "texelH": 25,
+              "texelW": 4,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.4814814814814804,
-              "originY": 0.43407407407407406
+              "originX": 0.4629629629629629,
+              "originY": 0.41798941798941786
             }
           ]
         }
@@ -26,11 +26,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a01_idle0.png",
-              "texelW": 13,
-              "texelH": 24,
+              "texelW": 7,
+              "texelH": 13,
               "cellWorldPx": 1.35,
-              "originX": 0.5270655270655267,
-              "originY": 0.4521604938271604
+              "originX": 0.550264550264549,
+              "originY": 0.45014245014245
             }
           ]
         }
@@ -43,11 +43,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a02_idle0.png",
-              "texelW": 19,
-              "texelH": 18,
+              "texelW": 10,
+              "texelH": 11,
               "cellWorldPx": 1.35,
-              "originX": 0.5711500974658869,
-              "originY": 0.43621399176954706
+              "originX": 0.585185185185185,
+              "originY": 0.44107744107744085
             }
           ]
         }
@@ -60,11 +60,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a03_idle0.png",
-              "texelW": 23,
-              "texelH": 13,
+              "texelW": 14,
+              "texelH": 7,
               "cellWorldPx": 1.35,
-              "originX": 0.5587761674718195,
-              "originY": 0.45014245014245
+              "originX": 0.5608465608465605,
+              "originY": 0.4074074074074068
             }
           ]
         }
@@ -77,11 +77,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a04_idle0.png",
-              "texelW": 24,
-              "texelH": 8,
+              "texelW": 14,
+              "texelH": 4,
               "cellWorldPx": 1.35,
-              "originX": 0.5354938271604935,
-              "originY": 0.4814814814814804
+              "originX": 0.5608465608465605,
+              "originY": 0.4629629629629629
             }
           ]
         }
@@ -94,11 +94,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a05_idle0.png",
-              "texelW": 23,
-              "texelH": 13,
+              "texelW": 14,
+              "texelH": 7,
               "cellWorldPx": 1.35,
-              "originX": 0.5587761674718195,
-              "originY": 0.5270655270655267
+              "originX": 0.5608465608465605,
+              "originY": 0.550264550264549
             }
           ]
         }
@@ -111,11 +111,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a06_idle0.png",
-              "texelW": 19,
-              "texelH": 19,
+              "texelW": 10,
+              "texelH": 10,
               "cellWorldPx": 1.35,
-              "originX": 0.5711500974658869,
-              "originY": 0.5711500974658869
+              "originX": 0.585185185185185,
+              "originY": 0.585185185185185
             }
           ]
         }
@@ -128,11 +128,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a07_idle0.png",
-              "texelW": 13,
-              "texelH": 23,
+              "texelW": 7,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.5270655270655267,
-              "originY": 0.5587761674718195
+              "originX": 0.550264550264549,
+              "originY": 0.5608465608465605
             }
           ]
         }
@@ -145,11 +145,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a08_idle0.png",
-              "texelW": 8,
-              "texelH": 25,
+              "texelW": 4,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.4814814814814804,
-              "originY": 0.5540740740740739
+              "originX": 0.4629629629629629,
+              "originY": 0.5608465608465605
             }
           ]
         }
@@ -162,11 +162,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a09_idle0.png",
-              "texelW": 13,
-              "texelH": 23,
+              "texelW": 7,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.45014245014245,
-              "originY": 0.5587761674718195
+              "originX": 0.4074074074074068,
+              "originY": 0.5608465608465605
             }
           ]
         }
@@ -179,11 +179,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a10_idle0.png",
-              "texelW": 18,
-              "texelH": 19,
+              "texelW": 11,
+              "texelH": 10,
               "cellWorldPx": 1.35,
-              "originX": 0.43621399176954706,
-              "originY": 0.5711500974658869
+              "originX": 0.44107744107744085,
+              "originY": 0.585185185185185
             }
           ]
         }
@@ -196,11 +196,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a11_idle0.png",
-              "texelW": 24,
-              "texelH": 13,
+              "texelW": 13,
+              "texelH": 7,
               "cellWorldPx": 1.35,
-              "originX": 0.4521604938271604,
-              "originY": 0.5270655270655267
+              "originX": 0.45014245014245,
+              "originY": 0.550264550264549
             }
           ]
         }
@@ -213,11 +213,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a12_idle0.png",
-              "texelW": 24,
-              "texelH": 8,
+              "texelW": 14,
+              "texelH": 4,
               "cellWorldPx": 1.35,
-              "originX": 0.4521604938271604,
-              "originY": 0.4814814814814804
+              "originX": 0.41798941798941786,
+              "originY": 0.4629629629629629
             }
           ]
         }
@@ -230,11 +230,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a13_idle0.png",
-              "texelW": 24,
-              "texelH": 13,
+              "texelW": 13,
+              "texelH": 7,
               "cellWorldPx": 1.35,
-              "originX": 0.4521604938271604,
-              "originY": 0.45014245014245
+              "originX": 0.45014245014245,
+              "originY": 0.4074074074074068
             }
           ]
         }
@@ -247,11 +247,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a14_idle0.png",
-              "texelW": 18,
-              "texelH": 18,
+              "texelW": 11,
+              "texelH": 11,
               "cellWorldPx": 1.35,
-              "originX": 0.43621399176954706,
-              "originY": 0.43621399176954706
+              "originX": 0.44107744107744085,
+              "originY": 0.44107744107744085
             }
           ]
         }
@@ -264,11 +264,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l1_a15_idle0.png",
-              "texelW": 13,
-              "texelH": 24,
+              "texelW": 7,
+              "texelH": 13,
               "cellWorldPx": 1.35,
-              "originX": 0.45014245014245,
-              "originY": 0.4521604938271604
+              "originX": 0.4074074074074068,
+              "originY": 0.45014245014245
             }
           ]
         }
@@ -281,11 +281,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a00_idle0.png",
-              "texelW": 10,
-              "texelH": 25,
+              "texelW": 8,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.485185185185185,
-              "originY": 0.43407407407407406
+              "originX": 0.4814814814814804,
+              "originY": 0.41798941798941786
             }
           ]
         }
@@ -298,11 +298,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a01_idle0.png",
-              "texelW": 15,
-              "texelH": 24,
+              "texelW": 8,
+              "texelH": 13,
               "cellWorldPx": 1.35,
-              "originX": 0.5901234567901232,
-              "originY": 0.4521604938271604
+              "originX": 0.6064814814814812,
+              "originY": 0.45014245014245
             }
           ]
         }
@@ -315,11 +315,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a02_idle0.png",
-              "texelW": 19,
-              "texelH": 18,
+              "texelW": 11,
+              "texelH": 11,
               "cellWorldPx": 1.35,
-              "originX": 0.5711500974658869,
-              "originY": 0.43621399176954706
+              "originX": 0.6228956228956224,
+              "originY": 0.44107744107744085
             }
           ]
         }
@@ -332,11 +332,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a03_idle0.png",
-              "texelW": 23,
-              "texelH": 15,
+              "texelW": 14,
+              "texelH": 8,
               "cellWorldPx": 1.35,
-              "originX": 0.5587761674718195,
-              "originY": 0.3901234567901234
+              "originX": 0.5608465608465605,
+              "originY": 0.35648148148148096
             }
           ]
         }
@@ -349,11 +349,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a04_idle0.png",
-              "texelW": 24,
-              "texelH": 12,
+              "texelW": 14,
+              "texelH": 8,
               "cellWorldPx": 1.35,
-              "originX": 0.5354938271604935,
-              "originY": 0.48765432098765416
+              "originX": 0.5608465608465605,
+              "originY": 0.4814814814814804
             }
           ]
         }
@@ -366,11 +366,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a05_idle0.png",
-              "texelW": 23,
-              "texelH": 15,
+              "texelW": 14,
+              "texelH": 8,
               "cellWorldPx": 1.35,
-              "originX": 0.5587761674718195,
-              "originY": 0.5901234567901232
+              "originX": 0.5608465608465605,
+              "originY": 0.6064814814814812
             }
           ]
         }
@@ -383,11 +383,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a06_idle0.png",
-              "texelW": 19,
-              "texelH": 19,
+              "texelW": 10,
+              "texelH": 10,
               "cellWorldPx": 1.35,
-              "originX": 0.5711500974658869,
-              "originY": 0.5711500974658869
+              "originX": 0.585185185185185,
+              "originY": 0.585185185185185
             }
           ]
         }
@@ -400,11 +400,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a07_idle0.png",
-              "texelW": 15,
-              "texelH": 23,
+              "texelW": 8,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.5901234567901232,
-              "originY": 0.5587761674718195
+              "originX": 0.6064814814814812,
+              "originY": 0.5608465608465605
             }
           ]
         }
@@ -417,11 +417,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a08_idle0.png",
-              "texelW": 12,
-              "texelH": 25,
+              "texelW": 8,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.48765432098765416,
-              "originY": 0.5540740740740739
+              "originX": 0.4814814814814804,
+              "originY": 0.5608465608465605
             }
           ]
         }
@@ -434,11 +434,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a09_idle0.png",
-              "texelW": 15,
-              "texelH": 23,
+              "texelW": 8,
+              "texelH": 14,
               "cellWorldPx": 1.35,
-              "originX": 0.3901234567901234,
-              "originY": 0.5587761674718195
+              "originX": 0.35648148148148096,
+              "originY": 0.5608465608465605
             }
           ]
         }
@@ -451,11 +451,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a10_idle0.png",
-              "texelW": 18,
-              "texelH": 19,
+              "texelW": 11,
+              "texelH": 11,
               "cellWorldPx": 1.35,
-              "originX": 0.43621399176954706,
-              "originY": 0.5711500974658869
+              "originX": 0.44107744107744085,
+              "originY": 0.6228956228956224
             }
           ]
         }
@@ -468,11 +468,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a11_idle0.png",
-              "texelW": 24,
-              "texelH": 15,
+              "texelW": 13,
+              "texelH": 8,
               "cellWorldPx": 1.35,
-              "originX": 0.4521604938271604,
-              "originY": 0.5901234567901232
+              "originX": 0.45014245014245,
+              "originY": 0.6064814814814812
             }
           ]
         }
@@ -485,11 +485,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a12_idle0.png",
-              "texelW": 24,
-              "texelH": 10,
+              "texelW": 14,
+              "texelH": 8,
               "cellWorldPx": 1.35,
-              "originX": 0.4521604938271604,
-              "originY": 0.485185185185185
+              "originX": 0.41798941798941786,
+              "originY": 0.4814814814814804
             }
           ]
         }
@@ -502,11 +502,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a13_idle0.png",
-              "texelW": 24,
-              "texelH": 15,
+              "texelW": 13,
+              "texelH": 7,
               "cellWorldPx": 1.35,
-              "originX": 0.4521604938271604,
-              "originY": 0.3901234567901234
+              "originX": 0.45014245014245,
+              "originY": 0.4074074074074068
             }
           ]
         }
@@ -519,11 +519,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a14_idle0.png",
-              "texelW": 18,
-              "texelH": 18,
+              "texelW": 11,
+              "texelH": 12,
               "cellWorldPx": 1.35,
-              "originX": 0.43621399176954706,
-              "originY": 0.43621399176954706
+              "originX": 0.44107744107744085,
+              "originY": 0.40432098765432073
             }
           ]
         }
@@ -536,11 +536,11 @@
           "frames": [
             {
               "file": "dragon_rocket_l2_a15_idle0.png",
-              "texelW": 15,
-              "texelH": 24,
+              "texelW": 7,
+              "texelH": 13,
               "cellWorldPx": 1.35,
-              "originX": 0.3901234567901234,
-              "originY": 0.4521604938271604
+              "originX": 0.4074074074074068,
+              "originY": 0.45014245014245
             }
           ]
         }

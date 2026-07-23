@@ -81,6 +81,24 @@ export interface PlacedBuilding {
     doorOpen?: number;
     doorOpenUntil?: number;
     lastDrawDoorOpen?: number;
+    // Dragon's Breath deploy driver (presentation only, mirrors doorOpen):
+    // at home the battery hides UNDERGROUND beneath a carved dragon-head
+    // cover; in battle it rises on enemy PROXIMITY and sinks back when the
+    // wake radius stays empty (see updateBuildingAnimations' wake/sleep
+    // rule). 0 = buried/covered, 1 = fully risen. deployThreatT = last anim
+    // time an enemy stood inside the wake radius; deployAnchorT/deployFrom/
+    // deployTarget anchor the current ease leg. The design fns receive
+    // deploy01 through the building object (like doorOpen).
+    deploy01?: number;
+    deployThreatT?: number;
+    deployAnchorT?: number;
+    deployFrom?: number;
+    deployTarget?: 0 | 1;
+    lastDrawDeploy?: number;
+    // Dragon's Breath salvo-sweep window: while animClockNow() < this, the
+    // pod launch bearings own the displayed facing (the box walks its
+    // barrage) and reload target-tracking must not fight the slew.
+    salvoSweepUntil?: number;
     // Production fill (mine/farm): crops/ore visibly build up over the cycle
     // and reset when a worker hauls the goods to the storehouse.
     fillLevel?: number;

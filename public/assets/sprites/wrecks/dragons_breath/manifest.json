@@ -2,23 +2,39 @@
   "cellWorldPx": 1.35,
   "levels": {
     "1": {
+      "ground": {
+        "file": "dragons_breath_L1_wreck_ground.png",
+        "texelW": 31,
+        "texelH": 14,
+        "cellWorldPx": 1.35,
+        "originX": 0.4659498207885305,
+        "originY": 0.7142857142857142
+      },
       "body": {
         "file": "dragons_breath_L1_wreck_body.png",
-        "texelW": 125,
-        "texelH": 76,
+        "texelW": 94,
+        "texelH": 46,
         "cellWorldPx": 1.35,
-        "originX": 0.47555555555555556,
-        "originY": 0.5092592592592592
+        "originX": 0.515366430260047,
+        "originY": 0.4130434782608692
       }
     },
     "2": {
+      "ground": {
+        "file": "dragons_breath_L2_wreck_ground.png",
+        "texelW": 31,
+        "texelH": 14,
+        "cellWorldPx": 1.35,
+        "originX": 0.4659498207885305,
+        "originY": 0.7142857142857142
+      },
       "body": {
         "file": "dragons_breath_L2_wreck_body.png",
-        "texelW": 125,
-        "texelH": 76,
+        "texelW": 94,
+        "texelH": 46,
         "cellWorldPx": 1.35,
-        "originX": 0.47555555555555556,
-        "originY": 0.5092592592592592
+        "originX": 0.515366430260047,
+        "originY": 0.4130434782608692
       }
     }
   }

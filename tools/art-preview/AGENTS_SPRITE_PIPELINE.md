@@ -363,11 +363,14 @@ contract — never a global renderer setting:
 
 ### Canonical roster gate (2026-07-18)
 
-The committed normal bank is exactly **33,483 frames / 94 manifests**:
+The committed normal bank is exactly **34,325 frames / 94 manifests**:
 
-- 7,913 building frames across 19 manifests
+- 8,789 building frames across 19 manifests (dragons_breath alone carries 926:
+  its 2026-07-22 'Ember-Wyrm Reliquary' rebake is 16-angle aiming with
+  dormant/deploy states)
 - 21,168 troop frames across 20 manifests
-- 72 wreck frames across 19 manifests
+- 78 wreck frames across 19 manifests (dragons_breath's 2026-07-22 fallen
+  Ember-Wyrm redesign added a surviving ground scorch per level, +2)
 - 872 obstacle frames across 5 manifests
 - 2,924 villager frames across 11 manifests
 - 168 figure frames across 10 manifests (80 caravan soldiers + 80 road
@@ -380,7 +383,7 @@ are canonical plain-unit bakes. Quartermaster, Frostfall, the Biopunk faction
 and Barracks, Needleback, Razorwing Harpy, Vat Brute, Apex Chimera, Rift Djinn,
 Spore Lobber, and Mantis Stalker are fully removed. A separately counted death
 bank contributes 3,888 frames across six canonical large-troop manifests. The
-strict full gate is **37,371 frames / 100 manifests**. The regression pins
+strict full gate is **38,213 frames / 100 manifests**. The regression pins
 counts and presence/absence rules.
 
 ## Keep, don't touch

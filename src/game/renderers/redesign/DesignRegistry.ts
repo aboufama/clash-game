@@ -23,6 +23,12 @@ import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
  * FactionBarracksRenderer calls the winners directly, and neither unit
  * routes through this registry anymore.
  *
+ * The dragons_breath round is FINISHED (2026-07-22): design B "The Ember-Wyrm
+ * Reliquary" won the 2-variant redesign and was promoted to canonical —
+ * BuildingRenderer.drawDragonsBreath calls drawDragonsBreathB directly (see
+ * ./Dragons_breathB.ts); design A was rejected and deleted. The unit no
+ * longer routes through this registry. NO ROUND IS CURRENTLY LIVE.
+ *
  * Isolated artist agents fill only the slots requested
  * for a round. An A-first fallback is only a deterministic preview choice,
  * never a winner designation. Rules:
@@ -53,6 +59,10 @@ import type { WildernessPlotCtx, WildernessPut } from '../WildernessRenderer';
 //  Bastion' (./BarracksA.ts) and 'Athenaeum of War' (./Mystic_barracksA.ts) —
 //  and are called directly by FactionBarracksRenderer.drawFactionBarracks.
 //  They no longer route through this registry.)
+// (dragons_breath was PROMOTED: design B "The Ember-Wyrm Reliquary" won the
+//  2-variant round and is called directly by BuildingRenderer.
+//  drawDragonsBreath — see ./Dragons_breathB.ts. Design A was rejected and
+//  deleted. It no longer routes through this registry.)
 // ===== PARAMS namespace imports — the per-slot bake-param override channel =====
 // (see DesignBakeParams below). The optional `PARAMS` export is read lazily
 // off these namespace objects at designBakeParams() call time, so a module
@@ -84,6 +94,52 @@ export type BuildingDesignFn = (
     skipBase: boolean,
     onlyBase: boolean,
     time: number
+) => void;
+
+/**
+ * Dragon's Breath design draw fn — the contract of the RESOLVED
+ * `dragons_breath` round (design B won and is the shipped canonical body,
+ * called directly by BuildingRenderer.drawDragonsBreath; the winner file
+ * keeps its compile-time contract check against this type).
+ * Same c1..c4/center/alpha/tint semantics as
+ * BuildingDesignFn, but the dedicated dispatcher route ALSO passes
+ * gridX/gridY (the tile anchor of the 3×3 footprint; 0,0 in the bake — draw
+ * only relative to the corners/center or `IsoUtils.cartToIso(gridX+u,
+ * gridY+v)`, never absolute), and the parameter tail is ordered
+ * `gridX, gridY, time, skipBase, onlyBase` — matching
+ * BuildingRenderer.drawDragonsBreath exactly, NOT BuildingDesignFn's tail.
+ * Sim-state inputs (owned by MainScene/DefenseSystem — read, never write):
+ * `ballistaAngle` aims the weapon assembly (radians, screen-space, 0 = +x,
+ * increasing toward screen-down; MainScene lerps it during reload tracking,
+ * hard-ratchets it per pod launch during a salvo, and idle-swivels it —
+ * never self-animate aim); `time − lastFireTime` is the volley clock (the
+ * per-volley launch stagger is MainScene-owned); `deploy01` is the
+ * stowed→deployed driver (0 at home, eased to 1 over 1100 ms at battle
+ * entry, then held). Honor the base/elevated split and keep every ambient
+ * term a deterministic function of `time` on exact 250 ms-multiple-period
+ * harmonics.
+ */
+export type DragonsBreathDesignFn = (
+    graphics: Phaser.GameObjects.Graphics,
+    c1: Phaser.Math.Vector2,
+    c2: Phaser.Math.Vector2,
+    c3: Phaser.Math.Vector2,
+    c4: Phaser.Math.Vector2,
+    center: Phaser.Math.Vector2,
+    alpha: number,
+    tint: number | null,
+    building: {
+        level?: number;
+        lastFireTime?: number;
+        ballistaAngle?: number;
+        deploy01?: number;
+    } | undefined,
+    baseGraphics: Phaser.GameObjects.Graphics | undefined,
+    gridX: number,
+    gridY: number,
+    time: number,
+    skipBase: boolean,
+    onlyBase: boolean
 ) => void;
 
 /**
@@ -223,7 +279,7 @@ export type DesignParamsExport = Partial<Record<string, DesignBakeParams>>;
 const DESIGN_PARAM_MODULES: Partial<Record<string, Partial<Record<DesignSlotId, object>>>> = {};
 
 /** Union of every draw-fn shape a tournament round can register. */
-export type AnyDesignFn = TroopDesignFn | WildernessDesignFn | BuildingDesignFn;
+export type AnyDesignFn = TroopDesignFn | WildernessDesignFn | BuildingDesignFn | DragonsBreathDesignFn;
 
 type RuntimeDesignSlots = Partial<Record<DesignSlotId, AnyDesignFn | null>>;
 

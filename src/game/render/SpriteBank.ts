@@ -21,6 +21,9 @@ import { troopWorldVisualScale } from '../renderers/TroopVisualScale';
  * Frame selection mirrors the sim exactly:
  *  - aim: continuous sim angle → nearest of the baked angles (CoC snap)
  *  - fire/charge: time − lastFireTime (or chargeStart) → nearest baked age
+ *  - deploy (dragons_breath silo): deploy01 ≤ 0.02 → 'dormant' ambient loop,
+ *    < 0.98 → nearest 'deploy' sweep frame by eased position, else the risen
+ *    aim-angle idle/fire sheets (baked with deploy01 pinned to 1)
  *  - troops: state from isMoving/attackAge/drivers; direction octant from
  *    facingAngle; walk phase from the troop's real stride
  *  - ambient idle loops replay at the measured period, de-phased per entity
@@ -825,7 +828,7 @@ class SpriteBankImpl {
             ballistaAngle?: number; lastFireTime?: number;
             ballistaStringTension?: number; ballistaBoltLoaded?: boolean;
             teslaCharging?: boolean; teslaChargeStart?: number; teslaCharged?: boolean;
-            fillLevel?: number; doorOpen?: number;
+            fillLevel?: number; doorOpen?: number; deploy01?: number;
         } | undefined,
         time: number,
         opts: { wallTag?: string; jukeboxPlaying?: boolean } = {}
@@ -850,6 +853,38 @@ class SpriteBankImpl {
             return best;
         };
 
+        // Dragon's Breath silo driver (GameTypes.deploy01; manifest states
+        // 'dormant' + 'deploy' are baked single-angle at the authored rise
+        // bearing, while the aim-angle idle/fire sheets bake RISEN with
+        // deploy01 pinned to 1 — see bake-sprites DEPLOY_SWEEP): buried
+        // cover at home, the eased rise strip while deploy01 climbs, then
+        // the risen sheets take over — the baked 0.90-1 slew ends at the
+        // stub bearing and hands off to the live aim bucket with the
+        // accepted nearest-frame pop. Grammar is generic: any manifest
+        // baking these states gets this selection.
+        if (st.dormant || st.deploy) {
+            const deploy = building?.deploy01 ?? 0;
+            if (deploy <= 0.02 && st.dormant) {
+                const dormant = st.dormant.frames[0] ?? [];
+                if (dormant.length > 0) {
+                    // Time-driven ambient loop, de-phased per building like idle.
+                    const loop = st.dormant.loopMs ?? 0;
+                    const tOff = building?.id ? fnv(building.id) : 0;
+                    const k = loop > 0 && dormant.length > 1
+                        ? Math.floor((((time + tOff) % loop) / loop) * dormant.length) % dormant.length
+                        : 0;
+                    return { meta: dormant[k], atlasKey, ground: entry.ground };
+                }
+            } else if (deploy < 0.98 && st.deploy) {
+                const sweep = st.deploy.frames[0] ?? [];
+                if (sweep.length > 0) {
+                    // deploy01 arrives ALREADY eased — nearest baked position.
+                    return { meta: nearest(sweep, 'deploy01', deploy), atlasKey, ground: entry.ground };
+                }
+            }
+            // deploy01 ≥ 0.98 (or a missing strip) falls through to the
+            // risen fire/idle selection at the nearest live aim bucket.
+        }
         // Fire animation window (recoil/tension/reload) — time since the shot.
         if (st.fire && building?.lastFireTime) {
             const el = time - building.lastFireTime;

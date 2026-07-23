@@ -69,6 +69,17 @@ for.
    statement, animation notes, screenshots, live-preview keys). The
    screenshots MUST be post-bake (hard rule above). The owner picks winners
    or mixes.
+   **BUILDING SHOWCASE STANDARD (owner rule 2026-07-22):** building showcases
+   must include ANIMATED widgets driven by the baked frames (embed the frame
+   PNGs and step them with canvas/JS in the artifact page):
+   - full-rotation sweep across all baked aim angles (rotating turrets);
+   - the idle ambient loop at true period;
+   - an example ATTACK — the fire/volley sequence, ideally an in-game
+     capture of a real battle exchange;
+   - every state driver as a playable sequence (door open/close, deploy
+     rise, charge);
+   - level stills when multi-level.
+   Static contact sheets alone do not satisfy the standard.
 
 4. **Bake all variants** under the `@slot` convention
    (`public/assets/sprites/<kind>/<unit>@<slot>/`): the bake pipeline's
@@ -112,11 +123,26 @@ support:
   `FactionBarracksRenderer` calls the winners directly and the round left the
   registry (the cannon/golem/deadwood precedent).
 
-No unresolved tournament is live in
-the Design Lab. The resulting
-committed normal sprite bank is exactly **33,483 frames across 94 manifests**.
+The `dragons_breath` 2-variant redesign round (2026-07-22, slots A/B, shape
+`DragonsBreathDesignFn` — note its gridX/gridY passthrough and `gridX, gridY,
+time, skipBase, onlyBase` tail order) RESOLVED the same day: the owner picked
+design **B**, 'The Ember-Wyrm Reliquary' (`Dragons_breathB.ts`), which was
+promoted to canonical — `BuildingRenderer.drawDragonsBreath` calls
+`drawDragonsBreathB` directly, design A was rejected and deleted, and the
+round left the registry (the cannon/golem/deadwood/barracks precedent).
+Post-pick the owner added the head-retraction note (the reared skull-lid now
+folds/sinks flush behind the turntable over deploy 0.80→1 so the 16-bearing
+battery never overlaps it). The winner's rebake is COMMITTED-IN-TREE: the
+unit's first 16-angle aiming bake plus its `deploy01` sweep/SpriteBank
+integration — 926 frames across L1/L2 (per level: idle 16×20, fire 16×6,
+dormant 36, deploy 10, plus ground), replacing the old 86-frame single-angle
+bake (bake note: fire/risen state sweeps must pin `deploy01 = 1` — the
+doorOpen-style self-heal — or they bake the dormant cover; the 0.90→1 slew
+bakes at the stub bearing, a small accepted nearest-frame pop at rise end).
+NO tournament is currently unresolved. The
+committed normal sprite bank is exactly **34,325 frames across 94 manifests**.
 The death bank is **3,888 frames across 6 manifests**, and the strict full gate
-is **37,371 frames across 100 manifests**. `scripts/render-quality-regression.mjs`
+is **38,213 frames across 100 manifests**. `scripts/render-quality-regression.mjs`
 pins both parts exactly.
 
 ## Per-slot bake params — the `PARAMS` export

@@ -84,7 +84,9 @@ const LIGHT_SOURCES: Partial<Record<BuildingType, LightDef>> = {
     prism: { kind: 'energy', tint: 0x9a6cff, tint2: 0x6ce4ff, radius: 130, ox: 0, oy: -38, h: 0, shaft: 40 },
     tesla: { kind: 'energy', tint: 0x7fd4ff, tint2: 0xd8f2ff, radius: 90, ox: 0, oy: -26, h: 0, shaft: 30, surge: true },
     // Molten: the dragon's furnace — deep, slow, alive.
-    dragons_breath: { kind: 'molten', tint: 0xff4a1e, hot: 0xff9a4e, radius: 165, ox: 0, oy: -4, h: 6, shaft: 24 },
+    // Emitter raised to the risen battery's maw (the Ember-Wyrm Reliquary's
+    // launch mouth — design-B promotion note, 2026-07-22).
+    dragons_breath: { kind: 'molten', tint: 0xff4a1e, hot: 0xff9a4e, radius: 165, ox: 0, oy: -18, h: 22, shaft: 24 },
     // Lamps: small steady work lights.
     mine: { kind: 'lamp', tint: 0xffd76a, radius: 70, ox: 7, oy: -8, h: 4, minLevel: 3 },
     storage: { kind: 'lamp', tint: 0xffc36a, radius: 78, ox: -23, oy: 12, h: 8 },

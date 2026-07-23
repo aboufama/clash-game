@@ -1218,103 +1218,263 @@ export class WreckRenderer {
         chunk(g, cx + 10, cy - 4, 3, dk(pylonDark, 0.9));
     }
 
-    // ── DRAGONS BREATH 4x4 — burst battery: split tubes, silo pits, one dud shell ──
+    // ── DRAGONS BREATH 3x3 — the reliquary broken open: sunk skull-lid, burst crate ──
     private static dragonsBreath(c: W) {
+        // THE EMBER-WYRM, FALLEN (in step with the promoted Dragons_breathB
+        // building): the shrine mouth blew out. The bronze skull-lid lies
+        // cracked and half-sunk beside the shaft with one horn snapped, the
+        // basalt collar survives only as ring fragments, and the launch
+        // crate burst open where it tipped — splintered charred oak,
+        // spilled red-nosed duds, gilt fang shards, verdigris plate scrap.
+        // The throat still cools: molten seams vein the char. Level is
+        // ignored — L2 renders identical to L1, like the living building.
         const { g, P, cx, cy, seed, level, time, fire } = c;
-        const L2 = level >= 2;
-        const tube = L2 ? 0x9c1f1f : 0xa03028;
-        const tubeLit = L2 ? 0xc22e2e : 0xb84438;
-        const band = L2 ? 0xe6dcc2 : 0xd8c49a;
-        const nose = L2 ? 0xdaa520 : 0x8a6a2a;
-        charField(c.base ?? g, cx, cy, 84, seed, 0.44);
-        // ash drifts break the char field's edge
-        for (let i = 0; i < 6; i++) {
-            const r1 = R(seed, i, 21.3), r2 = R(seed, i, 22.7);
-            const [ax, ay] = P(0.35 + r1 * 3.3, 0.3 + r2 * 3.4);
-            g.fillStyle(0x4a4a4a, 0.28);
-            g.fillRect(ax - 3, ay - 2, 6 + r1 * 5, 4);
-        }
+        void level;
+        // Dragons_breathB's palette, copied by value (wrecks stay import-free).
+        const OAK = 0x38291c, OAK_LIT = 0x46331f, SEAM = 0x160e08, TORN = 0x6e5535;
+        const BRONZE = 0x7a6234, BRONZE_LIT = 0x9c7f45, BRONZE_DK = 0x51401f, EDGE = 0xc9a24b;
+        const VERD = 0x51796a, VERD_DK = 0x40614f, COLLAR = 0x4a443d, GILT = 0xd8b25a;
+        const EMBER_DIM = 0x571806, EMBER_DEEP = 0x8a2408, EMBER = 0xe06818;
+        const RED = 0xb0342a, RED_LIT = 0xd8564a, MAW = 0x180f0a, PAPER = 0x9c8a5c;
 
-        // Shattered lacquer deck — three rim fragments with their gold edging
-        const deckBits: [number, number, number, number][] = [
-            [0.75, 0.7, 1.1, 0.35], [3.1, 2.1, 0.35, 1.2], [1.6, 3.3, 1.25, 0.35]
-        ];
-        deckBits.forEach(([u, v, du, dv], i) => {
-            const A = P(u - du / 2, v - dv / 2), B = P(u + du / 2, v - dv / 2), C = P(u + du / 2, v + dv / 2), D = P(u - du / 2, v + dv / 2);
-            poly(g, [A, B, C, D], dk(L2 ? 0x241418 : 0x3a2a2a, 1.25), 0.95);
-            g.lineStyle(1.4, dk(L2 ? 0xdaa520 : 0xb8860b, 0.85), 0.9);
-            g.lineBetween(D[0], D[1], C[0], C[1]);
-            if (i === 0) { // a surviving jade stud
-                g.fillStyle(0x3f8f5f, 0.9);
-                g.fillCircle((A[0] + C[0]) / 2, (A[1] + C[1]) / 2, 1.6);
+        // ground pass: char + the blast core over the throat (stacked alphas
+        // survive the bake's snap where they overlap — the mortar-fan idiom)
+        const base = c.base ?? g;
+        charField(base, cx, cy, 56, seed, 0.42);
+        const core: number[][] = [];
+        for (let i = 0; i < 8; i++) {
+            const th = (i / 8) * Math.PI * 2;
+            const r = 24 * (0.7 + 0.5 * R(seed, i, 6.13));
+            core.push([cx + Math.cos(th) * r, cy - 5 + Math.sin(th) * r * 0.5]);
+        }
+        poly(base, core, 0x1c1712, 0.5);
+        poly(base, core.map(p => [cx + (p[0] - cx) * 0.6, cy - 5 + (p[1] - cy + 5) * 0.6]), 0x120e0a, 0.55);
+
+        // the basalt shrine collar, broken to ring fragments (gilt tie lines)
+        const collarArc = (a0: number, a1: number, ox: number, oy: number, sag: number) => {
+            const N = 7;
+            const pts: number[][] = [];
+            for (let i = 0; i <= N; i++) {
+                const t = a0 + ((a1 - a0) * i) / N;
+                pts.push([cx + ox + Math.cos(t) * 25, cy - 6 + oy + Math.sin(t) * (13 + sag)]);
             }
-        });
-
-        // Open silo pits staring out of the char
-        for (const [u, v] of [[1.35, 1.3], [2.4, 1.05], [2.7, 2.5]] as [number, number][]) {
-            const [x, y] = P(u, v);
-            g.lineStyle(2, dk(0x6a4a2a, 0.8), 0.9);
-            g.strokeEllipse(x, y, 13, 6.5);
-            g.fillStyle(0x140808, 0.95);
-            g.fillEllipse(x, y, 11, 5.5);
-        }
-
-        // Split rocket tubes — burst open, peeled ends
-        const splitTube = (x: number, y: number, ang: number, len: number, wgt: number) => {
-            const dx = Math.cos(ang), dy = Math.sin(ang) * 0.5;
-            const nx = -Math.sin(ang), ny = Math.cos(ang) * 0.5;
-            const p = (d: number, o: number): number[] => [x + dx * d + nx * o, y + dy * d + ny * o];
-            poly(g, [p(-len / 2, wgt), p(len / 2, wgt * 0.8), p(len / 2, -wgt * 0.8), p(-len / 2, -wgt)], tube, 1);
-            poly(g, [p(-len / 2, -wgt * 0.1), p(len / 2, -wgt * 0.1), p(len / 2, -wgt * 0.8), p(-len / 2, -wgt)], tubeLit, 0.95);
-            g.lineStyle(1.4, band, 0.9);
-            g.lineBetween(p(-len * 0.2, wgt * 0.95)[0], p(-len * 0.2, wgt * 0.95)[1], p(-len * 0.2, -wgt * 0.95)[0], p(-len * 0.2, -wgt * 0.95)[1]);
-            // burst end — dark torn interior with peeled petals
-            poly(g, [p(len / 2 - 1, wgt * 0.8), p(len / 2 + 4, wgt * 1.7), p(len / 2 + 1.5, wgt * 0.2)], dk(tube, 0.7), 1);
-            poly(g, [p(len / 2 - 1, -wgt * 0.8), p(len / 2 + 4.5, -wgt * 1.6), p(len / 2 + 1.5, -wgt * 0.2)], dk(tubeLit, 0.7), 1);
-            g.fillStyle(0x140808, 1);
-            g.fillEllipse(p(len / 2, 0)[0], p(len / 2, 0)[1], 3.5, wgt * 1.5);
+            for (let i = N; i >= 0; i--) {
+                const t = a0 + ((a1 - a0) * i) / N;
+                pts.push([cx + ox + Math.cos(t) * 20, cy - 6 + oy + Math.sin(t) * (10.4 + sag * 0.8)]);
+            }
+            poly(g, pts, COLLAR, 1);
+            g.lineStyle(1.2, 0x8a6a30, 0.75);
+            for (let i = 1; i < N; i += 2) {
+                const t = a0 + ((a1 - a0) * i) / N;
+                g.lineBetween(
+                    cx + ox + Math.cos(t) * 20, cy - 6 + oy + Math.sin(t) * (10.4 + sag * 0.8),
+                    cx + ox + Math.cos(t) * 25, cy - 6 + oy + Math.sin(t) * (13 + sag)
+                );
+            }
         };
-        const t1 = P(1.05, 2.3), t2 = P(2.15, 1.75), t3 = P(1.9, 0.85);
-        splitTube(t1[0], t1[1], 0.55 + (R(seed, 1, 3.3) - 0.5) * 0.3, 24, 4.4);
-        splitTube(t2[0], t2[1], 2.5, 21, 4);
-        splitTube(t3[0], t3[1], -0.35, 18, 3.6);
-        // one tube still upright in its silo, scorched hollow
-        const up = P(3.15, 3.05);
-        poly(g, [[up[0] - 4, up[1]], [up[0] - 3.4, up[1] - 12], [up[0] + 3.4, up[1] - 12], [up[0] + 4, up[1]]], dk(tube, 0.65), 1);
-        g.fillStyle(0x140808, 1);
-        g.fillEllipse(up[0], up[1] - 12, 6.8, 3);
+        collarArc(Math.PI * 1.06, Math.PI * 1.6, -1, 0, 0);   // NW run, still seated
+        collarArc(Math.PI * 1.78, Math.PI * 2.16, 2, 1, 1);   // E run, slumped a step
 
-        // THE DUD — one intact shell lying unexploded, nose cone and all
-        const dd = P(0.85, 1.7);
-        const da = 0.25;
-        const ddx = Math.cos(da), ddy = Math.sin(da) * 0.5, dnx = -Math.sin(da), dny = Math.cos(da) * 0.5;
-        const dp = (d: number, o: number): number[] => [dd[0] + ddx * d + dnx * o, dd[1] + ddy * d + dny * o];
-        poly(g, [dp(-8, 3), dp(6, 3), dp(6, -3), dp(-8, -3)], tubeLit, 1);
-        poly(g, [dp(-8, -0.4), dp(6, -0.4), dp(6, -3), dp(-8, -3)], tube, 0.9);
-        g.lineStyle(1.3, band, 0.95);
-        g.lineBetween(dp(-2, 3.2)[0], dp(-2, 3.2)[1], dp(-2, -3.2)[0], dp(-2, -3.2)[1]);
-        poly(g, [dp(6, 3), dp(12, 0), dp(6, -3)], nose, 1);
-        g.lineStyle(1, 0x8a7a5a, 0.9); // limp fuse
+        // the open throat, half-choked with rubble; the furnace below cools
+        g.fillStyle(0x100b07, 1);
+        g.fillEllipse(cx, cy - 5, 34, 16);
+        g.fillStyle(0x070503, 1);
+        g.fillEllipse(cx, cy - 4, 27, 12.4);
+        chunk(g, cx - 5, cy - 7, 4.5, dk(COLLAR, 0.8));
+        chunk(g, cx + 4, cy - 4, 3.6, dk(OAK, 1.15));
+        chunk(g, cx - 1, cy - 2, 3, dk(COLLAR, 0.62));
+        g.fillStyle(EMBER_DIM, 0.9); // dull heat on the south inner rim
+        g.fillEllipse(cx + 1, cy - 1.5, 13, 3.4);
+        g.fillStyle(EMBER_DEEP, 0.85);
+        g.fillEllipse(cx - 2, cy - 1.8, 5, 1.8);
+
+        // cooling molten seams veining the char, one ember point each
+        const moltenSeam = (pts: number[][], hot: number) => {
+            g.lineStyle(1.5, EMBER_DEEP, 0.9);
+            g.beginPath();
+            g.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+            g.strokePath();
+            g.fillStyle(EMBER, 0.9);
+            g.fillRect(pts[hot][0] - 1, pts[hot][1] - 1, 2.2, 2.2);
+        };
+        moltenSeam([[cx + 13, cy - 1], [cx + 21, cy + 3], [cx + 27, cy + 2], [cx + 33, cy + 6]], 1);
+        moltenSeam([[cx - 12, cy + 1], [cx - 20, cy + 6], [cx - 23, cy + 12]], 2);
+
+        collarArc(Math.PI * 0.4, Math.PI * 0.8, -3, 3, 2);    // S run, kicked out over the seams
+
+        // THE LAUNCH CRATE — tipped, its fanged maw end burst open southwest
+        const bx = cx - 33, by = cy - 9;
+        const ba = -0.38;
+        const bdx = Math.cos(ba), bdy = Math.sin(ba) * 0.5;
+        const bnx = -Math.sin(ba), bny = Math.cos(ba) * 0.5;
+        const bp = (d: number, o: number, up = 0): number[] =>
+            [bx + bdx * d + bnx * o, by + bdy * d + bny * o - up];
+        // spilled interior first — the dark hold emptied out the torn end
+        poly(g, [bp(-21, -8), bp(-30, -3), bp(-32, 6), bp(-24, 11), bp(-21, 9)], MAW, 0.95);
+        // south flank, then the tipped lid plane with its plank seams
+        poly(g, [bp(-21, 9), bp(21, 9), bp(21, 9, 9), bp(-21, 9, 8)], dk(OAK, 0.85), 1);
+        poly(g, [bp(-21, 9, 8), bp(21, 9, 9), bp(21, -9, 9), bp(-21, -9, 8)], OAK_LIT, 1);
+        g.lineStyle(1.2, SEAM, 0.85);
+        for (const o of [-3, 3]) {
+            g.lineBetween(bp(-21, o, 8)[0], bp(-21, o, 8)[1], bp(21, o, 9)[0], bp(21, o, 9)[1]);
+        }
+        // scorch licking the lid from the burst end
+        poly(g, [bp(-21, -9, 8.2), bp(-8, -9, 8.2), bp(-4, 0, 8.2), bp(-10, 9, 8.2), bp(-21, 9, 8.2)], 0x241d13, 0.88);
+        // intact NE end wears its bronze strap; a second strap sprang loose
+        poly(g, [bp(10, -9, 8.6), bp(14, -9, 8.6), bp(14, 9, 9), bp(10, 9, 9)], BRONZE, 1);
+        poly(g, [bp(10, 9, 9), bp(14, 9, 9), bp(14, 9, 0), bp(10, 9, 0)], dk(BRONZE, 0.8), 1);
+        g.lineStyle(1.1, EDGE, 0.9);
+        g.lineBetween(bp(12, -9, 8.8)[0], bp(12, -9, 8.8)[1], bp(12, 9, 9)[0], bp(12, 9, 9)[1]);
+        g.lineStyle(1.6, dk(BRONZE, 0.9), 0.95);
         g.beginPath();
-        g.moveTo(dp(-8, 0)[0], dp(-8, 0)[1]);
-        g.lineTo(dp(-11, 1.5)[0], dp(-11, 1.5)[1] + 1);
-        g.lineTo(dp(-12.5, 0.5)[0], dp(-12.5, 0.5)[1] + 2);
+        g.arc(bp(-19, 13)[0], bp(-19, 13)[1], 5, Math.PI * 0.9, Math.PI * 1.9);
         g.strokePath();
+        // the torn maw face — a ragged rim of gilt fangs over the dark hold,
+        // one red-nosed dud still seated, the cells beside it empty
+        poly(g, [bp(-21, -8, 9), bp(-19, 8, 9.5), bp(-24, 9, 2), bp(-26, -6, 1.5)], dk(OAK, 0.7), 1);
+        g.fillStyle(0x0c0805, 1);
+        g.fillCircle(bp(-23, -3, 6.5)[0], bp(-23, -3, 6.5)[1], 2.9);
+        g.fillCircle(bp(-22.5, 3, 6.8)[0], bp(-22.5, 3, 6.8)[1], 2.9);
+        g.fillStyle(RED, 1); // the seated dud
+        g.fillCircle(bp(-23, -3, 6.5)[0], bp(-23, -3, 6.5)[1], 2);
+        g.fillStyle(RED_LIT, 1);
+        g.fillRect(bp(-23, -3, 6.5)[0] - 1.4, bp(-23, -3, 6.5)[1] - 1.4, 1.1, 1.1);
+        g.lineStyle(1, 0x3a2c1c, 0.9); // an emptied cell ring
+        g.strokeCircle(bp(-23.5, 0.5, 2.8)[0], bp(-23.5, 0.5, 2.8)[1], 2.3);
+        for (const [fo, fu] of [[-6.5, 9.2], [-1, 9.6], [4.5, 9.8]]) { // gilt fangs on the rim
+            const t0 = bp(-20.5, fo - 1.6, fu), t1 = bp(-20.5, fo + 1.6, fu), t2 = bp(-23, fo, fu - 4.2);
+            poly(g, [t0, t1, t2], GILT, 0.95);
+            g.lineStyle(0.8, SEAM, 0.6);
+            g.lineBetween(t0[0], t0[1], t2[0], t2[1]);
+        }
+        // splinters where the oak let go, one sprung plank in the ash
+        poly(g, [bp(-22, 10, 1), bp(-31, 13, 0), bp(-24, 12, 4)], TORN, 1);
+        poly(g, [bp(-25, -7, 1), bp(-33, -10, 0), bp(-27, -9, 4.5)], dk(TORN, 0.85), 1);
+        poly(g, [bp(-20, 9.5, 7), bp(-27, 14, 2), bp(-22, 11.5, 8)], dk(OAK_LIT, 1.2), 1);
+        chip(g, bp(-14, 17)[0], bp(-14, 17)[1], ba + 0.55, 13, 4, OAK_LIT, 0.95);
 
-        // gilded dragon-altar scraps at L2 — a horn and a scale plate in the ash
-        if (L2) {
-            const hn = P(2.05, 2.85);
-            poly(g, [[hn[0], hn[1]], [hn[0] + 6, hn[1] - 4], [hn[0] + 2.5, hn[1] + 1]], 0xffd700, 0.92);
-            chip(g, hn[0] - 9, hn[1] + 2, 0.4, 7, 4, dk(0xf0c24a, 0.8), 0.9);
+        // spilled rockets — unfired, red-nosed; the near one bent at the waist
+        const dud = (x: number, y: number, ang: number) => {
+            const ddx = Math.cos(ang), ddy = Math.sin(ang) * 0.5;
+            const dnx = -Math.sin(ang), dny = Math.cos(ang) * 0.5;
+            const q = (d: number, o: number): number[] => [x + ddx * d + dnx * o, y + ddy * d + dny * o];
+            poly(g, [q(-6, 2), q(3, 2), q(3, -2), q(-6, -2)], PAPER, 1);
+            poly(g, [q(-6, -0.4), q(3, -0.4), q(3, -2), q(-6, -2)], dk(PAPER, 0.78), 0.95);
+            poly(g, [q(3, 2), q(7.5, 0), q(3, -2)], RED, 1);
+            g.fillStyle(RED_LIT, 0.95);
+            g.fillRect(q(4, -0.6)[0] - 0.7, q(4, -0.6)[1] - 0.7, 1.2, 1.2);
+            g.lineStyle(1.2, dk(OAK_LIT, 1.25), 0.95); // guide stick
+            g.lineBetween(q(-6, 0)[0], q(-6, 0)[1], q(-12, 0.8)[0], q(-12, 0.8)[1]);
+        };
+        dud(cx - 46, cy + 15, 0.35);
+        dud(cx - 30, cy + 24, -0.12);
+        { // the bent one — kinked mid-body, nose ploughed into the ash
+            const kx = cx - 12, ky = cy + 29;
+            poly(g, [[kx - 8, ky - 3], [kx, ky - 1.5], [kx - 0.5, ky + 1.5], [kx - 8.5, ky]], PAPER, 1);
+            poly(g, [[kx, ky - 1.5], [kx + 6, ky + 1], [kx + 5.5, ky + 3.5], [kx - 0.5, ky + 1.5]], dk(PAPER, 0.85), 1);
+            g.lineStyle(1, SEAM, 0.8); // the crease
+            g.lineBetween(kx, ky - 1.8, kx - 0.5, ky + 1.8);
+            poly(g, [[kx + 6, ky + 1], [kx + 9.5, ky + 4], [kx + 5.5, ky + 3.5]], RED, 1);
+            g.fillStyle(RED_LIT, 0.95);
+            g.fillRect(kx + 6.2, ky + 1.6, 1.1, 1.1);
         }
 
-        // debris + heavy burn (4x4 → live redraw): the battery burns hot
-        for (let i = 0; i < 9; i++) {
+        // THE SKULL-LID — cracked, half-sunk nose-down; one horn snapped
+        const sx = cx + 27, sy = cy + 15;
+        g.fillStyle(0x1c1712, 0.9); // the rim it sank into
+        g.fillEllipse(sx - 1, sy + 3, 40, 15);
+        // the dome, settled tilted; crown plate still reads under the soot
+        g.fillStyle(dk(BRONZE, 0.72), 1);
+        g.fillEllipse(sx, sy, 34, 17);
+        g.fillStyle(dk(BRONZE, 0.92), 1);
+        g.fillEllipse(sx + 1, sy - 1.5, 29, 14);
+        g.fillStyle(dk(BRONZE_LIT, 0.9), 1);
+        g.fillEllipse(sx + 2.5, sy - 3, 21, 10);
+        poly(g, [
+            [sx - 2, sy - 7.5], [sx + 6.5, sy - 7.5], [sx + 10, sy - 4.5],
+            [sx + 6.5, sy - 1.5], [sx - 2, sy - 1.5], [sx - 5.5, sy - 4.5]
+        ], dk(BRONZE_LIT, 1.02), 1);
+        g.lineStyle(1, dk(BRONZE_DK, 0.85), 0.8);
+        g.strokeEllipse(sx + 2.5, sy - 3, 21, 10);
+        // the intact west horn — the bull sweep, out and down over the char,
+        // tip hooked into the ash (drawn over the dome so it always reads)
+        poly(g, [
+            [sx - 6, sy - 6.5], [sx - 13, sy - 9.5], [sx - 21, sy - 9],
+            [sx - 27, sy - 5.5], [sx - 30, sy - 0.5], [sx - 27.5, sy + 0.5],
+            [sx - 23, sy - 4], [sx - 15, sy - 6], [sx - 7, sy - 3.5]
+        ], dk(BRONZE_DK, 0.96), 1);
+        g.lineStyle(1.3, EDGE, 0.85);
+        g.beginPath();
+        g.moveTo(sx - 8, sy - 6);
+        g.lineTo(sx - 16, sy - 8.2);
+        g.lineTo(sx - 23, sy - 6.5);
+        g.lineTo(sx - 28.5, sy - 2);
+        g.strokePath();
+        // the snapped east horn — a stub with bright sheared metal
+        poly(g, [[sx + 10, sy - 6.5], [sx + 16, sy - 8.5], [sx + 16.5, sy - 6], [sx + 11, sy - 4.5]], dk(BRONZE_DK, 0.96), 1);
+        g.fillStyle(BRONZE_LIT, 1);
+        g.fillEllipse(sx + 16.3, sy - 7.2, 2.6, 2.2);
+        g.lineStyle(0.9, SEAM, 0.8);
+        g.strokeEllipse(sx + 16.3, sy - 7.2, 2.6, 2.2);
+        // THE CRACK — across the crown into a caved hole
+        g.lineStyle(1.3, SEAM, 0.95);
+        g.beginPath();
+        g.moveTo(sx - 14, sy - 4);
+        g.lineTo(sx - 8, sy - 5.5);
+        g.lineTo(sx - 4, sy - 3.5);
+        g.lineTo(sx + 2, sy - 5);
+        g.strokePath();
+        poly(g, [[sx - 6, sy - 4.5], [sx - 1, sy - 5.5], [sx + 1, sy - 3], [sx - 3, sy - 1.5], [sx - 7, sy - 2.5]], MAW, 1);
+        // brow ridge and the dying eye — one last coal under the lid
+        poly(g, [[sx - 1, sy + 1], [sx + 11, sy + 0.5], [sx + 12, sy + 3], [sx + 0.5, sy + 3.5]], dk(BRONZE_DK, 1.05), 1);
+        g.fillStyle(0x0d0806, 1);
+        g.fillEllipse(sx + 6, sy + 4.6, 6.4, 2.2);
+        g.fillStyle(EMBER_DIM, 0.95);
+        g.fillEllipse(sx + 5, sy + 4.6, 2.4, 1);
+        // verdigris bites, and one crest fin still standing bent
+        g.fillStyle(VERD, 0.95);
+        g.fillEllipse(sx - 7, sy - 6, 5, 2.6);
+        g.fillStyle(VERD_DK, 0.95);
+        g.fillEllipse(sx + 10, sy - 1.5, 3.4, 1.8);
+        poly(g, [[sx + 0.5, sy - 8.5], [sx + 4, sy - 8.8], [sx + 1.6, sy - 13.5]], dk(BRONZE, 0.95), 1);
+        g.lineStyle(0.9, EDGE, 0.85);
+        g.lineBetween(sx + 0.8, sy - 8.7, sx + 1.7, sy - 13);
+        poly(g, [[sx + 12, sy + 8], [sx + 18.5, sy + 6.5], [sx + 15, sy + 9.8]], dk(BRONZE, 0.8), 0.95); // fallen fin
+        // ash drift over the sunken southwest cheek
+        poly(g, [
+            [sx - 17, sy + 4], [sx - 9, sy + 2.5], [sx - 2, sy + 5],
+            [sx - 4, sy + 8.5], [sx - 13, sy + 9], [sx - 19, sy + 6.5]
+        ], 0x241d13, 0.9);
+        g.fillStyle(0x4a4a4a, 0.55);
+        g.fillRect(sx - 12, sy + 5, 4, 1.6);
+        // the snapped horn tip, thrown clear
+        poly(g, [[sx - 30, sy + 10], [sx - 23, sy + 7.5], [sx - 21.5, sy + 10.5], [sx - 27, sy + 12]], dk(BRONZE_DK, 0.9), 1);
+        g.lineStyle(1.1, EDGE, 0.75);
+        g.lineBetween(sx - 29, sy + 10.2, sx - 23.5, sy + 8.4);
+
+        // gilt fang shards spat across the char
+        for (const [fx, fy, fr] of [[cx + 6, cy + 23, 0], [cx - 4, cy + 18, 1]]) {
+            const s = 3.2 + fr;
+            poly(g, [[fx - s * 0.6, fy + s * 0.4], [fx + s * 0.6, fy + s * 0.25], [fx + fr * 0.8, fy - s * 0.6]], GILT, 0.95);
+            g.lineStyle(0.8, SEAM, 0.6);
+            g.lineBetween(fx - s * 0.6, fy + s * 0.4, fx + fr * 0.8, fy - s * 0.6);
+        }
+        // verdigris-bitten bronze plates shed from the lid
+        chip(g, cx + 42, cy - 6, 0.5, 9, 5, dk(BRONZE, 0.9), 0.95);
+        g.fillStyle(VERD, 0.9);
+        g.fillEllipse(cx + 42, cy - 6, 4, 2);
+        chip(g, cx - 52, cy + 4, -0.3, 8, 4.5, dk(BRONZE, 0.8), 0.95);
+        g.fillStyle(VERD_DK, 0.9);
+        g.fillEllipse(cx - 53, cy + 4, 3.4, 1.8);
+
+        // settled debris: basalt, charred oak, a knuckle of bronze
+        for (let i = 0; i < 7; i++) {
             const r1 = R(seed, i, 12.9), r2 = R(seed, i, 14.1);
-            const [x, y] = P(0.5 + r1 * 3, 0.55 + r2 * 2.9);
-            chunk(g, x, y, 3.5 + r2 * 4, i % 3 === 0 ? dk(tube, 0.6) : dk(0x3a2a2a, 1.1));
+            const [x, y] = P(0.45 + r1 * 2.1, 0.5 + r2 * 2);
+            chunk(g, x, y, 3 + r2 * 3.5, i % 3 === 0 ? dk(BRONZE, 0.7) : i % 3 === 1 ? dk(COLLAR, 0.8) : dk(OAK, 1.15));
         }
-        burnFx(g, seed, cx, cy, 96, 48, time, fire, 4, 7, 4);
+        burnFx(g, seed, cx, cy, 74, 38, time, fire, 3, 6, 4);
     }
 
     // ── SPIKE LAUNCHER 2x2 — sprung trebuchet: dropped counterweight, quills everywhere ──

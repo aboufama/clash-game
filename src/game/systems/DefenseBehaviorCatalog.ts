@@ -82,8 +82,9 @@ export const DEFENSE_BEHAVIOR_CATALOG = {
         ...NEAREST_STANDARD,
         fireEffect: 'dragons_breath',
         start: 'cooldown',
-        // One rocket per silo of the 4×4 battery — the renderer draws the
-        // matching grid, and MainScene fires exactly this many per volley.
+        // 16 rockets per volley — the battery's pod count is a property of
+        // the box, not of its (now 3×3) footprint; MainScene fires exactly
+        // this many per volley and the UI derives DPS from the same number.
         fireModel: { kind: 'perShot', salvoSize: 16 }
     },
     spike_launcher: {

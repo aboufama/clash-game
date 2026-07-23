@@ -43,8 +43,8 @@ const SHOWCASE = [
   // 27 faction/level combinations, doors, motion, and day/night.
   ['barracks', 9, 7, 17, 2, 2],
   ['mystic_barracks', 9, 2, 21, 2, 2],
-  ['dragons_breath', 2, 12, 21, 4, 4],
-  ['dragons_breath', 1, 13, 4, 4, 4],
+  ['dragons_breath', 2, 12, 21, 3, 3],
+  ['dragons_breath', 1, 13, 4, 3, 3],
   ['town_hall', 1, 17, 21, 3, 3],
   ['army_camp', 3, 17, 7, 2, 2],
   ['mortar', 2, 2, 2, 2, 2],

@@ -141,9 +141,9 @@ export class ProjectileRenderer {
     }
 
     /**
-     * Dragon's Breath firecracker rocket, standing nose-up exactly as the
-     * pod drawn in the silo (see BuildingRenderer.drawDragonsBreath). Clears
-     * and redraws: MainScene calls this per frame while the rocket flies.
+     * Dragon's Breath firecracker rocket — the canonical in-flight munition
+     * MainScene spawns at the battery's launch mouth (nose-up at rotation 0).
+     * Clears and redraws: MainScene calls this per frame while the rocket flies.
      * `exhaustFlicker` is the per-frame flicker input for the exhaust flame;
      * the current flame math is steady (MainScene passes 0) — the parameter
      * exists so per-frame variation stays an explicit, bakeable input.
@@ -152,59 +152,73 @@ export class ProjectileRenderer {
         void exhaustFlicker; // flame currently flicker-free; input reserved for the bake
         g.clear();
 
-        // Body with a lit flank
-        g.fillStyle(level >= 2 ? 0x9c1f1f : 0xa03028, 1);
-        g.fillRect(-5, -8, 10, 20);
-        g.fillStyle(level >= 2 ? 0xc22e2e : 0xb84438, 1);
-        g.fillRect(-5, -8, 4, 20);
+        // Ember-Wyrm Reliquary language (Dragons_breathB palette): a
+        // charred-oak firework tube with a lacquer-red nose and a gilt
+        // band. Deliberately SMALL — a fat arrow, not a log: total run
+        // −9..+12 (~21 px, ~15 texels baked; the old rocket was 25).
 
-        // Rune band + stud
-        g.lineStyle(1.3, level >= 2 ? 0xe6dcc2 : 0xd8c49a, 1);
-        g.lineBetween(-5, 6, 5, 6);
+        // Charred-oak body with a lit flank and a scorched seam
+        g.fillStyle(level >= 2 ? 0x38291c : 0x33261b, 1); // OAK
+        g.fillRect(-3, -4, 6, 11);
+        g.fillStyle(level >= 2 ? 0x46331f : 0x41301e, 1); // OAK_LIT
+        g.fillRect(-3, -4, 2.4, 11);
+        g.fillStyle(0x160e08, 1); // SEAM
+        g.fillRect(1.8, -4, 1.2, 11);
+
+        // Gilt reliquary band (plain bronze at L1) + glint at max level
+        g.fillStyle(level >= 2 ? 0xd8b25a : 0x7a6234, 1); // GILT / BRONZE
+        g.fillRect(-3, 3.4, 6, 1.9);
         if (level >= 2) {
-            g.fillStyle(0xffd700, 0.9);
-            g.fillCircle(0, 6, 1.4);
+            g.fillStyle(0xffe9b0, 0.95); // FLASH_CORE
+            g.fillRect(-2.1, 3.7, 1.3, 1.3);
         }
 
-        // Nose cone
-        g.fillStyle(level >= 2 ? 0xdaa520 : 0x8a6a2a, 1);
+        // Lacquer-red nose cone with a lit edge
+        g.fillStyle(level >= 2 ? 0xb0342a : 0x9c3026, 1); // RED
         g.beginPath();
-        g.moveTo(0, -16);
-        g.lineTo(-5, -8);
-        g.lineTo(5, -8);
+        g.moveTo(0, -9);
+        g.lineTo(-3, -4);
+        g.lineTo(3, -4);
+        g.closePath();
+        g.fillPath();
+        g.fillStyle(0xd8564a, 1); // RED_LIT
+        g.beginPath();
+        g.moveTo(0, -9);
+        g.lineTo(-3, -4);
+        g.lineTo(-0.7, -4);
         g.closePath();
         g.fillPath();
 
-        // Fin tails (max level)
+        // Dark-bronze tail fins (max level)
         if (level >= 2) {
-            g.fillStyle(0xb8860b, 1);
+            g.fillStyle(0x51401f, 1); // BRONZE_DK
             g.beginPath();
-            g.moveTo(-5, 8);
-            g.lineTo(-8, 13);
-            g.lineTo(-5, 12.5);
+            g.moveTo(-3, 4.6);
+            g.lineTo(-5, 8);
+            g.lineTo(-3, 7.6);
             g.closePath();
             g.fillPath();
             g.beginPath();
-            g.moveTo(5, 8);
-            g.lineTo(8, 13);
-            g.lineTo(5, 12.5);
+            g.moveTo(3, 4.6);
+            g.lineTo(5, 8);
+            g.lineTo(3, 7.6);
             g.closePath();
             g.fillPath();
         }
 
-        // Exhaust flame
-        g.fillStyle(0xff6600, 0.9);
+        // Ember exhaust
+        g.fillStyle(0xe06818, 0.95); // EMBER
         g.beginPath();
-        g.moveTo(-3, 12);
-        g.lineTo(0, 20);
-        g.lineTo(3, 12);
+        g.moveTo(-2, 7);
+        g.lineTo(0, 12);
+        g.lineTo(2, 7);
         g.closePath();
         g.fillPath();
-        g.fillStyle(0xffd25e, 0.85);
+        g.fillStyle(0xffa040, 0.9); // EMBER_HI
         g.beginPath();
-        g.moveTo(-1.8, 12);
-        g.lineTo(0, 16.5);
-        g.lineTo(1.8, 12);
+        g.moveTo(-1.1, 7);
+        g.lineTo(0, 10.2);
+        g.lineTo(1.1, 7);
         g.closePath();
         g.fillPath();
     }

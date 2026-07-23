@@ -12,6 +12,7 @@ import { TroopRenderer } from '../renderers/TroopRenderer';
 import { TroopDeathRenderer, isLargeTroopDeathType } from '../renderers/TroopDeathRenderer';
 import { ObstacleRenderer } from '../renderers/ObstacleRenderer';
 import { ProjectileRenderer } from '../renderers/ProjectileRenderer';
+import { dragonsBreathTubeOrigin } from '../renderers/redesign/Dragons_breathB';
 import { WreckRenderer, wreckNeedsAnimation } from '../renderers/WreckRenderer';
 import { DefenseSystem, peekDefenseTarget, type DefenseChargePhase } from '../systems/DefenseSystem';
 import { TargetingSystem } from '../systems/TargetingSystem';
@@ -76,10 +77,34 @@ const BUILDINGS = BUILDING_DEFINITIONS as any;
 const OBSTACLES = OBSTACLE_DEFINITIONS as any;
 
 /** Defenses whose barrel/arm visibly aims via ballistaAngle (the ROTATING
- *  bake set — manifests carry 16 aim angles). Tesla/prism/dragons_breath are
- *  fixed-pose and must stay out. Drives reload target-tracking, the shared
- *  angle-lerp, and the quantized redraw gate in updateBuildingAnimations. */
-const ROTATING_DEFENSE_TYPES = new Set(['cannon', 'ballista', 'xbow', 'mortar', 'spike_launcher']);
+ *  bake set — manifests carry 16 aim angles). Tesla/prism are fixed-pose and
+ *  must stay out. Drives reload target-tracking, the shared angle-lerp, and
+ *  the quantized redraw gate in updateBuildingAnimations. dragons_breath
+ *  joined with the 2026-07 mechanics rework: its committed art is still the
+ *  single-pose box (the rotating body ships with the design-tournament
+ *  rebake), but the aim state must already track so the new art lands hot. */
+const ROTATING_DEFENSE_TYPES = new Set(['cannon', 'ballista', 'xbow', 'mortar', 'spike_launcher', 'dragons_breath']);
+
+/** Dragon's Breath launch mouth — FALLBACK ONLY (2026-07-22): pods now
+ *  depart from their own red-nosed tube via the exported
+ *  dragonsBreathTubeOrigin (the design's exact maw-face math); these two
+ *  constants describe the face-center approximation and are kept solely as
+ *  the defensive fallback should the helper ever return a non-finite
+ *  offset. */
+const DRAGONS_BREATH_MOUTH_RISE_PX = 30;
+const DRAGONS_BREATH_MOUTH_FORWARD_PX = 12;
+
+/** Dragon's Breath silo-rise duration (deploy01 0→1, cubic ease-out). The
+ *  proximity driver wakes the battery a +3-tile buffer OUTSIDE fire range,
+ *  so walkers meet a fully-risen battery at the range ring; the catalog's
+ *  start:'cooldown' first volley (fireRate ≥ 2400 ms) covers the rest. */
+const DRAGONS_BREATH_RISE_MS = 1100;
+/** Sink-back duration when the wake radius empties (slightly brisker than
+ *  the rise — the idol swallows the battery). */
+const DRAGONS_BREATH_SINK_MS = 900;
+/** Hysteresis grace: the battery holds risen this long after the last enemy
+ *  leaves the wake radius before sinking back into the dragon head. */
+const DRAGONS_BREATH_SLEEP_GRACE_MS = 2500;
 
 const CLOCKWORK_BEETLE_LATCH_TILT_RADIANS = Math.PI / 18; // 10° grab angle
 
@@ -1819,6 +1844,10 @@ export class MainScene extends Phaser.Scene {
                 if ((this.mode === 'ATTACK' || this.mode === 'REPLAY')
                     && !(this.mode === 'REPLAY' && this.replayWatchState?.usesV2)
                     && ROTATING_DEFENSE_TYPES.has(b.type)
+                    // Dragon's Breath salvo sweep: while the 16-pod volley is
+                    // walking its launch bearings, the pod steps own the
+                    // displayed facing — tracking resumes after the window.
+                    && !(b.type === 'dragons_breath' && (b.salvoSweepUntil ?? 0) > time)
                     && !b.isDestroyed && b.health > 0) {
                     const victim = peekDefenseTarget(b, this.troops, time);
                     if (victim) {
@@ -1828,9 +1857,13 @@ export class MainScene extends Phaser.Scene {
                         // Per-type screen-space aim conventions, copied from
                         // the fire handlers: the cannon bears from its RAISED
                         // muzzle (start.y - 14, see shootAt); ballista, xbow,
-                        // mortar and spike launcher bear from the flat iso
-                        // center (shootBallistaAt/shootXBowAt/shootMortarAt/
-                        // shootSpikeLauncherAt).
+                        // mortar, spike launcher and dragons_breath bear from
+                        // the flat iso center (shootBallistaAt/shootXBowAt/
+                        // shootMortarAt/shootSpikeLauncherAt/
+                        // shootDragonsBreathAt). While deploy01 < 1 the
+                        // dragons_breath aim state still tracks (harmless) —
+                        // the tournament art keeps its cover/riser visuals
+                        // independent of aim until the battery is risen.
                         b.ballistaTargetAngle = b.type === 'cannon'
                             ? Math.atan2(end.y - (start.y - 14), end.x - start.x)
                             : Math.atan2(end.y - start.y, end.x - start.x);
@@ -1876,7 +1909,7 @@ export class MainScene extends Phaser.Scene {
                 // remains identical at 30/60/144fps and across redraw skips.
                 // A frozen turret (ice golem freeze-on-death) holds its
                 // bearing solid — no idle swivel while the ice grips it.
-                if ((b.type === 'ballista' || b.type === 'xbow' || b.type === 'cannon') && !b.isFiring
+                if ((b.type === 'ballista' || b.type === 'xbow' || b.type === 'cannon' || b.type === 'dragons_breath') && !b.isFiring
                     && !(b.frozenUntil !== undefined && time < b.frozenUntil)) {
                     // Shots stamp ballistaTargetAngle but nothing ever cleared
                     // it, so turrets froze on their last combat bearing
@@ -1886,14 +1919,20 @@ export class MainScene extends Phaser.Scene {
                         && time - (b.lastFireTime ?? 0) > (this.getDefenseStats(b).fireRate || 2500) + 1500) {
                         b.ballistaTargetAngle = undefined;
                     }
-                    // Only apply idle swivel if no combat target
+                    // Only apply idle swivel if no combat target.
+                    // dragons_breath scans deliberately SLOW and shallow —
+                    // a 16-pod battery panning lazily reads menacing where a
+                    // ballista-speed dart would read wrong (still a pure
+                    // function of absolute time, framerate-independent).
                     if (b.ballistaTargetAngle === undefined) {
                         const seed = hashString(`${b.id}:idle-swivel`);
                         const base = (seed / 0xffffffff) * Math.PI * 2;
-                        const phase = time * 0.00024 + (seed % 8192) * 0.001;
+                        const slow = b.type === 'dragons_breath' ? 0.45 : 1;
+                        const amp = b.type === 'dragons_breath' ? 0.62 : 1;
+                        const phase = time * 0.00024 * slow + (seed % 8192) * 0.001;
                         const idleAngle = base
-                            + Math.sin(phase) * 0.34
-                            + Math.sin(phase * 0.47 + 1.7) * 0.14;
+                            + Math.sin(phase) * 0.34 * amp
+                            + Math.sin(phase * 0.47 + 1.7) * 0.14 * amp;
                         b.idleTargetAngle = idleAngle;
                         // Re-entry from a combat bearing eases back; once
                         // converged the swivel is a pure function of absolute
@@ -1933,6 +1972,60 @@ export class MainScene extends Phaser.Scene {
                     if (Math.abs(doorTarget - b.doorOpen) < 0.02) b.doorOpen = doorTarget;
                 }
 
+                // Dragon's Breath deploy driver (deploy01, presentation
+                // only) — PROXIMITY wake/sleep (2026-07-22): the battery is
+                // a dormant idol until raiders APPROACH. It wakes (cubic-
+                // ease-out rise over DRAGONS_BREATH_RISE_MS) when any live
+                // enemy troop stands inside (fire range + 3 tiles) of the
+                // footprint center, and once the wake radius has been empty
+                // for DRAGONS_BREATH_SLEEP_GRACE_MS it sinks back into the
+                // dragon head (DRAGONS_BREATH_SINK_MS) — mid-battle
+                // included. A pure function of sim troop positions + the
+                // anim clock, so live and replay derive the same cycle
+                // (WorldBattlePlayback mirrors this rule on its sampled
+                // troops). The +3-tile buffer finishes the rise before
+                // walkers reach the range ring; fire visuals keep the
+                // design's own deploy01 > 0.5 gate for fast edge cases and
+                // the sim never gates on deploy. HOME/scout snaps 0.
+                if (b.type === 'dragons_breath') {
+                    const battleLive = (this.mode === 'ATTACK' && !this.isScouting) || this.mode === 'REPLAY';
+                    if (battleLive && !b.isDestroyed && b.health > 0) {
+                        const dbInfo = BUILDINGS.dragons_breath;
+                        const wakeCX = b.gridX + dbInfo.width / 2;
+                        const wakeCY = b.gridY + dbInfo.height / 2;
+                        const wakeR = (this.getDefenseStats(b).range || 13) + 3;
+                        const threat = this.troops.some(t =>
+                            t.owner !== b.owner && t.health > 0 &&
+                            Phaser.Math.Distance.Between(wakeCX, wakeCY, t.gridX, t.gridY) <= wakeR);
+                        // Clocks restart near 0 between replay sessions —
+                        // drop stale future stamps.
+                        if (b.deployThreatT !== undefined && b.deployThreatT > time) b.deployThreatT = undefined;
+                        if (b.deployAnchorT !== undefined && b.deployAnchorT > time) b.deployAnchorT = undefined;
+                        if (threat) b.deployThreatT = time;
+                        const wake = threat || (b.deployThreatT !== undefined
+                            && time - b.deployThreatT < DRAGONS_BREATH_SLEEP_GRACE_MS);
+                        const target = wake ? 1 : 0;
+                        if (b.deployTarget !== target || b.deployAnchorT === undefined) {
+                            b.deployTarget = target;
+                            b.deployAnchorT = time;
+                            b.deployFrom = b.deploy01 ?? 0;
+                        }
+                        const dur = target === 1 ? DRAGONS_BREATH_RISE_MS : DRAGONS_BREATH_SINK_MS;
+                        const u = Phaser.Math.Clamp((time - b.deployAnchorT) / dur, 0, 1);
+                        const from = b.deployFrom ?? 0;
+                        b.deploy01 = from + (target - from) * (1 - Math.pow(1 - u, 3));
+                    } else if (!battleLive && (b.deploy01 !== 0 || b.deployAnchorT !== undefined
+                        || b.deployThreatT !== undefined)) {
+                        // Home/scout: snap back under the cover (mode entry
+                        // hides behind the cloud transition anyway).
+                        b.deploy01 = 0;
+                        b.deployThreatT = undefined;
+                        b.deployAnchorT = undefined;
+                        b.deployFrom = undefined;
+                        b.deployTarget = undefined;
+                    }
+                }
+
                 // Full vector re-tessellation is the most expensive per-frame cost in the
                 // game, so redraw immediately only when something the player can notice
                 // changed (turret angle, firing, hover alpha, damage state, selection).
@@ -1960,6 +2053,7 @@ export class MainScene extends Phaser.Scene {
                     alpha !== (b.lastDrawAlpha ?? 1) ||
                     b.health !== b.lastDrawHealth ||
                     Math.abs((b.doorOpen ?? 0) - (b.lastDrawDoorOpen ?? 0)) > 0.01 ||
+                    Math.abs((b.deploy01 ?? 0) - (b.lastDrawDeploy ?? 0)) > 0.02 ||
                     Math.abs((b.fillLevel ?? 0) - (b.lastDrawFill ?? 0)) > 0.04 ||
                     angleChanged;
                 // Wall art has no time-driven state. Neighbor changes are
@@ -1971,6 +2065,7 @@ export class MainScene extends Phaser.Scene {
                 b.lastDrawAlpha = alpha;
                 b.lastDrawHealth = b.health;
                 b.lastDrawDoorOpen = b.doorOpen ?? 0;
+                b.lastDrawDeploy = b.deploy01 ?? 0;
                 b.lastDrawFill = b.fillLevel ?? 0;
 
                 b.graphics.clear();
@@ -12973,6 +13068,47 @@ export class MainScene extends Phaser.Scene {
                 staggerMs
             }));
         }
+        // === AIM: the battery faces its primary victim at volley start ===
+        // Same screen-space convention as the reload tracking's non-cannon
+        // branch and shootMortarAt: flat iso footprint-center → target. The
+        // tracking lerp normally converged here during reload already, so
+        // this stamp is a visual no-op except for first-shot cases.
+        const centerIso = IsoUtils.cartToIso(dbCenterX, dbCenterY);
+        const primaryIso = IsoUtils.cartToIso(troop.gridX, troop.gridY);
+        const baseFacing = Math.atan2(primaryIso.y - centerIso.y, primaryIso.x - centerIso.x);
+        db.ballistaAngle = baseFacing;
+        db.ballistaTargetAngle = baseFacing;
+
+        // === DETERMINISTIC VOLLEY THEATER SEED ===
+        // recordReplayPresentation just installed this volley's event seed
+        // (live capture), and the replay event apply installs the SAME seed
+        // before re-invoking this handler — so hashing off it derives
+        // identical per-pod launch bearings and flight chaos on both sides
+        // while consuming ZERO battleRandom draws: the shared presentation
+        // stream still sees exactly two draws per pod (jitterX/jitterY), in
+        // the same order as before this rework. The fallback only covers
+        // unrecorded battles (no capture), where no stream exists to match.
+        const volleySeed = (this.activeReplayPresentationSeed
+            ?? hashString(`${db.id}:dragons-volley:${db.lastFireTime ?? 0}`)) >>> 0;
+        const volleyHash01 = (tag: string) =>
+            (hashString(`${volleySeed}:dragons:${tag}`) >>> 0) / 0xffffffff;
+
+        // === SALVO SWEEP: the box walks its barrage across a 150° cone ===
+        // Pod i launches on an ordered fan bearing — a ±65° walk around the
+        // volley-start facing plus ±8° per-pod jitter (max ±73°, inside the
+        // ±75° cone). As each pod launches, the DISPLAYED facing hard-steps
+        // onto its bearing: 16 mechanical ratchets across ~800 ms, not a
+        // lerp smear. Reload target-tracking is suppressed for exactly this
+        // window (see updateBuildingAnimations) and resumes right after.
+        const fanHalf = Math.PI * (65 / 180);
+        const sweepSign = volleyHash01('sweep-dir') < 0.5 ? -1 : 1;
+        const podBearing = (podIndex: number) => {
+            const walk01 = salvoSize > 1 ? podIndex / (salvoSize - 1) : 0.5;
+            const jitter = (volleyHash01(`fan:${podIndex}`) - 0.5) * Math.PI * (16 / 180);
+            return baseFacing + sweepSign * (walk01 * 2 - 1) * fanHalf + jitter;
+        };
+        db.salvoSweepUntil = this.animClockNow() + salvoSize * staggerMs + 150;
+
         for (let i = 0; i < salvoSize; i++) {
             this.scheduleBattleCall(i * staggerMs, () => {
                 if (!db || db.health <= 0) return;
@@ -12985,50 +13121,214 @@ export class MainScene extends Phaser.Scene {
                 if (target && target.health > 0) {
                     const jitterX = (this.battleRandom() - 0.5) * 2.0;
                     const jitterY = (this.battleRandom() - 0.5) * 2.0;
-                    // Launch from this pod's actual silo so the standing rocket
-                    // (hidden by the renderer at this exact moment) visibly
-                    // becomes the projectile — no teleporting.
-                    const col = i % 4;
-                    const row = Math.floor(i / 4);
-                    const siloGX = db.gridX + col + 0.5;
-                    const siloGY = db.gridY + row + 0.5;
-                    const silo = IsoUtils.cartToIso(siloGX, siloGY);
-                    this.shootDragonPod(db, { x: silo.x, y: silo.y + 2 - 14 }, siloGX, siloGY, target.gridX + jitterX, target.gridY + jitterY, stats.damage || 25);
+                    // The displayed facing ratchets onto this pod's bearing.
+                    const bearing = podBearing(i);
+                    db.ballistaAngle = bearing;
+                    db.ballistaTargetAngle = bearing;
+                    // Launch from THIS pod's OWN red-nosed tube in the 4×4
+                    // maw grid: dragonsBreathTubeOrigin mirrors the design's
+                    // maw-face math (serpentine cell, edge-on squash), so
+                    // pod i departs the exact tube the baked fire frames
+                    // empty at el = i·50 ms — a 1:1 sprite/projectile
+                    // handoff. The old MOUTH constants are fallback-only.
+                    const tube = dragonsBreathTubeOrigin(i, bearing);
+                    const mouth = Number.isFinite(tube.x + tube.y) ? {
+                        x: centerIso.x + tube.x,
+                        y: centerIso.y + tube.y
+                    } : {
+                        x: centerIso.x + Math.cos(bearing) * DRAGONS_BREATH_MOUTH_FORWARD_PX,
+                        y: centerIso.y - DRAGONS_BREATH_MOUTH_RISE_PX
+                            + Math.sin(bearing) * 0.5 * DRAGONS_BREATH_MOUTH_FORWARD_PX
+                    };
+                    this.shootDragonPod(
+                        db, mouth, dbCenterX, dbCenterY,
+                        target.gridX + jitterX, target.gridY + jitterY,
+                        stats.damage || 25,
+                        { podIndex: i, volleySeed, bearing, behindBox: tube.behind }
+                    );
                 }
             });
         }
     }
 
-    private shootDragonPod(db: PlacedBuilding, start: { x: number, y: number }, launchGridX: number, launchGridY: number, targetGridX: number, targetGridY: number, damage: number) {
+    private shootDragonPod(
+        db: PlacedBuilding,
+        start: { x: number, y: number },
+        launchGridX: number,
+        launchGridY: number,
+        targetGridX: number,
+        targetGridY: number,
+        damage: number,
+        theater: { podIndex: number; volleySeed: number; bearing: number; behindBox: boolean }
+    ) {
         const end = IsoUtils.cartToIso(targetGridX, targetGridY);
         const dbLevel = db.level ?? 1;
 
-        // Create firecracker rocket graphics, standing exactly where the
-        // silo's rocket was drawn. Painter's-order depth from the silo tile
-        // now, along the ground track during the arc.
+        // === STRAIGHT-BOOST FIREWORK FLIGHT, fully deterministic ===
+        // A box of festival rockets: each pod BOOSTS dead straight along
+        // its salvo-fan bearing for the first beat (the early read is a
+        // crisp fan of clean tracks, one per pod), then VEERS off the line
+        // with 1-2 chaotic kinks, and finally "finds" the target and
+        // zigzags home. Every parameter hashes off (volleySeed, podIndex)
+        // — ZERO battleRandom draws are added at flight time, so the
+        // recorded presentation stream's draw count/order is untouched and
+        // live + replay derive the identical flight from the event seed.
+        const h01 = (tag: string) =>
+            (hashString(`${theater.volleySeed}:pod:${theater.podIndex}:${tag}`) >>> 0) / 0xffffffff;
+        const hSign = (tag: string) => (h01(tag) < 0.5 ? -1 : 1);
+
+        // PHASE 1 — BOOST: one CONSTANT screen direction (the bearing,
+        // iso-foreshortened 0.5, with a slight climb folded into the same
+        // line so the fan rises as it clears the box). Thrust builds u² —
+        // accelerating, nose locked on the track the whole burn.
+        //
+        // CLOSE-RANGE STRAIGHT SHOTS: inside ~4.5 tiles the firework detour
+        // reads absurd, so chaosScale fades the WHOLE detour continuously
+        // (0 at ≤4.5 tiles → 1 at ≥9): the boost bearing blends toward the
+        // landing line, and every arc waypoint later lerps onto the p0→end
+        // chord by the same factor — at 0 the rocket flies tube→landing in
+        // one straight line. Path shape only: clock, landing point, damage
+        // and draw order are untouched.
+        // Punchy exit: ~1.7× the original reach in the same 230 ms window,
+        // on a u^1.5 curve (harder off the line than u²) — the rocket SNAPS
+        // out of its tube. Only the drawn path changes; the flight clock
+        // formula below is byte-identical.
+        const boostLen = 78 + h01('boost-len') * 26;
+        const boostLift = 15 + h01('boost-lift') * 9;
+        const fanDX = Math.cos(theater.bearing) * boostLen;
+        const fanDY = Math.sin(theater.bearing) * 0.5 * boostLen - boostLift;
+        const fanAngle = Math.atan2(fanDY, fanDX);
+        const fanNorm = Math.hypot(fanDX, fanDY);
+        const targetDistTiles = Phaser.Math.Distance.Between(
+            launchGridX, launchGridY, targetGridX, targetGridY);
+        const chaosScale = Phaser.Math.Clamp((targetDistTiles - 4.5) / 4.5, 0, 1);
+        const lineAngle = Math.atan2(end.y - start.y, end.x - start.x);
+        const lineLen = Math.hypot(end.x - start.x, end.y - start.y);
+        let fanOff = fanAngle - lineAngle;
+        while (fanOff > Math.PI) fanOff -= Math.PI * 2;
+        while (fanOff < -Math.PI) fanOff += Math.PI * 2;
+        const boostAngle = lineAngle + fanOff * chaosScale;
+        // chaosScale 1 reproduces the fan vector exactly; 0 aims the burn
+        // at the landing point (capped so short lines keep room to fly).
+        const boostRun = fanNorm + (Math.min(fanNorm, lineLen * 0.45) - fanNorm) * (1 - chaosScale);
+        const boostDX = Math.cos(boostAngle) * boostRun;
+        const boostDY = Math.sin(boostAngle) * boostRun;
+
+        // Create firecracker rocket graphics at the battery's elevated
+        // mouth. Painter's-order depth from the launch tile now, along the
+        // ground track during the flight.
         const pod = this.trackBattleFx(this.add.graphics());
         const startX = start.x;
         const startY = start.y;
         pod.setPosition(startX, startY);
-        pod.setDepth(depthForProjectile(launchGridX, launchGridY));
+        // Up-screen launches (maw facing away — the helper's 'behind' pick)
+        // must not paint over the battery: the rocket rides just under the
+        // building's occluder depth through the boost + veer, then hands
+        // off to the normal ground-track projectile depth once clear.
+        const boxDepth = depthForBuilding(db.gridX, db.gridY, 'dragons_breath') - 1;
+        pod.setDepth(theater.behindBox ? boxDepth : depthForProjectile(launchGridX, launchGridY));
 
-        // Draw the rocket EXACTLY like the pod standing in the silo (see
-        // BuildingRenderer.drawDragonsBreath), so launch is seamless. The
+        // === TRAIL: a chunky ember→smoke streak riding 5 positions behind
+        // the rocket along its ACTUAL path (boost and arc alike), redrawn
+        // per frame into ONE graphics per rocket — warm right off the
+        // nozzle, cooling through deep ember to powder-grey, thinning with
+        // age. A pure function of the flight clock + an h01 phase — zero
+        // RNG draws, capped at 5 pixelRect stamps per rocket per frame.
+        const trail = this.trackBattleFx(this.add.graphics());
+        const TRAIL_STEPS: Array<[number, number, number]> = [
+            [3.8, 0xffa040, 0.85], // EMBER_HI
+            [3.2, 0xe06818, 0.7],  // EMBER
+            [2.8, 0x8a2408, 0.55], // EMBER_DEEP
+            [2.4, 0x5a5044, 0.4],  // powder smoke
+            [2.0, 0x4a4038, 0.28]
+        ];
+        const drawTrail = (posAt: (back: number) => { x: number; y: number } | null) => {
+            trail.clear();
+            trail.setDepth(pod.depth - 1);
+            for (let j = 0; j < TRAIL_STEPS.length; j++) {
+                const p = posAt(j + 1);
+                if (!p) break;
+                const [size, color, alpha] = TRAIL_STEPS[j];
+                pixelRect(trail, p.x - size / 2, p.y - size / 2, size, size, color, alpha);
+            }
+        };
+
+        /** Boost path over u∈[0,1]: a straight line out of the tube along
+         *  the launch bearing, thrust building u^1.5 (snappier off the line
+         *  than u², same 1.0 endpoint) — never a curve. */
+        const boostAt = (u: number) => {
+            const w = u * Math.sqrt(u);
+            return {
+                x: startX + boostDX * w,
+                y: startY + boostDY * w
+            };
+        };
+
+        // The in-flight munition is the canonical `dragon_rocket`. Its
         // shape lives in ProjectileRenderer (clears + redraws per call); the
         // flame is currently steady, so the per-frame flicker input is 0.
         const drawRocket = () => {
             ProjectileRenderer.drawDragonRocket(pod, dbLevel, 0);
         };
 
-        // Initial draw: upright on the pad (baked stamp when the atlas has
-        // this rocket; the vector redraw-per-frame path otherwise).
+        // Initial draw: nose already on the launch bearing (baked stamp when
+        // the atlas has this rocket; the vector redraw-per-frame otherwise).
         const rocketLevel = dbLevel >= 2 ? 2 : 1;
-        const podBaked = this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, 0);
+        const podBaked = this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, boostAngle + Math.PI / 2);
         if (!podBaked) drawRocket();
-        pod.setRotation(0);
+        pod.setRotation(boostAngle + Math.PI / 2);
 
-        // PHASE 1 — LIFTOFF: the rocket climbs straight out of its silo on a
-        // building flame before tipping over into its arc.
+        // === BACK-BLAST: powder smoke vents out of the BREECH — the rear
+        // face opposite this pod's launch bearing, at breech height — as
+        // the rocket leaves. Chunky pixel puffs shoved rearward with a
+        // little rise; every parameter hashes off (volleySeed, podIndex),
+        // so the presentation streams see ZERO extra draws. Depth anchors
+        // on the rear ground tile: painter's order tucks the bank BEHIND
+        // the box when the rear faces away and over its skirt when it
+        // faces the camera; the −3 keeps it under every projectile at the
+        // same row (groundEffect 62 vs projectile 60).
+        const breechIso = IsoUtils.cartToIso(launchGridX, launchGridY);
+        const backX = Math.cos(theater.bearing + Math.PI);
+        const backY = Math.sin(theater.bearing + Math.PI) * 0.5;
+        // The design's documented rear-face CENTER is (d = −28, h = −21.75)
+        // in maw-axis space — i.e. 28 px along the reverse bearing at
+        // breech height. The vent sits exactly on that drawn face.
+        const ventRoot = {
+            x: breechIso.x + backX * 28,
+            y: breechIso.y - 21.75 + backY * 28
+        };
+        const ventGround = IsoUtils.isoToCart(
+            breechIso.x + backX * 30,
+            breechIso.y + backY * 30
+        );
+        const ventDepth = depthForGroundEffect(ventGround.x, ventGround.y) - 3;
+        const POWDER_SMOKE = [0x3f362c, 0x4c4237, 0x5a5044];
+        for (let s = 0; s < 3; s++) {
+            const puff = this.trackBattleFx(this.add.graphics());
+            const size = 6 + s * 2 + Math.floor(h01(`bb-size:${s}`) * 5);
+            const spread = (h01(`bb-spread:${s}`) - 0.5) * 0.5;
+            const shove = 16 + s * 9 + h01(`bb-shove:${s}`) * 10;
+            const dirX = Math.cos(theater.bearing + Math.PI + spread);
+            const dirY = Math.sin(theater.bearing + Math.PI + spread) * 0.5;
+            pixelRect(puff, -size / 2, -size / 2, size, size,
+                POWDER_SMOKE[(theater.podIndex + s) % 3], 0.68);
+            puff.setPosition(ventRoot.x + dirX * (9 + s * 4), ventRoot.y + dirY * (9 + s * 4));
+            puff.setDepth(ventDepth);
+            this.tweens.add({
+                targets: puff,
+                x: puff.x + dirX * shove,
+                y: puff.y + dirY * shove - (10 + h01(`bb-rise:${s}`) * 10),
+                alpha: 0,
+                duration: 700 + h01(`bb-life:${s}`) * 280,
+                ease: 'Quad.easeOut',
+                onComplete: () => puff.destroy()
+            });
+        }
+
+        // PHASE 1 — BOOST (230 ms): straight out of the mouth along the fan
+        // bearing. riseY stays the FLIGHT-TIME REFERENCE the arc duration
+        // is measured from (damage timing must not depend on the per-pod
+        // visual theater); the drawn position follows boostAt().
         const riseY = startY - 52;
         let emittedLiftBlasts = 0;
         this.tweens.add({
@@ -13037,8 +13337,18 @@ export class MainScene extends Phaser.Scene {
             duration: 230,
             ease: 'Quad.easeIn',
             onUpdate: this.replayPresentationCallback('dragon-liftoff-puffs', (tween: Phaser.Tweens.Tween) => {
-                if (podBaked) this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, 0);
+                const u = tween.progress;
+                const at = boostAt(u);
+                pod.setPosition(at.x, at.y);
+                // Nose locked on the launch track — the whole burn is one
+                // clean, accelerating line out of the muzzle.
+                pod.setRotation(boostAngle + Math.PI / 2);
+                if (podBaked) this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, pod.rotation);
                 else drawRocket();
+                drawTrail(back => {
+                    const uj = u - back * 0.13;
+                    return uj > 0.02 ? boostAt(uj) : null;
+                });
                 const wanted = Math.floor(tween.progress * 5);
                 while (emittedLiftBlasts < wanted) {
                     emittedLiftBlasts++;
@@ -13054,11 +13364,102 @@ export class MainScene extends Phaser.Scene {
         });
 
         const flyArc = () => {
+        // Flight TIME keeps the pre-rework formula, measured from the fixed
+        // reference point (the mouth column at riseY) — so the impact and
+        // applyLocalTroopDamage land on the same clock the sim always had.
+        // The VISIBLE path below is free theater between the eruption exit
+        // and that exact landing point.
         const arcStartY = riseY;
-        const midY = (arcStartY + end.y) / 2 - 200; // Arc height
         const dist = Phaser.Math.Distance.Between(startX, arcStartY, end.x, end.y);
         let emittedArcEmbers = 0;
         const flightDuration = dist / 0.4 + this.battleRandom() * 100;
+        // Trail step (fraction of the arc clock) — per-rocket h01 phase so
+        // the sixteen streaks don't strobe in lockstep.
+        const dtTrail = 0.035 + h01('trail-dt') * 0.02;
+
+        // -- Waypoint script: hold the line, then veer, then find the target --
+        // PHASE 1 tail — STRAIGHT CARRY: the boost track continues
+        // unbroken into the arc for ~6-10% of the arc clock (~60-130 ms),
+        // so launch reads as ONE straight line (≈290-330 ms total with the
+        // 230 ms boost, ~25% of the full flight) before anything bends.
+        const p0 = boostAt(1);
+        const carry01 = 0.06 + h01('carry') * 0.04;
+        const carryLen = 30 + h01('carry-len') * 16;
+        const waypoints: { x: number; y: number; t: number }[] = [{ x: p0.x, y: p0.y, t: 0 }];
+        let wx = p0.x + Math.cos(boostAngle) * carryLen;
+        let wy = p0.y + Math.sin(boostAngle) * carryLen;
+        waypoints.push({ x: wx, y: wy, t: carry01 });
+        // PHASE 2 — the VEER: 1-2 kinks off the line. The wildness lives
+        // here now — but tamer than the old instant scatter: 20°-52° snaps
+        // (was 34°-86°) over a shorter reach.
+        const chaosEnd01 = carry01 + 0.14 + h01('chaos-end') * 0.12;
+        const chaosKinks = 1 + Math.floor(h01('chaos-kinks') * 2); // 1-2 veer kinks
+        const chaosReach = Math.min(64, 20 + dist * 0.08);
+        let wDir = boostAngle;
+        for (let k = 0; k < chaosKinks; k++) {
+            wDir += hSign(`ck-s:${k}`) * (0.35 + h01(`ck:${k}`) * 0.55); // 20°-52° snap
+            const seg = (chaosReach / chaosKinks) * (0.5 + h01(`cl:${k}`) * 0.5);
+            wx += Math.cos(wDir) * seg;
+            // Iso-foreshortened lateral, still climbing a touch — the veer
+            // happens in the air, not on the lawn.
+            wy += Math.sin(wDir) * 0.5 * seg - (6 + h01(`cc:${k}`) * 10);
+            waypoints.push({
+                x: wx, y: wy,
+                t: carry01 + (chaosEnd01 - carry01) * ((k + 1) / chaosKinks)
+            });
+        }
+        // Homing run-in: 2-3 decaying zigzag kinks, arriving EXACTLY at end
+        // (the damage point) — the swarm converging on the enemy.
+        const zigzagKinks = 2 + Math.floor(h01('zig-n') * 2);
+        const homeDX = end.x - wx;
+        const homeDY = end.y - wy;
+        const homeLen = Math.hypot(homeDX, homeDY) || 1;
+        const perpX = -homeDY / homeLen;
+        const perpY = homeDX / homeLen;
+        let zigSide = hSign('zig-s');
+        for (let k = 0; k < zigzagKinks; k++) {
+            const f = (k + 1) / (zigzagKinks + 1);
+            const amp = Math.min(34, 10 + homeLen * 0.10)
+                * (0.7 + h01(`za:${k}`) * 0.6) * (1 - f * 0.6);
+            waypoints.push({
+                x: wx + homeDX * f + perpX * amp * zigSide,
+                y: wy + homeDY * f + perpY * amp * zigSide,
+                t: chaosEnd01 + (1 - chaosEnd01) * f
+            });
+            zigSide = -zigSide;
+        }
+        waypoints.push({ x: end.x, y: end.y, t: 1 });
+
+        // CLOSE/MID-RANGE: fade the whole detour onto the p0→end chord by
+        // chaosScale (each waypoint lerps toward the chord point at its own
+        // clock fraction) — 0 flies dead straight tube→landing, mid-range
+        // veers mildly, far shots keep the full firework. p0 and end are
+        // already ON the chord, so phase seams stay continuous.
+        if (chaosScale < 1) {
+            for (const wp of waypoints) {
+                const lx = p0.x + (end.x - p0.x) * wp.t;
+                const ly = p0.y + (end.y - p0.y) * wp.t;
+                wp.x = lx + (wp.x - lx) * chaosScale;
+                wp.y = ly + (wp.y - ly) * chaosScale;
+            }
+        }
+
+        /** Piecewise-linear flight sampler — the sharp corners ARE the
+         *  firework read. Returns the active segment for nose rotation. */
+        const flightAt = (t: number): { x: number; y: number; seg: number } => {
+            if (t <= 0) return { x: waypoints[0].x, y: waypoints[0].y, seg: 1 };
+            for (let k = 1; k < waypoints.length; k++) {
+                if (t <= waypoints[k].t || k === waypoints.length - 1) {
+                    const a = waypoints[k - 1];
+                    const b = waypoints[k];
+                    const span = Math.max(1e-6, b.t - a.t);
+                    const f = Phaser.Math.Clamp((t - a.t) / span, 0, 1);
+                    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, seg: k };
+                }
+            }
+            const last = waypoints[waypoints.length - 1];
+            return { x: last.x, y: last.y, seg: waypoints.length - 1 };
+        };
 
         this.tweens.add({
             targets: pod,
@@ -13067,34 +13468,46 @@ export class MainScene extends Phaser.Scene {
             ease: 'Linear',
             onUpdate: (tween) => {
                 const t = tween.progress;
-                // Bezier curve for arc
-                pod.y = (1 - t) * (1 - t) * arcStartY + 2 * (1 - t) * t * midY + t * t * end.y;
+                const at = flightAt(t);
+                pod.setPosition(at.x, at.y);
 
-                // Depth follows the ground track under the rocket's arc.
-                pod.setDepth(depthForProjectile(
+                // Depth follows the ground track under the rocket's flight;
+                // behind-box launches stay tucked under the battery until
+                // the veer ends and the rocket is clear of the silhouette.
+                const trackDepth = depthForProjectile(
                     launchGridX + (targetGridX - launchGridX) * t,
-                    launchGridY + (targetGridY - launchGridY) * t));
-                // The rocket stays a rocket all the way down its arc.
-                const dx = end.x - startX;
-                const dy = 2 * (1 - t) * (midY - arcStartY) + 2 * t * (end.y - midY);
-                const angle = Math.atan2(dy, dx);
+                    launchGridY + (targetGridY - launchGridY) * t);
+                pod.setDepth(theater.behindBox && t < chaosEnd01
+                    ? Math.min(trackDepth, boxDepth)
+                    : trackDepth);
+                // The rocket noses along its current leg, snapping at the
+                // kinks (the 16 baked rotations keep the snaps chunky).
+                const segA = waypoints[at.seg - 1];
+                const segB = waypoints[at.seg];
+                const angle = Math.atan2(segB.y - segA.y, segB.x - segA.x);
                 pod.setRotation(angle + Math.PI / 2);
                 if (podBaked) this.syncProjectileSprite(pod, 'dragon_rocket', rocketLevel, angle + Math.PI / 2);
                 else drawRocket();
+                // Streak continues seamlessly across the boost→arc seam:
+                // negative lookbacks sample the tail of the boost line.
+                drawTrail(back => {
+                    const tj = t - back * dtTrail;
+                    if (tj >= 0) return flightAt(tj);
+                    const ub = 1 + (tj * flightDuration) / 230;
+                    return ub > 0.02 ? boostAt(ub) : null;
+                });
 
-                // A tight ember ribbon — uniform glowing motes, no grey smog.
+                // A tight ember ribbon — uniform glowing motes riding the
+                // actual zigzag track, no grey smog.
                 const wantedEmbers = Math.floor(t * 18);
                 while (emittedArcEmbers < wantedEmbers) {
                     emittedArcEmbers++;
                     const emberT = emittedArcEmbers / 18;
-                    const emberX = startX + (end.x - startX) * emberT;
-                    const emberY = (1 - emberT) * (1 - emberT) * arcStartY
-                        + 2 * (1 - emberT) * emberT * midY
-                        + emberT * emberT * end.y;
+                    const emberAt = flightAt(emberT);
                     const ember = this.trackBattleFx(this.add.graphics());
                     ember.setBlendMode(Phaser.BlendModes.ADD);
                     pixelEllipse(ember, 0, 0, 2.2, 2.2, 0xffa14a, 0.8);
-                    ember.setPosition(emberX, emberY + 4);
+                    ember.setPosition(emberAt.x, emberAt.y + 4);
                     ember.setDepth(pod.depth - 1);
                     this.tweens.add({
                         targets: ember,
@@ -13110,6 +13523,7 @@ export class MainScene extends Phaser.Scene {
             },
             onComplete: this.replayPresentationCallback('dragon-impact', () => {
                 pod.destroy();
+                trail.destroy();
                 screenShake(this, 85, 0.0016);
                 // Impact layers sort with the world at the impact tile.
                 const fxDepth = depthForGroundEffect(targetGridX, targetGridY);
@@ -13121,6 +13535,62 @@ export class MainScene extends Phaser.Scene {
                 flash.setPosition(end.x, end.y);
                 flash.setDepth(fxDepth + 4);
                 this.tweens.add({ targets: flash, alpha: 0, scale: 2.3, duration: 110, onComplete: () => flash.destroy() });
+
+                // 1b — MARVELOUS FIREWORKS: the festival starburst. A brief
+                // white-gold air ring plus a radial burst of chunky two-tone
+                // sparks (gilt + lacquer-red, three white-hot ADD cores)
+                // thrown outward, hanging, then falling with gravity and
+                // winking out staggered. Every parameter hashes off
+                // (volleySeed, podIndex) — ZERO RNG draws added to the
+                // recorded 'dragon-impact' stream (PixelFx.ring is
+                // draw-free), so the ember/smoke sections below keep their
+                // exact draw ledger. The 50 ms launch cadence staggers 16
+                // bursts into a rolling finale; capped at 14 sparks + 1
+                // ring per burst.
+                this.trackBattleFx(PixelFx.ring(this, end.x, end.y - 6, {
+                    r0: 4, r1: 24 + h01('fw-ring') * 8, squash: 0.6, thick0: 2,
+                    color: 0xffe9b0, alpha: 0.9, life: 260,
+                    ease: 'Quad.easeOut', depth: fxDepth + 6,
+                    blend: Phaser.BlendModes.ADD
+                }));
+                const SPARKS = 14;
+                for (let k = 0; k < SPARKS; k++) {
+                    const core = k < 3;
+                    const sparkAngle = (k / SPARKS) * Math.PI * 2 + (h01(`fw-a:${k}`) - 0.5) * 0.5;
+                    const reach = 26 + h01(`fw-s:${k}`) * 26;
+                    const sparkLife = 520 + h01(`fw-l:${k}`) * 280;
+                    const gravity = 24 + h01(`fw-g:${k}`) * 12;
+                    const winkAt = 0.5 + h01(`fw-w:${k}`) * 0.35;
+                    const size = core ? 3.2 : 2.4 + h01(`fw-z:${k}`) * 0.8;
+                    const sparkColor = core ? 0xffe9b0 : (k % 2 === 0 ? 0xd8b25a : 0xd8564a);
+                    const spark = this.trackBattleFx(this.add.graphics()) as Phaser.GameObjects.Graphics & { fw01: number };
+                    if (core) spark.setBlendMode(Phaser.BlendModes.ADD);
+                    pixelRect(spark, -size / 2, -size / 2, size, size, sparkColor, 1);
+                    spark.setPosition(end.x, end.y - 6);
+                    spark.setDepth(fxDepth + 7);
+                    spark.fw01 = 0;
+                    this.tweens.add({
+                        targets: spark,
+                        fw01: 1,
+                        duration: sparkLife,
+                        ease: 'Linear',
+                        onUpdate: () => {
+                            if (!spark.active) return;
+                            const su = spark.fw01;
+                            // Outward throw decelerates, then gravity pulls
+                            // the spark down out of the sky.
+                            const throw01 = 1 - (1 - su) * (1 - su);
+                            spark.setPosition(
+                                end.x + Math.cos(sparkAngle) * reach * throw01,
+                                end.y - 6 + Math.sin(sparkAngle) * reach * 0.75 * throw01
+                                    + gravity * su * su
+                            );
+                            spark.setAlpha(su < winkAt ? 0.95
+                                : Math.max(0, 0.95 * (1 - (su - winkAt) / (1 - winkAt))));
+                        },
+                        onComplete: () => spark.destroy()
+                    });
+                }
 
                 // 2 — the bloom: three stacked fire tongues, hottest inside.
                 // Stepped redraw via PixelFx.flash (0.35→1.75 of the base

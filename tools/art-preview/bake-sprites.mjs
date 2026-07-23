@@ -5,7 +5,10 @@
 // removed Pixelate shader's math (CELL world-px cells, center-sampled),
 // anchored to the OBJECT. v3 bakes the full dynamic-state surface:
 //   - defenses: per-angle IDLE + per-angle FIRE sequences (recoil/tension/
-//     reload/charge drivers), tesla charge/charged
+//     reload/charge drivers), tesla charge/charged; the dragons_breath silo
+//     additionally bakes its deploy01 driver (1-angle 'dormant' ambient loop
+//     at deploy01=0 + 1-angle 'deploy' rise sweep, with deploy01=1 pinned
+//     through every aim-angle idle/fire frame)
 //   - mine/farm fillLevel stages, town-hall door, jukebox playing,
 //     ambient idle loops (auto-detected), vapor OFF (smoke is a
 //     runtime effect layer)
@@ -40,7 +43,10 @@ const UNITS = (process.env.UNITS ?? '').split(',').map(s => s.trim()).filter(Boo
 const LEVELS = process.env.LEVELS ? process.env.LEVELS.split(',').map(Number) : null // null = 1..maxLevel
 // Mortar snaps its barrel to discrete rotations from ballistaAngle and the
 // spike launcher aims too (found by the state-read audit) — both bake angles.
-const ROTATING = new Set(['cannon', 'ballista', 'xbow', 'mortar', 'spike_launcher'])
+// dragons_breath is a 16-angle aiming turret (2026-07 mechanics rework); the
+// promoted 'Ember-Wyrm Reliquary' art (Dragons_breathB) rotates for real and
+// adds the deploy01 silo driver — see the deploy-sweep constants below.
+const ROTATING = new Set(['cannon', 'ballista', 'xbow', 'mortar', 'spike_launcher', 'dragons_breath'])
 const ANGLES_ENV = process.env.ANGLES ? Math.max(1, Number(process.env.ANGLES)) : null
 const ANGLE = Number(process.env.ANGLE ?? 0.55)
 const VERIFY = process.env.VERIFY === '1'
@@ -165,7 +171,20 @@ const BUILDING_STATES = {
     fire: [{ fireAge: 0 }, { fireAge: 120 }, { fireAge: 320 }]
   },
   prism: { fire: [{ fireAge: 0 }, { fireAge: 120 }, { fireAge: 240 }] },
-  dragons_breath: { fire: [0, 150, 350, 700, 1100, 1600].map(a => ({ fireAge: a })) },
+  // Ember-Wyrm Reliquary volley clock (el = time − lastFireTime): serpentine
+  // 16-tube launch to 800, flares/recoil, bores cool to 1100, staggered
+  // refill 1150-1550, 1600 = recovered idle. Fire (like idle) bakes RISEN —
+  // deploy01=1 is pinned into every aim-angle body job (see DEPLOY_SWEEP).
+  // STRICT DOT↔LAUNCH (2026-07-22): keyframes ride the exact 50 ms launch
+  // cadence through the whole 16-pod window (0-850), so with the runtime's
+  // nearest-fireAge pick every red nose goes dark within ±25 ms of ITS
+  // rocket departing — and multiples of 50 all carry the identical peak
+  // recoil kick, keeping the dot grid registered frame to frame. Sparse
+  // tail covers cooldown + staggered refill.
+  dragons_breath: {
+    fire: [...Array.from({ length: 18 }, (_, k) => k * 50), 950, 1100, 1250, 1400, 1600]
+      .map(a => ({ fireAge: a }))
+  },
   // Spike launcher: the loader's 3000 ms reload pantomime (walk to arm tip,
   // throw the ball into the sling, winch back) was cut at 600 ms.
   spike_launcher: { fire: [0, 90, 200, 380, 600, 900, 1300, 1600, 1800, 2200, 2800].map(a => ({ fireAge: a })) },
@@ -174,6 +193,26 @@ const BUILDING_STATES = {
   town_hall: { door: [{ doorOpen: 0.5 }, { doorOpen: 1 }] },
   jukebox: { playing: [{ jukeboxPlaying: true, timeAt: 1000 }, { jukeboxPlaying: true, timeAt: 1400 }, { jukeboxPlaying: true, timeAt: 1800 }] }
 }
+// Deploy driver (GameTypes.deploy01 — today only the dragons_breath silo):
+// MainScene eases 0→1 cubic-out over DEPLOY_RISE_MS on battle entry and
+// snaps 0 at home. A draw fn that READS deploy01 (state-read audit, the
+// doorOpen self-heal precedent) bakes three extra surfaces:
+//   - 'dormant': 1-angle ambient loop at deploy01=0 — the pose HOME shows
+//     (the probe measures this pose, so its period IS the dormant loop);
+//   - 'deploy':  1-angle sweep of the exact eased positions MainScene emits,
+//     baked at the authored rise bearing (Dragons_breathB RISE_BEARING —
+//     the cover/riser never read aim before the 0.90-1 slew, and that slew
+//     bakes at this same stub bearing; the small nearest-frame pop at rise
+//     end is the accepted contract);
+//   - deploy01=1 pinned into every aim-angle idle/fire body job (without
+//     the pin the 16-angle sweeps would bake the shut dormant cover).
+const DEPLOY_RISE_MS = 1100                 // MainScene DRAGONS_BREATH_RISE_MS
+const DEPLOY_RISE_BEARING = Math.PI / 2     // Dragons_breathB RISE_BEARING (maw toward camera)
+const DEPLOY_FRAMES = 10
+const DEPLOY_SWEEP = Array.from({ length: DEPLOY_FRAMES }, (_, k) => {
+  const u = k / (DEPLOY_FRAMES - 1)
+  return Number((1 - Math.pow(1 - u, 3)).toFixed(4)) // cubic-out, evenly spaced in TIME
+})
 // Ambient idle motion (flags waving, watchman scanning, glints, spinning
 // rings) is DISCOVERED, not declared: the tool probes each building over 8 s,
 // autocorrelates changed-texel fractions to find the true motion period
@@ -279,7 +318,8 @@ try {
           teslaChargeStart: ov.chargeAge != null ? TIME - ov.chargeAge : 0,
           teslaCharged: ov.charged === true,
           fillLevel: ov.fillLevel ?? 1,
-          doorOpen: ov.doorOpen ?? 0
+          doorOpen: ov.doorOpen ?? 0,
+          deploy01: ov.deploy01 ?? 0
         }
         const g = scene.make.graphics({ x: 0, y: 0 }, false)
         B.drawBuildingVisual({
@@ -460,7 +500,7 @@ try {
       ballistaStringTension: 0, ballistaBoltLoaded: true, cannonRecoilOffset: 0,
       isFiring: false, lastFireTime: 500, teslaCharging: false, teslaChargeStart: 0,
       teslaCharged: false, fillLevel: 1,
-      doorOpen: 0, crewedUntil: 0
+      doorOpen: 0, deploy01: 0, crewedUntil: 0
     }
     const proxy = new Proxy(base, { get: (t, k) => { if (typeof k === 'string') reads.add(k); return t[k] } })
     const g = B.scene.make.graphics({ x: 0, y: 0 }, false)
@@ -494,7 +534,7 @@ try {
     fireAge: 'lastFireTime', tension: 'ballistaStringTension', bolt: 'ballistaBoltLoaded',
     recoil: 'cannonRecoilOffset', chargeAge: 'teslaCharging', charged: 'teslaCharged',
     fillLevel: 'fillLevel',
-    doorOpen: 'doorOpen', jukeboxPlaying: null, timeAt: null
+    doorOpen: 'doorOpen', deploy01: 'deploy01', jukeboxPlaying: null, timeAt: null
   }
   // Fields that are deliberately NOT swept (identity, sim bookkeeping, or
   // runtime-overlay drivers like the mine's visiting-crew flag).
@@ -546,8 +586,14 @@ try {
     if (reads.includes('doorOpen') && !plan.door) plan.door = [{ doorOpen: 0.5 }, { doorOpen: 1 }]
     if (reads.includes('fillLevel') && !plan.fill) plan.fill = [{ fillLevel: 0 }, { fillLevel: 0.34 }, { fillLevel: 0.67 }]
     if (reads.includes('lastFireTime') && !plan.fire) plan.fire = [0, 90, 200, 380, 600].map(a => ({ fireAge: a }))
+    // Deploy-driver self-heal (the doorOpen precedent): a draw fn that reads
+    // deploy01 gets the dormant loop + rise sweep built per level below (the
+    // dormant loop needs the probed ambient period), plus deploy01=1 pinned
+    // through every aim-angle idle/fire job — so the field counts as covered.
+    const deployable = reads.includes('deploy01')
     const covered = new Set([
       ...(nAngles > 1 ? ['ballistaAngle'] : []),
+      ...(deployable ? ['deploy01'] : []),
       ...Object.values(plan).flatMap(seq => seq.flatMap(ov => Object.keys(ov).map(k => OV_FIELD[k]).filter(Boolean)))
     ])
     const uncovered = reads.filter(k => !covered.has(k) && !AUDIT_IGNORE.has(k))
@@ -591,19 +637,46 @@ try {
         }
 
         // Build the job list: ground + per-angle idle(+loop) + per-angle states.
+        // Deployable turrets pin deploy01=1 into every aim-angle body job (the
+        // RISEN battery is what idle/fire mean at 16 bearings); a state's own
+        // explicit deploy01 (the dormant/deploy strips below) always wins.
+        // The ground pass stays unpinned: it bakes the home-canonical pad.
+        const risenPin = deployable ? { deploy01: 1 } : {}
         const jobs = [{ pass: 'ground', angle: angleList[0], ov: {} }]
         const index = [] // parallel to jobs[1:]: {state, angleIdx, frameIdx, ov}
         for (let a = 0; a < nAngles; a++) {
           idleTimes.forEach((t, k) => {
-            jobs.push({ pass: 'body', angle: angleList[a], ov: { timeAt: t } })
-            index.push({ state: 'idle', a, k, ov: { timeAt: t } })
+            const ov = { ...risenPin, timeAt: t }
+            jobs.push({ pass: 'body', angle: angleList[a], ov })
+            index.push({ state: 'idle', a, k, ov })
           })
           for (const [state, seq] of Object.entries(plan)) {
             seq.forEach((ov, k) => {
-              jobs.push({ pass: 'body', angle: angleList[a], ov: { ...ov } })
-              index.push({ state, a, k, ov })
+              const merged = { ...risenPin, ...ov }
+              jobs.push({ pass: 'body', angle: angleList[a], ov: merged })
+              index.push({ state, a, k, ov: merged })
             })
           }
+        }
+        // Deploy choreography — two SINGLE-ANGLE states at the authored rise
+        // bearing (manifest entries carry angles: 1; frame files drop the
+        // angle tag). 'dormant' loops the deploy01=0 ambient across the same
+        // probed period (the probe draws the default building state, i.e.
+        // THIS pose — it IS the dormant measurement); 'deploy' sweeps the
+        // exact eased positions MainScene emits, time advancing with the
+        // rise so ember phases stay faithful.
+        if (deployable && !wn) {
+          const dormantN = loopMs ? ambientFrameCount(loopMs) : 1
+          for (let k = 0; k < dormantN; k++) {
+            const ov = { deploy01: 0, timeAt: 1000 + Math.round(k * (loopMs ?? 0) / dormantN) }
+            jobs.push({ pass: 'body', angle: DEPLOY_RISE_BEARING, ov })
+            index.push({ state: 'dormant', a: 0, k, ov, singleAngle: true })
+          }
+          DEPLOY_SWEEP.forEach((v, k) => {
+            const ov = { deploy01: v, timeAt: 1000 + Math.round(k * DEPLOY_RISE_MS / (DEPLOY_SWEEP.length - 1)) }
+            jobs.push({ pass: 'body', angle: DEPLOY_RISE_BEARING, ov })
+            index.push({ state: 'deploy', a: 0, k, ov, singleAngle: true })
+          })
         }
         const frames = await bakeBuildingBatch(type, level, jobs, wn?.neighbors ?? null)
 
@@ -618,15 +691,23 @@ try {
         index.forEach((ix, i) => {
           const f = frames[i + 1]
           if (!f) return
-          const aTag = nAngles === 1 ? '' : `_a${String(ix.a).padStart(2, '0')}`
+          // Single-angle deploy states drop the angle tag (1-angle grammar).
+          const aTag = nAngles === 1 || ix.singleAngle ? '' : `_a${String(ix.a).padStart(2, '0')}`
           const name = `${type}_L${level}${vtag}_${ix.state}${ix.k}${aTag}.png`
           write64(join(dir, name), f.png)
+          const stAngles = ix.singleAngle ? 1 : nAngles
           entry.states[ix.state] = entry.states[ix.state] ?? {
-            angles: nAngles, frames: Array.from({ length: nAngles }, () => []),
-            ...(ix.state === 'idle' && loopMs ? { loopMs, loopExact: false } : {})
+            angles: stAngles, frames: Array.from({ length: stAngles }, () => []),
+            // Ambient loops replay at the probed period — the risen per-angle
+            // 'idle' and the buried 'dormant' share the one authored P.
+            ...((ix.state === 'idle' || ix.state === 'dormant') && loopMs ? { loopMs, loopExact: false } : {}),
+            // Deploy-sweep provenance: the runtime receives deploy01 already
+            // eased and picks by nearest ov.deploy01; these document the
+            // curve (MainScene cubic-out over riseMs) and the baked bearing.
+            ...(ix.state === 'deploy' ? { riseMs: DEPLOY_RISE_MS, riseBearing: DEPLOY_RISE_BEARING } : {})
           }
           entry.states[ix.state].frames[ix.a].push({ file: name, ...f.meta, ov: ix.ov })
-          store.states[ix.state] = store.states[ix.state] ?? Array.from({ length: nAngles }, () => [])
+          store.states[ix.state] = store.states[ix.state] ?? Array.from({ length: stAngles }, () => [])
           store.states[ix.state][ix.a].push(f.png)
         })
         if (wn) {

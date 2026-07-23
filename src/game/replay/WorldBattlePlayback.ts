@@ -227,6 +227,10 @@ export class WorldBattlePlayback {
      * and sprite reads this cache instead of independently crossing a
      * keyframe boundary (the old Tesla/Prism endpoint jump). */
     private readonly sampledTroops = new Map<string, SampledWorldBattleTroop>();
+    /** Per-battery wake/sleep ease state for the dragons_breath proximity
+     * deploy mirror (threatT = last replayT a live raider stood inside the
+     * wake radius; anchorT/from/target = the current ease leg). */
+    private readonly dragonDeploy = new Map<string, { threatT?: number; anchorT: number; from: number; target: 0 | 1 }>();
     private readonly buildingCarriers = new Map<string, Phaser.GameObjects.Graphics>();
     private readonly buildingMeta = new Map<string, BuildingVisualMeta>();
     private readonly wallIdsByCell = new Map<string, string>();
@@ -421,6 +425,7 @@ export class WorldBattlePlayback {
         this.carriers.clear();
         this.carrierFacing.clear();
         this.sampledTroops.clear();
+        this.dragonDeploy.clear();
         this.buildingCarriers.clear();
         this.airCarriers.clear();
         this.troopDeaths.clear();
@@ -1606,7 +1611,15 @@ export class WorldBattlePlayback {
                 lastFireTime: meta.lastFireTime,
                 teslaCharging: meta.teslaCharging,
                 teslaChargeStart: meta.teslaChargeStart,
-                teslaCharged: meta.teslaCharged
+                teslaCharged: meta.teslaCharged,
+                // Deployables (dragons_breath) mirror MainScene's PROXIMITY
+                // wake/sleep driver on the playback clock and this tick's
+                // sampled troops: risen while raiders are near, sunk back
+                // into the dormant idol whenever the wake radius stays
+                // empty — mid-battle included.
+                deploy01: meta.type === 'dragons_breath'
+                    ? this.dragonDeploy01(meta, replayT)
+                    : 0
             };
             const gx = this.placement.gridOffsetX + meta.gridX;
             const gy = this.placement.gridOffsetY + meta.gridY;
@@ -1930,6 +1943,45 @@ export class WorldBattlePlayback {
                 ProjectileRenderer.drawDragonRocket(carrier, 1, 0);
             }
         }
+    }
+
+    /** PROXIMITY wake/sleep mirror of MainScene's dragons_breath deploy
+     * driver: rises (1100 ms cubic-out) while any live raider stands inside
+     * (fire range + 3 tiles) of the footprint center, sinks back (900 ms)
+     * once the radius has been empty for the 2500 ms grace — a dormant idol
+     * otherwise, mid-battle included. Playback-clock restarts reset the
+     * anchors (same stale-future-stamp guard as MainScene). */
+    private dragonDeploy01(meta: BuildingVisualMeta, replayT: number): number {
+        const def = getBuildingStats(meta.type, meta.level);
+        const wakeCX = meta.gridX + (def.width ?? 3) / 2;
+        const wakeCY = meta.gridY + (def.height ?? 3) / 2;
+        const wakeR = (def.range ?? 13) + 3;
+        let threat = false;
+        for (const troop of this.model.troops.values()) {
+            if (troop.health <= 0) continue;
+            const at = this.sampledTroops.get(troop.id) ?? troop;
+            if (Math.hypot(at.gridX - wakeCX, at.gridY - wakeCY) <= wakeR) { threat = true; break; }
+        }
+        let state = this.dragonDeploy.get(meta.id);
+        if (!state || state.anchorT > replayT
+            || (state.threatT !== undefined && state.threatT > replayT)) {
+            state = { anchorT: replayT, from: 0, target: 0 };
+            this.dragonDeploy.set(meta.id, state);
+        }
+        if (threat) state.threatT = replayT;
+        const wake = threat
+            || (state.threatT !== undefined && replayT - state.threatT < 2500);
+        const target: 0 | 1 = wake ? 1 : 0;
+        if (state.target !== target) {
+            // Freeze the current eased value as the new leg's start.
+            const u0 = Math.min(1, Math.max(0, (replayT - state.anchorT) / (state.target === 1 ? 1100 : 900)));
+            state.from = state.from + (state.target - state.from) * (1 - Math.pow(1 - u0, 3));
+            state.target = target;
+            state.anchorT = replayT;
+        }
+        const dur = target === 1 ? 1100 : 900;
+        const u = Math.min(1, Math.max(0, (replayT - state.anchorT) / dur));
+        return state.from + (state.target - state.from) * (1 - Math.pow(1 - u, 3));
     }
 
     private drawAirPresentationPrimitives(

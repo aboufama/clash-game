@@ -221,9 +221,9 @@ assert.match(davinciTankSource, /const eff = facingAngle \+ spin \* BAY;/,
   'Da Vinci Tank art must derive every angle from the one-bay spin driver (the seam law)');
 assert.match(davinciTankSource, /Math\.pow\(Math\.max\(0, 1 - spin \/ 0\.8\), 1\.5\)/,
   'Da Vinci Tank recoil must fully recuperate by spin01=0.8 so the spin seam stays byte-identical');
-assert.match(mainSceneSource, /troop\.tankSpin01\s*=\s*rotationTarget\.spin01[\s\S]*?troop\.facingAngle\s*=\s*Phaser\.Math\.Angle\.Normalize\(newAngle\)[\s\S]*?troop\.tankSpin01\s*=\s*0/,
+assert.match(mainSceneSource, /troop\.tankSpin01\s*=\s*rotation\.spin01[\s\S]*?troop\.facingAngle\s*=\s*Phaser\.Math\.Angle\.Normalize\(newAngle\)[\s\S]*?troop\.tankSpin01\s*=\s*0/,
   'live tank attacks must drive intermediate poses before committing the next bay');
-assert.match(mainSceneSource, /aimAngleToTarget\s*=\s*Math\.atan2\([\s\S]*?targetPos\.y\s*-\s*tankPos\.y\)\s*\*\s*2[\s\S]*?relativeAim[\s\S]*?muzzleOffset\s*=\s*45/,
+assert.match(mainSceneSource, /aimAngleToTarget\s*=\s*Math\.atan2\([\s\S]*?targetPos\.y\s*-\s*tankPos\.y\)\s*\*\s*2[\s\S]*?relativeAim[\s\S]*?Math\.cos\(firingAngle\)\s*\*\s*45/,
   'Da Vinci shots must choose a cannon in unprojected aim space and leave from its 45 px barrel tip');
 assert.match(mainSceneSource, /nextFacing[\s\S]*?angleStep[\s\S]*?nextT\s*-\s*baySteps\s*\*\s*200[\s\S]*?troop\.tankSpin01\s*=\s*turns\s*-\s*completedTurns/,
   'replay playback must reconstruct every 200 ms tank spin between coarse heading samples');
@@ -261,7 +261,13 @@ const gatePurgeSources = [
 ];
 for (const file of gatePurgeSources) {
   const source = readFileSync(file, 'utf8');
-  assert.doesNotMatch(source, /\bisGate\b|wallGateRecomputeAt|scheduleGateRecompute|recomputeWallGates|GATE_GAP|m(?:NS|EW)_gate/,
+  // IntroBattle.ts owns a local `isGate(cell, ring)` layout helper for the
+  // scripted first-battle base — a name collision, not the removed automatic
+  // wall-gate runtime feature. Every other purge token still applies to it.
+  const gatePattern = path.basename(file) === 'IntroBattle.ts'
+    ? /wallGateRecomputeAt|scheduleGateRecompute|recomputeWallGates|GATE_GAP|m(?:NS|EW)_gate/
+    : /\bisGate\b|wallGateRecomputeAt|scheduleGateRecompute|recomputeWallGates|GATE_GAP|m(?:NS|EW)_gate/;
+  assert.doesNotMatch(source, gatePattern,
     `${path.relative(root, file)} reintroduces the removed automatic wall-gate feature`);
 }
 
@@ -729,16 +735,16 @@ assert.equal(emittedPngs.some(file => /^buildings\/wall\/.*_gate_/.test(file)), 
 const normalFramesByKind = { ...framesByKind };
 delete normalFramesByKind.troop_deaths;
 assert.deepEqual(normalFramesByKind,
-  { buildings: 7_949, figures: 168, obstacles: 872, projectiles: 326, troops: 21_168, villagers: 2_924, wrecks: 76 },
-  'the 33,483-frame normal sprite bank is incomplete');
+  { buildings: 9_333, figures: 168, obstacles: 872, projectiles: 326, troops: 21_168, villagers: 2_924, wrecks: 78 },
+  'the 34,869-frame normal sprite bank is incomplete');
 assert.equal(Object.entries(framesByKind)
   .filter(([kind]) => kind !== 'troop_deaths')
-  .reduce((total, [, frames]) => total + frames, 0), 33_483,
+  .reduce((total, [, frames]) => total + frames, 0), 34_869,
   'the packed normal sprite bank changed frame count');
 assert.equal(framesByKind.troop_deaths, 3_888,
   'death bank must include exactly the six canonical large-troop atlases');
-assert.equal(frameCount, 37_371,
-  '7,949 building + 21,168 troop + 3,888 death + 76 wreck + 872 obstacle + 2,924 villager + 168 figure + 326 projectile frames');
+assert.equal(frameCount, 38_757,
+  '9,333 building + 21,168 troop + 3,888 death + 78 wreck + 872 obstacle + 2,924 villager + 168 figure + 326 projectile frames');
 assert.deepEqual(emittedPngs.sort(), [...atlasPackedPngs].sort(),
   'every emitted sprite PNG must be packed into exactly one unit atlas');
 for (const png of referencedPngs) {
