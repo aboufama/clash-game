@@ -7326,8 +7326,15 @@ export class MainScene extends Phaser.Scene {
         const xbowLevel = xbow.level ?? 1;
         const arrow = this.trackBattleFx(this.add.graphics());
 
-        const arrowStartX = start.x;
-        const arrowStartY = start.y - 20;
+        // Bolts leave the TIP of the bow, not the building center: from the
+        // weapon pivot (deck height −20) push forward along the shot line to
+        // where the drawn bow's nose sits. `angle` is screen-space, so the
+        // (cos, sin) step already carries the iso foreshortening; the baked
+        // sprite quantizes to 16 buckets, so the ≤11.25° mismatch moves the
+        // origin under 3 px — invisible at the muzzle flash.
+        const XBOW_MUZZLE_PX = 16;
+        const arrowStartX = start.x + Math.cos(angle) * XBOW_MUZZLE_PX;
+        const arrowStartY = start.y - 20 + Math.sin(angle) * XBOW_MUZZLE_PX;
         arrow.setPosition(arrowStartX, arrowStartY);
         arrow.setRotation(angle);
         arrow.setDepth(depthForProjectile(launchGX, launchGY));
