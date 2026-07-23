@@ -1510,7 +1510,12 @@ export class MainScene extends Phaser.Scene {
         const site = hall ?? fallenSite!;
         const g = this.hallBannerGfx;
         g.clear();
-        g.setDepth(depthForBuilding(site.gridX, site.gridY, 'town_hall') + 1);
+        // Roof flag sorts with the hall; the FALLEN flag stands at the
+        // plot's south corner and must sort with THAT row, or the wreck's
+        // rubble and props on the rows between paint over it.
+        g.setDepth(hall && hall.health > 0
+            ? depthForBuilding(site.gridX, site.gridY, 'town_hall') + 1
+            : depthForBuilding(site.gridX + 2, site.gridY + 2, 'town_hall') + 2);
         if (hall && hall.health > 0) {
             const apex = IsoUtils.cartToIso(
                 hall.gridX + (def?.width ?? 3) / 2,
