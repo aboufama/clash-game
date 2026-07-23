@@ -106,6 +106,9 @@ const DRAGONS_BREATH_SINK_MS = 900;
  *  leaves the wake radius before sinking back into the dragon head. */
 const DRAGONS_BREATH_SLEEP_GRACE_MS = 2500;
 
+/** The torn-down hall's standard: roof-apex topple, stab, keel and settle. */
+const HALL_STANDARD_FALL_MS = 950;
+
 const CLOCKWORK_BEETLE_LATCH_TILT_RADIANS = Math.PI / 18; // 10° grab angle
 
 /** The replay stream already carries the beetle's vertical latch offset, so
@@ -434,7 +437,7 @@ export class MainScene extends Phaser.Scene {
     private hallBannerDesignKey = '';
     /** Where a torn-down hall stood: destroyBuilding SPLICES the building out
      *  of this.buildings, so the fallen standard needs the site remembered. */
-    private fallenHallSite: { gridX: number; gridY: number } | null = null;
+    private fallenHallSite: { gridX: number; gridY: number; level: number; at: number } | null = null;
     /** Invalidates network continuations when this scene is stopped/destroyed. */
     private lifecycleEpoch = 0;
 
@@ -1510,12 +1513,12 @@ export class MainScene extends Phaser.Scene {
         const site = hall ?? fallenSite!;
         const g = this.hallBannerGfx;
         g.clear();
-        // Roof flag sorts with the hall; the FALLEN flag stands at the
-        // plot's south corner and must sort with THAT row, or the wreck's
-        // rubble and props on the rows between paint over it.
+        // Roof flag sorts with the hall; the FALLEN flag lands amid the
+        // ruins and must sort with the plot's middle row, or the wreck's
+        // rubble paints over it.
         g.setDepth(hall && hall.health > 0
             ? depthForBuilding(site.gridX, site.gridY, 'town_hall') + 1
-            : depthForBuilding(site.gridX + 2, site.gridY + 2, 'town_hall') + 2);
+            : depthForBuilding(site.gridX + 1, site.gridY + 1, 'town_hall') + 2);
         if (hall && hall.health > 0) {
             const apex = IsoUtils.cartToIso(
                 hall.gridX + (def?.width ?? 3) / 2,
@@ -1526,14 +1529,22 @@ export class MainScene extends Phaser.Scene {
         } else {
             // Fallen (hall at 0 health, or already spliced out by
             // destroyBuilding — fallenHallSite remembers where it stood):
-            // planted on the lawn just inside the plot's south corner,
-            // outside the hall's 0.62 inset and its 0.76 stone border,
-            // clear of the wreck rubble.
-            const foot = IsoUtils.cartToIso(
-                site.gridX + (def?.width ?? 3) * 0.94,
-                site.gridY + (def?.height ?? 3) * 0.94
-            );
-            drawFallenVillageFlag(g, foot.x, foot.y, time, this.hallBannerDesign, 1);
+            // the standard visibly topples off the roof apex over
+            // HALL_STANDARD_FALL_MS and lands IN the ruins, planted just
+            // south of the plot centre among the rubble.
+            const w = def?.width ?? 3;
+            const h = def?.height ?? 3;
+            const foot = IsoUtils.cartToIso(site.gridX + w * 0.5, site.gridY + h * 0.62);
+            const apex = IsoUtils.cartToIso(site.gridX + w / 2, site.gridY + h / 2);
+            const level = hall?.level ?? fallenSite?.level ?? 1;
+            const fall01 = fallenSite
+                ? Phaser.Math.Clamp((time - fallenSite.at) / HALL_STANDARD_FALL_MS, 0, 1)
+                : 1;
+            drawFallenVillageFlag(g, foot.x, foot.y, time, this.hallBannerDesign, 1, {
+                fall01,
+                fromX: apex.x,
+                fromY: apex.y - townHallApexLift(level)
+            });
         }
     }
 
@@ -8264,7 +8275,12 @@ export class MainScene extends Phaser.Scene {
         // The hall entry is spliced out below; the fallen standard plants at
         // the remembered site until the next world swap clears it.
         if (b.type === 'town_hall') {
-            this.fallenHallSite = { gridX: b.gridX, gridY: b.gridY };
+            this.fallenHallSite = {
+                gridX: b.gridX,
+                gridY: b.gridY,
+                level: b.level ?? 1,
+                at: this.time.now
+            };
         }
         if (this.mode === 'ATTACK' && b.owner === 'ENEMY') {
             this.replayDestroyedBuildings.set(b.id, {

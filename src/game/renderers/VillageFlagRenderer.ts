@@ -294,12 +294,13 @@ function dulled(color: number, k: number): number {
 
 /**
  * The dropped standard. When the hall it flew from is torn down, the pole
- * falls from the roof and stabs into the lawn at a hard lean — still
- * standing, only just. The cloth hangs dead along the upper pole, dyes
- * deadened, the fly edge torn to rags; the gold finial lies thrown clear in
- * the grass. Every tear and every sway is deterministic (`design` + `time`),
- * and the heraldry still reads through the soot — same field/emblem code
- * path as the flying banner.
+ * FALLS from the roof (pass `fall01` + the apex in `fromX/fromY`): a free
+ * fall with the cloth still bright and streaming, the stab into the ground,
+ * a keel past the final lean, then the settle — soot and rags arrive with
+ * the impact. At rest it stands amid the ruins, only just: dyes deadened,
+ * the fly edge torn, the gold finial thrown clear. Every tear and every
+ * sway is deterministic (`design` + `time`), and the heraldry still reads
+ * through the soot — same field/emblem code path as the flying banner.
  */
 export function drawFallenVillageFlag(
     g: Phaser.GameObjects.Graphics,
@@ -308,35 +309,78 @@ export function drawFallenVillageFlag(
     time: number,
     design: FlagDesign,
     facing = 1,
-    opts: { poleH?: number; clothW?: number; clothH?: number } = {}
+    opts: {
+        poleH?: number; clothW?: number; clothH?: number;
+        /** 0 = still on the roof, 1 = settled in the ruins (default 1). */
+        fall01?: number;
+        /** Apex the pole falls from (the roof flag's foot). */
+        fromX?: number; fromY?: number;
+    } = {}
 ) {
     const poleH = opts.poleH ?? 30;
     const clothW = opts.clothW ?? 22;
     const clothH = opts.clothH ?? 14;
+    const fall = Math.max(0, Math.min(1, opts.fall01 ?? 1));
+
+    // Phase A — free fall: the whole standard drops from the apex under
+    // gravity, cloth flailing exactly like the live banner (colours still
+    // bright; the crash is what ruins it).
+    if (fall < 0.55 && opts.fromX !== undefined && opts.fromY !== undefined) {
+        const u = fall / 0.55;
+        const drop = u * u;
+        const anchorX = opts.fromX + (x - opts.fromX) * drop + facing * 6 * u * (1 - u);
+        const anchorY = opts.fromY + (groundY - opts.fromY) * drop;
+        drawVillageFlag(g, anchorX, anchorY, time, design, facing, {
+            poleH, clothW, clothH: clothH + 3, amp: 2.4,
+            stream: { dir: facing * 0.7, speed: 1.3, climb: -0.9 }
+        });
+        return;
+    }
+
+    // Planted. Phase B keels past the final lean, phase C settles back.
+    const FINAL_LEAN = 0.72;
+    let leanAngle = FINAL_LEAN;
+    if (fall < 0.8) {
+        const u = (fall - 0.55) / 0.25;
+        const s = u * u * (3 - 2 * u);
+        leanAngle = 0.22 + (0.86 - 0.22) * s;
+    } else if (fall < 1) {
+        const u = (fall - 0.8) / 0.2;
+        leanAngle = 0.86 + (FINAL_LEAN - 0.86) * u;
+    }
     const worn: FlagDesign = {
         ...design,
         field: dulled(design.field, 0.72),
         field2: dulled(design.field2, 0.72),
         metal: dulled(design.metal, 0.82)
     };
-
-    // The lean: ~41 degrees off vertical, tip toward the fly side — felled
-    // hard, standing only just.
-    const lean = { x: facing * 0.66, y: -0.75 };
-    const at = (d: number): [number, number] => [x + lean.x * d, groundY + lean.y * d];
+    const dirX = Math.sin(leanAngle) * facing;
+    const dirY = -Math.cos(leanAngle);
+    const at = (d: number): [number, number] => [x + dirX * d, groundY + dirY * d];
     const [tipX, tipY] = at(poleH);
+    const ragged = fall >= 0.8;
 
-    // Stab scar where it hit, and the finial ball thrown clear, gone dull.
+    // Stab scar where it hit, impact dust blooming out, and the finial ball
+    // thrown clear, gone dull.
     pixelEllipse(g, x, groundY + 1, 5.2, 2.3, 0x241c10, 0.3);
     pixelRect(g, x - 2.4, groundY - 0.5, 1.4, 1.1, 0x4a3a22, 0.9);
     pixelRect(g, x + 1.1, groundY + 0.7, 1.6, 1, 0x3c2f1c, 0.9);
+    if (fall < 1) {
+        const du = (fall - 0.55) / 0.45;
+        const spread = 4 + du * 10;
+        const dustA = 0.55 * (1 - du);
+        pixelEllipse(g, x - spread, groundY + 0.6, 1.7, 1, 0xb9a98c, dustA);
+        pixelEllipse(g, x + spread, groundY + 0.3, 1.9, 1.1, 0xb9a98c, dustA);
+        pixelEllipse(g, x + spread * 0.4, groundY + 1.7, 1.4, 0.9, 0xa6987c, dustA * 0.8);
+        pixelEllipse(g, x - spread * 0.5, groundY + 1.9, 1.2, 0.8, 0xa6987c, dustA * 0.7);
+    }
     pixelEllipse(g, x - facing * 6.6, groundY + 1.6, 2, 1.4, 0x8a7430, 1);
     pixelEllipse(g, x - facing * 7.1, groundY + 1.1, 0.7, 0.6, 0xb59a54, 1);
 
     // The cloth: slid down the leaning pole and hung dead along it. Columns
     // are one pixel cell wide, marching from the tip back toward the foot;
     // each hangs straight down from the pole line. Tears deepen toward the
-    // loose end — torn once per design, never per frame.
+    // loose end — torn once per design at the crash, never per frame.
     const spanX = Math.min(clothW, Math.abs(tipX - x) * 0.85);
     const cols = Math.max(4, Math.round(spanX / PIXEL_CELL));
     const rows = Math.max(3, Math.round(clothH / PIXEL_CELL));
@@ -347,7 +391,7 @@ export function drawFallenVillageFlag(
         const t = (xc - x) / (tipX - x || 1);
         const topY = groundY + (tipY - groundY) * t;
         const sway = Math.sin(time * 0.0016 + design.phase + u * 1.7) * (0.35 + u * 0.55);
-        const torn = rag() * 0.62 * u + (rag() < 0.16 ? 0.3 : 0);
+        const torn = ragged ? rag() * 0.62 * u + (rag() < 0.16 ? 0.3 : 0) : 0;
         const len = clothH * (0.94 - 0.22 * u) * (1 - torn);
         const colX = Math.min(xc, xc - facing * PIXEL_CELL) + (facing > 0 ? 0 : PIXEL_CELL);
         let runStart = 0;
@@ -360,7 +404,7 @@ export function drawFallenVillageFlag(
         for (let row = 0; row < rows; row++) {
             const v = (row + 0.5) / rows;
             const within = (row / rows) * clothH <= len;
-            const hole = within && row > 0 && rag() < 0.06;
+            const hole = within && ragged && row > 0 && rag() < 0.06;
             const color = within && !hole ? fieldAt(worn, u, v) : null;
             if (color !== runColor) {
                 flush(row);
@@ -371,10 +415,12 @@ export function drawFallenVillageFlag(
         flush(rows);
     }
 
-    // The charge, dulled but legible, where the cloth still holds together.
-    const emblemX = tipX - facing * spanX * 0.3;
-    const emblemT = (emblemX - x) / (tipX - x || 1);
-    drawEmblem(g, worn, emblemX, groundY + (tipY - groundY) * emblemT + clothH * 0.52, clothH * 0.58);
+    // The charge, dulled but legible, once the cloth has settled.
+    if (fall >= 0.9) {
+        const emblemX = tipX - facing * spanX * 0.3;
+        const emblemT = (emblemX - x) / (tipX - x || 1);
+        drawEmblem(g, worn, emblemX, groundY + (tipY - groundY) * emblemT + clothH * 0.52, clothH * 0.58);
+    }
 
     // The pole over the cloth: ash gone grey, tip splintered where the
     // finial tore away.
