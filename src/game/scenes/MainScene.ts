@@ -1998,8 +1998,11 @@ export class MainScene extends Phaser.Scene {
                 // (WorldBattlePlayback mirrors this rule on its sampled
                 // troops). The +3-tile buffer finishes the rise before
                 // walkers reach the range ring; fire visuals keep the
-                // design's own deploy01 > 0.5 gate for fast edge cases and
-                // the sim never gates on deploy. HOME/scout snaps 0.
+                // design's own deploy01 > 0.5 gate for fast edge cases, and
+                // the live fire scheduler holds the OPENING volley until
+                // deploy01 = 1 (executeDefenseFire returns false with the
+                // cooldown unconsumed — owner rule 2026-07-22). HOME/scout
+                // snaps 0.
                 if (b.type === 'dragons_breath') {
                     const battleLive = (this.mode === 'ATTACK' && !this.isScouting) || this.mode === 'REPLAY';
                     if (battleLive && !b.isDestroyed && b.health > 0) {
@@ -4801,6 +4804,14 @@ export class MainScene extends Phaser.Scene {
         // ball is airborne. Preserve that scheduler contract and do not
         // publish a phantom fire event or consume the cooldown.
         if (weapon === 'cannon' && defense.isFiring) return false;
+        // The Dragon's Breath holds its opening volley until the battery has
+        // FULLY risen (deploy01 = 1; proximity wake starts the rise at
+        // range + 3 tiles). Returning false leaves the cooldown unconsumed,
+        // so the first salvo leaves the instant emergence completes. Live
+        // battles only: replay watch re-plays recorded fire events directly,
+        // and the home/showcase harness never runs a deploy cycle.
+        if (weapon === 'dragons-breath' && this.mode === 'ATTACK'
+            && (defense.deploy01 ?? 0) < 1) return false;
         const info = BUILDINGS[defense.type];
         if (!info) return;
         const sourceX = defense.gridX + info.width / 2;
