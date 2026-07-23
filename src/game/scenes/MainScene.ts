@@ -432,6 +432,9 @@ export class MainScene extends Phaser.Scene {
     private hallBannerGfx: Phaser.GameObjects.Graphics | null = null;
     private hallBannerDesign: FlagDesign | null = null;
     private hallBannerDesignKey = '';
+    /** Where a torn-down hall stood: destroyBuilding SPLICES the building out
+     *  of this.buildings, so the fallen standard needs the site remembered. */
+    private fallenHallSite: { gridX: number; gridY: number } | null = null;
     /** Invalidates network continuations when this scene is stopped/destroyed. */
     private lifecycleEpoch = 0;
 
@@ -1486,7 +1489,9 @@ export class MainScene extends Phaser.Scene {
         const meta = this.villageBannerMeta;
         const explicitBanner = sanitizeVillageBanner(meta?.banner);
         const hall = meta ? this.buildings.find(b => b.type === 'town_hall') : undefined;
-        if (!meta || !hall || (!explicitBanner && !meta.allowFallback)) {
+        if (hall) this.fallenHallSite = null;
+        const fallenSite = !hall && meta ? this.fallenHallSite : null;
+        if (!meta || (!hall && !fallenSite) || (!explicitBanner && !meta.allowFallback)) {
             if (this.hallBannerGfx) {
                 this.hallBannerGfx.destroy();
                 this.hallBannerGfx = null;
@@ -1501,11 +1506,12 @@ export class MainScene extends Phaser.Scene {
             this.hallBannerDesignKey = key;
         }
         if (!this.hallBannerGfx) this.hallBannerGfx = this.add.graphics();
-        const def = BUILDINGS[hall.type];
+        const def = BUILDINGS['town_hall'];
+        const site = hall ?? fallenSite!;
         const g = this.hallBannerGfx;
         g.clear();
-        g.setDepth(depthForBuilding(hall.gridX, hall.gridY, 'town_hall') + 1);
-        if (hall.health > 0) {
+        g.setDepth(depthForBuilding(site.gridX, site.gridY, 'town_hall') + 1);
+        if (hall && hall.health > 0) {
             const apex = IsoUtils.cartToIso(
                 hall.gridX + (def?.width ?? 3) / 2,
                 hall.gridY + (def?.height ?? 3) / 2
@@ -1513,12 +1519,14 @@ export class MainScene extends Phaser.Scene {
             drawVillageFlag(g, apex.x, apex.y - townHallApexLift(hall.level ?? 1), time,
                 this.hallBannerDesign, 1, { poleH: 32, clothW: 30, clothH: 19, amp: 2 });
         } else {
-            // Fallen: planted on the lawn just inside the plot's south
-            // corner — outside the hall's 0.62 inset AND its 0.76 stone
-            // border, clear of the wreck rubble.
+            // Fallen (hall at 0 health, or already spliced out by
+            // destroyBuilding — fallenHallSite remembers where it stood):
+            // planted on the lawn just inside the plot's south corner,
+            // outside the hall's 0.62 inset and its 0.76 stone border,
+            // clear of the wreck rubble.
             const foot = IsoUtils.cartToIso(
-                hall.gridX + (def?.width ?? 3) * 0.94,
-                hall.gridY + (def?.height ?? 3) * 0.94
+                site.gridX + (def?.width ?? 3) * 0.94,
+                site.gridY + (def?.height ?? 3) * 0.94
             );
             drawFallenVillageFlag(g, foot.x, foot.y, time, this.hallBannerDesign, 1);
         }
@@ -8208,6 +8216,11 @@ export class MainScene extends Phaser.Scene {
 
         if (b.isDestroyed) return;
         b.isDestroyed = true;
+        // The hall entry is spliced out below; the fallen standard plants at
+        // the remembered site until the next world swap clears it.
+        if (b.type === 'town_hall') {
+            this.fallenHallSite = { gridX: b.gridX, gridY: b.gridY };
+        }
         if (this.mode === 'ATTACK' && b.owner === 'ENEMY') {
             this.replayDestroyedBuildings.set(b.id, {
                 id: b.id,
@@ -10891,6 +10904,7 @@ export class MainScene extends Phaser.Scene {
         // The standard comes down with the village; the next world (home or
         // enemy) re-plants its own in applyWorldToScene/instantiateEnemyWorld.
         this.villageBannerMeta = null;
+        this.fallenHallSite = null;
         this.hallBannerGfx?.destroy();
         this.hallBannerGfx = null;
 
